@@ -1,0 +1,9 @@
+port: 8338
+baidu_sk: YOUR-BAIDU-SK
+black_list_host:
+  - "baijiahao.baidu.com"
+  - "csdn.net" 
+  - "csdn.com" 
+  - "gitcode.com"
+  - "gitcode.net"
+  - "baidu.com"

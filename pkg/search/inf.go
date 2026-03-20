@@ -28,7 +28,7 @@ type baiduSearchTypeFliter struct {
 
 type baiduSearchReq struct {
 	Message    []baiduSearchMsg      `json:"messages"`
-	TypeFliter baiduSearchTypeFliter `json:"resource_type_filter"`
+	TypeFliter []baiduSearchTypeFliter `json:"resource_type_filter"`
 	BlackSites []string              `json:"block_websites"`
 	Recency    string                `json:"search_recency_filter"`
 }
@@ -70,10 +70,10 @@ func NewBaiduSeach(sk string, blacklist []string) *BaiduSearchImpl {
 }
 
 func (b *BaiduSearchImpl) Search(query string, summary bool) (string, error) {
-	req := baiduSearchReq{Message: []baiduSearchMsg{{Content: query, Role: "user"}}, TypeFliter: baiduSearchTypeFliter{Type: "web", TopK: 10}, BlackSites: b.blacklist,
+	req := baiduSearchReq{Message: []baiduSearchMsg{{Content: query, Role: "user"}}, TypeFliter: []baiduSearchTypeFliter{{Type: "web", TopK: 10}}, BlackSites: b.blacklist,
 		Recency: "semiyear"}
 	rep := baidSearchReponse{}
-	_, err := client.DefaultClient.R().SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", b.sk)).SetBody(req).SetResult(rep).Post(b.hostUlr)
+	res, err := client.DefaultClient.R().SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", b.sk)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
 	if err != nil {
 		if rep.Message != "" {
 			return "", fmt.Errorf("百度搜索api 调用失败，%s", rep.Message)
@@ -81,7 +81,7 @@ func (b *BaiduSearchImpl) Search(query string, summary bool) (string, error) {
 		return "", fmt.Errorf("百度搜索api 调用失败，%w", err)
 	}
 	if len(rep.References) == 0 {
-		return "", fmt.Errorf("百度搜索api 内容为空")
+		return "", fmt.Errorf("百度搜索api 内容为空 %+v",res)
 	}
 	ret := md.MDSearchHeader(query, len(rep.References))
 	for i, val := range rep.References {

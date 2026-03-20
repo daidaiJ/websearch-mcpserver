@@ -15,7 +15,7 @@ import (
 
 func RunServer(port int) {
 	// Create an MCP server.
-	url := fmt.Sprintf("localhost:%d", port)
+	url := fmt.Sprintf(":%d", port)
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "websearch server",
 		Version: "1.0.0",
@@ -36,7 +36,7 @@ func RunServer(port int) {
 	}, nil)
 
 	log.Printf("MCP server listening on %s", url)
-	log.Printf("Available tool: cityTime (cities: nyc, sf, boston)")
+	log.Printf("Available tool: websearch tool")
 
 	// 2. 手动创建 http.Server 实例（关键：不再直接用 ListenAndServe 快捷方法）
 	svc := &http.Server{

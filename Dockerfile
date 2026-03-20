@@ -8,12 +8,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # 下载依赖（使用-alpine镜像时需要安装git）
-RUN apk add --no-cache git && \
-    go mod download
 
 # 复制源代码
 COPY . .
-
+RUN go env -w GOPROXY=https://goproxy.cn,direct
 # 构建二进制文件（静态链接，适用于alpine）
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o websearch ./cmd/main.go
 
@@ -30,7 +28,7 @@ WORKDIR /root/
 COPY --from=builder /app/websearch .
 
 # 复制配置文件
-COPY --from=builder /app/config.toml .
+COPY --from=builder /app/config.yaml .
 
 # 暴露端口（根据main.go中的conf.Port）
 EXPOSE 8338

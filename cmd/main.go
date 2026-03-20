@@ -11,6 +11,7 @@ func main() {
 		panic(err)
 	}
 
+	mcpserver.Init(conf)
 	mcpserver.RunServer(conf.Port)
 
 }
