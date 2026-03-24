@@ -2,8 +2,8 @@ package mcpserver
 
 import (
 	"context"
-	"log"
 	"time"
+	"websearch/pkg/log"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -20,7 +20,7 @@ func createLoggingMiddleware() mcp.Middleware {
 			sessionID := req.GetSession().ID()
 
 			// Log request details.
-			log.Printf("[REQUEST] Session: %s | Method: %s",
+			log.Infof("[REQUEST] Session: %s | Method: %s",
 				sessionID,
 				method)
 
@@ -31,13 +31,13 @@ func createLoggingMiddleware() mcp.Middleware {
 			duration := time.Since(start)
 
 			if err != nil {
-				log.Printf("[RESPONSE] Session: %s | Method: %s | Status: ERROR | Duration: %v | Error: %v",
+				log.Infof("[RESPONSE] Session: %s | Method: %s | Status: ERROR | Duration: %v | Error: %v",
 					sessionID,
 					method,
 					duration,
 					err)
 			} else {
-				log.Printf("[RESPONSE] Session: %s | Method: %s | Status: OK | Duration: %v",
+				log.Infof("[RESPONSE] Session: %s | Method: %s | Status: OK | Duration: %v",
 					sessionID,
 					method,
 					duration)

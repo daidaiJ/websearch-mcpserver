@@ -14,6 +14,7 @@ const (
 
 type Config struct {
 	Port          int      `mapstructure:"port"`
+	LogLevel      string   `mapstructure:"log_level"`
 	Mode          string   `mapstructure:"mode"`
 	BlackListHost []string `mapstructure:"black_list_host"`
 	BaiduSK       string   `mapstructure:"baidu_sk"`

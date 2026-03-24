@@ -59,15 +59,26 @@ docker run -d \
 以claude 为例，任选一种
 **命令行**
 ```shell
-claude mcp add websearch-mcp --type http --url http://localhost:8338
+claude mcp add  --transport http websearch-mcp   http://localhost:8338/mcp
 ```
 **配置文件**
 用户目录下找到`.claude.json` 文件的mcpServers 字段，没有可以自行添加
 ```json
     "websearch-mcp": {
       "type": "http",
-      "url": "http://localhost:8338",
+      "url": "http://localhost:8338/mcp",
       "timeoutMs": 5000
     }
 
+```
+**删除**  `claude mcp remove websearch-mcp -s user`
+
+## litellm
+配置
+```yaml
+search_tools:
+  - search_tool_name: searxng-search
+    litellm_params:
+      search_provider: searxng
+      api_base: http://websearch:8338/searxng # 以searxng 格式提供websearch 服务
 ```

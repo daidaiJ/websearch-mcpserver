@@ -15,7 +15,7 @@ type SearchParams struct {
 
 var searchapi search.SearchInf
 
-func Init(conf *config.Config) {
+func Init(conf config.Config) {
 	searchapi = search.NewBaiduSeach(conf.BaiduSK, conf.BlackListHost)
 }
 

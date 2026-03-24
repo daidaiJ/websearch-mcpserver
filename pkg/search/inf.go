@@ -6,8 +6,18 @@ import (
 	md "websearch/pkg/xml"
 )
 
+var DefaultSearchInf SearchInf
+
+type SearchResult struct {
+	Title       string `json:"title"`
+	Url         string `json:"url"`
+	Content     string `json:"content"`
+	PublishDate string `json:"publishedDate"`
+}
+
 type SearchInf interface {
 	Search(query string, summary bool) (string, error)
+	SearchRaw(query string) ([]SearchResult, error)
 }
 
 type BaiduSearchImpl struct {
@@ -27,16 +37,17 @@ type baiduSearchTypeFliter struct {
 }
 
 type baiduSearchReq struct {
-	Message    []baiduSearchMsg      `json:"messages"`
+	Message    []baiduSearchMsg        `json:"messages"`
 	TypeFliter []baiduSearchTypeFliter `json:"resource_type_filter"`
-	BlackSites []string              `json:"block_websites"`
-	Recency    string                `json:"search_recency_filter"`
+	BlackSites []string                `json:"block_websites"`
+	Recency    string                  `json:"search_recency_filter"`
 }
 
 type referenceCtx struct {
 	Content string `json:"content"`
 	Title   string `json:"title"`
 	Url     string `json:"url"`
+	Date    string `json:"date"`
 }
 
 type baidSearchReponse struct {
@@ -81,7 +92,7 @@ func (b *BaiduSearchImpl) Search(query string, summary bool) (string, error) {
 		return "", fmt.Errorf("百度搜索api 调用失败，%w", err)
 	}
 	if len(rep.References) == 0 {
-		return "", fmt.Errorf("百度搜索api 内容为空 %+v",res)
+		return "", fmt.Errorf("百度搜索api 内容为空 %+v", res)
 	}
 	ret := md.MDSearchHeader(query, len(rep.References))
 	for i, val := range rep.References {
@@ -97,3 +108,24 @@ func (b *BaiduSearchImpl) Search(query string, summary bool) (string, error) {
 //     "query": "",
 //     "search_depth": "advanced"
 // }'
+
+func (b *BaiduSearchImpl) SearchRaw(query string) ([]SearchResult, error) {
+	req := baiduSearchReq{Message: []baiduSearchMsg{{Content: query, Role: "user"}}, TypeFliter: []baiduSearchTypeFliter{{Type: "web", TopK: 10}}, BlackSites: b.blacklist,
+		Recency: "semiyear"}
+	rep := baidSearchReponse{}
+	res, err := client.DefaultClient.R().SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", b.sk)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
+	if err != nil {
+		if rep.Message != "" {
+			return nil, fmt.Errorf("百度搜索api 调用失败，%s", rep.Message)
+		}
+		return nil, fmt.Errorf("百度搜索api 调用失败，%w", err)
+	}
+	if len(rep.References) == 0 {
+		return nil, fmt.Errorf("百度搜索api 内容为空 %+v", res)
+	}
+	ret := make([]SearchResult, 0, len(rep.References))
+	for _, val := range rep.References {
+		ret = append(ret, SearchResult{Title: val.Title, Url: val.Url, Content: val.Content, PublishDate: val.Date})
+	}
+	return ret, nil
+}

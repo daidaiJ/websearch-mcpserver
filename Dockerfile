@@ -6,14 +6,14 @@ WORKDIR /app
 
 # 复制go模块文件
 COPY go.mod go.sum ./
-
+RUN go env -w GOPROXY=https://goproxy.cn,direct
+RUN go mod tidy
 # 下载依赖（使用-alpine镜像时需要安装git）
 
 # 复制源代码
 COPY . .
-RUN go env -w GOPROXY=https://goproxy.cn,direct
 # 构建二进制文件（静态链接，适用于alpine）
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o websearch ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build  -o websearch ./cmd/main.go
 
 # 使用alpine作为运行阶段，创建更小的镜像
 FROM alpine:latest
