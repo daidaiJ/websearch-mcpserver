@@ -7,7 +7,7 @@ WORKDIR /app
 # 复制go模块文件
 COPY go.mod go.sum ./
 RUN go env -w GOPROXY=https://goproxy.cn,direct
-RUN go mod tidy
+RUN go mod download
 # 下载依赖（使用-alpine镜像时需要安装git）
 
 # 复制源代码
@@ -22,7 +22,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 
 # 设置工作目录
-WORKDIR /root/
+WORKDIR /app/
 
 # 从构建阶段复制二进制文件
 COPY --from=builder /app/websearch .

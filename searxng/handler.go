@@ -31,7 +31,30 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func Init(conf config.Config) {
-	defaultInf = search.NewBaiduSeach(conf.BaiduSK, conf.BlackListHost)
+	switch conf.GetMode() {
+	case config.ModeTavily:
+		if conf.TavilySk == "" {
+			log.Error("mode=tavily 但未配置 tavily_sk，回退到 baidu")
+			defaultInf = search.NewBaiduSeach(conf.BaiduSK, conf.BlackListHost)
+		} else {
+			defaultInf = search.NewTavilySearch(conf.TavilySk)
+		}
+	case config.ModeHybrid:
+		var engines []search.SearchInf
+		if conf.BaiduSK != "" {
+			engines = append(engines, search.NewBaiduSeach(conf.BaiduSK, conf.BlackListHost))
+		}
+		if conf.TavilySk != "" {
+			engines = append(engines, search.NewTavilySearch(conf.TavilySk))
+		}
+		if len(engines) == 0 {
+			log.Error("mode=hybrid 但未配置任何搜索引擎 sk")
+			panic("hybrid 模式需要至少配置 baidu_sk 或 tavily_sk")
+		}
+		defaultInf = search.NewHybridSearch(engines...)
+	default: // baidu
+		defaultInf = search.NewBaiduSeach(conf.BaiduSK, conf.BlackListHost)
+	}
 }
 
 func RegisterRouter(mux *http.ServeMux) {

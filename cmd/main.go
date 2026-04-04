@@ -9,19 +9,28 @@ import (
 	"syscall"
 	"time"
 	mcpserver "websearch/mcp"
+	"websearch/pkg/cache"
 	"websearch/pkg/config"
 	"websearch/pkg/log"
 	"websearch/searxng"
 )
 
 func RunServer(conf config.Config) {
-	// 在GET /search 接口处理
-	mcpserver.Init(conf)
+	if err := mcpserver.Init(conf); err != nil {
+		panic(err)
+	}
 	searxng.Init(conf)
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux)
 	searxng.RegisterRouter(mux)
-	// 3. 优雅启停监听
+
+	// 启动缓存清理协程
+	var cleanup *cache.CleanupScheduler
+	if conf.CacheEnabled() && mcpserver.GetCache() != nil {
+		cleanup = cache.NewCleanupScheduler(mcpserver.GetCache(), conf.GetCleanupInterval())
+		cleanup.Start()
+	}
+
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", conf.Port),
 		Handler: mux,
@@ -29,7 +38,6 @@ func RunServer(conf config.Config) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// 启动服务（异步）
 	go func() {
 		log.Infof("server start on :%d", conf.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -38,9 +46,18 @@ func RunServer(conf config.Config) {
 		}
 	}()
 
-	// 等待退出信号
 	<-quit
 	log.Info("shutting down server...")
+
+	// 停止缓存清理协程
+	if cleanup != nil {
+		cleanup.Stop(context.Background())
+	}
+
+	// 关闭缓存数据库
+	if c := mcpserver.GetCache(); c != nil {
+		c.Close()
+	}
 
 	// 优雅关闭（5秒超时）
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -51,7 +68,6 @@ func RunServer(conf config.Config) {
 	}
 
 	log.Info("server exited gracefully")
-
 }
 
 func main() {
@@ -62,5 +78,4 @@ func main() {
 	log.NewLogger()
 	log.SetLoggerLevel(conf.LogLevel)
 	RunServer(*conf)
-
 }
