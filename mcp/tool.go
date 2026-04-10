@@ -49,7 +49,7 @@ func Init(conf config.Config) error {
 	log.Infof("搜索模式: %s", conf.GetMode())
 
 	if conf.LLMEnabled() {
-		summarizerInst = summarizer.NewSummarizer(conf.LLM.BaseURL, conf.LLM.APIKey)
+		summarizerInst = summarizer.NewSummarizer(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId)
 		log.Info("LLM 摘要功能已启用")
 	}
 

@@ -29,11 +29,11 @@ type Client struct {
 	model   string
 }
 
-func NewClient(baseURL, apiKey string) *Client {
+func NewClient(baseURL, apiKey, model_id string) *Client {
 	return &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		model:   "gpt-4o-mini",
+		model:   model_id,
 	}
 }
 

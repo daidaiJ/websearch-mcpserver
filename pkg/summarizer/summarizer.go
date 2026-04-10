@@ -11,9 +11,9 @@ type Summarizer struct {
 	llm *llm.Client
 }
 
-func NewSummarizer(baseURL, apiKey string) *Summarizer {
+func NewSummarizer(baseURL, apiKey, model_id string) *Summarizer {
 	return &Summarizer{
-		llm: llm.NewClient(baseURL, apiKey),
+		llm: llm.NewClient(baseURL, apiKey, model_id),
 	}
 }
 

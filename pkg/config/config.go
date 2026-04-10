@@ -28,6 +28,7 @@ type Config struct {
 type LLMConfig struct {
 	BaseURL string `mapstructure:"base_url"`
 	APIKey  string `mapstructure:"api_key"`
+	ModelId string `mapstructure:"model_id"`
 }
 
 type CacheConfig struct {
@@ -36,7 +37,7 @@ type CacheConfig struct {
 }
 
 func (c Config) LLMEnabled() bool {
-	return c.LLM.BaseURL != "" && c.LLM.APIKey != ""
+	return c.LLM.BaseURL != "" && c.LLM.APIKey != "" && c.LLM.ModelId != ""
 }
 
 func (c Config) CacheEnabled() bool {
