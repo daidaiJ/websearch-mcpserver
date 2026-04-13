@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"websearch/pkg/client"
+	"websearch/pkg/log"
 )
 
 type ChatMessage struct {
@@ -59,6 +60,7 @@ func (c *Client) Chat(systemPrompt, userPrompt string) (string, error) {
 		SetResult(&resp).
 		Post(url)
 	if err != nil {
+		log.Errf("llm req failed : %s", err.Error())
 		return "", fmt.Errorf("llm api 调用失败: %w", err)
 	}
 	if res.StatusCode() != 200 {

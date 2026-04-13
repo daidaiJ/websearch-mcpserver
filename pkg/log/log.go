@@ -16,7 +16,7 @@ func NewLogger() *zerolog.Logger {
 		Out:        os.Stdout,
 		TimeFormat: time.RFC3339,
 	}
-	logger := zerolog.New(output).With().Timestamp().Logger()
+	logger := zerolog.New(output).With().CallerWithSkipFrameCount(1).Timestamp().Logger()
 	defaultlog = &logger
 	return defaultlog
 }
