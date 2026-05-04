@@ -1,0 +1,70 @@
+# ==============================================
+# websearch-mcp 配置文件样例
+# 复制为 config.yaml 后根据需求修改
+# 所有配置均支持环境变量覆盖（见下方说明）
+# ==============================================
+
+# MCP HTTP 服务监听端口
+port: 8338
+
+# 日志级别: debug / info / warn / error（默认 info）
+log_level: info
+
+# 搜索模式:
+#   - baidu  : 仅使用百度千帆 AI Search API（默认）
+#   - tavily : 仅使用 Tavily Search API
+#   - hybrid : 并发请求百度和 Tavily，按 URL 去重后合并结果
+mode: hybrid
+
+# 百度千帆 AI Search API 密钥
+# 获取地址: https://console.bce.baidu.com/iam/#/iam/apikey/list
+baidu_sk: YOUR-BAIDU-SK
+
+# Tavily Search API 密钥
+# 获取地址: https://app.tavily.com/home
+tavily_sk: YOUR-TAVILY-SK
+
+# 屏蔽站点列表（仅对百度模式有效）
+# 搜索结果中来自以下域名的条目将被过滤
+black_list_host:
+  - "baijiahao.baidu.com"
+  - "csdn.net"
+  - "csdn.com"
+  - "gitcode.com"
+  - "gitcode.net"
+  - "baidu.com"
+
+# ==============================================
+# LLM 配置（可选，用于搜索摘要生成）
+# ==============================================
+llm:
+  # LLM API 基础地址，支持 OpenAI 兼容格式
+  base_url: "https://api.openai.com/v1"
+  # LLM API 密钥
+  api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  # 使用的模型 ID
+  model_id: "gpt-4o-mini"
+
+# ==============================================
+# 缓存配置（可选）
+# ==============================================
+cache:
+  # SQLite 数据库文件存储路径（留空则禁用缓存）
+  storage_path: "./data/search_cache.db"
+  # 过期数据清理间隔（分钟），默认 30，最大 360
+  cleanup_interval: 30
+
+# ==============================================
+# 环境变量覆盖说明
+# ==============================================
+# 以下环境变量优先级高于配置文件:
+#   BAIDU_SK      -> 覆盖 baidu_sk
+#   TAVILY_SK     -> 覆盖 tavily_sk
+#   LLM_BASE_URL  -> 覆盖 llm.base_url
+#   LLM_API_KEY   -> 覆盖 llm.api_key
+#
+# 使用示例:
+#   Windows PowerShell:
+#     $env:BAIDU_SK="your-sk"; .\websearch-mcpserver.exe start
+#   Linux / macOS:
+#     BAIDU_SK=your-sk ./websearch-mcpserver start
