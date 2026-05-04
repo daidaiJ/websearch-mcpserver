@@ -10,6 +10,13 @@ port: 8338
 # 日志级别: debug / info / warn / error（默认 info）
 log_level: info
 
+# 日志文件滚动配置（可选）
+log:
+  # 单个日志文件最大大小（MB），默认 1
+  max_size: 1
+  # 日志保留天数，默认 1
+  max_age: 1
+
 # 搜索模式:
 #   - baidu  : 仅使用百度千帆 AI Search API（默认）
 #   - tavily : 仅使用 Tavily Search API
