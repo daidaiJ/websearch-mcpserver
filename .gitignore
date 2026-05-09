@@ -22,3 +22,7 @@ hooks/qwen-start.bat
 hooks/qwen-start.sh
 hooks/qwen-stop.bat
 hooks/qwen-stop.sh
+hooks/qwen-start.bat
+hooks/qwen-start.sh
+hooks/qwen-stop.bat
+hooks/qwen-stop.sh
