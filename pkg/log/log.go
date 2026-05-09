@@ -1,22 +1,42 @@
 package log
 
 import (
+	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"websearch/pkg/config"
 )
 
 var defaultlog *zerolog.Logger
 
-// 提供 Zerolog Logger
-func NewLogger() *zerolog.Logger {
-	// 使用 ConsoleWriter 美化输出（开发环境）
-	output := zerolog.ConsoleWriter{
+// 提供 Zerolog Logger，同时输出到控制台和滚动日志文件
+func NewLogger(logDir string, logConf config.LogConfig) *zerolog.Logger {
+	consoleWriter := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.RFC3339,
 	}
-	logger := zerolog.New(output).With().CallerWithSkipFrameCount(1).Timestamp().Logger()
+
+	var writers []io.Writer
+	writers = append(writers, consoleWriter)
+
+	if logDir != "" {
+		fileWriter := &lumberjack.Logger{
+			Filename:   filepath.Join(logDir, "websearch.log"),
+			MaxSize:    logConf.MaxSize, // MB
+			MaxAge:     logConf.MaxAge,  // days
+			MaxBackups: 0,
+			Compress:   false,
+			LocalTime:  true,
+		}
+		writers = append(writers, fileWriter)
+	}
+
+	multiWriter := zerolog.MultiLevelWriter(writers...)
+	logger := zerolog.New(multiWriter).With().CallerWithSkipFrameCount(1).Timestamp().Logger()
 	defaultlog = &logger
 	return defaultlog
 }

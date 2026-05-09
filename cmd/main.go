@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -285,25 +286,34 @@ func printUsage() {
 }
 
 func main() {
-	conf, err := config.Load()
+	var configPath string
+	flag.StringVar(&configPath, "c", "", "config file path")
+	flag.StringVar(&configPath, "config", "", "config file path")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) < 1 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	conf, err := config.Load(configPath)
 	if err != nil {
 		// 对于 stop/kill/status，尝试在无配置时也能执行基本操作
-		if len(os.Args) > 1 && (os.Args[1] == "kill" || os.Args[1] == "stop" || os.Args[1] == "status") {
+		if args[0] == "kill" || args[0] == "stop" || args[0] == "status" {
 			conf = &config.Config{Port: 8338} // 使用默认端口尝试
 		} else {
 			fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 			os.Exit(1)
 		}
 	}
-	log.NewLogger()
+
+	configDir := config.GetConfigDir()
+	daemon.SetBaseDir(configDir)
+	log.NewLogger(configDir, conf.Log)
 	log.SetLoggerLevel(conf.LogLevel)
 
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
-	}
-
-	switch os.Args[1] {
+	switch args[0] {
 	case "start":
 		runStart(conf)
 	case "stop":
@@ -315,7 +325,7 @@ func main() {
 	case "-h", "--help", "help":
 		printUsage()
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", args[0])
 		printUsage()
 		os.Exit(1)
 	}

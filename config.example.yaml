@@ -18,21 +18,21 @@ log:
   max_age: 1
 
 # 搜索模式:
-#   - baidu  : 仅使用百度千帆 AI Search API（默认）
-#   - tavily : 仅使用 Tavily Search API
-#   - hybrid : 并发请求百度和 Tavily，按 URL 去重后合并结果
-mode: hybrid
+#   - baidu   : 仅使用百度千帆 AI Search API（默认）
+#   - tavily  : 仅使用 Tavily Search API
+#   - hybrid  : 并发请求百度和 Tavily，按 URL 去重后合并结果
+#   - engine  : 纯引擎模式，无需 API Key，使用 Bing + 学术搜索引擎
+mode: engine
 
-# 百度千帆 AI Search API 密钥
+# 百度千帆 AI Search API 密钥（engine 模式下不需要）
 # 获取地址: https://console.bce.baidu.com/iam/#/iam/apikey/list
 baidu_sk: YOUR-BAIDU-SK
 
-# Tavily Search API 密钥
+# Tavily Search API 密钥（engine 模式下不需要）
 # 获取地址: https://app.tavily.com/home
 tavily_sk: YOUR-TAVILY-SK
 
 # 屏蔽站点列表（仅对百度模式有效）
-# 搜索结果中来自以下域名的条目将被过滤
 black_list_host:
   - "baijiahao.baidu.com"
   - "csdn.net"
@@ -40,6 +40,37 @@ black_list_host:
   - "gitcode.com"
   - "gitcode.net"
   - "baidu.com"
+  - "weibo.com"
+  - "sina.com.cn"
+
+# ==============================================
+# Bing 引擎配置（兜底引擎 + engine 模式主力引擎）
+# 默认所有引擎开启，无需 API Key
+# 通过 disable_* 字段可单独关闭特定引擎
+# ==============================================
+bing:
+  # 总开关（默认 true）
+  enabled: true
+  # 学术引擎总开关（默认 true，开启后可用学术论文搜索引擎）
+  academic: true
+  # 网络环境: china（默认，自动跳过海外引擎） / international（启用全部引擎）
+  network: china
+  # Bing 屏蔽域名
+  blocked: []
+  # Bing 每秒限流（默认 1）
+  per_sec: 1
+  # Bing 每分钟限流（默认 20）
+  per_min: 20
+
+  # ── 各引擎独立禁用开关（默认 false = 启用，设为 true 关闭） ──
+  # 禁用 arXiv 预印本搜索引擎
+  disable_arxiv: false
+  # 禁用 Crossref 学术元数据引擎
+  disable_crossref: false
+  # 禁用 OpenAlex 开放学术图谱引擎
+  disable_openalex: false
+  # 禁用 Semantic Scholar（仅 international 网络下可用）
+  disable_semantic_scholar: false
 
 # ==============================================
 # LLM 配置（可选，用于搜索摘要生成）

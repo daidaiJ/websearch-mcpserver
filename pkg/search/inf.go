@@ -14,3 +14,9 @@ type SearchInf interface {
 	SearchRaw(query string) ([]SearchResult, error)
 	MergeContent(query string, results []SearchResult) (string, error)
 }
+
+// AcademicSearcher 支持学术搜索的引擎可实现此接口。
+// 实现方应返回学术论文类结果（arXiv、Crossref、OpenAlex、Semantic Scholar 等）。
+type AcademicSearcher interface {
+	SearchAcademicRaw(query string) ([]SearchResult, error)
+}

@@ -1,47 +1,92 @@
 # websearch-mcp
 ----
 ## 简介
-websearch mcp server 一个golang 开发的轻量级web search 服务，支持 baidu、tavily 以及 hybrid（混合）模式。
+websearch mcp server 一个 golang 开发的轻量级 web search 服务，支持 baidu、tavily、hybrid（混合）以及 engine（纯引擎）模式。
+
+内置 Bing 通用搜索引擎作为兜底，并集成 arXiv、Crossref、OpenAlex、Semantic Scholar 等学术搜索引擎，支持学术论文检索。
 
 ## 搜索模式
 通过配置文件中的 `mode` 字段指定搜索模式：
-- `baidu`（默认）：仅使用百度千帆 AI Search API
-- `tavily`：仅使用 Tavily Search API
+- `baidu`（默认）：使用百度千帆 AI Search API，无 API Key 时自动回退到 engine 模式
+- `tavily`：使用 Tavily Search API，无 API Key 时自动回退到 engine 模式
 - `hybrid`：并发请求 baidu 和 tavily，按 URL 去重后合并结果
+- `engine`：纯引擎模式，**无需任何 API Key**，使用 Bing 通用搜索 + 学术搜索引擎
+
+> 所有模式下，当主搜索引擎请求失败（如 API 额度耗尽）时，会自动回退到 Bing 引擎兜底。
+
+### 引擎与学术搜索
+
+| 引擎 | 类型 | 网络 | API Key | 说明 |
+|------|------|------|---------|------|
+| Bing | 通用搜索 | 🇨🇳 国内 | 否 | 内置反爬防御，作为兜底引擎 |
+| arXiv | 预印本 | 🇨🇳 国内 | 否 | AI/ML 论文主阵地 |
+| Crossref | 学术元数据 | 🇨🇳 国内 | 否 | DOI 注册机构，覆盖全学科 |
+| OpenAlex | 开放学术图谱 | 🇨🇳 国内 | 否 | 可选 polite pool 邮箱 |
+| Semantic Scholar | AI 学术搜索 | 🌍 海外 | 否 | AI 驱动，引用数据丰富 |
+
+学术引擎通过以下方式触发：
+- MCP 工具的 `academic` 参数设为 `true`
+- 查询或意图中包含学术相关关键词（论文、paper、research、arxiv 等）时自动触发
 
 ## 配置文件
 ```yaml
-port: 8338  # mcp server端口
-mode: hybrid  # 搜索模式: baidu / tavily / hybrid（默认 baidu）
-baidu_sk: YOUR-BAIDU-SK  # 百度api sk  此页面获取，注意权限 https://console.bce.baidu.com/iam/#/iam/apikey/list
-tavily_sk: YOUR-TAVILY-SK  # tavily api key  https://app.tavily.com/home
+port: 8338  # mcp server 端口
 
-# LLM配置（可选，用于摘要生成）
+# 搜索模式: baidu / tavily / hybrid / engine
+mode: engine
+
+# 百度 api sk（engine 模式下不需要）
+baidu_sk: YOUR-BAIDU-SK
+# tavily api key（engine 模式下不需要）
+tavily_sk: YOUR-TAVILY-SK
+
+# Bing 引擎配置（兜底引擎 + engine 模式主力引擎，无需 API Key）
+# 默认所有引擎开启，通过 disable_* 子字段可单独关闭
+bing:
+  enabled: true            # 总开关（默认 true）
+  academic: true           # 学术引擎总开关（默认 true）
+  network: china           # 网络环境: china / international
+  blocked: []              # Bing 屏蔽域名
+  per_sec: 1               # Bing 每秒限流
+  per_min: 20              # Bing 每分钟限流
+  # 各引擎独立禁用（默认 false = 启用）
+  disable_arxiv: false
+  disable_crossref: false
+  disable_openalex: false
+  disable_semantic_scholar: false
+
+# LLM 配置（可选，用于摘要生成）
 llm:
-  base_url: "https://api.openai.com/v1"  # LLM API基础地址，支持环境变量 LLM_BASE_URL
-  api_key: "sk-xxx"                     # LLM API密钥，支持环境变量 LLM_API_KEY
+  base_url: "https://api.openai.com/v1"
+  api_key: "sk-xxx"
+  model_id: "gpt-4o-mini"
 
 # 缓存配置（可选）
 cache:
-  storage_path: "./data/search_cache.db"  # SQLite数据库路径
-  cleanup_interval: 30                    # 清理间隔（分钟，默认30，最大360）
+  storage_path: "./data/search_cache.db"
+  cleanup_interval: 30
 
-black_list_host:  # 屏蔽站点（仅对 baidu 有效）
-  - "baijiahao.baidu.com"
-  - "csdn.net" 
-  - "csdn.com" 
-  - "gitcode.com"
-  - "gitcode.net"
-  - "baidu.com"
+# 屏蔽站点（仅对 baidu 有效）
+black_list_host:
+  - "csdn.net"
+  - "zhihu.com"
 ```
 
 > 所有配置均支持环境变量覆盖：
-> - `BAIDU_SK` - 覆盖`baidu_sk`
-> - `TAVILY_SK` - 覆盖`tavily_sk`
-> - `LLM_BASE_URL` - 覆盖`llm.base_url`
-> - `LLM_API_KEY` - 覆盖`llm.api_key`
+> - `BAIDU_SK` - 覆盖 `baidu_sk`
+> - `TAVILY_SK` - 覆盖 `tavily_sk`
+> - `LLM_BASE_URL` - 覆盖 `llm.base_url`
+> - `LLM_API_KEY` - 覆盖 `llm.api_key`
 >
 > 完整配置样例参见项目根目录下的 `config.example.yaml`。
+
+### 最小配置（零 API Key 启动）
+
+只需以下配置即可运行，无需任何 API Key：
+```yaml
+port: 8338
+mode: engine
+```
 
 ## 进程管理（本地模式）
 
@@ -66,6 +111,14 @@ black_list_host:  # 屏蔽站点（仅对 baidu 有效）
 ./websearch-mcpserver status
 ```
 
+### CLI 参数
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `-c, --config` | 指定配置文件路径（绝对或相对路径） | `./websearch-mcpserver -c /path/to/config.yaml start` |
+
+> 通过 `-c` 指定配置文件后，PID 文件和日志文件会自动写到配置文件所在目录，不再依赖运行时的当前工作目录。
+
 ### 引用计数机制
 
 | 操作 | 服务未运行 | 服务运行中（ref=n） |
@@ -76,25 +129,6 @@ black_list_host:  # 屏蔽站点（仅对 baidu 有效）
 | `status` | 显示 stopped | 显示 PID、端口、ref 计数 |
 
 优雅退出时会自动完成：停止缓存清理协程 → 关闭 SQLite → HTTP Shutdown（5 秒超时）→ 清理 PID 文件。
-
-### 包装脚本（推荐）
-
-已内置跨平台包装脚本，免去直接操作二进制：
-
-**Windows** (`websearch.bat`)
-```batch
-websearch.bat start
-websearch.bat stop
-websearch.bat kill
-websearch.bat status
-```
-
-**Linux / macOS** (`websearch.sh`)
-```bash
-chmod +x websearch.sh
-./websearch.sh start
-./websearch.sh stop
-```
 
 ## 配置 MCP Hooks（自动启停）
 
@@ -200,18 +234,18 @@ chmod +x websearch.sh
 **PowerShell (Windows)**
 ```powershell
 function Start-WebSearchMCP {
-    & "D:\CODE\go\websearch-mcpserver\websearch.bat" start
+    & "D:\CODE\go\websearch-mcpserver\websearch-mcpserver.exe" start
 }
 function Stop-WebSearchMCP {
-    & "D:\CODE\go\websearch-mcpserver\websearch.bat" stop
+    & "D:\CODE\go\websearch-mcpserver\websearch-mcpserver.exe" stop
 }
 # 使用：Start-WebSearchMCP  →  打开 Claude Desktop  →  Stop-WebSearchMCP
 ```
 
 **Bash / Zsh (Linux/macOS)**
 ```bash
-alias ws-start='~/bin/websearch-mcpserver/websearch.sh start'
-alias ws-stop='~/bin/websearch-mcpserver/websearch.sh stop'
+alias ws-start='~/bin/websearch-mcpserver/websearch-mcpserver start'
+alias ws-stop='~/bin/websearch-mcpserver/websearch-mcpserver stop'
 # 使用：ws-start && claude  →  结束后执行 ws-stop
 ```
 
@@ -223,10 +257,10 @@ alias ws-stop='~/bin/websearch-mcpserver/websearch.sh stop'
 #!/bin/bash
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
-"$DIR/websearch.sh" start
+"$DIR/websearch-mcpserver" start
 sleep 1
 claude "$@"
-"$DIR/websearch.sh" stop
+"$DIR/websearch-mcpserver" stop
 ```
 
 ### 方案 4：Windows 快捷方式 / 批处理组合
@@ -236,10 +270,10 @@ claude "$@"
 ```batch
 @echo off
 set "WS_DIR=D:\CODE\go\websearch-mcpserver"
-call "%WS_DIR%\websearch.bat" start
+"%WS_DIR%\websearch-mcpserver.exe" start
 timeout /t 1 /nobreak >nul
 start "" "C:\Users\%USERNAME%\AppData\Local\AnthropicClaude\claude.exe"
-echo Claude 已启动，关闭后请手动运行 websearch.bat stop
+echo Claude 已启动，关闭后请手动运行 websearch-mcpserver.exe stop
 ```
 
 ### 方案 5：注册为系统服务（后台常驻）
@@ -254,14 +288,36 @@ echo Claude 已启动，关闭后请手动运行 websearch.bat stop
 
 ## 高级功能
 
-### LLM摘要生成
-当配置了有效的LLM API后，系统会自动为搜索结果生成带引用标注的专业摘要。
+### LLM 摘要生成
+当配置了有效的 LLM API 后，系统会自动为搜索结果生成带引用标注的专业摘要。摘要会主动过滤低质量内容，合并重复结果，并保留关键原文片段以便后续引用。
+
+### 学术搜索
+启用学术引擎后（`bing.academic: true`），可通过 MCP 工具的 `academic` 参数或自动检测学术关键词来触发学术论文检索。学术引擎包括：
+- **arXiv**：AI/ML/CS 领域预印本
+- **Crossref**：全学科学术元数据（DOI 注册机构）
+- **OpenAlex**：开放学术图谱，含引用数据
+- **Semantic Scholar**：AI 驱动的学术搜索（需海外网络）
+
+学术搜索结果包含论文元数据（作者、期刊、DOI、引用数、PDF 链接等），与通用网页搜索结果在格式上自动区分。
+
+### 日志系统
+日志同时输出到控制台和配置文件同目录下的 `websearch.log` 文件，支持自动滚动：
+- **单文件上限**：默认 1MB，超过后自动轮转
+- **保留策略**：默认保留 1 天，过期自动清理
+- **配置方式**：在 `config.yaml` 中通过 `log.max_size` 和 `log.max_age` 调整（单位分别为 MB 和天）
+
+示例：
+```yaml
+log:
+  max_size: 5  # 单个日志文件最大 5MB
+  max_age: 7   # 保留最近 7 天的日志
+```
 
 ### 缓存系统
-启用缓存后可大幅减少重复搜索的API调用：
-- 基于SQLite的持久化缓存
+启用缓存后可大幅减少重复搜索的 API 调用：
+- 基于 SQLite 的持久化缓存
 - 支持查询和意图的双重缓存键
-- 自动清理过期记录（默认30分钟）
+- 自动清理过期记录（默认 30 分钟）
 - 并发安全设计
 
 ## 构建
@@ -287,13 +343,12 @@ services:
     volumes:
       - /your-config-dir/config.yaml:/app/config.yaml
     ports:
-      - "8338:8338"  # 宿主机8080端口映射到容器8080端口
+      - "8338:8338"  # 宿主机8338端口映射到容器8338端口
     # 可选：环境变量（如果服务需要）
     environment:
       - TZ=Asia/Shanghai  # 设置容器时区
-
 ```
-可选docker 直接部署
+可选 docker 直接部署
 ```shell
 docker run -d \
   --name websearch-service \
@@ -304,21 +359,20 @@ docker run -d \
   websearch:v1
 ```
 
-## 配置
-以claude 为例，任选一种
+## 配置 MCP 客户端
+以 claude 为例，任选一种
 **命令行**
 ```shell
 claude mcp add  --transport http websearch-mcp   http://localhost:8338/mcp
 ```
 **配置文件**
-用户目录下找到`.claude.json` 文件的mcpServers 字段，没有可以自行添加
+用户目录下找到 `.claude.json` 文件的 mcpServers 字段，没有可以自行添加
 ```json
     "websearch-mcp": {
       "type": "http",
       "url": "http://localhost:8338/mcp",
       "timeoutMs": 5000
     }
-
 ```
 **删除**  `claude mcp remove websearch-mcp -s user`
 
@@ -329,12 +383,19 @@ search_tools:
   - search_tool_name: searxng-search
     litellm_params:
       search_provider: searxng
-      api_base: http://websearch:8338/searxng # 以searxng 格式提供websearch 服务
+      api_base: http://websearch:8338/searxng # 以 searxng 格式提供 websearch 服务
 ```
 
 ## 升级说明
 
+### v2.x → v3.x 重大变更
+1. 新增 `engine` 搜索模式，无需 API Key 即可使用 Bing 通用搜索 + 学术搜索引擎
+2. 集成 Bing 通用搜索引擎作为兜底，API Key 额度耗尽时自动回退
+3. 集成学术搜索引擎（arXiv、Crossref、OpenAlex、Semantic Scholar），支持论文检索
+4. MCP 工具新增 `academic` 参数，可主动请求学术搜索
+5. 优化 LLM 摘要提示词：主动过滤低质量内容、合并重复结果、保留关键原文并标注引用
+
 ### v1.x → v2.x 重大变更
-1. 增加了Tavily 搜索api支持
-2. 扩展了llm 摘要支持，建议使用快速模型，减少时间延迟的同时降低成本
-3. 通过sqlite 对搜索及摘要结果做了缓存管理
+1. 增加了 Tavily 搜索 api 支持
+2. 扩展了 llm 摘要支持，建议使用快速模型，减少时间延迟的同时降低成本
+3. 通过 sqlite 对搜索及摘要结果做了缓存管理

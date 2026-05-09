@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+var baseDir string
+
+func SetBaseDir(dir string) {
+	baseDir = dir
+}
+
 // PIDInfo 存储在 PID 文件中的信息
 type PIDInfo struct {
 	PID  int `json:"pid"`
@@ -20,7 +26,9 @@ type PIDInfo struct {
 
 // PIDFileName 返回 PID 文件路径
 func PIDFileName() string {
-	// 优先使用当前工作目录，便于项目内管理
+	if baseDir != "" {
+		return filepath.Join(baseDir, ".websearch.pid")
+	}
 	if cwd, err := os.Getwd(); err == nil {
 		return filepath.Join(cwd, ".websearch.pid")
 	}
