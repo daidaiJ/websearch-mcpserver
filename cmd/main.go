@@ -99,12 +99,17 @@ func registerAdminHandlers(mux *http.ServeMux) {
 }
 
 func RunServer(conf config.Config) {
-	if err := mcpserver.Init(conf); err != nil {
+	if err := mcpserver.Init(conf,
+		mcpserver.WithSearchEngine(conf),
+		mcpserver.WithSummarizer(conf),
+		mcpserver.WithCache(conf),
+		mcpserver.WithJinaReader(conf),
+	); err != nil {
 		panic(err)
 	}
 	searxng.Init(conf)
 	mux := http.NewServeMux()
-	mcpserver.RegisterRouter(mux)
+	mcpserver.RegisterRouter(mux, conf)
 	searxng.RegisterRouter(mux)
 	registerAdminHandlers(mux)
 
@@ -116,8 +121,11 @@ func RunServer(conf config.Config) {
 	}
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", conf.Port),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", conf.Port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	quit := make(chan os.Signal, 1)

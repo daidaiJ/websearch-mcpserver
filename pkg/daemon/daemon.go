@@ -6,9 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -61,32 +59,6 @@ func WritePID(pid, port int) error {
 // RemovePID 删除 PID 文件
 func RemovePID() error {
 	return os.Remove(PIDFileName())
-}
-
-// IsRunning 检测进程是否存活（Windows 兼容）
-func IsRunning(pid int) bool {
-	if runtime.GOOS == "windows" {
-		handle, err := syscall.OpenProcess(syscall.PROCESS_QUERY_INFORMATION, false, uint32(pid))
-		if err != nil {
-			return false
-		}
-		defer syscall.CloseHandle(handle)
-
-		var exitCode uint32
-		err = syscall.GetExitCodeProcess(handle, &exitCode)
-		if err != nil {
-			return false
-		}
-		return exitCode == 259 // STILL_ACTIVE
-	}
-
-	// Unix-like: 发送信号 0 检测
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	err = process.Signal(os.Signal(nil))
-	return err == nil
 }
 
 // AdminURL 构建 admin API URL

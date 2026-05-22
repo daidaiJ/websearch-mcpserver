@@ -34,4 +34,4 @@ COPY --from=builder /app/config.yaml .
 EXPOSE 8338
 
 # 运行应用
-CMD ["./websearch"]
+CMD ["./websearch", "start"]

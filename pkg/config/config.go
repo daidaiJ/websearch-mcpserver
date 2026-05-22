@@ -32,6 +32,7 @@ type Config struct {
 	BaiduSK       string           `mapstructure:"baidu_sk"`
 	TavilySk      string           `mapstructure:"tavily_sk"`
 	LLM           LLMConfig        `mapstructure:"llm"`
+	Jina          JinaConfig       `mapstructure:"jina"`
 	Cache         CacheConfig      `mapstructure:"cache"`
 	Log           LogConfig        `mapstructure:"log"`
 	Bing          BingEngineConfig `mapstructure:"bing"`
@@ -46,6 +47,11 @@ type LLMConfig struct {
 type CacheConfig struct {
 	StoragePath     string `mapstructure:"storage_path"`     // SQLite 数据库文件存储路径
 	CleanupInterval int    `mapstructure:"cleanup_interval"` // 清理间隔（分钟），默认30分钟，最大360分钟
+}
+
+type JinaConfig struct {
+	APIKey  string `mapstructure:"api_key"`
+	BaseURL string `mapstructure:"base_url"` // 默认 https://r.jina.ai
 }
 
 // BingEngineConfig Bing 引擎配置。
