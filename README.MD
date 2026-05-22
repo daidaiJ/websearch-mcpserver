@@ -5,6 +5,22 @@ websearch mcp server 一个 golang 开发的轻量级 web search 服务，支持
 
 内置 Bing 通用搜索引擎作为兜底，并集成 arXiv、Crossref、OpenAlex、Semantic Scholar 等学术搜索引擎，支持学术论文检索。
 
+## 本次更新
+
+### cleanfetch 网页抓取工具
+新增 `cleanfetch` 工具，通过 [Jina Reader](https://jina.ai/reader/) 外部 API 获取指定 URL 的干净网页内容，减小被网站防爬机制阻断的风险。返回 Markdown 格式，适合直接喂给 LLM 做进一步分析。
+
+- 仅在配置了 `jina.api_key` 后才会注册该工具，不影响现有功能
+- 对常见 HTTP 错误（403/404/429 等）返回简明中文提示
+
+### LLM 摘要未启用时自动精简工具参数
+当未配置 LLM 摘要时，`smartsearch` 工具的 `intent` 参数会从 MCP 工具 schema 中移除，LLM 客户端不再感知该字段，节省上下文 token。
+
+### MCP 连接稳定性增强
+- 服务端每 **30 秒**向客户端发送心跳 ping，空闲 **5 分钟**后自动清理无响应 session
+- HTTP Server 增加 `ReadHeaderTimeout` / `ReadTimeout` / `IdleTimeout`，防止慢连接耗尽资源
+- 异步摘要 goroutine 增加 panic recover，避免单次请求异常导致整个服务崩溃
+
 ## 搜索模式
 通过配置文件中的 `mode` 字段指定搜索模式：
 - `baidu`（默认）：使用百度千帆 AI Search API，无 API Key 时自动回退到 engine 模式
@@ -65,6 +81,11 @@ llm:
 cache:
   storage_path: "./data/search_cache.db"
   cleanup_interval: 30
+
+# Jina Reader 配置（可选，用于 cleanfetch 工具）
+jina:
+  api_key: ""       # Jina API Key，留空则不启用 cleanfetch
+  base_url: ""      # 默认 https://r.jina.ai
 
 # 屏蔽站点（仅对 baidu 有效）
 black_list_host:
@@ -288,6 +309,21 @@ echo Claude 已启动，关闭后请手动运行 websearch-mcpserver.exe stop
 
 ## 高级功能
 
+### cleanfetch 网页抓取
+配置 Jina Reader API Key 后，自动注册 `cleanfetch` 工具。与直接用 HTTP 客户端抓取网页不同，cleanfetch 通过 Jina Reader 服务端渲染并清洗页面，返回干净的 Markdown 内容，大幅降低被目标网站反爬拦截的概率。
+
+适用场景：
+- 阅读某篇文章的完整正文
+- 获取需要 JavaScript 渲染的页面内容
+- 提取特定 URL 的结构化信息
+
+```yaml
+jina:
+  api_key: "jina_xxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+> API Key 获取：https://jina.ai/reader/
+
 ### LLM 摘要生成
 当配置了有效的 LLM API 后，系统会自动为搜索结果生成带引用标注的专业摘要。摘要会主动过滤低质量内容，合并重复结果，并保留关键原文片段以便后续引用。
 
@@ -387,6 +423,16 @@ search_tools:
 ```
 
 ## 升级说明
+
+### 本次更新
+1. 新增 `cleanfetch` 工具，通过 Jina Reader API 抓取网页内容，降低反爬拦截风险
+2. LLM 摘要未启用时，`smartsearch` 工具自动移除 `intent` 参数，节省客户端上下文 token
+3. MCP 服务增加 30s 心跳 + 5 分钟空闲 session 自动清理，防止客户端因空闲断连
+4. HTTP Server 增加超时配置（ReadHeader 10s / Read 60s / Idle 120s）
+5. 异步摘要 goroutine 增加 panic recover，避免单请求异常导致服务崩溃
+6. 修复 Dockerfile 启动参数缺失导致容器立即退出的问题
+
+> **配置变更**：新增可选的 `jina` 配置块，不配置则不影响现有功能。
 
 ### v2.x → v3.x 重大变更
 1. 新增 `engine` 搜索模式，无需 API Key 即可使用 Bing 通用搜索 + 学术搜索引擎
