@@ -57,12 +57,13 @@ type JinaConfig struct {
 // BingEngineConfig Bing 引擎配置。
 // 默认所有引擎开启，通过 disable_* 子字段单独关闭。
 type BingEngineConfig struct {
-	Enabled  bool     `mapstructure:"enabled"`   // 总开关（默认 true）
-	Academic bool     `mapstructure:"academic"`  // 学术引擎总开关（默认 true）
-	Network  string   `mapstructure:"network"`   // 网络区域: china / international（默认 china）
-	Blocked  []string `mapstructure:"blocked"`   // Bing 屏蔽域名
-	PerSec   int      `mapstructure:"per_sec"`   // Bing 每秒限流（默认 1）
-	PerMin   int      `mapstructure:"per_min"`   // Bing 每分钟限流（默认 20）
+	Enabled      bool     `mapstructure:"enabled"`        // 总开关（默认 true）
+	Academic     bool     `mapstructure:"academic"`       // 学术引擎总开关（默认 true）
+	BingFallback bool     `mapstructure:"bing_fallback"`  // 学术搜索时是否用 Bing 兜底（默认 true）
+	Network      string   `mapstructure:"network"`        // 网络区域: china / international（默认 china）
+	Blocked      []string `mapstructure:"blocked"`        // Bing 屏蔽域名
+	PerSec       int      `mapstructure:"per_sec"`        // Bing 每秒限流（默认 1）
+	PerMin       int      `mapstructure:"per_min"`        // Bing 每分钟限流（默认 20）
 
 	// 各引擎独立禁用开关（默认 false = 启用）
 	DisableArxiv           bool `mapstructure:"disable_arxiv"`
@@ -178,6 +179,12 @@ func Load(configPath string) (*Config, error) {
 		// 用户显式配置了，保留原值
 	} else {
 		conf.Bing.Academic = true
+	}
+	// bing_fallback 默认 true：学术搜索时用 Bing 兜底
+	if viper.IsSet("bing.bing_fallback") {
+		// 用户显式配置了，保留原值
+	} else {
+		conf.Bing.BingFallback = true
 	}
 
 	return &conf, nil

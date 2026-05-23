@@ -5,21 +5,22 @@ websearch mcp server 一个 golang 开发的轻量级 web search 服务，支持
 
 内置 Bing 通用搜索引擎作为兜底，并集成 arXiv、Crossref、OpenAlex、Semantic Scholar 等学术搜索引擎，支持学术论文检索。
 
-## 本次更新
+## 下载
 
-### cleanfetch 网页抓取工具
-新增 `cleanfetch` 工具，通过 [Jina Reader](https://jina.ai/reader/) 外部 API 获取指定 URL 的干净网页内容，减小被网站防爬机制阻断的风险。返回 Markdown 格式，适合直接喂给 LLM 做进一步分析。
+从 [GitHub Releases](https://github.com/daidaiJ/websearch-mcpserver/releases) 下载对应平台的二进制文件：
 
-- 仅在配置了 `jina.api_key` 后才会注册该工具，不影响现有功能
-- 对常见 HTTP 错误（403/404/429 等）返回简明中文提示
+| 平台 | 文件 |
+|------|------|
+| Linux x86_64 | `websearch-mcpserver-linux-amd64` |
+| Windows x86_64 | `websearch-mcpserver-windows-amd64.exe` |
 
-### LLM 摘要未启用时自动精简工具参数
-当未配置 LLM 摘要时，`smartsearch` 工具的 `intent` 参数会从 MCP 工具 schema 中移除，LLM 客户端不再感知该字段，节省上下文 token。
-
-### MCP 连接稳定性增强
-- 服务端每 **30 秒**向客户端发送心跳 ping，空闲 **5 分钟**后自动清理无响应 session
-- HTTP Server 增加 `ReadHeaderTimeout` / `ReadTimeout` / `IdleTimeout`，防止慢连接耗尽资源
-- 异步摘要 goroutine 增加 panic recover，避免单次请求异常导致整个服务崩溃
+每个 Release 附带 `SHA256SUMS.txt`，包含各二进制文件的独立校验摘要，下载后验证：
+```bash
+# Linux
+sha256sum websearch-mcpserver-linux-amd64
+# Windows PowerShell
+Get-FileHash websearch-mcpserver-windows-amd64.exe -Algorithm SHA256
+```
 
 ## 搜索模式
 通过配置文件中的 `mode` 字段指定搜索模式：
@@ -44,6 +45,20 @@ websearch mcp server 一个 golang 开发的轻量级 web search 服务，支持
 - MCP 工具的 `academic` 参数设为 `true`
 - 查询或意图中包含学术相关关键词（论文、paper、research、arxiv 等）时自动触发
 
+## MCP 工具
+
+### smartsearch
+网络检索工具，支持以下参数：
+- `query`：搜索关键词
+- `intent`：搜索意图（LLM 摘要启用时可用）
+- `academic`：是否启用学术搜索引擎（默认 false）
+
+### cleanfetch
+网页内容抓取工具，通过 Jina Reader API 获取干净的 Markdown 内容。
+- 仅在配置 `jina.api_key` 后可用
+- 内置 SSRF 防护（URL 校验、内网地址拦截）
+- 30 秒客户端超时
+
 ## 配置文件
 ```yaml
 port: 8338  # mcp server 端口
@@ -56,13 +71,18 @@ baidu_sk: YOUR-BAIDU-SK
 # tavily api key（engine 模式下不需要）
 tavily_sk: YOUR-TAVILY-SK
 
+# 屏蔽站点（对所有搜索引擎生效）
+black_list_host:
+  - "csdn.net"
+  - "zhihu.com"
+
 # Bing 引擎配置（兜底引擎 + engine 模式主力引擎，无需 API Key）
-# 默认所有引擎开启，通过 disable_* 子字段可单独关闭
 bing:
   enabled: true            # 总开关（默认 true）
   academic: true           # 学术引擎总开关（默认 true）
+  bing_fallback: true      # 学术搜索时是否用 Bing 兜底（默认 true，设为 false 仅返回学术引擎结果）
   network: china           # 网络环境: china / international
-  blocked: []              # Bing 屏蔽域名
+  blocked: []              # Bing 专用屏蔽域名（与 black_list_host 合并）
   per_sec: 1               # Bing 每秒限流
   per_min: 20              # Bing 每分钟限流
   # 各引擎独立禁用（默认 false = 启用）
@@ -87,10 +107,10 @@ jina:
   api_key: ""       # Jina API Key，留空则不启用 cleanfetch
   base_url: ""      # 默认 https://r.jina.ai
 
-# 屏蔽站点（仅对 baidu 有效）
-black_list_host:
-  - "csdn.net"
-  - "zhihu.com"
+# 日志配置（可选）
+log:
+  max_size: 1  # 单个日志文件最大 MB
+  max_age: 1   # 保留天数
 ```
 
 > 所有配置均支持环境变量覆盖：
@@ -307,55 +327,6 @@ echo Claude 已启动，关闭后请手动运行 websearch-mcpserver.exe stop
 
 > 提示：若采用后台常驻方案，可忽略引用计数，直接 `start` 一次后保持运行。多客户端同时使用时也不会冲突。
 
-## 高级功能
-
-### cleanfetch 网页抓取
-配置 Jina Reader API Key 后，自动注册 `cleanfetch` 工具。与直接用 HTTP 客户端抓取网页不同，cleanfetch 通过 Jina Reader 服务端渲染并清洗页面，返回干净的 Markdown 内容，大幅降低被目标网站反爬拦截的概率。
-
-适用场景：
-- 阅读某篇文章的完整正文
-- 获取需要 JavaScript 渲染的页面内容
-- 提取特定 URL 的结构化信息
-
-```yaml
-jina:
-  api_key: "jina_xxxxxxxxxxxxxxxxxxxxxxxx"
-```
-
-> API Key 获取：https://jina.ai/reader/
-
-### LLM 摘要生成
-当配置了有效的 LLM API 后，系统会自动为搜索结果生成带引用标注的专业摘要。摘要会主动过滤低质量内容，合并重复结果，并保留关键原文片段以便后续引用。
-
-### 学术搜索
-启用学术引擎后（`bing.academic: true`），可通过 MCP 工具的 `academic` 参数或自动检测学术关键词来触发学术论文检索。学术引擎包括：
-- **arXiv**：AI/ML/CS 领域预印本
-- **Crossref**：全学科学术元数据（DOI 注册机构）
-- **OpenAlex**：开放学术图谱，含引用数据
-- **Semantic Scholar**：AI 驱动的学术搜索（需海外网络）
-
-学术搜索结果包含论文元数据（作者、期刊、DOI、引用数、PDF 链接等），与通用网页搜索结果在格式上自动区分。
-
-### 日志系统
-日志同时输出到控制台和配置文件同目录下的 `websearch.log` 文件，支持自动滚动：
-- **单文件上限**：默认 1MB，超过后自动轮转
-- **保留策略**：默认保留 1 天，过期自动清理
-- **配置方式**：在 `config.yaml` 中通过 `log.max_size` 和 `log.max_age` 调整（单位分别为 MB 和天）
-
-示例：
-```yaml
-log:
-  max_size: 5  # 单个日志文件最大 5MB
-  max_age: 7   # 保留最近 7 天的日志
-```
-
-### 缓存系统
-启用缓存后可大幅减少重复搜索的 API 调用：
-- 基于 SQLite 的持久化缓存
-- 支持查询和意图的双重缓存键
-- 自动清理过期记录（默认 30 分钟）
-- 并发安全设计
-
 ## 构建
 ```shell
 git clone --depth 1 --branch master https://github.com/daidaiJ/websearch-mcpserver.git
@@ -369,20 +340,15 @@ docker build -t websearch:v1 .
 ```yaml
 services:
   websearch:
-    # 使用上一步构建的 websearch:v1 镜像
     image: websearch:v1
-    # 容器名称，方便管理
     container_name: websearch-service
-    # 重启策略：容器退出时自动重启（可选，根据需求调整）
     restart: always
-    # 挂载外部配置文件到容器内 /app/ 目录
     volumes:
       - /your-config-dir/config.yaml:/app/config.yaml
     ports:
-      - "8338:8338"  # 宿主机8338端口映射到容器8338端口
-    # 可选：环境变量（如果服务需要）
+      - "8338:8338"
     environment:
-      - TZ=Asia/Shanghai  # 设置容器时区
+      - TZ=Asia/Shanghai
 ```
 可选 docker 直接部署
 ```shell
@@ -419,29 +385,9 @@ search_tools:
   - search_tool_name: searxng-search
     litellm_params:
       search_provider: searxng
-      api_base: http://websearch:8338/searxng # 以 searxng 格式提供 websearch 服务
+      api_base: http://websearch:8338/searxng
 ```
 
-## 升级说明
+## 变更日志
 
-### 本次更新
-1. 新增 `cleanfetch` 工具，通过 Jina Reader API 抓取网页内容，降低反爬拦截风险
-2. LLM 摘要未启用时，`smartsearch` 工具自动移除 `intent` 参数，节省客户端上下文 token
-3. MCP 服务增加 30s 心跳 + 5 分钟空闲 session 自动清理，防止客户端因空闲断连
-4. HTTP Server 增加超时配置（ReadHeader 10s / Read 60s / Idle 120s）
-5. 异步摘要 goroutine 增加 panic recover，避免单请求异常导致服务崩溃
-6. 修复 Dockerfile 启动参数缺失导致容器立即退出的问题
-
-> **配置变更**：新增可选的 `jina` 配置块，不配置则不影响现有功能。
-
-### v2.x → v3.x 重大变更
-1. 新增 `engine` 搜索模式，无需 API Key 即可使用 Bing 通用搜索 + 学术搜索引擎
-2. 集成 Bing 通用搜索引擎作为兜底，API Key 额度耗尽时自动回退
-3. 集成学术搜索引擎（arXiv、Crossref、OpenAlex、Semantic Scholar），支持论文检索
-4. MCP 工具新增 `academic` 参数，可主动请求学术搜索
-5. 优化 LLM 摘要提示词：主动过滤低质量内容、合并重复结果、保留关键原文并标注引用
-
-### v1.x → v2.x 重大变更
-1. 增加了 Tavily 搜索 api 支持
-2. 扩展了 llm 摘要支持，建议使用快速模型，减少时间延迟的同时降低成本
-3. 通过 sqlite 对搜索及摘要结果做了缓存管理
+详见 [CHANGELOG.md](./CHANGELOG.md)

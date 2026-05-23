@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
@@ -18,6 +19,7 @@ type CacheRecord struct {
 	ID          int64     `json:"id"`
 	Query       string    `json:"query"`
 	Intent      string    `json:"intent"`
+	Academic    bool      `json:"academic"`      // 是否为学术搜索
 	RawResults  string    `json:"raw_results"`  // []SearchResult JSON
 	Summary     string    `json:"summary"`       // LLM 摘要文本，可能为空
 	CreatedAt   time.Time `json:"created_at"`    // 存储时间
@@ -43,18 +45,27 @@ func New(storagePath string) (*Cache, error) {
 	// SQLite WAL 模式 + 连接池配置，保证并发安全
 	db.SetMaxOpenConns(1) // SQLite 单写者模式，串行化写操作
 
+	// 迁移：为旧表添加 academic 列（如果不存在）
+	// 必须在 CREATE INDEX 之前执行，否则索引会因列不存在而创建失败
+	_, err = db.Exec(`ALTER TABLE search_cache ADD COLUMN academic INTEGER NOT NULL DEFAULT 0`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		db.Close()
+		return nil, fmt.Errorf("迁移 academic 列失败: %w", err)
+	}
+
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS search_cache (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			query       TEXT    NOT NULL,
 			intent      TEXT    NOT NULL DEFAULT '',
+			academic    INTEGER NOT NULL DEFAULT 0,
 			raw_results TEXT    NOT NULL DEFAULT '[]',
 			summary     TEXT    NOT NULL DEFAULT '',
 			created_at  INTEGER NOT NULL,
 			last_hit_at INTEGER NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_query ON search_cache(query);
-		CREATE INDEX IF NOT EXISTS idx_query_intent ON search_cache(query, intent);
+		CREATE INDEX IF NOT EXISTS idx_query_intent_academic ON search_cache(query, intent, academic);
 		CREATE INDEX IF NOT EXISTS idx_last_hit ON search_cache(last_hit_at);
 	`)
 	if err != nil {
@@ -71,28 +82,52 @@ func (c *Cache) Close() error {
 	return c.db.Close()
 }
 
-// Lookup 查询缓存，单次查询同时覆盖精确匹配和仅 query 匹配
+// Lookup 查询缓存，两步查询优化索引利用
 // 返回值: record(可能为nil), hitType("exact_intent" / "query_only" / "miss")
-func (c *Cache) Lookup(query, intent string) (*CacheRecord, string, error) {
+func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, string, error) {
 	now := time.Now().Unix()
+	academicInt := 0
+	if academic {
+		academicInt = 1
+	}
 
 	var rec CacheRecord
 	var createdAt, lastHitAt int64
-	var hitType string
+	var recAcademicInt int
 
-	// 单次查询：WHERE query = ?，通过 CASE 判断 intent 是否同时命中
-	// ORDER BY 优先返回 exact_intent，再按 last_hit_at 降序
+	// 第一步：精确匹配（query + intent + academic），直接利用索引 B-tree 定位
 	err := c.db.QueryRow(`
-		SELECT id, query, intent, raw_results, summary, created_at, last_hit_at,
-		       CASE WHEN intent = ? THEN 'exact_intent' ELSE 'query_only' END
+		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at
+		  FROM search_cache
+		 WHERE query = ? AND intent = ? AND academic = ?
+		 LIMIT 1`,
+		query, intent, academicInt,
+	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt)
+
+	if err == nil {
+		rec.Academic = recAcademicInt == 1
+		rec.CreatedAt = time.Unix(createdAt, 0)
+		rec.LastHitAt = time.Unix(lastHitAt, 0)
+		c.touchLastHit(rec.ID, now)
+		if rec.Summary != "" {
+			return &rec, "exact_intent", nil
+		}
+		return &rec, "query_only", nil
+	}
+
+	if err != sql.ErrNoRows {
+		return nil, "miss", fmt.Errorf("缓存查询失败: %w", err)
+	}
+
+	// 第二步：仅 query 匹配（回退），按 last_hit_at 降序取最新
+	err = c.db.QueryRow(`
+		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at
 		  FROM search_cache
 		 WHERE query = ?
-		 ORDER BY
-		       CASE WHEN intent = ? THEN 0 ELSE 1 END,
-		       last_hit_at DESC
+		 ORDER BY last_hit_at DESC
 		 LIMIT 1`,
-		intent, query, intent,
-	).Scan(&rec.ID, &rec.Query, &rec.Intent, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt, &hitType)
+		query,
+	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt)
 
 	if err == sql.ErrNoRows {
 		return nil, "miss", nil
@@ -101,10 +136,11 @@ func (c *Cache) Lookup(query, intent string) (*CacheRecord, string, error) {
 		return nil, "miss", fmt.Errorf("缓存查询失败: %w", err)
 	}
 
+	rec.Academic = recAcademicInt == 1
 	rec.CreatedAt = time.Unix(createdAt, 0)
 	rec.LastHitAt = time.Unix(lastHitAt, 0)
 	c.touchLastHit(rec.ID, now)
-	return &rec, hitType, nil
+	return &rec, "query_only", nil
 }
 
 // touchLastHit 更新命中时间
@@ -113,23 +149,27 @@ func (c *Cache) touchLastHit(id int64, now int64) {
 }
 
 // Store 存储缓存记录
-func (c *Cache) Store(query, intent string, results []search.SearchResult, summary string) error {
+func (c *Cache) Store(query, intent string, academic bool, results []search.SearchResult, summary string) error {
 	now := time.Now().Unix()
 	rawJSON, err := json.Marshal(results)
 	if err != nil {
 		return fmt.Errorf("序列化搜索结果失败: %w", err)
 	}
+	academicInt := 0
+	if academic {
+		academicInt = 1
+	}
 
 	_, err = c.db.Exec(
-		`INSERT INTO search_cache (query, intent, raw_results, summary, created_at, last_hit_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		query, intent, string(rawJSON), summary, now, now,
+		`INSERT INTO search_cache (query, intent, academic, raw_results, summary, created_at, last_hit_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		query, intent, academicInt, string(rawJSON), summary, now, now,
 	)
 	if err != nil {
 		return fmt.Errorf("缓存写入失败: %w", err)
 	}
 
-	log.Infof("缓存已存储: query=%q, intent=%q, has_summary=%v", query, intent, summary != "")
+	log.Infof("缓存已存储: query=%q, intent=%q, academic=%v, has_summary=%v", query, intent, academic, summary != "")
 	return nil
 }
 

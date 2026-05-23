@@ -2,6 +2,7 @@ package bing
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -57,6 +58,7 @@ type Result struct {
 	DOI         string     `json:"doi,omitempty"`
 	Journal     string     `json:"journal,omitempty"`
 	CitedBy     int        `json:"cited_by,omitempty"`
+	Score       float64    `json:"score,omitempty"` // 归一化分数（0-1），用于跨引擎排序
 	Engine      string     `json:"engine"`
 }
 
@@ -88,6 +90,7 @@ type Options struct {
 	Strategy         Strategy
 	Network          NetworkRegion
 	Academic         bool
+	BingFallback     bool // 学术搜索时是否用 Bing 兜底（默认 true）
 	MaxResults       int
 	TimeRange        TimeRange
 	Concurrency      int
@@ -116,6 +119,8 @@ func DefaultOptions() Options {
 func AcademicOptions() Options {
 	o := DefaultOptions()
 	o.Academic = true
+	o.Strategy = StrategyParallel
+	o.BingFallback = true
 	o.Arxiv.Enabled = true
 	o.Crossref.Enabled = true
 	o.OpenAlex.Enabled = true
@@ -259,6 +264,66 @@ func DeduplicateResults(results []Result) []Result {
 		out = append(out, r)
 	}
 	return out
+}
+
+// NormalizeAndSortResults 对去重后的结果按引擎分组归一化分数，再全局降序排序。
+// 有 API 分数的引擎：score / maxScore 归一化到 [0,1]。
+// 无 API 分数的引擎（Score 全为 0）：按排名赋分 1/(rank+1)。
+func NormalizeAndSortResults(results []Result) []Result {
+	if len(results) <= 1 {
+		return results
+	}
+
+	// 按引擎分组
+	type group struct {
+		results []Result
+		maxAPI  float64 // 该引擎的最大 API 分数
+		hasAPI  bool
+	}
+	groups := make(map[string]*group)
+	order := make([]string, 0) // 保持引擎出现顺序
+
+	for _, r := range results {
+		g, ok := groups[r.Engine]
+		if !ok {
+			g = &group{}
+			groups[r.Engine] = g
+			order = append(order, r.Engine)
+		}
+		g.results = append(g.results, r)
+		if r.Score > 0 {
+			g.hasAPI = true
+			if r.Score > g.maxAPI {
+				g.maxAPI = r.Score
+			}
+		}
+	}
+
+	// 归一化
+	for _, name := range order {
+		g := groups[name]
+		if g.hasAPI && g.maxAPI > 0 {
+			// 有 API 分数：线性归一化到 [0,1]
+			for i := range g.results {
+				g.results[i].Score = g.results[i].Score / g.maxAPI
+			}
+		} else {
+			// 无 API 分数：按排名赋分
+			for i := range g.results {
+				g.results[i].Score = 1.0 / float64(i+1)
+			}
+		}
+	}
+
+	// 合并并按 Score 降序排序
+	merged := make([]Result, 0, len(results))
+	for _, name := range order {
+		merged = append(merged, groups[name].results...)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Score > merged[j].Score
+	})
+	return merged
 }
 
 func truncateRunes(s string, n int) string {

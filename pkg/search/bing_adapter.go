@@ -49,11 +49,17 @@ func (a *BingSearchAdapter) MergeContent(query string, results []SearchResult) (
 	if len(results) == 0 {
 		return "", fmt.Errorf("没有搜索结果")
 	}
-	ret := md.MDSearchHeader(query, len(results))
+	var buf strings.Builder
+	buf.Grow(1024 * len(results))
+	buf.WriteString(md.MDSearchHeader(query, len(results)))
 	for i, val := range results {
-		ret = fmt.Sprintf("%s%s", ret, md.FormatMD(i+1, val.Title, val.Url, val.Content))
+		if val.Type == "paper" {
+			buf.WriteString(md.FormatPaperMD(i+1, val.Title, val.Url, val.Authors, val.DOI, val.Content))
+		} else {
+			buf.WriteString(md.FormatMD(i+1, val.Title, val.Url, val.Content))
+		}
 	}
-	return ret, nil
+	return buf.String(), nil
 }
 
 // SearchAcademicRaw 实现 AcademicSearcher 接口，返回学术论文搜索结果。
@@ -79,6 +85,7 @@ func (a *BingSearchAdapter) doSearch(s *bing.Searcher, query string) ([]SearchRe
 		all = append(all, resp.Results...)
 	}
 	all = bing.DeduplicateResults(all)
+	all = bing.NormalizeAndSortResults(all)
 
 	if len(all) == 0 {
 		return nil, fmt.Errorf("引擎搜索无结果")
@@ -91,6 +98,9 @@ func (a *BingSearchAdapter) doSearch(s *bing.Searcher, query string) ([]SearchRe
 			Url:         strings.TrimSpace(r.URL),
 			Content:     r.Content,
 			PublishDate: r.PublishedAt,
+			Type:        string(r.Type),
+			Authors:     r.Authors,
+			DOI:         r.DOI,
 		})
 	}
 	return results, nil

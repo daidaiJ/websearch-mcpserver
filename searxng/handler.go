@@ -51,7 +51,7 @@ func Init(conf config.Config) {
 				log.Error("无可用搜索引擎")
 			}
 		} else {
-			defaultInf = search.NewTavilySearch(conf.TavilySk)
+			defaultInf = search.NewTavilySearch(conf.TavilySk, conf.BlackListHost)
 		}
 
 	case config.ModeHybrid:
@@ -60,7 +60,7 @@ func Init(conf config.Config) {
 			engines = append(engines, search.NewBaiduSeach(conf.BaiduSK, conf.BlackListHost))
 		}
 		if conf.TavilySk != "" {
-			engines = append(engines, search.NewTavilySearch(conf.TavilySk))
+			engines = append(engines, search.NewTavilySearch(conf.TavilySk, conf.BlackListHost))
 		}
 		if len(engines) == 0 {
 			log.Error("mode=hybrid 但未配置任何 API Key，回退到 engine 模式")
@@ -92,7 +92,9 @@ func buildBingAdapter(conf config.Config) *search.BingSearchAdapter {
 	bc := conf.Bing
 
 	regularOpts := bing.DefaultOptions()
-	regularOpts.Bing.Blocked = bc.Blocked
+	// 合并 black_list_host 和 bing.blocked
+	blocked := mergeBlocked(conf.BlackListHost, bc.Blocked)
+	regularOpts.Bing.Blocked = blocked
 	if bc.PerSec > 0 {
 		regularOpts.Bing.PerSec = bc.PerSec
 	}
@@ -118,6 +120,33 @@ func buildBingAdapter(conf config.Config) *search.BingSearchAdapter {
 	adapter := search.NewBingSearchAdapter(regularOpts, academicOpts)
 	log.Infof("SearXNG 后端使用 Bing 引擎: %v", strings.Join(adapter.Engines(), ", "))
 	return adapter
+}
+
+// mergeBlocked 合并 black_list_host 和 bing.blocked，去重。
+func mergeBlocked(blackListHost, bingBlocked []string) []string {
+	seen := make(map[string]struct{})
+	var merged []string
+	for _, d := range blackListHost {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if _, exists := seen[d]; !exists {
+			seen[d] = struct{}{}
+			merged = append(merged, d)
+		}
+	}
+	for _, d := range bingBlocked {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if _, exists := seen[d]; !exists {
+			seen[d] = struct{}{}
+			merged = append(merged, d)
+		}
+	}
+	return merged
 }
 
 func RegisterRouter(mux *http.ServeMux) {

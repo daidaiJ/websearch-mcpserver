@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	md "websearch/pkg/xml"
@@ -65,13 +66,9 @@ func (h *HybridSearchImpl) SearchRaw(query string) ([]SearchResult, error) {
 	}
 
 	// 按 index 排序保证结果顺序稳定
-	for i := 0; i < len(allResults); i++ {
-		for j := i + 1; j < len(allResults); j++ {
-			if allResults[i].index > allResults[j].index {
-				allResults[i], allResults[j] = allResults[j], allResults[i]
-			}
-		}
-	}
+	sort.Slice(allResults, func(i, j int) bool {
+		return allResults[i].index < allResults[j].index
+	})
 	// 合并结果，去重
 	for _, ir := range allResults {
 		for _, r := range ir.results {
@@ -94,9 +91,15 @@ func (h *HybridSearchImpl) MergeContent(query string, results []SearchResult) (s
 	if len(results) == 0 {
 		return "", fmt.Errorf("没有结果可合并")
 	}
-	ret := md.MDSearchHeader(query, len(results))
+	var buf strings.Builder
+	buf.Grow(1024 * len(results))
+	buf.WriteString(md.MDSearchHeader(query, len(results)))
 	for i, val := range results {
-		ret = fmt.Sprintf("%s%s", ret, md.FormatMD(i+1, val.Title, val.Url, val.Content))
+		if val.Type == "paper" {
+			buf.WriteString(md.FormatPaperMD(i+1, val.Title, val.Url, val.Authors, val.DOI, val.Content))
+		} else {
+			buf.WriteString(md.FormatMD(i+1, val.Title, val.Url, val.Content))
+		}
 	}
-	return ret, nil
+	return buf.String(), nil
 }

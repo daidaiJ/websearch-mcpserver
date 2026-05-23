@@ -80,6 +80,7 @@ type openalexWork struct {
 	PrimaryLocation *openalexLocation   `json:"primary_location"`
 	PublicationDate string              `json:"publication_date"`
 	CitedByCount   int                  `json:"cited_by_count"`
+	RelevanceScore float64              `json:"relevance_score"`
 	Keywords       []openalexConcept    `json:"keywords"`
 }
 
@@ -165,6 +166,7 @@ func (e *openalexEngine) parse(data []byte) (*SearchResponse, error) {
 			DOI:         doi,
 			Journal:     journal,
 			CitedBy:     w.CitedByCount,
+			Score:       w.RelevanceScore,
 			Engine:      "openalex",
 		})
 	}

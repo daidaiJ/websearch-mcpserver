@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            name: websearch-mcpserver-linux-amd64
+          - goos: windows
+            goarch: amd64
+            name: websearch-mcpserver-windows-amd64.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -ldflags="-s -w" -o ${{ matrix.name }} ./cmd/main.go
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get commit message
+        id: commit
+        run: |
+          echo "msg<<EOF" >> "$GITHUB_OUTPUT"
+          git log -1 --format=%B >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bins
+
+      - name: Generate SHA256 checksums
+        run: |
+          sha256sum \
+            bins/websearch-mcpserver-linux-amd64/websearch-mcpserver-linux-amd64 \
+            bins/websearch-mcpserver-windows-amd64.exe/websearch-mcpserver-windows-amd64.exe \
+            | sed 's|bins/[^/]*/||g' > bins/SHA256SUMS.txt
+          cat bins/SHA256SUMS.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.commit.outputs.msg }}
+          files: |
+            bins/websearch-mcpserver-linux-amd64/websearch-mcpserver-linux-amd64
+            bins/websearch-mcpserver-windows-amd64.exe/websearch-mcpserver-windows-amd64.exe
+            bins/SHA256SUMS.txt

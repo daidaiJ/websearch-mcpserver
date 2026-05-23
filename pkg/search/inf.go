@@ -7,6 +7,9 @@ type SearchResult struct {
 	Url         string `json:"url"`
 	Content     string `json:"content"`
 	PublishDate string `json:"publishedDate"`
+	Type        string `json:"type,omitempty"` // "paper" 或 "web"，学术搜索时为 "paper"
+	Authors     string `json:"authors,omitempty"` // 论文作者
+	DOI         string `json:"doi,omitempty"`     // 论文 DOI
 }
 
 type SearchInf interface {

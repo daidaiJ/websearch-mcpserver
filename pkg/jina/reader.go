@@ -1,8 +1,11 @@
 package jina
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 	"websearch/pkg/client"
 	"websearch/pkg/config"
 	"websearch/pkg/log"
@@ -50,11 +53,30 @@ func NewFromConfig(conf config.JinaConfig) *Reader {
 	return NewReader(conf.APIKey, conf.BaseURL)
 }
 
-func (r *Reader) Fetch(url string) (*FetchResult, error) {
-	fetchURL := fmt.Sprintf("%s/%s", r.baseURL, url)
+func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
+	// 验证 URL 格式和协议
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("无效的 URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("不支持的协议: %s", parsed.Scheme)
+	}
+	// 拒绝内网地址
+	host := parsed.Hostname()
+	if isPrivateHost(host) {
+		return nil, fmt.Errorf("不允许访问内网地址")
+	}
+
+	fetchURL := fmt.Sprintf("%s/%s", r.baseURL, rawURL)
+
+	// 使用带超时的 context
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	var resp jinaResponse
 	res, err := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("Accept", "application/json").
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", r.apiKey)).
 		SetHeader("X-Base", "final").
@@ -96,6 +118,36 @@ func describeHTTPError(code int) string {
 	case 500, 502, 503:
 		return fmt.Sprintf("目标服务器故障(%d)", code)
 	default:
-		return fmt.Errorf("抓取失败，HTTP %d", code).Error()
+		return fmt.Sprintf("抓取失败，HTTP %d", code)
 	}
+}
+
+// isPrivateHost 检测是否为内网地址。
+func isPrivateHost(host string) bool {
+	// 常见内网地址
+	privateHosts := []string{
+		"localhost",
+		"127.0.0.1",
+		"::1",
+		"0.0.0.0",
+		"169.254.169.254", // AWS 元数据
+		"metadata.google.internal", // GCP 元数据
+	}
+	for _, ph := range privateHosts {
+		if host == ph {
+			return true
+		}
+	}
+	// 检查私有 IP 段
+	if strings.HasPrefix(host, "10.") ||
+		strings.HasPrefix(host, "172.16.") ||
+		strings.HasPrefix(host, "172.17.") ||
+		strings.HasPrefix(host, "172.18.") ||
+		strings.HasPrefix(host, "172.19.") ||
+		strings.HasPrefix(host, "172.2") ||
+		strings.HasPrefix(host, "172.3") ||
+		strings.HasPrefix(host, "192.168.") {
+		return true
+	}
+	return false
 }

@@ -8,14 +8,16 @@ import (
 )
 
 type TavilySearchImpl struct {
-	apiKey    string
-	blacklist []string
+	apiKey         string
+	includeDomains []string
+	excludeDomains []string
 }
 
 type tavilySearchReq struct {
 	Query          string   `json:"query"`
 	SearchDepth    string   `json:"search_depth"`
-	ExcludeDomains []string `json:"exclude_domains"`
+	IncludeDomains []string `json:"include_domains,omitempty"`
+	ExcludeDomains []string `json:"exclude_domains,omitempty"`
 }
 
 type tavilyResult struct {
@@ -29,9 +31,19 @@ type tavilySearchResp struct {
 	Results []tavilyResult `json:"results"`
 }
 
-func NewTavilySearch(apiKey string) *TavilySearchImpl {
+func NewTavilySearch(apiKey string, excludeDomains []string) *TavilySearchImpl {
 	return &TavilySearchImpl{
-		apiKey: apiKey,
+		apiKey:         apiKey,
+		excludeDomains: excludeDomains,
+	}
+}
+
+// NewTavilySearchWithDomains 创建支持限定域名的 Tavily 搜索实例。
+func NewTavilySearchWithDomains(apiKey string, includeDomains, excludeDomains []string) *TavilySearchImpl {
+	return &TavilySearchImpl{
+		apiKey:         apiKey,
+		includeDomains: includeDomains,
+		excludeDomains: excludeDomains,
 	}
 }
 
@@ -55,7 +67,8 @@ func (t *TavilySearchImpl) SearchRaw(query string) ([]SearchResult, error) {
 	req := tavilySearchReq{
 		Query:          query,
 		SearchDepth:    "basic",
-		ExcludeDomains: t.blacklist,
+		IncludeDomains: t.includeDomains,
+		ExcludeDomains: t.excludeDomains,
 	}
 	var resp tavilySearchResp
 	res, err := client.DefaultClient.R().
@@ -91,10 +104,16 @@ func (t *TavilySearchImpl) MergeContent(query string, results []SearchResult) (s
 		return "", fmt.Errorf("没有搜索结果可以合并")
 
 	}
-	ret := md.MDSearchHeader(query, len(results))
+	var buf strings.Builder
+	buf.Grow(1024 * len(results))
+	buf.WriteString(md.MDSearchHeader(query, len(results)))
 	for i, val := range results {
-		ret = fmt.Sprintf("%s%s", ret, md.FormatMD(i+1, val.Title, val.Url, val.Content))
+		if val.Type == "paper" {
+			buf.WriteString(md.FormatPaperMD(i+1, val.Title, val.Url, val.Authors, val.DOI, val.Content))
+		} else {
+			buf.WriteString(md.FormatMD(i+1, val.Title, val.Url, val.Content))
+		}
 	}
-	return ret, nil
+	return buf.String(), nil
 
 }

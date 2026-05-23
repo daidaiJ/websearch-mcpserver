@@ -92,6 +92,7 @@ type crossrefItem struct {
 	Page        string            `json:"page"`
 	ISSN        []string          `json:"ISSN"`
 	Publisher   string            `json:"publisher"`
+	Score       float64           `json:"score"`
 }
 
 type crossrefAuthor struct {
@@ -170,6 +171,7 @@ func (e *crossrefEngine) parse(data []byte) (*SearchResponse, error) {
 			PublishedAt: pubDate,
 			DOI:         item.DOI,
 			Journal:     journal,
+			Score:       item.Score,
 			Engine:      "crossref",
 		})
 	}

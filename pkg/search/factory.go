@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"strings"
 	"websearch/pkg/bing"
 	"websearch/pkg/config"
 	"websearch/pkg/log"
@@ -40,7 +41,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 				return nil, fmt.Errorf("无可用搜索引擎")
 			}
 		} else {
-			g.Primary = NewTavilySearch(conf.TavilySk)
+			g.Primary = NewTavilySearch(conf.TavilySk, conf.BlackListHost)
 		}
 
 	case config.ModeHybrid:
@@ -49,7 +50,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 			engines = append(engines, NewBaiduSeach(conf.BaiduSK, conf.BlackListHost))
 		}
 		if conf.TavilySk != "" {
-			engines = append(engines, NewTavilySearch(conf.TavilySk))
+			engines = append(engines, NewTavilySearch(conf.TavilySk, conf.BlackListHost))
 		}
 		if len(engines) == 0 {
 			log.Error("mode=hybrid 但未配置任何 API Key，回退到 engine 模式")
@@ -99,7 +100,9 @@ func initBingEngine(conf config.Config, g *SearchGroup) {
 	}
 
 	regularOpts := bing.DefaultOptions()
-	regularOpts.Bing.Blocked = bc.Blocked
+	// 合并 black_list_host 和 bing.blocked
+	blocked := mergeBlocked(conf.BlackListHost, bc.Blocked)
+	regularOpts.Bing.Blocked = blocked
 	if bc.PerSec > 0 {
 		regularOpts.Bing.PerSec = bc.PerSec
 	}
@@ -110,6 +113,8 @@ func initBingEngine(conf config.Config, g *SearchGroup) {
 	academicOpts := regularOpts
 	if bc.Academic {
 		academicOpts.Academic = true
+		academicOpts.Strategy = bing.StrategyParallel
+		academicOpts.BingFallback = bc.BingFallback
 		academicOpts.Arxiv.Enabled = !bc.DisableArxiv
 		academicOpts.Crossref.Enabled = !bc.DisableCrossref
 		academicOpts.OpenAlex.Enabled = !bc.DisableOpenAlex
@@ -136,4 +141,31 @@ func initBingEngine(conf config.Config, g *SearchGroup) {
 		acadEngines := g.Fallback.AcademicEngines()
 		log.Infof("学术引擎: %v", acadEngines)
 	}
+}
+
+// mergeBlocked 合并 black_list_host 和 bing.blocked，去重。
+func mergeBlocked(blackListHost, bingBlocked []string) []string {
+	seen := make(map[string]struct{})
+	var merged []string
+	for _, d := range blackListHost {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if _, exists := seen[d]; !exists {
+			seen[d] = struct{}{}
+			merged = append(merged, d)
+		}
+	}
+	for _, d := range bingBlocked {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if _, exists := seen[d]; !exists {
+			seen[d] = struct{}{}
+			merged = append(merged, d)
+		}
+	}
+	return merged
 }

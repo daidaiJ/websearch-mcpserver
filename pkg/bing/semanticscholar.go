@@ -40,7 +40,7 @@ func (e *semanticScholarEngine) Search(query string, page int, timeRange TimeRan
 		"query":  {query},
 		"offset": {fmt.Sprintf("%d", offset)},
 		"limit":  {"10"},
-		"fields": {"title,url,abstract,authors,year,externalIds,venue,citationCount,openAccessPdf"},
+		"fields": {"title,url,abstract,authors,year,externalIds,venue,citationCount,openAccessPdf,relevanceScore"},
 	}
 	if since := TimeRangeSince(timeRange); since != "" {
 		year := since[:4]
@@ -81,16 +81,17 @@ type ssResponse struct {
 }
 
 type ssPaper struct {
-	PaperID       string     `json:"paperId"`
-	Title         string     `json:"title"`
-	URL           string     `json:"url"`
-	Abstract      string     `json:"abstract"`
-	Year          int        `json:"year"`
-	Venue         string     `json:"venue"`
-	CitationCount int        `json:"citationCount"`
-	Authors       []ssAuthor `json:"authors"`
-	ExternalIDs   ssExtIDs   `json:"externalIds"`
-	OpenAccess    *ssOA      `json:"openAccessPdf"`
+	PaperID         string     `json:"paperId"`
+	Title           string     `json:"title"`
+	URL             string     `json:"url"`
+	Abstract        string     `json:"abstract"`
+	Year            int        `json:"year"`
+	Venue           string     `json:"venue"`
+	CitationCount   int        `json:"citationCount"`
+	RelevanceScore  float64    `json:"relevanceScore"`
+	Authors         []ssAuthor `json:"authors"`
+	ExternalIDs     ssExtIDs   `json:"externalIds"`
+	OpenAccess      *ssOA      `json:"openAccessPdf"`
 }
 
 type ssAuthor struct {
@@ -175,6 +176,7 @@ func (e *semanticScholarEngine) parse(data []byte) (*SearchResponse, error) {
 			DOI:         p.ExternalIDs.DOI,
 			Journal:     p.Venue,
 			CitedBy:     p.CitationCount,
+			Score:       p.RelevanceScore,
 			Engine:      "semantic_scholar",
 		})
 	}

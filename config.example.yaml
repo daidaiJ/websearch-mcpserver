@@ -53,6 +53,8 @@ bing:
   enabled: true
   # 学术引擎总开关（默认 true，开启后可用学术论文搜索引擎）
   academic: true
+  # 学术搜索时是否用 Bing 兜底（默认 true，设为 false 则仅返回学术引擎结果）
+  bing_fallback: true
   # 网络环境: china（默认，自动跳过海外引擎） / international（启用全部引擎）
   network: china
   # Bing 屏蔽域名

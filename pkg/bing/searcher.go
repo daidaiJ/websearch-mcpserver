@@ -21,13 +21,14 @@ func NewSearcher(opts Options) *Searcher {
 }
 
 func (s *Searcher) buildEngines() {
-	if s.opts.Bing.Enabled {
-		s.engines = append(s.engines, NewBing(s.opts.Bing))
-	}
-
 	if !s.opts.Academic {
+		if s.opts.Bing.Enabled {
+			s.engines = append(s.engines, NewBing(s.opts.Bing))
+		}
 		return
 	}
+
+	// 学术模式：优先学术引擎，Bing 仅作补充
 	if s.opts.Crossref.Enabled && s.opts.Network >= RegionChina {
 		s.engines = append(s.engines, NewCrossref(s.opts.Crossref))
 	}
@@ -39,6 +40,10 @@ func (s *Searcher) buildEngines() {
 	}
 	if s.opts.SemanticScholar.Enabled && s.opts.Network >= RegionInternational {
 		s.engines = append(s.engines, NewSemanticScholar(s.opts.SemanticScholar))
+	}
+	// Bing 放在最后，学术引擎无结果时才启用
+	if s.opts.Bing.Enabled && s.opts.BingFallback {
+		s.engines = append(s.engines, NewBing(s.opts.Bing))
 	}
 }
 
