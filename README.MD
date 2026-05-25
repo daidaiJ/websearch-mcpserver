@@ -5,6 +5,8 @@ websearch mcp server 一个 golang 开发的轻量级 web search 服务，支持
 
 内置 Bing 通用搜索引擎作为兜底，并集成 arXiv、Crossref、OpenAlex、Semantic Scholar 等学术搜索引擎，支持学术论文检索。
 
+可作为独立 CLI 部署，也可作为 Go 模块嵌入到其他项目中。详见 [API 文档](./docs/api.md)。
+
 ## 下载
 
 从 [GitHub Releases](https://github.com/daidaiJ/websearch-mcpserver/releases) 下载对应平台的二进制文件：
@@ -326,6 +328,43 @@ echo Claude 已启动，关闭后请手动运行 websearch-mcpserver.exe stop
 - **macOS**：使用 `launchd` plist 文件。
 
 > 提示：若采用后台常驻方案，可忽略引用计数，直接 `start` 一次后保持运行。多客户端同时使用时也不会冲突。
+
+## 作为 Go 模块嵌入
+
+本项目的 `server` 包可被其他 Go 项目直接引用，无需 fork 或复制代码。
+
+### 安装
+
+```bash
+go get websearch/server
+```
+
+### 快速使用
+
+```go
+import (
+    "websearch/pkg/config"
+    "websearch/server"
+)
+
+conf, _ := config.Load("config.yaml")
+srv := server.New()
+srv.SetRefCount(1)
+srv.Run(*conf) // 完整托管，阻塞直到信号或引用计数归零
+```
+
+如需自行管理 HTTP Server 生命周期（复用已有端口、TLS、中间件等），可使用 `Handler` 方法：
+
+```go
+srv := server.New()
+handler := srv.Handler(*conf)
+mux := http.NewServeMux()
+mux.Handle("/", handler)
+// 注册自己的路由 ...
+httpSrv := &http.Server{Addr: ":9000", Handler: mux}
+```
+
+完整 API 说明见 [docs/api.md](./docs/api.md)。
 
 ## 构建
 ```shell
