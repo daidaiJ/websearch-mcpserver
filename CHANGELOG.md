@@ -1,5 +1,27 @@
 # Changelog
 
+## [v3.3.0] - 2026-05-26
+
+### 新增
+- **Windows 开机自启动**：`install` / `uninstall` 命令，使用 COM API (ole32.dll) 创建快捷方式，无需依赖 PowerShell
+- **PubMed 学术引擎**：生物医学文献权威数据库，国内直连
+- **Google Scholar 学术引擎**：全学科学术搜索，需代理
+- **MCP 工具拆分**：`smartsearch`（通用搜索）+ `academicsearch`（学术搜索）独立工具，`academicsearch` 支持 `engines` / `time_range` / `page` 参数
+- **学术搜索并行化**：多引擎并发请求，结果按 URL 去重 + 分组归一化排序
+- **BingFallback 配置**：`academic.bing_fallback` 控制学术搜索时是否用 Bing 兜底
+- **proxy 配置**：仅海外学术引擎（Semantic Scholar、Google Scholar）走代理
+- **CI 自动发版**：GitHub Actions workflow，tag 推送后自动构建 linux/windows 二进制并发布 Release，附带 SHA256 校验
+
+### 重构
+- **提取 server 包**：`RunServer`、admin handlers、引用计数逻辑从 `cmd/main.go` 提取到可导出的 `server` 包，支持作为 Go 模块嵌入
+- **学术引擎独立模块**：新增 `pkg/academic`（6 个引擎独立实现）和 `pkg/antirobot`（共享引擎框架：Engine 接口、Searcher 编排器、限流器）
+- **Bing 包精简**：`pkg/bing` 仅保留 Bing 通用搜索引擎 + 反爬逻辑
+
+### 文档
+- 新增 [docs/api.md](docs/api.md)：Go Module API 和 HTTP API 完整文档
+- 新增 [docs/config.md](docs/config.md)：配置参考、默认值速查、环境变量覆盖
+- README 全面重写：精简结构化，补充特性亮点、运维参考、排障指南
+
 ## [v3.2.0] - 2026-05-23
 
 ### 新增
