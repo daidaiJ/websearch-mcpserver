@@ -45,14 +45,7 @@ func New(storagePath string) (*Cache, error) {
 	// SQLite WAL 模式 + 连接池配置，保证并发安全
 	db.SetMaxOpenConns(1) // SQLite 单写者模式，串行化写操作
 
-	// 迁移：为旧表添加 academic 列（如果不存在）
-	// 必须在 CREATE INDEX 之前执行，否则索引会因列不存在而创建失败
-	_, err = db.Exec(`ALTER TABLE search_cache ADD COLUMN academic INTEGER NOT NULL DEFAULT 0`)
-	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
-		db.Close()
-		return nil, fmt.Errorf("迁移 academic 列失败: %w", err)
-	}
-
+	// 先建表（首次运行时表不存在）
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS search_cache (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,14 +56,29 @@ func New(storagePath string) (*Cache, error) {
 			summary     TEXT    NOT NULL DEFAULT '',
 			created_at  INTEGER NOT NULL,
 			last_hit_at INTEGER NOT NULL
-		);
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("建表失败: %w", err)
+	}
+
+	// 迁移：为旧表添加 academic 列（如果不存在）
+	_, err = db.Exec(`ALTER TABLE search_cache ADD COLUMN academic INTEGER NOT NULL DEFAULT 0`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		db.Close()
+		return nil, fmt.Errorf("迁移 academic 列失败: %w", err)
+	}
+
+	// 创建索引
+	_, err = db.Exec(`
 		CREATE INDEX IF NOT EXISTS idx_query ON search_cache(query);
 		CREATE INDEX IF NOT EXISTS idx_query_intent_academic ON search_cache(query, intent, academic);
 		CREATE INDEX IF NOT EXISTS idx_last_hit ON search_cache(last_hit_at);
 	`)
 	if err != nil {
 		db.Close()
-		return nil, fmt.Errorf("建表失败: %w", err)
+		return nil, fmt.Errorf("创建索引失败: %w", err)
 	}
 
 	log.Infof("缓存层已初始化: %s", storagePath)

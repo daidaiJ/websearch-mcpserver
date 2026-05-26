@@ -161,6 +161,23 @@ mode: engine
 
 本项目支持通过 CLI 子命令对服务进行**引用计数**式的生命周期管理，特别适合 Windows 本地开发或多客户端共享同一服务实例的场景。
 
+### Windows 开机自启动
+
+本项目支持通过 `install` 命令一键配置 Windows 开机自启动。该命令使用底层的 COM API 创建快捷方式，无需依赖 PowerShell，兼容性更强。
+
+```bash
+# 安装自启动（生成配置文件、VBS 脚本，并在启动目录创建快捷方式）
+./websearch-mcpserver.exe install
+
+# 卸载自启动（从启动目录移除快捷方式）
+./websearch-mcpserver.exe uninstall
+```
+
+**`install` 命令执行的操作**：
+1.  **检查配置**：如果当前目录下没有 `config.yaml`，会自动从内嵌的模板创建一份。
+2.  **生成脚本**：生成 `autostart.vbs` 脚本，用于静默启动服务（隐藏黑框）。
+3.  **创建快捷方式**：在 Windows 启动目录（`shell:startup`）创建名为 `WebSearchMCP.lnk` 的快捷方式，指向 `wscript.exe` 以运行 VBS 脚本。
+
 ### 子命令
 
 ```bash

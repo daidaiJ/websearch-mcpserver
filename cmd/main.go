@@ -36,6 +36,8 @@ func runStart(conf *config.Config) {
 		fmt.Fprintf(os.Stderr, "failed to write PID file: %v\n", err)
 		os.Exit(1)
 	}
+	
+	// 启动服务
 	srv.Run(*conf)
 }
 
@@ -125,13 +127,15 @@ func waitForHealthDown(port int, timeout time.Duration) bool {
 }
 
 func printUsage() {
-	fmt.Println("Usage: websearch-mcpserver <start|stop|kill|status>")
+	fmt.Println("Usage: websearch-mcpserver <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  start   Start the server or increase refcount if already running")
-	fmt.Println("  stop    Decrease refcount, shutdown server when refcount reaches zero")
-	fmt.Println("  kill    Force kill the server")
-	fmt.Println("  status  Show server status")
+	fmt.Println("  start       Start the server or increase refcount if already running")
+	fmt.Println("  stop        Decrease refcount, shutdown server when refcount reaches zero")
+	fmt.Println("  kill        Force kill the server")
+	fmt.Println("  status      Show server status")
+	fmt.Println("  install     Install autostart script and create shortcut in startup folder (Windows only)")
+	fmt.Println("  uninstall   Remove shortcut from startup folder (Windows only)")
 }
 
 func main() {
@@ -146,6 +150,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 处理不需要配置文件的命令
+	switch args[0] {
+	case "install":
+		runInstall()
+		return
+	case "uninstall":
+		runUninstall()
+		return
+	}
+
+	// 对于其他命令，加载配置
 	conf, err := config.Load(configPath)
 	if err != nil {
 		// 对于 stop/kill/status，尝试在无配置时也能执行基本操作

@@ -178,7 +178,11 @@ func Load(configPath string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
-	if configPath != "" {
+	// 优先使用环境变量指定的配置文件
+	envConfigPath := os.Getenv("WEBSEARCH_CONFIG")
+	if envConfigPath != "" {
+		viper.SetConfigFile(envConfigPath)
+	} else if configPath != "" {
 		viper.SetConfigFile(configPath)
 	} else {
 		viper.AddConfigPath(".")
