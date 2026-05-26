@@ -34,10 +34,12 @@ func BuildAcademic(opts struct {
 		engines = append(engines, NewPubMed(opts.PubMed, nil))
 	}
 
-	// 国际引擎：Semantic Scholar 和 Google Scholar 仅在配置代理时启用（国内无代理不可达）
-	if opts.Arxiv.Enabled && opts.Network >= antirobot.RegionInternational {
+	// 国内引擎：arXiv 国内可直连
+	if opts.Arxiv.Enabled && opts.Network >= antirobot.RegionChina {
 		engines = append(engines, NewArxiv(opts.Arxiv, nil))
 	}
+
+	// 国际引擎：Semantic Scholar 和 Google Scholar 仅在配置代理时启用（国内无代理不可达）
 	if opts.Proxy != "" {
 		intlClient := buildProxyClient(opts.Proxy)
 		if opts.SemanticScholar.Enabled && opts.Network >= antirobot.RegionInternational {
