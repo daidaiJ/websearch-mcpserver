@@ -8,6 +8,7 @@ import (
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 	"websearch/pkg/summarizer"
+	"websearch/pkg/webfetch"
 )
 
 // ServerOption 服务器组件初始化选项。
@@ -31,6 +32,11 @@ func WithCache(conf config.Config) ServerOption {
 // WithJinaReader 在 Jina API Key 配置就绪时初始化 Jina Reader。
 func WithJinaReader(conf config.Config) ServerOption {
 	return func() { applyJinaReader(conf) }
+}
+
+// WithWebFetch 在 CleanFetch 启用时初始化 go-webfetch 引擎。
+func WithWebFetch(conf config.Config) ServerOption {
+	return func() { applyWebFetch(conf) }
 }
 
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
@@ -69,4 +75,16 @@ func applyJinaReader(conf config.Config) {
 	if jinaInst != nil {
 		log.Info("Jina Reader 已启用（通过代理）")
 	}
+}
+
+func applyWebFetch(conf config.Config) {
+	if !conf.CleanFetch.Enabled && !conf.PDFParser.Enabled {
+		return
+	}
+	f, err := webfetch.NewFromConfig(conf.CleanFetch)
+	if err != nil {
+		log.Errf("WebFetch 初始化失败: %v", err)
+		return
+	}
+	webfetchInst = f
 }

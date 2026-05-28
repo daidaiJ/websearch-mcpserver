@@ -51,16 +51,14 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 		if conf.Tavily.APIKey != "" {
 			engines = append(engines, NewTavilySearch(conf.Tavily.APIKey, conf.BlackListHost))
 		}
-		if len(engines) == 0 {
-			log.Error("mode=hybrid 但未配置任何 API Key，回退到 engine 模式")
-			if g.Fallback != nil {
-				g.Primary = g.Fallback
-			} else {
-				return nil, fmt.Errorf("无可用搜索引擎")
-			}
-		} else {
-			g.Primary = NewHybridSearch(engines...)
+		// Bing 作为原生引擎参与混合搜索
+		if g.Fallback != nil {
+			engines = append(engines, g.Fallback)
 		}
+		if len(engines) == 0 {
+			return nil, fmt.Errorf("无可用搜索引擎，请检查配置")
+		}
+		g.Primary = NewHybridSearch(engines...)
 
 	default: // baidu
 		if conf.Baidu.APIKey == "" {

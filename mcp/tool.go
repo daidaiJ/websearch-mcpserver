@@ -10,6 +10,7 @@ import (
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 	"websearch/pkg/summarizer"
+	"websearch/pkg/webfetch"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -44,6 +45,7 @@ var (
 	summarizerInst  *summarizer.Summarizer
 	cacheInst       *cache.Cache
 	jinaInst        *jina.Reader
+	webfetchInst    *webfetch.Fetcher
 	academicSearcher search.AcademicSearcher
 )
 
@@ -61,6 +63,11 @@ func Init(conf config.Config, opts ...ServerOption) error {
 
 func GetCache() *cache.Cache {
 	return cacheInst
+}
+
+// GetWebFetch 返回 WebFetch 引擎实例（供 server 包关闭时清理）。
+func GetWebFetch() *webfetch.Fetcher {
+	return webfetchInst
 }
 
 // ── WebSearch 处理函数（两个版本适配不同 Params） ─────────────────────────────
@@ -221,20 +228,72 @@ func formatRawResults(query string, results []search.SearchResult) (string, erro
 
 // ── CleanFetch 工具 ──────────────────────────────────────────────────────────
 
-// CleanFetch 通过 Jina Reader API 抓取网页并返回清理后的内容。
+// PDFParserParams pdf_parser 工具参数。
+type PDFParserParams struct {
+	Path string `json:"path" jsonschema:"description,本地 PDF 文件路径（支持绝对路径或 file:// 前缀）"`
+}
+
+// CleanFetch 通过 go-webfetch 抓取网页，失败时回退到 Jina Reader。
 func CleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetchParams) (*mcp.CallToolResult, any, error) {
-	if jinaInst == nil {
-		return nil, nil, fmt.Errorf("jina reader 未初始化")
-	}
 	if params.URL == "" {
 		return nil, nil, fmt.Errorf("url 参数不能为空")
 	}
 
-	result, err := jinaInst.Fetch(params.URL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("jina reader 抓取失败: %w", err)
+	// ── 第一层：go-webfetch（无需代理）──
+	if webfetchInst != nil {
+		result, err := webfetchInst.Fetch(ctx, params.URL)
+		if err == nil {
+			return formatWebFetchResult(result), nil, nil
+		}
+		log.Infof("webfetch 抓取失败(%v)，尝试回退到 Jina Reader", err)
+
+		// ── 第二层：Jina Reader（需代理，jinaInst != nil 即表示代理已开启）──
+		if jinaInst != nil {
+			jinaResult, jinaErr := jinaInst.Fetch(params.URL)
+			if jinaErr == nil {
+				return formatJinaResult(jinaResult), nil, nil
+			}
+			return nil, nil, fmt.Errorf("webfetch: %v; Jina 兜底: %w", err, jinaErr)
+		}
+		return nil, nil, fmt.Errorf("webfetch 抓取失败: %v", err)
 	}
 
+	// webfetch 未初始化，仅用 Jina（兼容旧模式：仅代理+Jina Key）
+	if jinaInst != nil {
+		jinaResult, jinaErr := jinaInst.Fetch(params.URL)
+		if jinaErr != nil {
+			return nil, nil, fmt.Errorf("jina reader 抓取失败: %w", jinaErr)
+		}
+		return formatJinaResult(jinaResult), nil, nil
+	}
+
+	return nil, nil, fmt.Errorf("webfetch 和 jina reader 均未初始化")
+}
+
+// PDFParserHandler 本地 PDF 解析 tool handler。
+func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDFParserParams) (*mcp.CallToolResult, any, error) {
+	if params.Path == "" {
+		return nil, nil, fmt.Errorf("path 参数不能为空")
+	}
+	if webfetchInst == nil {
+		return nil, nil, fmt.Errorf("webfetch 未初始化，请先启用 cleanfetch")
+	}
+
+	// 确保路径带 file:// 前缀，Windows 路径需三斜杠
+	pdfPath := params.Path
+	if !strings.HasPrefix(pdfPath, "file://") {
+		pdfPath = "file:///" + strings.ReplaceAll(pdfPath, `\`, "/")
+	}
+
+	result, err := webfetchInst.Fetch(ctx, pdfPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("PDF 解析失败: %v", err)
+	}
+	return formatWebFetchResult(result), nil, nil
+}
+
+// formatJinaResult 将 Jina Reader 结果格式化为 MCP 返回。
+func formatJinaResult(result *jina.FetchResult) *mcp.CallToolResult {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "# %s\n\n", result.Title)
 	if result.Description != "" {
@@ -244,6 +303,27 @@ func CleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 		fmt.Fprintf(&sb, "**发布时间**: %s\n\n", result.PublishedTime)
 	}
 	sb.WriteString(result.Content)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}
+}
 
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}, nil, nil
+// formatWebFetchResult 将 go-webfetch 结果格式化为 MCP 返回。
+func formatWebFetchResult(result *webfetch.Result) *mcp.CallToolResult {
+	var sb strings.Builder
+	if result.Mode == "inline" {
+		if result.Title != "" {
+			fmt.Fprintf(&sb, "# %s\n\n", result.Title)
+		}
+		sb.WriteString(result.Markdown)
+	} else {
+		// 大文本已存储到文件
+		if result.Title != "" {
+			fmt.Fprintf(&sb, "# %s\n\n", result.Title)
+		}
+		fmt.Fprintf(&sb, "内容已保存到文件（共 %d 行，%d 字符）\n\n", result.TotalLines, result.TotalChars)
+		fmt.Fprintf(&sb, "**文件路径**: `%s`\n\n", result.FilePath)
+		if result.AgentHint != "" {
+			fmt.Fprintf(&sb, "**读取提示**: %s\n", result.AgentHint)
+		}
+	}
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}
 }

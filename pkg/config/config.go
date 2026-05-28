@@ -35,6 +35,8 @@ type Config struct {
 	Log           LogConfig        `mapstructure:"log"`
 	Bing          BingConfig       `mapstructure:"bing"`
 	Academic      AcademicConfig   `mapstructure:"academic"`
+	CleanFetch    CleanFetchConfig `mapstructure:"cleanfetch"`
+	PDFParser     PDFParserConfig  `mapstructure:"pdf_parser"`
 	Proxy         ProxyConfig      `mapstructure:"proxy"`
 }
 
@@ -70,12 +72,20 @@ type AcademicConfig struct {
 	DisableGoogleScholar   bool `mapstructure:"disable_google_scholar"`
 }
 
-// ── 工具开关 ──
+// ── CleanFetch 配置 ──
 
-type ToolsConfig struct {
-	Smartsearch     bool `mapstructure:"smartsearch"`     // smartsearch 工具（默认 true）
-	Academicsearch  bool `mapstructure:"academicsearch"`  // academicsearch 工具（默认 true）
-	Cleanfetch      bool `mapstructure:"cleanfetch"`      // cleanfetch 工具（默认 true，需 jina 配置）
+type CleanFetchConfig struct {
+	Enabled        bool   `mapstructure:"enabled"`          // 总开关（默认 false，旧配置不启用）
+	FileOutputDir  string `mapstructure:"file_output_dir"`  // 大文本文件输出目录（默认 os.TempDir()/webfetch/）
+	FileTTL        int    `mapstructure:"file_ttl_hours"`   // 文件保留时长（小时），默认 24
+	MaxInlineLines int    `mapstructure:"max_inline_lines"` // 内联返回最大行数（默认 100）
+	MaxInlineChars int    `mapstructure:"max_inline_chars"` // 内联返回最大字符数（默认 0 = 不限）
+}
+
+// ── PDF 解析配置 ──
+
+type PDFParserConfig struct {
+	Enabled bool `mapstructure:"enabled"` // 总开关（默认 false）
 }
 
 // ── 代理配置 ──
@@ -236,6 +246,14 @@ func Load(configPath string) (*Config, error) {
 	// 网络区域默认 china
 	if conf.Network == "" {
 		conf.Network = "china"
+	}
+
+	// CleanFetch 默认值（Enabled 默认 false，旧配置不启用）
+	if conf.CleanFetch.FileTTL <= 0 {
+		conf.CleanFetch.FileTTL = 24
+	}
+	if conf.CleanFetch.MaxInlineLines <= 0 {
+		conf.CleanFetch.MaxInlineLines = 100
 	}
 
 	return &conf, nil

@@ -69,6 +69,18 @@ jina:
   api_key: ""               # 留空则 cleanfetch 不注册
   base_url: ""              # 默认 https://r.jina.ai
 
+# 增强型网页抓取（默认关闭）
+cleanfetch:
+  enabled: false            # 显式 true 才启用
+  file_output_dir: ""       # 默认 系统临时目录/webfetch/
+  file_ttl_hours: 24        # 临时文件保留时长（小时）
+  max_inline_lines: 100     # 超过此行数存文件
+  max_inline_chars: 0       # 超过此字符数存文件，0=不限
+
+# PDF 解析工具（默认关闭，独立于 cleanfetch）
+pdf_parser:
+  enabled: false            # 显式 true 才启用
+
 # 日志滚动
 log:
   max_size: 1               # 单文件最大 MB
@@ -101,6 +113,10 @@ log:
 | `academic.bing_fallback` | true | |
 | `proxy.enabled` | false | 启用后才初始化海外引擎 |
 | `proxy.endpoint` | `http://127.0.0.1:7897` | |
+| `cleanfetch.enabled` | false | 旧配置不启用，需显式开启 |
+| `cleanfetch.file_ttl_hours` | 24 | |
+| `cleanfetch.max_inline_lines` | 100 | |
+| `pdf_parser.enabled` | false | 独立于 cleanfetch |
 | `cache.cleanup_interval` | 30 (min) | 最大 360 |
 | 缓存过期 | 6 小时 | 基于最近命中时间，硬编码不可配置 |
 | `log.max_size` | 1 (MB) | |

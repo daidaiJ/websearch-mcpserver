@@ -1,6 +1,19 @@
 # Changelog
 
-## [v3.3.0] - 2026-05-26
+## 2026-05-28
+
+### 新增
+- **cleanfetch 增强型网页抓取**：集成 `go-webfetch` 库，无需代理即可抓取网页内容，失败时自动回退到 Jina Reader（需代理）
+  - `cleanfetch.enabled` 控制开关（默认 false，旧配置不启用）
+  - 大内容自动存储到临时文件，支持配置输出目录、TTL、内联阈值
+- **pdf_parser PDF 解析工具**：将本地 PDF 文件转换为 Markdown（`pdf_parser.enabled` 控制，默认 false）
+- **hybrid 模式 Bing 混合搜索**：hybrid 模式下 Bing 作为原生引擎与 API 引擎（Baidu/Tavily）并发搜索
+
+### 变更
+- cleanfetch 工具现在只需配置 `cleanfetch.enabled: true` 即可使用，不再强制要求代理和 Jina API Key
+- Go 版本升级至 1.26（go-webfetch 依赖要求）
+
+## 2026-05-26
 
 ### 新增
 - **Windows 开机自启动**：`install` / `uninstall` 命令，使用 COM API (ole32.dll) 创建快捷方式，无需依赖 PowerShell
@@ -22,7 +35,7 @@
 - 新增 [docs/config.md](docs/config.md)：配置参考、默认值速查、环境变量覆盖
 - README 全面重写：精简结构化，补充特性亮点、运维参考、排障指南
 
-## [v3.2.0] - 2026-05-23
+## 2026-05-23
 
 ### 新增
 - **cleanfetch 网页抓取工具**：通过 Jina Reader API 获取指定 URL 的干净网页内容，降低反爬拦截风险
@@ -48,7 +61,7 @@
 
 ---
 
-## [v3.1.0] - 2026-05-20
+## 2026-05-20
 
 ### 新增
 - LLM 摘要未启用时，`smartsearch` 工具自动移除 `intent` 参数，节省客户端上下文 token
@@ -61,7 +74,7 @@
 
 ---
 
-## [v3.0.0] - 2026-05-15
+## 2026-05-15
 
 ### 新增
 - `engine` 搜索模式：无需 API Key，使用 Bing 通用搜索 + 学术搜索引擎
@@ -74,7 +87,7 @@
 
 ---
 
-## [v2.0.0] - 2026-05-01
+## 2026-05-01
 
 ### 新增
 - Tavily 搜索 API 支持
@@ -83,7 +96,7 @@
 
 ---
 
-## [v1.0.0] - 2026-04-15
+## 2026-04-15
 
 ### 初始版本
 - 百度千帆 AI Search API 支持

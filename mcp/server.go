@@ -54,13 +54,22 @@ func RegisterRouter(mux *http.ServeMux, conf config.Config) {
 		log.Infof("Available tool: academicsearch (engines: %v)", academicSearcher.AcademicEngines())
 	}
 
-	// ── 注册 cleanfetch 工具（仅当 Jina Reader 可用时） ──
-	if jinaInst != nil {
+	// ── 注册 cleanfetch 工具（需显式启用） ──
+	if conf.CleanFetch.Enabled {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "cleanfetch",
-			Description: "网页内容抓取工具，通过外部 API 接口获取指定 URL 的干净网页内容，减小被网站防爬机制阻断的风险。适用于需要阅读某篇文章、获取网页正文、或提取特定页面信息的场景。返回 Markdown 格式的清理后内容。",
+			Description: "网页内容抓取工具，获取指定 URL 的干净 Markdown 内容。",
 		}, CleanFetch)
 		log.Info("Available tool: cleanfetch")
+	}
+
+	// ── 注册 pdf_parser 工具（默认关闭） ──
+	if conf.PDFParser.Enabled && webfetchInst != nil {
+		mcp.AddTool(server, &mcp.Tool{
+			Name:        "pdf_parser",
+			Description: "本地 PDF 解析工具，将 PDF 文件转换为 Markdown。大文档自动存储到临时文件。",
+		}, PDFParserHandler)
+		log.Info("Available tool: pdf_parser")
 	}
 
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {

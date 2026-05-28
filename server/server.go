@@ -132,6 +132,7 @@ func (s *Server) Run(conf config.Config) {
 		mcpserver.WithSearchEngine(conf),
 		mcpserver.WithSummarizer(conf),
 		mcpserver.WithCache(conf),
+		mcpserver.WithWebFetch(conf),
 		mcpserver.WithJinaReader(conf),
 	); err != nil {
 		panic(err)
@@ -189,6 +190,11 @@ func (s *Server) Run(conf config.Config) {
 		c.Close()
 	}
 
+	// 关闭 WebFetch 引擎
+	if wf := mcpserver.GetWebFetch(); wf != nil {
+		wf.Close()
+	}
+
 	// 优雅关闭（5秒超时）
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -210,6 +216,7 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 		mcpserver.WithSearchEngine(conf),
 		mcpserver.WithSummarizer(conf),
 		mcpserver.WithCache(conf),
+		mcpserver.WithWebFetch(conf),
 		mcpserver.WithJinaReader(conf),
 	); err != nil {
 		panic(err)

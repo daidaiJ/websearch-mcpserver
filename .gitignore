@@ -32,3 +32,5 @@ vendor/
 /start-mcp.vbs
 *.html
 qwen-code-export-*.html
+docs/*
+docs/plans/2026-05-28-webfetch-integration.md
