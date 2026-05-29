@@ -38,8 +38,7 @@
 # 1. 下载: https://github.com/daidaiJ/websearch-mcpserver/releases
 # 2. 启动（零配置）
 ./websearch-mcpserver start
-# 3. 添加到客户端
-claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
+# 3. 添加到客户端（见下方「安装部署 > 注册 MCP 客户端」）
 ```
 
 ## 安装部署
@@ -52,6 +51,8 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 | Windows x86_64 | `websearch-mcpserver-windows-amd64.exe` |
 
 SHA256 校验：每个 Release 附带 `SHA256SUMS.txt`。
+
+Release 页面：https://github.com/daidaiJ/websearch-mcpserver/releases
 
 ### Docker
 
@@ -79,6 +80,63 @@ go build -o websearch ./cmd/
 # 注入版本号
 go build -ldflags="-X main.version=v1.0.0" -o websearch ./cmd/
 ```
+
+### 注册 MCP 客户端
+
+服务启动后，按需注册到对应客户端：
+
+```bash
+# Claude Code
+claude mcp add --transport http websearch http://localhost:8338/mcp
+
+# Qwen Code — 在 settings.json 的 mcpServers 中添加：
+```
+
+```json
+{
+  "mcpServers": {
+    "websearch": {
+      "type": "http",
+      "url": "http://localhost:8338/mcp"
+    }
+  }
+}
+```
+
+```bash
+# Cursor / 其他 MCP 客户端 — type=http, url=http://localhost:8338/mcp
+```
+
+### Agent 快速部署
+
+Agent 可按以下步骤自动完成安装：
+
+```bash
+# 1. 下载最新二进制
+#    Linux:
+curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest \
+  | grep "browser_download_url.*linux-amd64\"" \
+  | cut -d '"' -f 4 \
+  | xargs curl -sL -o /usr/local/bin/websearch-mcpserver
+chmod +x /usr/local/bin/websearch-mcpserver
+
+#    Windows (PowerShell):
+# $release = Invoke-RestMethod https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest
+# $asset = $release.assets | Where-Object { $_.name -match 'windows-amd64' }
+# Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "C:\tools\websearch-mcpserver.exe"
+
+# 2. 写入最小配置（零 Key 即可运行）
+mkdir -p ~/.config/websearch
+cat > ~/.config/websearch/config.yaml << 'EOF'
+port: 8338
+mode: engine
+EOF
+
+# 3. 启动并注册（见上方「注册 MCP 客户端」）
+./websearch-mcpserver start
+```
+
+Windows 自启动（可选）：下载后执行 `websearch-mcpserver.exe install`。
 
 ## 搜索模式
 
@@ -151,49 +209,6 @@ CLI 参数：`-c, --config` 指定配置文件路径。
 port: 8338
 mode: engine
 ```
-
-## 配置 MCP 客户端
-
-```bash
-# Claude Code
-claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
-
-# Qwen Code / Cursor / 其他
-# MCP 配置中添加: type=http, url=http://localhost:8338/mcp
-```
-
-### Agent 快速部署
-
-Agent 可按以下步骤自动完成安装：
-
-```bash
-# 1. 从 GitHub Release 下载最新二进制
-#    Linux:
-curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest \
-  | grep "browser_download_url.*linux-amd64\"" \
-  | cut -d '"' -f 4 \
-  | xargs curl -sL -o /usr/local/bin/websearch-mcpserver
-chmod +x /usr/local/bin/websearch-mcpserver
-
-#    Windows (PowerShell):
-# $release = Invoke-RestMethod https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest
-# $asset = $release.assets | Where-Object { $_.name -match 'windows-amd64' }
-# Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "C:\tools\websearch-mcpserver.exe"
-
-# 2. 写入最小配置（零 Key 即可运行）
-mkdir -p ~/.config/websearch
-cat > ~/.config/websearch/config.yaml << 'EOF'
-port: 8338
-mode: engine
-EOF
-
-# 3. 注册为 MCP 客户端工具
-claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
-```
-
-Windows 自启动（可选）：下载后执行 `websearch-mcpserver.exe install`。
-
-Release 页面：https://github.com/daidaiJ/websearch-mcpserver/releases
 
 ## 使用指南
 
