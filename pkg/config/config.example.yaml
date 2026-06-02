@@ -11,10 +11,10 @@ port: 8338
 log_level: info
 
 # 搜索模式:
-#   - baidu   : 仅使用百度千帆 AI Search API（默认）
+#   - baidu   : 百度千帆 SK（失败自动回退百度网页搜索）；无 SK 时直接用百度网页搜索
 #   - tavily  : 仅使用 Tavily Search API
-#   - hybrid  : 并发请求百度和 Tavily，按 URL 去重后合并结果
-#   - engine  : 纯引擎模式，无需 API Key，使用 Bing + 学术搜索引擎
+#   - hybrid  : 百度 SK + 百度网页搜索 + Tavily + Bing + Google 并发去重
+#   - engine  : 百度网页搜索 + Bing（代理启用时加入 Google），无需 API Key
 mode: engine
 
 # 网络环境: china（默认，自动跳过海外引擎） / international（启用全部引擎）
@@ -30,6 +30,13 @@ black_list_host:
   - "baidu.com"
   - "weibo.com"
   - "sina.com.cn"
+
+# ==============================================
+# 全局限流配置（对所有搜索引擎统一生效）
+# ==============================================
+rate_limit:
+  per_sec: 3   # 每秒请求数上限（默认 3）
+  per_min: 60  # 每分钟请求数上限（默认 60）
 
 # ==============================================
 # 百度千帆 AI Search API（mode=baidu 或 hybrid 时需要）
@@ -54,8 +61,6 @@ black_list_host:
 bing:
   enabled: true
   blocked: [] # Bing 专用屏蔽域名（与 black_list_host 合并）
-  per_sec: 1 # 每秒限流（默认 1）
-  per_min: 20 # 每分钟限流（默认 20）
 
 # ==============================================
 # 学术搜索引擎（无需 API Key）
@@ -73,10 +78,13 @@ academic:
   disable_google_scholar: true
 
 # ==============================================
-# 代理配置（仅用于海外学术引擎：Semantic Scholar、Google Scholar）
+# 代理配置
+# 学术引擎：Semantic Scholar、Google Scholar 需要代理才能访问
+# Jina Reader (cleanfetch)：需要代理才能访问 r.jina.ai
+# Google 搜索引擎：需要代理才能访问
 # ==============================================
 proxy:
-  enabled: false # 是否启用（默认 false，启用后才会初始化海外引擎）
+  enabled: false # 是否启用（默认 false，启用后才会初始化海外引擎、Google 搜索和 cleanfetch 工具）
   endpoint: "http://127.0.0.1:7897" # 代理端点（默认 7897）
 
 # ==============================================
@@ -97,11 +105,12 @@ cache:
 
 # ==============================================
 # Jina Reader 配置（可选，用于 cleanfetch 工具）
+# 需要同时开启代理 (proxy.enabled=true) 才能使用
 # 获取 API Key: https://jina.ai/reader/
 # ==============================================
 # jina:
 #   api_key: ""
-#   base_url: ""
+#   base_url: "https://r.jina.ai" # 默认值
 
 # ==============================================
 # 增强型网页抓取（基于 go-webfetch）
