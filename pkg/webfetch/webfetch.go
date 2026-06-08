@@ -47,8 +47,14 @@ func NewFromConfig(cfg config.CleanFetchConfig) (*Fetcher, error) {
 		maxInlineLines = 100
 	}
 
+	timeout := time.Duration(cfg.TimeoutSec) * time.Second
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+
 	engine, err := webfetch.New(webfetch.Config{
 		BlockPrivateIP:  true,
+		Timeout:         timeout,
 		MaxInlineLines:  maxInlineLines,
 		MaxInlineChars:  cfg.MaxInlineChars,
 		FileOutputDir:   outputDir,
@@ -58,7 +64,7 @@ func NewFromConfig(cfg config.CleanFetchConfig) (*Fetcher, error) {
 		return nil, fmt.Errorf("webfetch engine init failed: %w", err)
 	}
 
-	log.Infof("WebFetch 引擎已启用 (output_dir=%s, ttl=%s, max_inline_lines=%d)", outputDir, fileTTL, maxInlineLines)
+	log.Infof("WebFetch 引擎已启用 (output_dir=%s, ttl=%s, max_inline_lines=%d, timeout=%s)", outputDir, fileTTL, maxInlineLines, timeout)
 	return &Fetcher{engine: engine}, nil
 }
 

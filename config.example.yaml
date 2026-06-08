@@ -125,6 +125,7 @@ cleanfetch:
   file_ttl_hours: 24        # 临时文件保留时长（小时），默认 24
   max_inline_lines: 100     # 内联返回最大行数，超过则存文件（默认 100）
   max_inline_chars: 0       # 内联返回最大字符数，0=不限（默认 0）
+  timeout_sec: 30           # 单次请求超时（秒），默认 30；经代理访问海外站点建议 30~60
 
 # ==============================================
 # PDF 解析工具（基于 go-webfetch，独立于 cleanfetch）

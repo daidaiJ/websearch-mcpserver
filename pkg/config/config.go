@@ -87,6 +87,7 @@ type CleanFetchConfig struct {
 	FileTTL        int    `mapstructure:"file_ttl_hours"`   // 文件保留时长（小时），默认 24
 	MaxInlineLines int    `mapstructure:"max_inline_lines"` // 内联返回最大行数（默认 100）
 	MaxInlineChars int    `mapstructure:"max_inline_chars"` // 内联返回最大字符数（默认 0 = 不限）
+	TimeoutSec     int    `mapstructure:"timeout_sec"`      // 单次请求超时（秒），默认 30
 }
 
 // ── PDF 解析配置 ──
@@ -322,6 +323,9 @@ func Load(configPath string) (*Config, error) {
 	}
 	if conf.CleanFetch.MaxInlineLines <= 0 {
 		conf.CleanFetch.MaxInlineLines = 100
+	}
+	if conf.CleanFetch.TimeoutSec <= 0 {
+		conf.CleanFetch.TimeoutSec = 30
 	}
 
 	// 代理：标记用户显式禁用（enabled: false），跳过自动检测
