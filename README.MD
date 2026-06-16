@@ -52,6 +52,8 @@
 |------|------|
 | Linux x86_64 | `websearch-mcpserver-linux-amd64` |
 | Windows x86_64 | `websearch-mcpserver-windows-amd64.exe` |
+| macOS Intel | `websearch-mcpserver-darwin-amd64` |
+| macOS Apple Silicon | `websearch-mcpserver-darwin-arm64` |
 
 SHA256 校验：每个 Release 附带 `SHA256SUMS.txt`。
 
@@ -122,6 +124,20 @@ curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/lates
   | cut -d '"' -f 4 \
   | xargs curl -sL -o /usr/local/bin/websearch-mcpserver
 chmod +x /usr/local/bin/websearch-mcpserver
+
+#    macOS (Intel):
+# curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest \
+#   | grep "browser_download_url.*darwin-amd64\"" \
+#   | cut -d '"' -f 4 \
+#   | xargs curl -sL -o /usr/local/bin/websearch-mcpserver
+# chmod +x /usr/local/bin/websearch-mcpserver
+
+#    macOS (Apple Silicon):
+# curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest \
+#   | grep "browser_download_url.*darwin-arm64\"" \
+#   | cut -d '"' -f 4 \
+#   | xargs curl -sL -o /usr/local/bin/websearch-mcpserver
+# chmod +x /usr/local/bin/websearch-mcpserver
 
 #    Windows (PowerShell):
 # $release = Invoke-RestMethod https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/latest
@@ -248,6 +264,69 @@ mode: engine
 | macOS | launchd plist |
 
 常驻模式下 `start` 一次即可，无需 hooks。
+
+#### Linux 开机自启动（systemd）
+
+```bash
+# 1. 创建 systemd 服务文件
+sudo tee /etc/systemd/system/websearch.service << 'EOF'
+[Unit]
+Description=WebSearch MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=你的用户名
+ExecStart=/usr/local/bin/websearch-mcpserver start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 2. 启用并启动服务
+sudo systemctl daemon-reload
+sudo systemctl enable websearch
+sudo systemctl start websearch
+
+# 3. 查看状态
+sudo systemctl status websearch
+```
+
+#### macOS 开机自启动（launchd）
+
+```bash
+# 1. 创建 plist 文件
+tee ~/Library/LaunchAgents/com.websearch.server.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.websearch.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/websearch-mcpserver</string>
+        <string>start</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>WorkingDirectory</key>
+    <string>/tmp</string>
+</dict>
+</plist>
+EOF
+
+# 2. 加载并启动
+launchctl load ~/Library/LaunchAgents/com.websearch.server.plist
+launchctl start com.websearch.server
+
+# 3. 查看状态
+launchctl list | grep websearch
+```
 
 ### 学术搜索建议
 

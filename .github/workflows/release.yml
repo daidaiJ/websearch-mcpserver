@@ -20,6 +20,12 @@ jobs:
           - goos: windows
             goarch: amd64
             name: websearch-mcpserver-windows-amd64.exe
+          - goos: darwin
+            goarch: amd64
+            name: websearch-mcpserver-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            name: websearch-mcpserver-darwin-arm64
 
     steps:
       - name: Checkout
@@ -73,6 +79,8 @@ jobs:
         run: |
           sha256sum bins/websearch-mcpserver-linux-amd64 > bins/websearch-mcpserver-linux-amd64.sha256
           sha256sum bins/websearch-mcpserver-windows-amd64.exe > bins/websearch-mcpserver-windows-amd64.exe.sha256
+          sha256sum bins/websearch-mcpserver-darwin-amd64 > bins/websearch-mcpserver-darwin-amd64.sha256
+          sha256sum bins/websearch-mcpserver-darwin-arm64 > bins/websearch-mcpserver-darwin-arm64.sha256
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -83,3 +91,7 @@ jobs:
             bins/websearch-mcpserver-linux-amd64.sha256
             bins/websearch-mcpserver-windows-amd64.exe
             bins/websearch-mcpserver-windows-amd64.exe.sha256
+            bins/websearch-mcpserver-darwin-amd64
+            bins/websearch-mcpserver-darwin-amd64.sha256
+            bins/websearch-mcpserver-darwin-arm64
+            bins/websearch-mcpserver-darwin-arm64.sha256
