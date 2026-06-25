@@ -99,8 +99,12 @@ proxy:
 
 # ==============================================
 # 缓存配置（可选）
+# enabled 不设置时按 storage_path 是否非空判断（向后兼容）
+# 显式 false 可强制禁用缓存（忽略 storage_path）
+# 显式 true 强制启用（需配合 storage_path）
 # ==============================================
 cache:
+  # enabled: true
   storage_path: "D:/data/search_cache.db"
   cleanup_interval: 30
 

@@ -1,5 +1,7 @@
 # API 文档
 
+[English](api.en.md) | [中文](api.md)
+
 ## 目录
 
 - [Go Module API（server 包）](#go-module-api-server-包)

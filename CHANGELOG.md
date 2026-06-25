@@ -1,5 +1,28 @@
 # Changelog
 
+[English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
+
+## v2.7.0 — 2026-06-25
+
+### 新增
+- **缓存显式开关**：`CacheConfig` 新增 `cache.enabled` 字段（`*bool`），支持显式启用/禁用缓存
+  - 不设置时按 `storage_path` 是否非空判断（向后兼容旧行为）
+  - 显式 `false` 强制禁用缓存（忽略 `storage_path`）
+  - 显式 `true` 强制启用缓存
+- **英文版文档**：新增 `README.EN.md`、`docs/config.en.md`、`docs/api.en.md`、`CHANGELOG.en.md`，中英文文档顶部互加语言切换链接
+- 新增 `CacheEnabled()` 单元测试（6 个用例覆盖所有分支）
+
+## v2.6.0 — 2026-06-24
+
+### 新增
+- **SmartSearch Score 过滤**：per-engine `min_score` / `max_size`，全局 `max_size`，`show_meta` 控制来源和分数展示
+  - 引擎回传 score 时按 `min_score` 过滤，保留 `max_size` 条
+  - 引擎不回传 score 时忽略 `min_score`，取 `min(max_size, ⌈global_max_size / 引擎数⌉)` 截断
+  - 全局 `max_size`：有 score 时按 score 排序截断，无 score 时按引擎轮询均匀分配
+  - `show_meta` 控制输出中是否显示引擎来源和相关性分数（默认 true）
+- **API 引擎命名区分**：Tavily → `tavily_api`、百度千帆 → `baidu_api`；百度网页搜索保持 `baidu`
+- 引擎 `Name()` 方法统一纳入 `SearchInf` 接口
+
 ## v2.5.0 — 2026-06-03
 
 ### 新增

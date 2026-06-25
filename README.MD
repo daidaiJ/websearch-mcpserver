@@ -2,6 +2,8 @@
 
 > 轻量级 Web Search MCP Server — 零 API Key 即可运行
 
+[English](README.EN.md) | [中文](README.MD)
+
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/daidaiJ/websearch-mcpserver)](https://github.com/daidaiJ/websearch-mcpserver/releases)
 

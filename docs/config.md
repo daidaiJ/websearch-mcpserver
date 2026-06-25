@@ -1,5 +1,7 @@
 # 配置参考
 
+[English](config.en.md) | [中文](config.md)
+
 ## 配置文件路径
 
 优先级（从高到低）：
@@ -61,6 +63,7 @@ llm:
 
 # 缓存
 cache:
+  # enabled: true            # 不设置时按 storage_path 判断；显式 false 强制禁用
   storage_path: "./data/search_cache.db"
   cleanup_interval: 30      # 清理间隔（分钟），最大 360
 
@@ -117,6 +120,7 @@ log:
 | `cleanfetch.file_ttl_hours` | 24 | |
 | `cleanfetch.max_inline_lines` | 100 | |
 | `pdf_parser.enabled` | false | 独立于 cleanfetch |
+| `cache.enabled` | nil | 不设置时按 storage_path 判断；显式 false 强制禁用；显式 true 强制启用 |
 | `cache.cleanup_interval` | 30 (min) | 最大 360 |
 | 缓存过期 | 6 小时 | 基于最近命中时间，硬编码不可配置 |
 | `log.max_size` | 1 (MB) | |

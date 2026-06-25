@@ -166,6 +166,7 @@ type LLMConfig struct {
 }
 
 type CacheConfig struct {
+	Enabled         *bool  `mapstructure:"enabled"`           // 缓存总开关（默认 nil = 按 storage_path 判断；显式 false 强制禁用；显式 true 强制启用）
 	StoragePath     string `mapstructure:"storage_path"`     // SQLite 数据库文件存储路径
 	CleanupInterval int    `mapstructure:"cleanup_interval"` // 清理间隔（分钟），默认30分钟，最大360分钟
 }
@@ -210,6 +211,11 @@ func (c Config) LLMEnabled() bool {
 }
 
 func (c Config) CacheEnabled() bool {
+	// 显式设置 enabled 字段时以该字段为准
+	if c.Cache.Enabled != nil {
+		return *c.Cache.Enabled
+	}
+	// 未显式设置时按 storage_path 判断（向后兼容）
 	return c.Cache.StoragePath != ""
 }
 
