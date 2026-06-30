@@ -82,7 +82,7 @@ func applyWebFetch(conf config.Config) {
 	if !conf.CleanFetch.Enabled && !conf.PDFParser.Enabled {
 		return
 	}
-	f, err := webfetch.NewFromConfig(conf.CleanFetch)
+	f, err := webfetch.NewFromConfig(conf.CleanFetch, conf.Proxy.GetProxyEndpoint())
 	if err != nil {
 		log.Errf("WebFetch 初始化失败: %v", err)
 		return

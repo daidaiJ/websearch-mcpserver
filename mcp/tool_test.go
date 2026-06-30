@@ -40,7 +40,7 @@ func TestCleanFetch_WebFetchSuccess(t *testing.T) {
 		Enabled:        true,
 		FileTTL:        1,
 		MaxInlineLines: 100,
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("NewFromConfig failed: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestCleanFetch_WebFetchFail_JinaNil(t *testing.T) {
 		Enabled:        true,
 		FileTTL:        1,
 		MaxInlineLines: 100,
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("NewFromConfig failed: %v", err)
 	}

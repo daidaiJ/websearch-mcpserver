@@ -30,8 +30,8 @@ type Fetcher struct {
 	engine *webfetch.Engine
 }
 
-// NewFromConfig 根据配置创建 Fetcher。
-func NewFromConfig(cfg config.CleanFetchConfig) (*Fetcher, error) {
+// NewFromConfig 根据配置创建 Fetcher。proxyURL 为代理地址，空字符串表示不使用代理（仍回退到环境变量）。
+func NewFromConfig(cfg config.CleanFetchConfig, proxyURL string) (*Fetcher, error) {
 	outputDir := cfg.FileOutputDir
 	if outputDir == "" {
 		outputDir = filepath.Join(os.TempDir(), "webfetch")
@@ -59,6 +59,7 @@ func NewFromConfig(cfg config.CleanFetchConfig) (*Fetcher, error) {
 		MaxInlineChars:  cfg.MaxInlineChars,
 		FileOutputDir:   outputDir,
 		FileTTL:         fileTTL,
+		ProxyURL:        proxyURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("webfetch engine init failed: %w", err)

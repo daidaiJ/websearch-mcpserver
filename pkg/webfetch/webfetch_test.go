@@ -16,7 +16,7 @@ func newTestFetcher(t *testing.T) *Fetcher {
 		Enabled:        true,
 		FileTTL:        1,
 		MaxInlineLines: 100,
-	})
+	}, config.ProxyConfig{}.GetProxyEndpoint())
 	if err != nil {
 		t.Fatalf("NewFromConfig failed: %v", err)
 	}
@@ -122,9 +122,41 @@ func TestNewFromConfigDefaults(t *testing.T) {
 	fetcher, err := NewFromConfig(config.CleanFetchConfig{
 		Enabled: true,
 		// 零值字段应使用默认值
-	})
+	}, config.ProxyConfig{}.GetProxyEndpoint())
 	if err != nil {
 		t.Fatalf("NewFromConfig with defaults failed: %v", err)
 	}
 	defer fetcher.Close()
+}
+
+func TestFetchHuggingFace(t *testing.T) {
+	fetcher := newTestFetcher(t)
+	defer fetcher.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := fetcher.Fetch(ctx, "https://huggingface.co/nvidia/LocateAnything-3B")
+	if err != nil {
+		t.Fatalf("Fetch failed: %v", err)
+	}
+
+	if result.Title == "" {
+		t.Error("expected non-empty title")
+	}
+	t.Logf("Title: %s", result.Title)
+	t.Logf("Mode: %s", result.Mode)
+	if result.Mode == "inline" {
+		t.Logf("Markdown length: %d chars", len(result.Markdown))
+		t.Logf("Markdown preview (first 500 chars):\n%s", truncate(result.Markdown, 500))
+	} else {
+		t.Logf("File: %s (%d lines, %d chars)", result.FilePath, result.TotalLines, result.TotalChars)
+	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
