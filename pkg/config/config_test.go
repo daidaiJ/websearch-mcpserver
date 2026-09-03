@@ -37,6 +37,13 @@ func TestDefault(t *testing.T) {
 	if conf.SmartSearch.Enhance == nil || !*conf.SmartSearch.Enhance {
 		t.Error("Default smartsearch.enhance should be true")
 	}
+	// 失效引擎（被反爬识别）默认禁用
+	if conf.Google.Enabled {
+		t.Error("Default Google should be disabled (anti-bot)")
+	}
+	if conf.Baidu.WebEnabled {
+		t.Error("Default Baidu web engine should be disabled (anti-bot)")
+	}
 }
 
 func TestDefault_AppliesEnv(t *testing.T) {
@@ -68,8 +75,29 @@ func TestDefault_AppliesEnv(t *testing.T) {
 	}
 }
 
-func TestLoadOrDefault_MissingExplicitFile(t *testing.T) {
+func TestDefault_MCPStateless(t *testing.T) {
+	if Default().MCPStateless {
+		t.Error("Default MCPStateless should be false (session mode, backward compatible)")
+	}
+}
+
+func TestLoadOrDefault_MCPStateless(t *testing.T) {
 	viper.Reset()
+	t.Setenv("WEBSEARCH_CONFIG", "")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("mode: engine\nmcp_stateless: true\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	conf, err := LoadOrDefault(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !conf.MCPStateless {
+		t.Error("MCPStateless = false, want true (parsed from yaml)")
+	}
+}
+
+func TestLoadOrDefault_MissingExplicitFile(t *testing.T) {	viper.Reset()
 	t.Setenv("WEBSEARCH_CONFIG", "")
 	_, err := LoadOrDefault(filepath.Join(t.TempDir(), "missing.yaml"))
 	if err == nil {

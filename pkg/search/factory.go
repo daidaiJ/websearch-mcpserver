@@ -285,6 +285,12 @@ func newKeyPoolFromList(keys []string, name string) *KeyPool {
 
 // initBaiduWebEngine 初始化百度网页搜索引擎。
 func initBaiduWebEngine(conf config.Config) *EngineSearchAdapter {
+	// 失效引擎默认禁用：实测 tn=json 直抓被百度 CAPTCHA 识别（2026-09-03，
+	// 详见 config.BaiduConfig 注释），出口 IP 干净的环境可显式开启。
+	if !conf.Baidu.WebEnabled {
+		log.Info("百度网页搜索引擎已禁用（baidu.web_enabled=false，被反爬识别 CAPTCHA）")
+		return nil
+	}
 	blocked := bing.MergeBlocked(conf.BlackListHost, nil)
 	eng := baidu.NewBaiduWeb(baidu.BaiduOpts{
 		Enabled: true,
@@ -293,7 +299,7 @@ func initBaiduWebEngine(conf config.Config) *EngineSearchAdapter {
 		PerMin:  conf.GetRateLimitPerMin(),
 	})
 	adapter := NewEngineSearchAdapter("baidu", eng)
-	log.Info("百度网页搜索引擎已启用（tn=json，无需 API Key）")
+	log.Info("百度网页搜索引擎已启用（tn=json，无需 API Key；注意：可能被反爬拦截）")
 	return adapter
 }
 

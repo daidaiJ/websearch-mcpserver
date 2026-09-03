@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -490,4 +491,208 @@ func toolText(t *testing.T, res *mcp.CallToolResult) string {
 		t.Fatalf("content type %T", res.Content[0])
 	}
 	return tc.Text
+}
+
+// ── RegisterRouter Streamable HTTP 无状态/有状态模式测试 ──
+// 通过 httptest 起 /mcp 端点，mock 搜索引擎注入全局实例，
+// 用原始 JSON-RPC over HTTP 验证两种模式的协议行为差异。
+
+// newMCPHTTPTestServer 装配 mock 引擎并启动带 /mcp 路由的测试服务。
+func newMCPHTTPTestServer(t *testing.T, conf config.Config) *httptest.Server {
+	t.Helper()
+	initTestLogger()
+	restoreGlobals(t)
+	searchapi = &mockSearch{
+		name:    "mock",
+		results: []search.SearchResult{{Title: "Go generics", Url: "https://example.com/go", Content: "body"}},
+		merged:  "MERGED:mock",
+	}
+	academicSearcher = &mockAcademic{engines: []string{"arxiv"}}
+	webfetchInst = nil
+	cacheInst = nil
+	summarizerInst = nil
+	fallbackSearch = nil
+
+	mux := http.NewServeMux()
+	RegisterRouter(mux, conf)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// mcpHTTPPost 发送 JSON-RPC POST，返回状态码、响应头与解析出的 JSON-RPC 消息。
+// 兼容 application/json 与 text/event-stream（SSE，取最后一个 data: 行）两种响应格式。
+func mcpHTTPPost(t *testing.T, client *http.Client, url, payload string, extraHdr ...string) (int, http.Header, map[string]any) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	for i := 0; i+1 < len(extraHdr); i += 2 {
+		req.Header.Set(extraHdr[i], extraHdr[i+1])
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return resp.StatusCode, resp.Header, nil
+	}
+	var msg map[string]any
+	if strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		for _, line := range strings.Split(string(body), "\n") {
+			data, ok := strings.CutPrefix(strings.TrimSpace(line), "data:")
+			if !ok {
+				continue
+			}
+			var m map[string]any
+			if json.Unmarshal([]byte(strings.TrimSpace(data)), &m) == nil {
+				msg = m
+			}
+		}
+		if msg == nil {
+			t.Fatalf("no JSON-RPC message in SSE body: %q", body)
+		}
+	} else {
+		if err := json.Unmarshal(body, &msg); err != nil {
+			t.Fatalf("parse JSON response %q: %v", body, err)
+		}
+	}
+	return resp.StatusCode, resp.Header, msg
+}
+
+// jsonToolText 从 JSON-RPC 响应 result 中提取首个 text content。
+func jsonToolText(t *testing.T, msg map[string]any) string {
+	t.Helper()
+	result, ok := msg["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result in response: %v", msg)
+	}
+	content, ok := result["content"].([]any)
+	if !ok || len(content) == 0 {
+		t.Fatalf("no content in result: %v", result)
+	}
+	first, _ := content[0].(map[string]any)
+	text, _ := first["text"].(string)
+	return text
+}
+
+const testInitializeReq = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test-client","version":"0"}}}`
+
+func TestRegisterRouter_StatelessMode(t *testing.T) {
+	initTestLogger()
+	srv := newMCPHTTPTestServer(t, config.Config{
+		Bing:         config.BingConfig{Enabled: true},
+		MCPStateless: true,
+	})
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	t.Run("tools/list without initialize succeeds", func(t *testing.T) {
+		code, header, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if got := header.Get("Mcp-Session-Id"); got != "" {
+			t.Errorf("stateless server should not mint session id, got %q", got)
+		}
+		if _, ok := msg["result"]; !ok {
+			t.Fatalf("expected result, got %v", msg)
+		}
+	})
+
+	t.Run("GET returns 405 with Allow POST", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/mcp")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("status = %d, want 405", resp.StatusCode)
+		}
+		if allow := resp.Header.Get("Allow"); allow != "POST" {
+			t.Errorf("Allow = %q, want POST", allow)
+		}
+	})
+
+	t.Run("initialize response has no session id", func(t *testing.T) {
+		code, header, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", testInitializeReq)
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if got := header.Get("Mcp-Session-Id"); got != "" {
+			t.Errorf("stateless initialize should not set session id, got %q", got)
+		}
+		if _, ok := msg["result"]; !ok {
+			t.Fatalf("expected initialize result, got %v", msg)
+		}
+	})
+
+	t.Run("tools/call end-to-end with mock engine", func(t *testing.T) {
+		code, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp",
+			`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"golang"}}}`)
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if errMsg, ok := msg["error"]; ok {
+			t.Fatalf("unexpected JSON-RPC error: %v", errMsg)
+		}
+		if text := jsonToolText(t, msg); !strings.Contains(text, "MERGED:mock") {
+			t.Errorf("smartsearch result = %q, want containing MERGED:mock", text)
+		}
+	})
+}
+
+func TestRegisterRouter_StatefulMode(t *testing.T) {
+	initTestLogger()
+	srv := newMCPHTTPTestServer(t, config.Config{Bing: config.BingConfig{Enabled: true}})
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	t.Run("GET without session rejected", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/mcp")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400 (GET requires session in stateful mode)", resp.StatusCode)
+		}
+	})
+
+	t.Run("initialize mints session id", func(t *testing.T) {
+		code, header, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", testInitializeReq)
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		if _, ok := msg["result"]; !ok {
+			t.Fatalf("expected initialize result, got %v", msg)
+		}
+		sessionID := header.Get("Mcp-Session-Id")
+		if sessionID == "" {
+			t.Fatal("stateful initialize should mint Mcp-Session-Id")
+		}
+
+		// 携带会话 ID 的后续请求可用
+		code, _, msg = mcpHTTPPost(t, client, srv.URL+"/mcp",
+			`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`, "Mcp-Session-Id", sessionID)
+		if code != http.StatusOK {
+			t.Fatalf("tools/list with session status = %d, want 200", code)
+		}
+		if _, ok := msg["result"]; !ok {
+			t.Fatalf("expected tools/list result, got %v", msg)
+		}
+
+		// 未知会话 ID 被拒绝
+		code, _, _ = mcpHTTPPost(t, client, srv.URL+"/mcp",
+			`{"jsonrpc":"2.0","id":3,"method":"tools/list"}`, "Mcp-Session-Id", "bogus-session")
+		if code != http.StatusNotFound {
+			t.Fatalf("tools/list with bogus session status = %d, want 404", code)
+		}
+	})
 }

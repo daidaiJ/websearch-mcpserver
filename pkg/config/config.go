@@ -30,6 +30,7 @@ type Config struct {
 	Port               int               `mapstructure:"port"`
 	Host               string            `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
 	AuthToken          string            `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
+	MCPStateless       bool              `mapstructure:"mcp_stateless"`        // MCP 无状态 HTTP 模式：每个 POST 独立处理，无需 initialize 握手与 Mcp-Session-Id 会话（对齐 MCP 2026-07-28 stateless-first 方向），便于水平扩展；代价是 GET SSE 长连与 sampling/elicitation 等服务端主动交互不可用（本项目未使用，见 mcp/server.go RegisterRouter）
 	UpstreamTimeoutSec int               `mapstructure:"upstream_timeout_sec"` // API 上游超时（秒），默认 30；显式 0 = 不设超时（有挂起风险）
 	LogLevel           string            `mapstructure:"log_level"`
 	Mode               string            `mapstructure:"mode"`
@@ -57,6 +58,20 @@ type Config struct {
 // ── 各搜索引擎配置 ──
 
 type BaiduConfig struct {
+	// 反爬现状（2026-09-03 实测，勿照抄上游）：
+	// SearXNG baidu.py 用 www.baidu.com/s?tn=json JSON 接口绕开 HTML 反爬，配合
+	// 302→wappass 验证码探测与 antiFlag 检查，图片分类另做 image.baidu.com cookie
+	// 预热（缓存 1h）。但该接口并非免检通道：本地直连实测（curl 裸客户端，无 TLS
+	// 指纹伪装）tn=json 3/3 被 302 到 wappass 图形验证码，预热 cookie 后依然被拦；
+	// 本项目 pkg/baidu 的 HTML 引擎测试（TestBaiduSearch）在同一 IP 下同样被
+	// CAPTCHA。识别主因疑似 IP 信誉 + 客户端 TLS 指纹，与入口选择（HTML/JSON）
+	// 关系不大——SearXNG 公共实例可用是因为出口 IP 干净，不代表裸客户端可复现。
+
+	// WebEnabled 百度网页搜索引擎（tn=json 直抓）开关，默认 false：
+	// 实测被百度 CAPTCHA 识别（见上方反爬现状），失效引擎默认禁用，
+	// 出口 IP 干净的部署环境可显式置 true 启用。
+	WebEnabled bool `mapstructure:"web_enabled"`
+
 	APIKey string   `mapstructure:"api_key"` // 百度千帆 AI Search API Key（单 key 时自动作为 sk_list）
 	SKList []string `mapstructure:"sk_list"` // 多 Key 轮询列表（优先级高于 api_key）
 	// 搜索模式配置
@@ -132,6 +147,14 @@ type DuckDuckGoConfig struct {
 // 浏览器 JS 执行环境就没有结果。UA 伪装（含 Nokia 功能机 UA + gbv=1 旧端点）与
 // TLS 指纹伪装已全部失效（参见 SearXNG #5651/#6570）。剩余可行路径只有无头浏览器
 // + 住宅/移动代理、SERP API、或聚合其他引擎（本项目现有方案），因此保持默认关闭。
+//
+// SearXNG wml 方案实测（2026-09-03，勿照抄上游）：
+// SearXNG PR #6546（2026-08-22）改用 Nokia Symbian UA 请求 /wml/search 遗留版式，
+// 作者宣称 12h/36k 请求 100% 成功。本地实测（HK 代理出口，4 连发）：首请求即 429
+// 被送入 /sorry/，其余返回 200 但为 JS 挑战空壳（"Please click here..." + 混淆 JS，
+// 无任何 WML/XML 内容），即 Google 并未对 Nokia UA 免除挑战。说明该方案强依赖部署
+// 环境的 IP 信誉（SearXNG 公共实例多为干净住宅/机构出口），并非普适绕过；且 wml 是
+// Google 遗留端点，GSA UA（2026-07-03 失效）的先例表明随时可能被清理。维持默认关闭。
 type GoogleConfig struct {
 	Enabled bool     `mapstructure:"enabled"` // 总开关（默认 false，JS 挑战拦截无法伪装绕过，见上）
 	Blocked []string `mapstructure:"blocked"` // Google 屏蔽域名

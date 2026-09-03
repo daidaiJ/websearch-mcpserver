@@ -98,6 +98,9 @@ func RegisterRouter(mux *http.ServeMux, conf config.Config) {
 		return server
 	}, &mcp.StreamableHTTPOptions{
 		SessionTimeout: 5 * time.Minute,
+		// 无状态模式：不校验 Mcp-Session-Id，每个请求用临时会话独立处理，
+		// GET（SSE 长连）返回 405。对齐 MCP 2026-07-28 stateless-first 方向。
+		Stateless: conf.MCPStateless,
 	})
 	mux.Handle("/mcp", AuthMiddleware(conf, http.StripPrefix("/mcp", handler)))
 }

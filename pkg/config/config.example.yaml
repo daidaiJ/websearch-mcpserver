@@ -16,6 +16,12 @@ port: 8338
 # 环境变量: WEBSEARCH_TOKEN
 # auth_token: ""
 
+# MCP 无状态 HTTP 模式（默认 false = 会话式）
+# true 时每个 POST 独立处理，无需 initialize 握手与 Mcp-Session-Id 会话，
+# 便于反向代理/负载均衡水平扩展（免 sticky session）；GET SSE 长连返回 405。
+# 对齐 MCP 2026-07-28 规范的 stateless-first 方向；本服务工具均为请求-响应式，无状态模式下功能无损。
+# mcp_stateless: false
+
 # API 上游超时（秒），默认 30；显式 0 = 不设超时（上游黑洞时请求可能永久挂起，不建议）
 # upstream_timeout_sec: 30  # API 上游超时（秒），0 = 不设超时
 
@@ -58,6 +64,8 @@ rate_limit:
 # 环境变量: BAIDU_SK
 # ==============================================
 # baidu:
+#   web_enabled: false    # 百度网页搜索引擎（tn=json 直抓）默认禁用：被百度 CAPTCHA 识别
+#                         # （详见 pkg/config/config.go BaiduConfig 注释），出口 IP 干净时可显式开启
 #   api_key: ""           # 单 Key（sk_list 为空时自动作为单元素列表）
 #   sk_list:              # 多 Key 轮询列表（优先级高于 api_key）
 #     - "sk-xxxx"
