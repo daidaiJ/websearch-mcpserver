@@ -1,7 +1,8 @@
 # Release workflow — 参考 2native-ssh-mcp 已验证实现（v1.4.1 成功发布）。
 #
 # Trigger: push an annotated tag (git tag -a v3.1.1 -m "...")
-#   - builds server + cli binaries for windows/linux/darwin x amd64/arm64 (CGO_ENABLED=0)
+#   - builds server + cli binaries for windows/linux amd64 and darwin amd64/arm64
+#     (CGO_ENABLED=0)
 #   - injects the tag name as the binary version (-X main.version=<tag>)
 #   - release notes = the annotated tag message (read via GitHub API)
 #   - attaches every binary with its own .sha256 checksum
@@ -36,14 +37,8 @@ jobs:
           - goos: windows
             arch: amd64
             ext: .exe
-          - goos: windows
-            arch: arm64
-            ext: .exe
           - goos: linux
             arch: amd64
-            ext: ''
-          - goos: linux
-            arch: arm64
             ext: ''
           - goos: darwin
             arch: amd64
