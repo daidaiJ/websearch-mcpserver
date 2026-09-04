@@ -111,6 +111,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+          pattern: websearch-* # 只拉二进制产物，排除 buildx 的 *.dockerbuild 构建记录（曾因瞬时下载失败拖垮 release）
 
       - name: Generate checksums
         run: |
