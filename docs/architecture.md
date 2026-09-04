@@ -33,7 +33,7 @@
 ┌──────────────────────────▼──────────────────────────────────┐
 │  pkg/search 搜索引擎组（按 mode 构建）                       │
 │  ├─ 通用引擎：baidu / baidu_api / bing / ddg / google /     │
-│  │            tavily / exa                                  │
+│  │            tavily / exa / anysearch                      │
 │  ├─ 学术引擎：arxiv / crossref / openalex / pubmed /        │
 │  │            semantic_scholar / google_scholar             │
 │  └─ 评分管线：RRF 融合 → 词汇对齐 → 域名品质 → Boost →      │
@@ -65,8 +65,8 @@
 
 | 层级 | 回退逻辑 |
 |------|----------|
-| 供应商 Key | 同供应商 `sk_list` 多 Key 轮询，Key 失效标记 30 分钟冷却后自动恢复 |
-| 供应商 | `apipool` 模式：当前供应商所有 SK 耗尽 → 切换下一个供应商 |
+| 供应商 Key | 同供应商 `sk_list` 多 Key 轮询（重复 Key 自动去重），Key 失效标记 30 分钟冷却后自动恢复 |
+| 供应商 | `apipool` 模式：当前供应商所有 SK 耗尽 → 切换下一个供应商（选择策略 round-robin / priority / weighted，weighted 按配置权重 × 可用 SK 数加权随机） |
 | 主引擎 | 主引擎失败 → 自动回退 Bing |
 | 百度 | 百度 SK 失败 → 回退百度网页搜索 |
 | 模式 | 无 Key 时自动降级为 `engine` 模式 |

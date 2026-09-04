@@ -61,3 +61,13 @@ func loadExaAPIKey(t *testing.T) string {
 	}
 	return conf.Exa.APIKey
 }
+
+// loadAnysearchAPIKey 从测试配置加载 AnySearch API Key。
+func loadAnysearchAPIKey(t *testing.T) string {
+	t.Helper()
+	conf := loadTestConfig(t)
+	if conf.Anysearch.APIKey == "" {
+		t.Skip("跳过: 未配置 anysearch.api_key")
+	}
+	return conf.Anysearch.APIKey
+}

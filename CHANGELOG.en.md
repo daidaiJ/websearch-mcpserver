@@ -2,6 +2,27 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.3.0 — 2026-09-04
+
+### Added
+- **AnySearch engine**: integrated the [AnySearch API](https://www.anysearch.com/docs) (`POST /v1/search` + Bearer auth, envelope code=0/-1, invalid keys return 401/403); new `mode=anysearch` single-engine mode, and joined `apipool` / `hybrid`. The API has no exclude_domains support, so `black_list_host` is filtered locally
+- **apipool weighted load balancing**: `apipool.strategy` gains a `weighted` strategy that picks the starting provider by weighted random (request bursts naturally spread across providers); a provider's effective weight = configured weight × currently available SK count (shrinks automatically while SKs cool down, self-healing); explicit `0` excludes a provider from starting selection, all-zero degrades to round-robin; the Baidu web search fallback keeps a fixed weight of 1
+- **apipool.weights config**: per-key weights, defaults `anysearch=30000`, `baidu=1500`, `tavily=1200`, `exa=1200`, overridable per provider
+- **Env var `ANYSEARCH_API_KEY`**: same mechanism as `BAIDU_SK` / `TAVILY_SK` / `EXA_API_KEY` (viper BindEnv + applyKnownEnv backfill)
+
+### Changed
+- **apipool.engines default order**: `[baidu, tavily, exa]` → `[anysearch, baidu, tavily, exa]` (anysearch has the largest free quota); behavior is unchanged when no anysearch key is configured
+- **KeyPool per-provider SK dedup**: duplicate keys (compared after trim) keep only one entry, so the same key is no longer counted as multiple available keys for rotation and weight accumulation; an Info log is emitted when deduplication happens
+
+## v3.2.1 — 2026-09-03
+
+### Added
+- **Stateless MCP HTTP mode**: new `mcp_stateless` config switch (default `false` = stateful); when enabled, each POST is handled independently with no initialize handshake or `Mcp-Session-Id` session, making reverse-proxy/load-balancer horizontal scaling easier; GET SSE long connections return 405. Aligns with the stateless-first direction of the MCP 2026-07-28 spec; all tools of this service are request-response, so stateless mode loses nothing
+- **GHCR image publishing**: tag pushes now build and publish images to `ghcr.io` (closes #3); release artifacts include a linux/amd64 image tarball; Dockerfile fixes (golang:1.26 alignment, whole-module build, version injection)
+
+### Changed
+- **Dead engines disabled by default**: new `baidu.web_enabled` (default `false`) — the Baidu web search engine (tn=json scraping) is CAPTCHA-blocked in testing, disabled by default; deployments with clean egress IPs may enable it explicitly
+
 ## v3.2.0 — 2026-08-30
 
 ### Added

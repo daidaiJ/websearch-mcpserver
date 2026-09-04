@@ -27,12 +27,13 @@
 |------|------|----------|
 | `engine` | 百度网页搜索 + Bing 并发（代理可用时自动加入 DuckDuckGo，启用时加入 Google） | **无需** |
 | `baidu` | 百度千帆搜索（`enable_ai_search` 控制端点），失败自动回退百度网页搜索；无 SK 时直接用百度网页搜索 | `BAIDU_SK`（可选） |
-| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` 策略；百度网页搜索兜底 | 各 Key 可选 |
+| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；百度网页搜索兜底 | 各 Key 可选 |
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
-| `hybrid` | 全引擎混合（百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + DuckDuckGo + Google） | 各 Key 可选 |
+| `anysearch` | AnySearch API（[anysearch.com](https://www.anysearch.com/docs)） | `ANYSEARCH_API_KEY` |
+| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + DuckDuckGo + Google） | 各 Key 可选 |
 
-> 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa` 均支持 `sk_list` 多 Key 轮询，`sk_list` 为空时自动用 `api_key` 作为单元素列表。
+> 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
 
 **各模式引擎映射**（来自 `pkg/search/factory.go`）：
 
@@ -42,8 +43,9 @@
 | `baidu` | 百度千帆（`enable_ai_search` 控制端点）→ 失败回退百度网页搜索 |
 | `tavily` | Tavily；无 Key 时回退 Bing |
 | `exa` | Exa；无 Key 时回退 Bing |
-| `apipool` | 按配置顺序轮转 baidu / tavily / exa，百度网页搜索始终兜底 |
-| `hybrid` | 百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + Google + DuckDuckGo，并发 |
+| `anysearch` | AnySearch；无 Key 时回退 Bing |
+| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa，百度网页搜索始终兜底 |
+| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + Google + DuckDuckGo，并发 |
 
 ---
 
@@ -59,6 +61,7 @@
 | `google` | Google（默认禁用，被反爬拦截） | ❌ | 是 |
 | `tavily_api` | Tavily Search API | ✅ | 否 |
 | `exa` | Exa Web Search API | ❌ | 否 |
+| `anysearch` | AnySearch API（内置本地黑名单过滤） | ❌ | 否 |
 | `baidu_api` | 百度千帆搜索（`enable_ai_search` 控制端点） | ❌ | 否 |
 
 **学术搜索引擎**（无需 Key）：
@@ -156,20 +159,29 @@ smartsearch:
 
 ## Apipool 配置
 
-`apipool` 节控制 `mode: apipool` 时的供应商选择策略和优先级顺序：
+`apipool` 节控制 `mode: apipool` 时的供应商选择策略、优先级顺序和权重：
 
 ```yaml
 apipool:
-  strategy: round-robin   # round-robin（默认）/ priority
-  engines:                # 供应商优先级顺序（默认 [baidu, tavily, exa]）
+  strategy: weighted      # round-robin（默认）/ priority / weighted
+  engines:                # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]）
+    - anysearch
     - baidu
     - tavily
     - exa
+  weights:                # weighted 策略权重（单 Key 权重；默认值见下）
+    anysearch: 30000
+    baidu: 1500
+    tavily: 1200
+    exa: 1200
 ```
 
 **策略说明**：
 - **`round-robin`**（默认）：跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback 到下一个
 - **`priority`**：始终从列表第一个供应商开始，用完所有 SK → 切换下一个供应商 → 百度网页搜索兜底
+- **`weighted`**：按权重加权随机选起始供应商，突发请求天然分散到多家供应商。供应商有效权重 = **配置权重 × 当前可用 SK 数**（SK 失效冷却后权重自动下降，自愈）；权重表未收录的供应商按 1 计；显式 `0` 表示不参与加权起始选择（仍保留在失败切换链路）；全部权重为 0 时退化为 round-robin。百度网页搜索兜底引擎无 Key 池，固定权重 1
+
+**权重默认值**（可被 `apipool.weights` 覆盖）：`anysearch=30000`、`baidu=1500`、`tavily=1200`、`exa=1200`
 
 **工作流程**：选供应商 → `pool.Next()` 取 key → 调 API → 成功返回 / 失败标记 key 冷却 30 分钟 → 同供应商下一个 SK 重试 → 全部耗尽切下一个供应商 → 全部失败用百度网页搜索兜底
 

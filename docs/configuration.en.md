@@ -66,7 +66,7 @@ port: 8338                  # MCP HTTP port (ignored by stdio CLI)
 host: "127.0.0.1"           # Listen address (default 127.0.0.1, loopback only; 0.0.0.0 opens all interfaces, pair with auth_token)
 auth_token: ""              # Bearer token for business endpoints (empty = no auth; env WEBSEARCH_TOKEN)
 log_level: info             # debug / info / warn / error
-mode: engine                # baidu / apipool / tavily / exa / hybrid / engine
+mode: engine                # baidu / apipool / tavily / exa / anysearch / hybrid / engine
 network: china              # china (skip overseas engines) / international
 
 # Global rate limit (applies to all search engines)
@@ -101,6 +101,12 @@ exa:
   sk_list: []               # Multi-key rotation list (priority over api_key)
   num_results: 5            # Results per search (default 5)
   lookback_days: 90         # Search time range (days), default 90
+
+# AnySearch (required for mode=anysearch/apipool/hybrid)
+anysearch:
+  api_key: ""               # Env: ANYSEARCH_API_KEY (falls back to single-element sk_list when empty)
+  sk_list: []               # Multi-key rotation list (priority over api_key; duplicate keys are deduplicated)
+  num_results: 10           # Results per search (default 10)
 
 # Bing engine (fallback + engine mode primary, no key needed)
 bing:
@@ -223,12 +229,19 @@ pdf_parser:
 
 # Apipool mode config (optional, effective when mode=apipool)
 # apipool:
-#   strategy: round-robin  # round-robin (default): rotate starting provider across requests
-#                          # priority: always start from first provider
-#   engines:               # Provider priority order (default [baidu, tavily, exa], Baidu web search fallback always last)
+#   strategy: weighted    # round-robin (default): rotate starting provider across requests
+#                         # priority: always start from first provider
+#                         # weighted: weighted-random starting provider (see weights)
+#   engines:              # Provider priority order (default [anysearch, baidu, tavily, exa], Baidu web search fallback always last)
+#     - anysearch
 #     - baidu
 #     - tavily
 #     - exa
+#   weights:              # weighted strategy weights (per-key, accumulated by available key count)
+#     anysearch: 30000    # defaults: anysearch=30000, baidu=1500, tavily=1200, exa=1200
+#     baidu: 1500
+#     tavily: 1200
+#     exa: 1200
 
 # Log rotation
 log:
@@ -246,6 +259,7 @@ log:
 | `BAIDU_SK` | `baidu.api_key` | |
 | `TAVILY_SK` | `tavily.api_key` | |
 | `EXA_API_KEY` | `exa.api_key` | Exa Web Search API Key |
+| `ANYSEARCH_API_KEY` | `anysearch.api_key` | AnySearch API Key ([anysearch.com](https://www.anysearch.com/docs)) |
 | `LLM_BASE_URL` | `llm.base_url` | |
 | `LLM_API_KEY` | `llm.api_key` | |
 | `MINERU_TOKEN` | `pdf_parser.mineru_token` | MinerU Standard API Token |
@@ -259,12 +273,13 @@ log:
 | Field | Default | Notes |
 |-------|---------|-------|
 | `port` | 8338 | stop/kill/status also use this port when no config |
-| `mode` | engine | Auto-degrades to engine when no keys; `apipool` = API Key pool rotation, supports round-robin / priority strategies |
+| `mode` | engine | Auto-degrades to engine when no keys; `apipool` = API Key pool rotation, supports round-robin / priority / weighted strategies |
 | `network` | china | |
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
-| `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order |
-| `apipool.engines` | [baidu, tavily, exa] | Provider priority order, Baidu web search fallback always last |
+| `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order / `weighted` weighted-random |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, Baidu web search fallback always last |
+| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200 | weighted per-key weights, accumulated by available key count |
 | `baidu.enable_ai_search` | true | true=AI search chat/completions, false=web search web_search; no LLM cost when model is empty |
 | `bing.enabled` | true | |
 | `duckduckgo.enabled` | true | Needs proxy; auto-joins when proxy is available |

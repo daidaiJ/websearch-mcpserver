@@ -3,6 +3,7 @@ package search
 import (
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"sync/atomic"
 
@@ -27,31 +28,44 @@ func (e *KeyError) Error() string {
 func (e *KeyError) Unwrap() error { return e.Err }
 
 // apipoolProvider 单个供应商：搜索引擎 + 对应的 KeyPool（免费引擎 pool 为 nil）。
+// name 为供应商配置名（baidu/tavily/exa/anysearch），weighted 策略权重匹配用；
+// 为空时回退 engine.Name()。
 type apipoolProvider struct {
+	name   string
 	engine SearchInf
 	pool   *KeyPool
 }
 
 // ApipoolSearchImpl API Key 池轮转搜索引擎。
 //
-// 支持两种策略：
+// 支持三种策略：
 //   - round-robin（默认）：跨请求轮转起始供应商，同一次请求内先用完当前供应商所有可用 SK 再 fallback
 //   - priority：始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 兜底
+//   - weighted：按权重加权随机选择起始供应商（权重按可用 SK 数累加），失败切换链路相同
 //
-// 两种策略都支持同供应商内 SK 重试：当前 key 失败 → 标记 invalid → 尝试同 pool 下一个可用 key。
+// 三种策略都支持同供应商内 SK 重试：当前 key 失败 → 标记 invalid → 尝试同 pool 下一个可用 key。
 type ApipoolSearchImpl struct {
 	providers []apipoolProvider
-	strategy  string // "round-robin" / "priority"
-	idx       atomic.Uint64
-	maxSize   int // 全局最大结果数，0 = 不限
+	strategy  string         // "round-robin" / "priority" / "weighted"
+	idx       atomic.Uint64  // round-robin 轮转游标
+	maxSize   int            // 全局最大结果数，0 = 不限
+	weights   map[string]int // weighted 策略：供应商名 → 单 Key 权重
 }
 
 // NewApipoolSearch 创建 ApipoolSearchImpl，providers 顺序即为优先级顺序。
 func NewApipoolSearch(strategy string, providers ...apipoolProvider) *ApipoolSearchImpl {
-	if strategy != "priority" {
+	switch strategy {
+	case "priority", "weighted":
+	default:
 		strategy = "round-robin"
 	}
 	return &ApipoolSearchImpl{providers: providers, strategy: strategy}
+}
+
+// SetWeights 设置 weighted 策略的供应商权重（供应商名 → 单 Key 权重）。
+// 供应商有效权重 = 配置权重 × 当前可用 SK 数（免费引擎无 pool，固定为 1）。
+func (a *ApipoolSearchImpl) SetWeights(w map[string]int) {
+	a.weights = w
 }
 
 // SetMaxSize 设置全局最大结果数。
@@ -75,13 +89,7 @@ func (a *ApipoolSearchImpl) SearchRawWithTimeRange(query string, lookbackDays in
 		return nil, fmt.Errorf("apipool: 无可用供应商")
 	}
 
-	// 确定起始供应商索引
-	var start int
-	if a.strategy == "priority" {
-		start = 0
-	} else {
-		start = int(a.idx.Add(1)-1) % n
-	}
+	start := a.pickStartIndex()
 
 	var lastErr error
 	for i := 0; i < n; i++ {
@@ -94,6 +102,67 @@ func (a *ApipoolSearchImpl) SearchRawWithTimeRange(query string, lookbackDays in
 		lastErr = err
 	}
 	return nil, fmt.Errorf("apipool: 所有供应商均失败，最后错误: %w", lastErr)
+}
+
+// pickStartIndex 确定起始供应商索引。
+func (a *ApipoolSearchImpl) pickStartIndex() int {
+	n := len(a.providers)
+	if a.strategy == "priority" {
+		return 0
+	}
+	if a.strategy == "weighted" {
+		if start, ok := a.pickWeighted(); ok {
+			return start
+		}
+		// 所有供应商有效权重均为 0 时退化为 round-robin
+	}
+	return int(a.idx.Add(1)-1) % n
+}
+
+// pickWeighted 加权随机选择起始供应商（权重比例分配，无状态，突发请求天然分散）。
+// 供应商有效权重 = 配置权重 × 当前可用 SK 数；pool 为 nil 的免费引擎固定为 1，
+// 保持"百度网页搜索兜底"的定位。返回 false 表示全部权重为 0。
+func (a *ApipoolSearchImpl) pickWeighted() (int, bool) {
+	weights := make([]int, len(a.providers))
+	total := 0
+	for i, p := range a.providers {
+		weights[i] = a.effectiveWeight(p)
+		total += weights[i]
+	}
+	if total <= 0 {
+		return 0, false
+	}
+	r := rand.IntN(total)
+	for i, w := range weights {
+		if r < w {
+			return i, true
+		}
+		r -= w
+	}
+	return 0, false
+}
+
+// effectiveWeight 计算供应商有效权重（配置权重 × 可用 SK 数）。
+// 权重表未收录的供应商按 1 计；显式配置 0（或负数）表示不参与加权起始选择。
+func (a *ApipoolSearchImpl) effectiveWeight(p apipoolProvider) int {
+	if p.pool == nil {
+		return 1
+	}
+	w := 1
+	if a.weights != nil {
+		name := p.name
+		if name == "" {
+			name = p.engine.Name()
+		}
+		if v, ok := a.weights[name]; ok {
+			if v > 0 {
+				w = v
+			} else {
+				w = 0
+			}
+		}
+	}
+	return w * p.pool.Available()
 }
 
 func (a *ApipoolSearchImpl) SearchRaw(query string) ([]SearchResult, error) {

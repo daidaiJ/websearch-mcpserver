@@ -27,12 +27,13 @@
 |------|-------------|--------------|
 | `engine` | Baidu web search + Bing concurrently (DuckDuckGo joins when a proxy is available, Google when enabled) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
-| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` strategies; Baidu web search as final fallback | All optional |
+| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; Baidu web search as final fallback | All optional |
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
-| `hybrid` | Full mix (Baidu AI + Baidu web + Tavily + Exa + Bing + DuckDuckGo + Google) | All optional |
+| `anysearch` | AnySearch API ([anysearch.com](https://www.anysearch.com/docs)) | `ANYSEARCH_API_KEY` |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + Tavily + Exa + Bing + DuckDuckGo + Google) | All optional |
 
-> All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa` all support `sk_list` multi-key rotation; `sk_list` falls back to `api_key` as a single-element list when empty.
+> All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
 
 **Mode → engine mapping** (from `pkg/search/factory.go`):
 
@@ -42,8 +43,9 @@
 | `baidu` | Baidu Qianfan (`enable_ai_search` controls endpoint) → falls back to Baidu web search |
 | `tavily` | Tavily; falls back to Bing when no key |
 | `exa` | Exa; falls back to Bing when no key |
-| `apipool` | Rotates baidu / tavily / exa in configured order, Baidu web search always last |
-| `hybrid` | Baidu AI + Baidu web + Tavily + Exa + Bing + Google + DuckDuckGo, concurrent |
+| `anysearch` | AnySearch; falls back to Bing when no key |
+| `apipool` | Rotates anysearch / baidu / tavily / exa in configured order, Baidu web search always last |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + Tavily + Exa + Bing + Google + DuckDuckGo, concurrent |
 
 ---
 
@@ -59,6 +61,7 @@
 | `google` | Google (disabled by default, anti-bot blocked) | ❌ | Yes |
 | `tavily_api` | Tavily Search API | ✅ | No |
 | `exa` | Exa Web Search API | ❌ | No |
+| `anysearch` | AnySearch API (built-in local blacklist filtering) | ❌ | No |
 | `baidu_api` | Baidu Qianfan search (`enable_ai_search` controls endpoint) | ❌ | No |
 
 **Academic engines** (no keys required):
@@ -156,20 +159,29 @@ smartsearch:
 
 ## Apipool Config
 
-The `apipool` section controls provider selection strategy and priority order for `mode: apipool`:
+The `apipool` section controls provider selection strategy, priority order and weights for `mode: apipool`:
 
 ```yaml
 apipool:
-  strategy: round-robin   # round-robin (default) / priority
-  engines:                # Provider priority order (default [baidu, tavily, exa])
+  strategy: weighted      # round-robin (default) / priority / weighted
+  engines:                # Provider priority order (default [anysearch, baidu, tavily, exa])
+    - anysearch
     - baidu
     - tavily
     - exa
+  weights:                # weighted strategy weights (per-key; defaults below)
+    anysearch: 30000
+    baidu: 1500
+    tavily: 1200
+    exa: 1200
 ```
 
 **Strategy details**:
 - **`round-robin`** (default): rotates the starting provider across requests; within a single request, exhausts all available SKs in the current provider before falling back to the next
 - **`priority`**: always starts from the first provider; exhausts all SKs → switches to next provider → Baidu web search as final fallback
+- **`weighted`**: weighted-random selection of the starting provider, which naturally spreads request bursts across providers. A provider's effective weight = **configured weight × currently available SK count** (auto-shrinks when SKs cool down, self-healing); providers absent from the weight table count as 1; an explicit `0` excludes a provider from weighted starting selection (it stays in the failure-switch chain); when all weights are 0 it degrades to round-robin. The Baidu web search fallback engine has no key pool and a fixed weight of 1
+
+**Default weights** (overridable via `apipool.weights`): `anysearch=30000`, `baidu=1500`, `tavily=1200`, `exa=1200`
 
 **Workflow**: select provider → `pool.Next()` → call API → success / mark key cooldown 30 min → retry next SK in same provider → all exhausted → next provider → all failed → Baidu web search fallback
 

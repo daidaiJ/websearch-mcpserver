@@ -2,9 +2,12 @@ package search
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"websearch/pkg/log"
 )
 
 const keyInvalidTTL = 30 * time.Minute // Key 失效后冷却时间
@@ -24,15 +27,29 @@ type KeyPool struct {
 }
 
 // NewKeyPool 创建 KeyPool，keys 必须非空。
+// 同一池内重复 Key 自动去重（trim 后比对，保留首次出现顺序），
+// 避免用户配置了相同的 Key 被当成多个可用 Key 轮询。
 func NewKeyPool(keys []string) (*KeyPool, error) {
 	filtered := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	dup := 0
 	for _, k := range keys {
-		if k != "" {
-			filtered = append(filtered, k)
+		k = strings.TrimSpace(k)
+		if k == "" {
+			continue
 		}
+		if _, ok := seen[k]; ok {
+			dup++
+			continue
+		}
+		seen[k] = struct{}{}
+		filtered = append(filtered, k)
 	}
 	if len(filtered) == 0 {
 		return nil, fmt.Errorf("keypool: 无有效 API Key")
+	}
+	if dup > 0 {
+		log.Infof("keypool: 检测到 %d 个重复 Key，已去重（剩余 %d 个）", dup, len(filtered))
 	}
 	return &KeyPool{
 		keys:   filtered,

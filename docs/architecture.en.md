@@ -34,7 +34,7 @@
 ┌──────────────────────────▼──────────────────────────────────┐
 │  pkg/search engine group (built by mode)                    │
 │  ├─ General engines: baidu / baidu_api / bing / ddg /       │
-│  │                    google / tavily / exa                 │
+│  │                    google / tavily / exa / anysearch     │
 │  ├─ Academic engines: arxiv / crossref / openalex / pubmed /│
 │  │                     semantic_scholar / google_scholar    │
 │  └─ Scoring pipeline: RRF fusion → lexical alignment →      │
@@ -69,8 +69,8 @@ The system has built-in automatic fallback at multiple levels, so no single comp
 
 | Level | Fallback Logic |
 |-------|----------------|
-| Provider key | `sk_list` multi-key rotation within a provider; failed keys cool down for 30 min then auto-recover |
-| Provider | `apipool` mode: current provider's SKs exhausted → switch to next provider |
+| Provider key | `sk_list` multi-key rotation within a provider (duplicate keys deduplicated automatically); failed keys cool down for 30 min then auto-recover |
+| Provider | `apipool` mode: current provider's SKs exhausted → switch to next provider (selection strategy round-robin / priority / weighted; weighted = weighted random by configured weight × available SK count) |
 | Primary engine | Primary engine failure → auto-fallback to Bing |
 | Baidu | Baidu SK failure → fallback to Baidu web search |
 | Mode | Auto-degrades to `engine` mode when keys are missing |

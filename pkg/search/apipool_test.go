@@ -403,3 +403,157 @@ func (t *timeRangeRecorder) SearchRawWithTimeRange(query string, lookbackDays in
 	t.lastLookback = lookbackDays
 	return t.results, t.err
 }
+
+// ── weighted 策略 ─────────────────────────────────────────────────────────
+
+// TestApipool_Weighted_ProportionalSelection 加权随机：选择频率应与有效权重比例一致。
+// 有效权重 anysearch:baidu = 30000:1500 = 20:1，2000 次中 anysearch 应占 90% 以上。
+func TestApipool_Weighted_ProportionalSelection(t *testing.T) {
+	poolA, _ := NewKeyPool([]string{"ka"})
+	poolB, _ := NewKeyPool([]string{"kb"})
+	ea := &poolAwareEngine{name: "anysearch", pool: poolA, result: []SearchResult{{Title: "a", Engine: "anysearch"}}}
+	eb := &poolAwareEngine{name: "baidu", pool: poolB, result: []SearchResult{{Title: "b", Engine: "baidu"}}}
+	ap := NewApipoolSearch("weighted",
+		apipoolProvider{name: "anysearch", engine: ea, pool: poolA},
+		apipoolProvider{name: "baidu", engine: eb, pool: poolB},
+	)
+	ap.SetWeights(map[string]int{"anysearch": 30000, "baidu": 1500})
+
+	const total = 2000
+	counts := map[string]int{}
+	for range total {
+		results, err := ap.SearchRaw("test")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		counts[results[0].Engine]++
+	}
+	if got := counts["anysearch"]; got < total*85/100 {
+		t.Errorf("anysearch 应占约 95%%（20:1 加权），2000 次中仅 %d 次", got)
+	}
+	if got := counts["baidu"]; got > total*15/100 {
+		t.Errorf("baidu 应占约 5%%（20:1 加权），2000 次中达 %d 次", got)
+	}
+}
+
+// TestApipool_Weighted_KeysAccumulate 权重按可用 Key 数累加：
+// 两供应商配置权重相同，一方 2 个可用 Key、一方 1 个，比例应为 2:1。
+func TestApipool_Weighted_KeysAccumulate(t *testing.T) {
+	poolA, _ := NewKeyPool([]string{"a1", "a2"})
+	poolB, _ := NewKeyPool([]string{"b1"})
+	ea := &poolAwareEngine{name: "tavily", pool: poolA, result: []SearchResult{{Title: "a", Engine: "tavily"}}}
+	eb := &poolAwareEngine{name: "exa", pool: poolB, result: []SearchResult{{Title: "b", Engine: "exa"}}}
+	ap := NewApipoolSearch("weighted",
+		apipoolProvider{name: "tavily", engine: ea, pool: poolA},
+		apipoolProvider{name: "exa", engine: eb, pool: poolB},
+	)
+	ap.SetWeights(map[string]int{"tavily": 100, "exa": 100})
+
+	const total = 2000
+	countA := 0
+	for range total {
+		results, err := ap.SearchRaw("test")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if results[0].Engine == "tavily" {
+			countA++
+		}
+	}
+	// 期望 2/3 ≈ 66.7%，3σ 容差约 ±3.2%
+	if countA < total*60/100 || countA > total*73/100 {
+		t.Errorf("tavily(2 keys) 应占约 66%%，2000 次中 %d 次", countA)
+	}
+}
+
+// TestApipool_Weighted_ZeroWeightSkipped 权重为 0 的供应商不作为起始选择，
+// 但仍保留在失败切换链路中。
+func TestApipool_Weighted_ZeroWeightSkipped(t *testing.T) {
+	poolA, _ := NewKeyPool([]string{"ka"})
+	poolB, _ := NewKeyPool([]string{"kb"})
+	ea := &poolAwareEngine{name: "tavily", pool: poolA, result: []SearchResult{{Title: "a", Engine: "tavily"}}}
+	eb := &poolAwareEngine{name: "exa", pool: poolB, result: []SearchResult{{Title: "b", Engine: "exa"}}}
+	ap := NewApipoolSearch("weighted",
+		apipoolProvider{name: "tavily", engine: ea, pool: poolA},
+		apipoolProvider{name: "exa", engine: eb, pool: poolB},
+	)
+	ap.SetWeights(map[string]int{"tavily": 0, "exa": 100})
+
+	for range 20 {
+		results, err := ap.SearchRaw("test")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if results[0].Engine != "exa" {
+			t.Fatalf("权重 0 的供应商不应被起始选中，got %s", results[0].Engine)
+		}
+	}
+}
+
+// TestApipool_Weighted_AllZero_FallsBackRoundRobin 全部权重为 0 时退化为 round-robin。
+func TestApipool_Weighted_AllZero_FallsBackRoundRobin(t *testing.T) {
+	poolA, _ := NewKeyPool([]string{"ka"})
+	poolB, _ := NewKeyPool([]string{"kb"})
+	ea := &poolAwareEngine{name: "tavily", pool: poolA, result: []SearchResult{{Title: "a", Engine: "tavily"}}}
+	eb := &poolAwareEngine{name: "exa", pool: poolB, result: []SearchResult{{Title: "b", Engine: "exa"}}}
+	ap := NewApipoolSearch("weighted",
+		apipoolProvider{name: "tavily", engine: ea, pool: poolA},
+		apipoolProvider{name: "exa", engine: eb, pool: poolB},
+	)
+	ap.SetWeights(map[string]int{"tavily": 0, "exa": 0})
+
+	seen := map[string]bool{}
+	for range 4 {
+		results, err := ap.SearchRaw("test")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		seen[results[0].Engine] = true
+	}
+	if len(seen) != 2 {
+		t.Errorf("退化为 round-robin 后应轮转到两家供应商，got %v", seen)
+	}
+}
+
+// TestApipool_Weighted_FreeEngineWeightOne 免费引擎（pool 为 nil）固定权重 1，保持兜底定位。
+func TestApipool_Weighted_FreeEngineWeightOne(t *testing.T) {
+	poolA, _ := NewKeyPool([]string{"ka"})
+	ea := &poolAwareEngine{name: "anysearch", pool: poolA, result: []SearchResult{{Title: "a", Engine: "anysearch"}}}
+	free := &mockEngine{name: "baiduWeb", results: []SearchResult{{Title: "w", Engine: "baiduWeb"}}}
+	ap := NewApipoolSearch("weighted",
+		apipoolProvider{name: "anysearch", engine: ea, pool: poolA},
+		apipoolProvider{name: "baidu_web", engine: free, pool: nil},
+	)
+	ap.SetWeights(map[string]int{"anysearch": 30000})
+
+	const total = 500
+	for range total {
+		results, err := ap.SearchRaw("test")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if results[0].Engine != "anysearch" {
+			t.Fatalf("免费兜底引擎权重 1（30000:1）不应被起始选中，got %s", results[0].Engine)
+		}
+	}
+}
+
+// TestApipool_Weighted_FallbackOnFail weighted 下起始供应商失败仍切换到下一家。
+func TestApipool_Weighted_FallbackOnFail(t *testing.T) {
+	poolA, _ := NewKeyPool([]string{"ka"})
+	poolB, _ := NewKeyPool([]string{"kb"})
+	ea := &poolAwareEngine{name: "tavily", pool: poolA, errFn: func(string) error { return fmt.Errorf("fail") }}
+	eb := &poolAwareEngine{name: "exa", pool: poolB, result: []SearchResult{{Title: "b", Engine: "exa"}}}
+	ap := NewApipoolSearch("weighted",
+		apipoolProvider{name: "tavily", engine: ea, pool: poolA},
+		apipoolProvider{name: "exa", engine: eb, pool: poolB},
+	)
+	ap.SetWeights(map[string]int{"tavily": 0, "exa": 0}) // 全 0 退化 round-robin：先 tavily（失败）→ exa
+	results, err := ap.SearchRaw("test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results[0].Engine != "exa" {
+		t.Errorf("expected fallback to exa, got %s", results[0].Engine)
+	}
+}

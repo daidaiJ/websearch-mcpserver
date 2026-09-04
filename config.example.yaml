@@ -30,10 +30,11 @@ log_level: info
 
 # 搜索模式:
 #   - baidu      : 百度千帆搜索（失败自动回退百度网页搜索），enable_ai_search 控制端点
-#   - apipool    : API Key 池轮转：每次只调一个供应商，失败自动切换，支持 round-robin / priority 策略
+#   - apipool    : API Key 池轮转：每次只调一个供应商，失败自动切换，支持 round-robin / priority / weighted 策略
 #   - tavily     : 仅使用 Tavily Search API
 #   - exa        : 仅使用 Exa Web Search API
-#   - hybrid     : 全引擎混合（百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + DuckDuckGo）
+#   - anysearch  : 仅使用 AnySearch API（https://www.anysearch.com/docs）
+#   - hybrid     : 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + DuckDuckGo）
 #   - engine     : 百度网页搜索 + Bing + DuckDuckGo（代理启用时加入 DuckDuckGo），无需 API Key
 mode: engine
 
@@ -79,7 +80,7 @@ rate_limit:
 #   search_mode: "auto"              # 搜索模式: auto/required/disabled（默认 auto）
 
 # ==============================================
-# Tavily Search API（mode=tavily 或 hybrid 时需要）
+# Tavily Search API（mode=tavily/apipool/hybrid 时需要）
 # 获取地址: https://app.tavily.com/home
 # 环境变量: TAVILY_SK
 # ==============================================
@@ -90,7 +91,7 @@ rate_limit:
 #     - "tvly-yyyy"
 
 # ==============================================
-# Exa Web Search API（mode=exa 或 hybrid 时需要）
+# Exa Web Search API（mode=exa/apipool/hybrid 时需要）
 # 获取地址: https://dashboard.exa.ai/api-keys
 # 环境变量: EXA_API_KEY
 # ==============================================
@@ -101,6 +102,18 @@ rate_limit:
 #     - "exa-yyyy"
 #   num_results: 5        # 单次搜索结果数量（默认 5）
 #   lookback_days: 90     # 搜索时间范围（天），默认 90
+
+# ==============================================
+# AnySearch Search API（mode=anysearch/apipool/hybrid 时需要）
+# 文档: https://www.anysearch.com/docs
+# 环境变量: ANYSEARCH_API_KEY
+# ==============================================
+# anysearch:
+#   api_key: ""           # 单 Key（sk_list 为空时自动作为单元素列表）
+#   sk_list:              # 多 Key 轮询列表（优先级高于 api_key）
+#     - "as-xxxx"
+#     - "as-yyyy"
+#   num_results: 10       # 单次搜索结果数量（默认 10）
 
 # ==============================================
 # Bing 通用搜索引擎（兜底引擎 + engine 模式主力引擎）
@@ -281,10 +294,18 @@ log:
 # Apipool 模式配置（可选，mode=apipool 时生效）
 # ==============================================
 # apipool:
-#   strategy: round-robin  # 供应商选择策略:
-#                          #   round-robin（默认）: 跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback
-#                          #   priority: 始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 引擎兜底
-#   engines:               # 供应商优先级顺序（默认 [baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   strategy: weighted    # 供应商选择策略:
+#                         #   round-robin（默认）: 跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback
+#                         #   priority: 始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 引擎兜底
+#                         #   weighted: 按权重加权随机选起始供应商，突发请求天然分散（权重见 weights）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#     - anysearch
 #     - baidu
 #     - tavily
 #     - exa
+#   weights:              # weighted 策略的供应商权重（单 Key 权重，实际权重 = 配置权重 × 当前可用 Key 数累加）
+#                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200；显式 0 = 不参与加权起始选择
+#     anysearch: 30000
+#     baidu: 1500
+#     tavily: 1200
+#     exa: 1200

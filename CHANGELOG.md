@@ -2,6 +2,27 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.3.0 — 2026-09-04
+
+### 新增
+- **AnySearch 搜索引擎**：接入 [AnySearch API](https://www.anysearch.com/docs)（`POST /v1/search` + Bearer 认证，envelope code=0/-1，Key 无效返回 401/403）；新增 `mode=anysearch` 单引擎模式，并加入 `apipool` / `hybrid`；API 不支持 exclude_domains，`black_list_host` 在本地过滤
+- **apipool weighted 加权负载均衡**：`apipool.strategy` 新增 `weighted` 策略，按权重加权随机选起始供应商（突发请求天然分散）；供应商有效权重 = 配置权重 × 当前可用 SK 数（SK 冷却后权重自动下降，自愈）；显式 `0` 不参与起始选择、全 0 退化为 round-robin；百度网页搜索兜底固定权重 1
+- **apipool.weights 权重配置**：单 Key 权重，默认 `anysearch=30000`、`baidu=1500`、`tavily=1200`、`exa=1200`，可按供应商覆盖
+- **环境变量 `ANYSEARCH_API_KEY`**：与 `BAIDU_SK` / `TAVILY_SK` / `EXA_API_KEY` 同机制（viper BindEnv + applyKnownEnv 回填）
+
+### 变更
+- **apipool.engines 默认顺序**：`[baidu, tavily, exa]` → `[anysearch, baidu, tavily, exa]`（anysearch 免费额度最大）；未配置 anysearch Key 时行为不变
+- **KeyPool 同供应商 SK 去重**：重复 Key（trim 后比对）只保留一个，避免相同 Key 被当成多个可用 Key 轮询与权重累加；去重时输出 Info 日志
+
+## v3.2.1 — 2026-09-03
+
+### 新增
+- **MCP 无状态 HTTP 模式**：新增 `mcp_stateless` 配置开关（默认 `false` = 会话式）；开启后每个 POST 独立处理，免 initialize 握手与 `Mcp-Session-Id` 会话，便于反向代理/负载均衡水平扩展；GET SSE 长连返回 405。对齐 MCP 2026-07-28 规范的 stateless-first 方向；本服务工具均为请求-响应式，无状态模式下功能无损
+- **GHCR 镜像发布**：tag 推送自动构建镜像发布 `ghcr.io`（closes #3），release 产物附带 linux/amd64 镜像 tar 包；Dockerfile 修复（golang:1.26 对齐、整包编译、版本号注入）
+
+### 变更
+- **失效引擎默认禁用**：`baidu.web_enabled` 新增（默认 `false`）——百度网页搜索引擎（tn=json 直抓）实测被 CAPTCHA 识别，默认禁用，出口 IP 干净的部署环境可显式开启
+
 ## v3.2.0 — 2026-08-30
 
 ### 新增

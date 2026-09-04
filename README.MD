@@ -101,10 +101,11 @@ autostart.vbs
 |------|------|----------|
 | `engine` | 百度网页搜索 + Bing（代理可用时加入 DuckDuckGo） | **无需** |
 | `baidu` | 百度千帆搜索，失败回退百度网页搜索 | 可选 |
-| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换 | 各 Key 可选 |
+| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换，支持 round-robin / priority / weighted 加权策略 | 各 Key 可选 |
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
-| `hybrid` | 全引擎混合（百度 + Tavily + Exa + Bing + DuckDuckGo 等） | 各 Key 可选 |
+| `anysearch` | AnySearch API | `ANYSEARCH_API_KEY` |
+| `hybrid` | 全引擎混合（Anysearch + 百度 + Tavily + Exa + Bing + DuckDuckGo 等） | 各 Key 可选 |
 
 > 无 Key 时自动降级为 `engine` 模式。各模式与引擎的详细说明见 [docs/search.md](docs/search.md)。
 

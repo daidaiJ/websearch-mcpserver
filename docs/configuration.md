@@ -66,7 +66,7 @@ port: 8338                  # MCP HTTP 端口（stdio CLI 忽略此字段）
 host: "127.0.0.1"           # 监听地址（默认 127.0.0.1，只绑本机；0.0.0.0 开放所有网卡，需配 auth_token）
 auth_token: ""              # 业务端点鉴权 token（空 = 不鉴权；环境变量 WEBSEARCH_TOKEN）
 log_level: info             # debug / info / warn / error
-mode: engine                # baidu / apipool / tavily / exa / hybrid / engine
+mode: engine                # baidu / apipool / tavily / exa / anysearch / hybrid / engine
 network: china              # china（跳过海外引擎） / international
 
 # 全局限流（对所有搜索引擎统一生效）
@@ -101,6 +101,12 @@ exa:
   sk_list: []               # 多 Key 轮询列表（优先级高于 api_key）
   num_results: 5            # 单次搜索结果数量（默认 5）
   lookback_days: 90         # 搜索时间范围（天），默认 90
+
+# AnySearch（mode=anysearch/apipool/hybrid 时需要）
+anysearch:
+  api_key: ""               # 环境变量: ANYSEARCH_API_KEY（sk_list 为空时自动作为单元素列表）
+  sk_list: []               # 多 Key 轮询列表（优先级高于 api_key；重复 Key 自动去重）
+  num_results: 10           # 单次搜索结果数量（默认 10）
 
 # Bing 引擎（兜底 + engine 模式主力，无需 Key）
 bing:
@@ -223,12 +229,19 @@ pdf_parser:
 
 # Apipool 模式配置（可选，mode=apipool 时生效）
 # apipool:
-#   strategy: round-robin  # round-robin（默认）: 跨请求轮转起始供应商
-#                          # priority: 始终从第一个供应商开始
-#   engines:               # 供应商优先级顺序（默认 [baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   strategy: weighted    # round-robin（默认）: 跨请求轮转起始供应商
+#                         # priority: 始终从第一个供应商开始
+#                         # weighted: 按权重加权随机选起始供应商（见 weights）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#     - anysearch
 #     - baidu
 #     - tavily
 #     - exa
+#   weights:              # weighted 策略权重（单 Key 权重，实际权重按可用 Key 数累加）
+#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200
+#     baidu: 1500
+#     tavily: 1200
+#     exa: 1200
 
 # 日志滚动
 log:
@@ -246,6 +259,7 @@ log:
 | `BAIDU_SK` | `baidu.api_key` | |
 | `TAVILY_SK` | `tavily.api_key` | |
 | `EXA_API_KEY` | `exa.api_key` | Exa Web Search API Key |
+| `ANYSEARCH_API_KEY` | `anysearch.api_key` | AnySearch API Key（[anysearch.com](https://www.anysearch.com/docs)） |
 | `LLM_BASE_URL` | `llm.base_url` | |
 | `LLM_API_KEY` | `llm.api_key` | |
 | `MINERU_TOKEN` | `pdf_parser.mineru_token` | MinerU 精准解析 API Token |
@@ -259,12 +273,13 @@ log:
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
-| `mode` | engine | 无 Key 时自动回退 engine；`apipool` 为 API Key 池轮转模式，支持 round-robin / priority 策略 |
+| `mode` | engine | 无 Key 时自动回退 engine；`apipool` 为 API Key 池轮转模式，支持 round-robin / priority / weighted 策略 |
 | `network` | china | |
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |
-| `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 |
-| `apipool.engines` | [baidu, tavily, exa] | 供应商优先级顺序，百度网页搜索兜底始终在末尾 |
+| `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 / `weighted` 加权随机 |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，百度网页搜索兜底始终在末尾 |
+| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加 |
 | `baidu.enable_ai_search` | true | true=智能搜索 chat/completions，false=网页搜索 web_search；不传 model 不产生 LLM 费用 |
 | `bing.enabled` | true | |
 | `duckduckgo.enabled` | true | 需代理，代理可用时自动参与 |

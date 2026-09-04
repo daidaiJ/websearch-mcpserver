@@ -99,10 +99,11 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 |------|-------------|--------------|
 | `engine` | Baidu web search + Bing (DuckDuckGo joins when a proxy is available) | **None** |
 | `baidu` | Baidu Qianfan search, falls back to Baidu web search | Optional |
-| `apipool` | API key pool rotation: one provider per request, auto-switch on failure | All optional |
+| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports round-robin / priority / weighted strategies | All optional |
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
-| `hybrid` | Full mix (Baidu + Tavily + Exa + Bing + DuckDuckGo, etc.) | All optional |
+| `anysearch` | AnySearch API | `ANYSEARCH_API_KEY` |
+| `hybrid` | Full mix (Anysearch + Baidu + Tavily + Exa + Bing + DuckDuckGo, etc.) | All optional |
 
 > Auto-degrades to `engine` mode when keys are missing. See [docs/search.md](docs/search.md) for mode and engine details.
 

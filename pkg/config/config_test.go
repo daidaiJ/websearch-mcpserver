@@ -374,3 +374,100 @@ func TestEnsureExampleFile(t *testing.T) {
 		t.Error("existing file content must not be overwritten")
 	}
 }
+
+// ── apipool 配置：策略 / engines 顺序 / weights 默认值 ─────────────────────
+
+func TestApipoolConfig_GetStrategy(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"", "round-robin"},
+		{"round-robin", "round-robin"},
+		{"priority", "priority"},
+		{"weighted", "weighted"},
+		{"WEIGHTED", "weighted"},
+		{"unknown", "round-robin"},
+	}
+	for _, tt := range tests {
+		c := ApipoolConfig{Strategy: tt.in}
+		if got := c.GetStrategy(); got != tt.want {
+			t.Errorf("GetStrategy(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestApipoolConfig_GetEngines_DefaultIncludesAnysearch(t *testing.T) {
+	got := (ApipoolConfig{}).GetEngines()
+	want := []string{"anysearch", "baidu", "tavily", "exa"}
+	if len(got) != len(want) {
+		t.Fatalf("default engines = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("default engines = %v, want %v", got, want)
+		}
+	}
+	// 显式配置优先
+	if got := (ApipoolConfig{Engines: []string{"tavily"}}).GetEngines(); len(got) != 1 || got[0] != "tavily" {
+		t.Errorf("explicit engines should win, got %v", got)
+	}
+}
+
+func TestApipoolConfig_GetWeights(t *testing.T) {
+	w := ApipoolConfig{}.GetWeights()
+	for name, want := range map[string]int{
+		"anysearch": 30000,
+		"baidu":     1500,
+		"tavily":    1200,
+		"exa":       1200,
+	} {
+		if w[name] != want {
+			t.Errorf("default weight[%s] = %d, want %d", name, w[name], want)
+		}
+	}
+
+	// 用户配置覆盖默认值；未提到的保留默认
+	w = ApipoolConfig{Weights: map[string]int{"tavily": 5}}.GetWeights()
+	if w["tavily"] != 5 {
+		t.Errorf("override weight[tavily] = %d, want 5", w["tavily"])
+	}
+	if w["anysearch"] != 30000 {
+		t.Errorf("non-overridden weight[anysearch] = %d, want 30000", w["anysearch"])
+	}
+	// 显式 0 表示不参与加权起始选择
+	w = ApipoolConfig{Weights: map[string]int{"exa": 0}}.GetWeights()
+	if w["exa"] != 0 {
+		t.Errorf("explicit zero weight[exa] = %d, want 0", w["exa"])
+	}
+}
+
+func TestGetMode_Anysearch(t *testing.T) {
+	conf := Config{Mode: ModeAnysearch}
+	if conf.GetMode() != ModeAnysearch {
+		t.Errorf("GetMode() = %q, want %q", conf.GetMode(), ModeAnysearch)
+	}
+	if !conf.NeedsAPIKey() {
+		t.Error("mode=anysearch should require API key")
+	}
+}
+
+func TestAnysearchConfig_EffectiveSKList(t *testing.T) {
+	if got := (AnysearchConfig{APIKey: "k1"}).EffectiveSKList(); len(got) != 1 || got[0] != "k1" {
+		t.Errorf("single api_key should become sk_list, got %v", got)
+	}
+	if got := (AnysearchConfig{SKList: []string{"k1", "k2"}}).EffectiveSKList(); len(got) != 2 {
+		t.Errorf("sk_list should win over api_key, got %v", got)
+	}
+	if got := (AnysearchConfig{}).EffectiveSKList(); got != nil {
+		t.Errorf("empty config should return nil, got %v", got)
+	}
+}
+
+func TestDefault_AppliesAnysearchEnv(t *testing.T) {
+	t.Setenv("ANYSEARCH_API_KEY", "as-test")
+	conf := Default()
+	if conf.Anysearch.APIKey != "as-test" {
+		t.Errorf("Anysearch.APIKey = %q, want as-test", conf.Anysearch.APIKey)
+	}
+}

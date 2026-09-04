@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,12 +17,13 @@ import (
 var configDir string
 
 const (
-	ModeBaidu   = "baidu"   // 百度千帆搜索（enable_ai_search 控制端点，失败自动回退网页搜索）
-	ModeApipool = "apipool" // API Key 池轮转：百度 + Tavily + Exa 并发去重
-	ModeTavily  = "tavily"
-	ModeExa     = "exa"
-	ModeHybrid  = "hybrid"
-	ModeEngine  = "engine" // 纯引擎模式，无需 API Key
+	ModeBaidu     = "baidu"     // 百度千帆搜索（enable_ai_search 控制端点，失败自动回退网页搜索）
+	ModeApipool   = "apipool"   // API Key 池轮转：Anysearch + 百度 + Tavily + Exa，失败自动切换
+	ModeTavily    = "tavily"
+	ModeExa       = "exa"
+	ModeAnysearch = "anysearch"
+	ModeHybrid    = "hybrid"
+	ModeEngine    = "engine" // 纯引擎模式，无需 API Key
 )
 
 // ── 顶层配置 ──
@@ -40,6 +42,7 @@ type Config struct {
 	Baidu              BaiduConfig       `mapstructure:"baidu"`
 	Tavily             TavilyConfig      `mapstructure:"tavily"`
 	Exa                ExaConfig         `mapstructure:"exa"`
+	Anysearch          AnysearchConfig   `mapstructure:"anysearch"`
 	LLM                LLMConfig         `mapstructure:"llm"`
 	Jina               JinaConfig        `mapstructure:"jina"`
 	Cache              CacheConfig       `mapstructure:"cache"`
@@ -119,6 +122,23 @@ type ExaConfig struct {
 
 // EffectiveSKList 返回合并后的 Key 列表。
 func (c ExaConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+type AnysearchConfig struct {
+	APIKey     string   `mapstructure:"api_key"`     // AnySearch API Key（单 key 时自动作为 sk_list；https://www.anysearch.com/docs）
+	SKList     []string `mapstructure:"sk_list"`     // 多 Key 轮询列表（优先级高于 api_key）
+	NumResults int      `mapstructure:"num_results"` // 单次搜索结果数量（默认 10）
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c AnysearchConfig) EffectiveSKList() []string {
 	if len(c.SKList) > 0 {
 		return c.SKList
 	}
@@ -372,8 +392,9 @@ type SmartSearchEngine struct {
 
 // ApipoolConfig apipool 模式配置。
 type ApipoolConfig struct {
-	Strategy string   `mapstructure:"strategy"` // "round-robin"(默认) / "priority"
-	Engines  []string `mapstructure:"engines"`  // 供应商优先级顺序（默认: baidu, tavily, exa）
+	Strategy string         `mapstructure:"strategy"` // "round-robin"(默认) / "priority" / "weighted"
+	Engines  []string       `mapstructure:"engines"`  // 供应商优先级顺序（默认: anysearch, baidu, tavily, exa）
+	Weights  map[string]int `mapstructure:"weights"`  // weighted 策略的供应商权重（单 Key 权重，实际权重按可用 Key 数累加）
 }
 
 // GetApipoolStrategy 返回 apipool 策略，默认 round-robin。
@@ -381,17 +402,32 @@ func (c ApipoolConfig) GetStrategy() string {
 	switch strings.ToLower(c.Strategy) {
 	case "priority":
 		return "priority"
+	case "weighted":
+		return "weighted"
 	default:
 		return "round-robin"
 	}
 }
 
-// GetEngines 返回供应商顺序，默认 baidu → tavily → exa。
+// GetEngines 返回供应商顺序，默认 anysearch → baidu → tavily → exa。
 func (c ApipoolConfig) GetEngines() []string {
 	if len(c.Engines) > 0 {
 		return c.Engines
 	}
-	return []string{"baidu", "tavily", "exa"}
+	return []string{"anysearch", "baidu", "tavily", "exa"}
+}
+
+// GetWeights 返回 weighted 策略的供应商权重（供应商名 → 单 Key 权重），
+// 内置默认值可被配置覆盖；显式配置 0 表示该供应商不参与加权起始选择。
+func (c ApipoolConfig) GetWeights() map[string]int {
+	w := map[string]int{
+		"anysearch": 30000,
+		"baidu":     1500,
+		"tavily":    1200,
+		"exa":       1200,
+	}
+	maps.Copy(w, c.Weights)
+	return w
 }
 
 // ── Config 方法 ──
@@ -438,6 +474,8 @@ func (c Config) GetMode() string {
 		return ModeTavily
 	case ModeExa:
 		return ModeExa
+	case ModeAnysearch:
+		return ModeAnysearch
 	case ModeHybrid, "hybird":
 		return ModeHybrid
 	case ModeEngine:
@@ -510,6 +548,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("baidu.api_key", "BAIDU_SK")
 	viper.BindEnv("tavily.api_key", "TAVILY_SK")
 	viper.BindEnv("exa.api_key", "EXA_API_KEY")
+	viper.BindEnv("anysearch.api_key", "ANYSEARCH_API_KEY")
 	viper.BindEnv("llm.base_url", "LLM_BASE_URL")
 	viper.BindEnv("llm.api_key", "LLM_API_KEY")
 	viper.BindEnv("pdf_parser.mineru_token", "MINERU_TOKEN")
@@ -707,6 +746,9 @@ func applyKnownEnv(conf *Config) {
 	}
 	if v := os.Getenv("EXA_API_KEY"); v != "" {
 		conf.Exa.APIKey = v
+	}
+	if v := os.Getenv("ANYSEARCH_API_KEY"); v != "" {
+		conf.Anysearch.APIKey = v
 	}
 	if v := os.Getenv("LLM_BASE_URL"); v != "" {
 		conf.LLM.BaseURL = v
