@@ -65,6 +65,9 @@ mode: engine
 port: 8338                  # MCP HTTP 端口（stdio CLI 忽略此字段）
 host: "127.0.0.1"           # 监听地址（默认 127.0.0.1，只绑本机；0.0.0.0 开放所有网卡，需配 auth_token）
 auth_token: ""              # 业务端点鉴权 token（空 = 不鉴权；环境变量 WEBSEARCH_TOKEN）
+mcp_stateless: false        # MCP 无状态 HTTP 模式（默认 false = 会话式）：true 时每个 POST 独立处理，
+                            # 免 initialize 握手与 Mcp-Session-Id 会话，便于反向代理/负载均衡水平扩展；
+                            # GET SSE 长连返回 405。本服务工具均为请求-响应式，无状态模式下功能无损
 log_level: info             # debug / info / warn / error
 mode: engine                # baidu / apipool / tavily / exa / anysearch / hybrid / engine
 network: china              # china（跳过海外引擎） / international
@@ -81,6 +84,8 @@ black_list_host:
 
 # 百度千帆（mode=baidu/apipool/hybrid 时需要）
 baidu:
+  web_enabled: false        # 百度网页搜索引擎（tn=json 直抓）默认禁用：实测被百度 CAPTCHA 识别，
+                            # 出口 IP 干净的部署环境可显式开启
   api_key: ""               # 环境变量: BAIDU_SK（sk_list 为空时自动作为单元素列表）
   sk_list: []               # 多 Key 轮询列表（优先级高于 api_key）
   enable_ai_search: true    # true=智能搜索 chat/completions（默认），false=网页搜索 web_search
@@ -274,6 +279,8 @@ log:
 |------|--------|------|
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
 | `mode` | engine | 无 Key 时自动回退 engine；`apipool` 为 API Key 池轮转模式，支持 round-robin / priority / weighted 策略 |
+| `mcp_stateless` | false | MCP 无状态 HTTP 模式：每个 POST 独立处理、免会话握手，便于水平扩展；GET SSE 返回 405 |
+| `baidu.web_enabled` | false | 百度网页搜索引擎默认禁用（实测被 CAPTCHA 识别），出口 IP 干净时可显式开启 |
 | `network` | china | |
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |

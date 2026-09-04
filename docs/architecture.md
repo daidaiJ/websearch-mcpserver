@@ -35,7 +35,8 @@
 │  ├─ 通用引擎：baidu / baidu_api / bing / ddg / google /     │
 │  │            tavily / exa / anysearch                      │
 │  ├─ 学术引擎：arxiv / crossref / openalex / pubmed /        │
-│  │            semantic_scholar / google_scholar             │
+│  │            europepmc / dblp / doaj / semantic_scholar    │
+│  │            / google_scholar                              │
 │  └─ 评分管线：RRF 融合 → 词汇对齐 → 域名品质 → Boost →      │
 │               阀值过滤 → MMR 多样性重排                      │
 └──────────────────────────┬──────────────────────────────────┘

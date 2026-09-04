@@ -36,7 +36,8 @@
 │  ├─ General engines: baidu / baidu_api / bing / ddg /       │
 │  │                    google / tavily / exa / anysearch     │
 │  ├─ Academic engines: arxiv / crossref / openalex / pubmed /│
-│  │                     semantic_scholar / google_scholar    │
+│  │          europepmc / dblp / doaj / semantic_scholar /    │
+│  │                     google_scholar                       │
 │  └─ Scoring pipeline: RRF fusion → lexical alignment →      │
 │                       domain quality → boosts → threshold   │
 │                       → MMR diversity re-ranking            │

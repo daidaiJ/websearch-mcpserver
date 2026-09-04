@@ -72,10 +72,13 @@
 | `crossref` | All-discipline DOI metadata | No |
 | `openalex` | All-discipline open scholarly graph | No |
 | `pubmed` | Biomedical literature | No |
+| `europepmc` | Europe PMC (biomedical / PubMed supplement, full text) | No |
+| `dblp` | DBLP (CS conference/journal index) | No |
+| `doaj` | DOAJ (open-access journals directory) | No |
 | `semantic_scholar` | Semantic scholar (disabled by default) | Yes (auto-detected) |
 | `google_scholar` | All-discipline academic search (disabled by default) | Yes (auto-detected) |
 
-> **Network availability**: Google / DuckDuckGo / Crossref / Google Scholar are unstable under `network: china` without a proxy (may time out or be blocked by anti-bot measures); Bing web scraping may also time out. Failed engines are auto-skipped/fallback and do not affect other engines' results.
+> **Network availability**: Google / DuckDuckGo / Crossref / Google Scholar are unstable under `network: china` without a proxy (may time out or be blocked by anti-bot measures); Bing web scraping may also time out. Failed engines are auto-skipped/fallback and do not affect other engines' results; partial academic-engine failures append a "some engines failed this run" note to results.
 
 ---
 
@@ -208,7 +211,7 @@ Results include engine source and relevance score by default (for engines that s
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | ✅ | Search keyword |
-| `engines` | []string | ❌ | Engine subset: `arxiv` `crossref` `openalex` `pubmed` `semantic_scholar` `google_scholar` |
+| `engines` | []string | ❌ | Engine subset: `arxiv` `crossref` `openalex` `pubmed` `europepmc` `dblp` `doaj` `semantic_scholar` `google_scholar` |
 | `time_range` | string | ❌ | `year` / `month` / `week` / `day` |
 | `page` | int | ❌ | Page number, default 1 |
 
@@ -240,6 +243,6 @@ Requires `pdf_parser.enabled: true`. Large documents auto-stored to temp files.
 
 ## Academic Search Tips
 
-- Medicine/Biology → `pubmed`; CS/AI → `arxiv` + `semantic_scholar`; All fields → `crossref` + `openalex`
-- Keep `network: china` for domestic access; overseas engines auto-skipped
+- Medicine/Biology → `pubmed` + `europepmc`; CS/AI → `arxiv` + `semantic_scholar` + `dblp`; Open access → `doaj`; All fields → `crossref` + `openalex`
+- Keep `network: china` for domestic access; overseas engines auto-skipped (Europe PMC / DBLP / DOAJ are directly reachable)
 - Semantic Scholar / Google Scholar disabled by default; set `disable_semantic_scholar: false` / `disable_google_scholar: false` to enable; proxy auto-detected

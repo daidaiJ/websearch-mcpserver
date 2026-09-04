@@ -72,10 +72,13 @@
 | `crossref` | 全学科 DOI 元数据 | 否 |
 | `openalex` | 全学科开放学术图谱 | 否 |
 | `pubmed` | 生物医学文献 | 否 |
+| `europepmc` | Europe PMC（生物医学 / PubMed 增补源，含全文） | 否 |
+| `dblp` | DBLP（CS 会议/期刊索引） | 否 |
+| `doaj` | DOAJ（开放获取期刊目录） | 否 |
 | `semantic_scholar` | 语义学术（默认禁用） | 是（自动检测） |
 | `google_scholar` | 全学科学术搜索（默认禁用） | 是（自动检测） |
 
-> **网络可用性**：Google / DuckDuckGo / Crossref / Google Scholar 在 `network: china` 且无代理时不稳定（可能超时或被反爬拦截）；Bing 网页抓取亦可能超时。失败引擎自动跳过/回退，不影响其他引擎结果。
+> **网络可用性**：Google / DuckDuckGo / Crossref / Google Scholar 在 `network: china` 且无代理时不稳定（可能超时或被反爬拦截）；Bing 网页抓取亦可能超时。失败引擎自动跳过/回退，不影响其他引擎结果；部分学术引擎失败会在结果末尾提示「部分引擎本次失败，结果可能不完整」。
 
 ---
 
@@ -208,7 +211,7 @@ apipool:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `query` | string | ✅ | 搜索关键词 |
-| `engines` | []string | ❌ | 引擎子集：`arxiv` `crossref` `openalex` `pubmed` `semantic_scholar` `google_scholar` |
+| `engines` | []string | ❌ | 引擎子集：`arxiv` `crossref` `openalex` `pubmed` `europepmc` `dblp` `doaj` `semantic_scholar` `google_scholar` |
 | `time_range` | string | ❌ | `year` / `month` / `week` / `day` |
 | `page` | int | ❌ | 页码，默认 1 |
 
@@ -240,6 +243,6 @@ apipool:
 
 ## 学术搜索建议
 
-- 医学/生物 → `pubmed`；CS/AI → `arxiv` + `semantic_scholar`；全学科 → `crossref` + `openalex`
-- 国内保持 `network: china`，海外引擎自动跳过
+- 医学/生物 → `pubmed` + `europepmc`；CS/AI → `arxiv` + `semantic_scholar` + `dblp`；开放获取 → `doaj`；全学科 → `crossref` + `openalex`
+- 国内保持 `network: china`，海外引擎自动跳过（Europe PMC / DBLP / DOAJ 可直连）
 - Semantic Scholar / Google Scholar 默认禁用，设置 `disable_semantic_scholar: false` / `disable_google_scholar: false` 即可启用，代理自动检测

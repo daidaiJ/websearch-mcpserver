@@ -65,6 +65,10 @@ Write an example file:
 port: 8338                  # MCP HTTP port (ignored by stdio CLI)
 host: "127.0.0.1"           # Listen address (default 127.0.0.1, loopback only; 0.0.0.0 opens all interfaces, pair with auth_token)
 auth_token: ""              # Bearer token for business endpoints (empty = no auth; env WEBSEARCH_TOKEN)
+mcp_stateless: false        # Stateless MCP HTTP mode (default false = stateful): each POST is handled
+                            # independently, no initialize handshake or Mcp-Session-Id session — easier
+                            # horizontal scaling behind proxies/LBs; GET SSE returns 405. All tools are
+                            # request-response, so stateless mode loses nothing
 log_level: info             # debug / info / warn / error
 mode: engine                # baidu / apipool / tavily / exa / anysearch / hybrid / engine
 network: china              # china (skip overseas engines) / international
@@ -81,6 +85,8 @@ black_list_host:
 
 # Baidu Qianfan (required for mode=baidu/apipool/hybrid)
 baidu:
+  web_enabled: false        # Baidu web search engine (tn=json scraping) disabled by default: CAPTCHA-blocked
+                            # in testing; deployments with clean egress IPs may enable it explicitly
   api_key: ""               # Env: BAIDU_SK (falls back to single-element sk_list when empty)
   sk_list: []               # Multi-key rotation list (priority over api_key)
   enable_ai_search: true    # true=AI search chat/completions (default), false=web search web_search
@@ -274,6 +280,8 @@ log:
 |-------|---------|-------|
 | `port` | 8338 | stop/kill/status also use this port when no config |
 | `mode` | engine | Auto-degrades to engine when no keys; `apipool` = API Key pool rotation, supports round-robin / priority / weighted strategies |
+| `mcp_stateless` | false | Stateless MCP HTTP mode: each POST handled independently, no session handshake, easier horizontal scaling; GET SSE returns 405 |
+| `baidu.web_enabled` | false | Baidu web search engine disabled by default (CAPTCHA-blocked in testing); may be enabled explicitly with clean egress IPs |
 | `network` | china | |
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
