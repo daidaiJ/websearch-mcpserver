@@ -2,16 +2,83 @@
 
 > Lightweight Web Search MCP Server — runs with zero API keys
 
-[English](README.EN.md) | [中文](README.MD)
+<p align="center">
+  <a href="README.EN.md">English</a> · <a href="README.MD">中文</a>
+</p>
 
-[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
-[![Release](https://img.shields.io/github/v/release/daidaiJ/websearch-mcpserver)](https://github.com/daidaiJ/websearch-mcpserver/releases)
+<p align="center">
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go" alt="Go"></a>
+  <a href="https://github.com/daidaiJ/websearch-mcpserver/releases"><img src="https://img.shields.io/github/v/release/daidaiJ/websearch-mcpserver" alt="Release"></a>
+  <img src="https://img.shields.io/badge/MCP-Streamable%20HTTP%20%2F%20stdio-7C3AED" alt="MCP">
+  <img src="https://img.shields.io/badge/API%20Key-optional-22C55E" alt="Zero API Key">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT"></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/hero-banner.jpg" alt="Multi-engine search fusion: Baidu, Bing, DuckDuckGo and academic sources merge locally into structured results" width="900">
+</p>
+
+An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines plus 9 academic search engines. Search, scoring, and caching all happen locally. Use it as MCP tools in Claude Code, Qwen Code, or Cursor, or embed it as a Go module in your own service.
+
+**Free, China-friendly, LLM-ready.** Works with zero keys; keys are used only when you provide them.
 
 ---
 
-## Introduction
+## Architecture at a glance
 
-An MCP search service written in Go with built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines plus 9 academic search engines. Use it as MCP tools in Claude Code, Qwen Code, Cursor, or embed it as a Go module in your own service.
+Layered design: clients see four MCP tools; the engine group is assembled by `mode`; scoring, cache, proxy, and fetch all run in-process. Queries never pass through a third-party aggregator.
+
+<p align="center">
+  <img src="docs/images/architecture.en.svg" alt="System architecture: client, protocol, orchestration, general/academic engines, supporting components" width="900">
+</p>
+
+| Layer | Role |
+|-------|------|
+| **Client** | Claude Code / Qwen Code / Cursor / HTTP API / embed as a Go module |
+| **Protocol** | `/mcp` four tools · `/searxng/search` for LiteLLM · `/__admin` process management |
+| **Orchestration** | `factory` by mode · `hybrid` concurrent dedup/merge · RRF / boost / MMR scoring |
+| **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch; 9 academic sources in parallel |
+| **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary |
+
+Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md](docs/architecture.en.md).
+
+---
+
+## A complete tool chain for LLMs
+
+Four tools cover the web workflow. Results feed into each other — one config enables the whole chain:
+
+<p align="center">
+  <img src="docs/images/toolchain.en.svg" alt="smartsearch → academicsearch → cleanfetch → pdf_parser toolchain" width="900">
+</p>
+
+---
+
+## Key Features
+
+| Capability | Description |
+|------------|-------------|
+| Zero-key search | `engine` mode runs Baidu web search + Bing concurrently, no API keys required |
+| Multi-engine fusion | Multiple search modes, 7 general engines + 9 academic engines, auto-fallback on primary failure |
+| Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up mirrors / reposts |
+| Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |
+| Web fetching | `cleanfetch` with built-in SSRF / DNS-rebinding protection and oversized-file pre-check; fallback to Jina Reader |
+| PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR |
+| LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
+| System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
+| Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
+
+---
+
+## Search & scoring pipeline
+
+Results are not raw aggregation. After engines return, the server locally dedups, fusion-ranks, and re-ranks for diversity, then optionally summarizes:
+
+<p align="center">
+  <img src="docs/images/pipeline.en.svg" alt="Query flows through factory, concurrent search, dedup, RRF, boost, threshold, MMR, then returns" width="900">
+</p>
+
+---
 
 ## Design Background & Goals
 
@@ -43,13 +110,15 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 
 **Zero cost to start, pay only for what you use** — Free engines (Baidu web + Bing) work with zero keys; local heuristic scoring burns no AI tokens; SQLite caching avoids repeated requests. Keys are used only when you provide them — you never pay for capabilities you don't use.
 
-**Scalable complexity (丰简由人)** — One config file, with `mode` scaling from `engine` (zero config) to `hybrid` (all engines). Zero-config and power users each get what they need without paying for complexity.
+**Scalable complexity** — One config file, with `mode` scaling from `engine` (zero config) to `hybrid` (all engines). Zero-config and power users each get what they need without paying for complexity.
 
 **Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, the 4 tools each have their own `enabled` switch, keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
 
-**A complete tool chain for LLMs** — The 4 tools cover the full web workflow: `smartsearch` search (optional LLM structured summary) → `academicsearch` academic search → `cleanfetch` fetch the source → `pdf_parser` parse PDFs, with results feeding into each other — one config enables the whole chain.
+**A complete tool chain for LLMs** — The 4 tools cover the full web workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser`, with results feeding into each other — one config enables the whole chain.
 
 **Scenario-specific optimization** — Optimized for real usage scenarios: academic search (9 engines + citation / journal / PDF scoring), China networking (direct connect + system proxy auto-detection), scanned PDFs (MinerU OCR fallback), recency queries (`time_range`).
+
+---
 
 ## Quick Start
 
@@ -79,19 +148,7 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 }
 ```
 
-## Key Features
-
-| Capability | Description |
-|------------|-------------|
-| Zero-key search | `engine` mode runs Baidu web search + Bing concurrently, no API keys required |
-| Multi-engine fusion | 6 search modes, 7 general engines + 9 academic engines, auto-fallback on primary engine failure |
-| Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up same-topic similar results (mirror / repost sites) |
-| Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup, per-engine failure passthrough |
-| Web fetching | `cleanfetch` fetches pages without a proxy, with built-in SSRF / DNS-rebinding protection and oversized-file pre-check |
-| PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR |
-| LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
-| System proxy auto-detection | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
-| Lightweight deployment | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
+---
 
 ## Search Modes at a Glance
 
@@ -99,13 +156,15 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 |------|-------------|--------------|
 | `engine` | Baidu web search + Bing (DuckDuckGo joins when a proxy is available) | **None** |
 | `baidu` | Baidu Qianfan search, falls back to Baidu web search | Optional |
-| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports round-robin / priority / weighted strategies | All optional |
+| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports round-robin / priority / weighted | All optional |
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
 | `anysearch` | AnySearch API | `ANYSEARCH_API_KEY` |
 | `hybrid` | Full mix (Anysearch + Baidu + Tavily + Exa + Bing + DuckDuckGo, etc.) | All optional |
 
 > Auto-degrades to `engine` mode when keys are missing. See [docs/search.md](docs/search.md) for mode and engine details.
+
+---
 
 ## Documentation
 

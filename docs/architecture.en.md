@@ -17,44 +17,9 @@
 
 ## Overall Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  MCP clients (Claude Code / Qwen Code / Cursor ...)         │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ MCP (Streamable HTTP / stdio)
-┌──────────────────────────▼──────────────────────────────────┐
-│  server package (shared by HTTP daemon / stdio CLI)         │
-│  ├─ /mcp            MCP endpoint (smartsearch/academicsearch│
-│  │                   /cleanfetch/pdf_parser)                │
-│  ├─ /searxng/search  SearXNG-compatible endpoint (LiteLLM)  │
-│  └─ /__admin/*       Admin endpoints (status/refcount/      │
-│                       shutdown)                             │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│  pkg/search engine group (built by mode)                    │
-│  ├─ General engines: baidu / baidu_api / bing / ddg /       │
-│  │                    google / tavily / exa / anysearch     │
-│  ├─ Academic engines: arxiv / crossref / openalex / pubmed /│
-│  │          europepmc / dblp / doaj / semantic_scholar /    │
-│  │                     google_scholar                       │
-│  └─ Scoring pipeline: RRF fusion → lexical alignment →      │
-│                       domain quality → boosts → threshold   │
-│                       → MMR diversity re-ranking            │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│  Supporting components                                      │
-│  ├─ pkg/proxy      System proxy auto-detection (registry/   │
-│  │                  env vars)                               │
-│  ├─ pkg/cache      SQLite cache (6h expiry, 30min cleanup)  │
-│  ├─ pkg/webfetch   Enhanced web fetching (TLS fingerprint + │
-│  │                  security)                               │
-│  ├─ pkg/mineru     MinerU PDF parsing client                │
-│  ├─ pkg/llm        OpenAI-compatible LLM client (streaming) │
-│  └─ pkg/summarizer Summary generation                       │
-└─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="images/architecture.en.svg" alt="System architecture: client, protocol, orchestration, general/academic engines, supporting components" width="900">
+</p>
 
 **Key design decisions**:
 

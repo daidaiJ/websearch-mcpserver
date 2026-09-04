@@ -17,40 +17,9 @@
 
 ## 整体架构
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  MCP 客户端（Claude Code / Qwen Code / Cursor ...）          │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ MCP (Streamable HTTP / stdio)
-┌──────────────────────────▼──────────────────────────────────┐
-│  server 包（HTTP daemon / stdio CLI 共用）                   │
-│  ├─ /mcp            MCP 端点（smartsearch/academicsearch/   │
-│  │                   cleanfetch/pdf_parser）                 │
-│  ├─ /searxng/search  SearXNG 兼容端点（对接 LiteLLM）        │
-│  └─ /__admin/*       Admin 端点（status/refcount/shutdown）  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│  pkg/search 搜索引擎组（按 mode 构建）                       │
-│  ├─ 通用引擎：baidu / baidu_api / bing / ddg / google /     │
-│  │            tavily / exa / anysearch                      │
-│  ├─ 学术引擎：arxiv / crossref / openalex / pubmed /        │
-│  │            europepmc / dblp / doaj / semantic_scholar    │
-│  │            / google_scholar                              │
-│  └─ 评分管线：RRF 融合 → 词汇对齐 → 域名品质 → Boost →      │
-│               阀值过滤 → MMR 多样性重排                      │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│  支撑组件                                                   │
-│  ├─ pkg/proxy      系统代理自动检测（注册表/环境变量）       │
-│  ├─ pkg/cache      SQLite 缓存（6h 过期，30min 清理）        │
-│  ├─ pkg/webfetch   增强型网页抓取（TLS 指纹伪装 + 安全防护） │
-│  ├─ pkg/mineru     MinerU PDF 解析客户端                     │
-│  ├─ pkg/llm        OpenAI 兼容 LLM 客户端（流式摘要）        │
-│  └─ pkg/summarizer 摘要生成                                 │
-└─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="images/architecture.zh.svg" alt="系统组成架构：接入层、协议层、编排层、通用/学术引擎、支撑组件" width="900">
+</p>
 
 **关键设计**：
 
