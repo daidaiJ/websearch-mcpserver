@@ -29,7 +29,7 @@ An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo
 Layered design: clients see four MCP tools; the engine group is assembled by `mode`; scoring, cache, proxy, and fetch all run in-process. Queries never pass through a third-party aggregator.
 
 <p align="center">
-  <img src="docs/images/architecture.en.svg" alt="System architecture: client, protocol, orchestration, general/academic engines, supporting components" width="900">
+  <img src="docs/images/architecture.jpg" alt="System architecture: client, protocol, orchestration, general/academic engines, supporting components" width="900">
 </p>
 
 | Layer | Role |
@@ -49,7 +49,7 @@ Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md
 Four tools cover the web workflow. Results feed into each other — one config enables the whole chain:
 
 <p align="center">
-  <img src="docs/images/toolchain.en.svg" alt="smartsearch → academicsearch → cleanfetch → pdf_parser toolchain" width="900">
+  <img src="docs/images/toolchain.jpg" alt="smartsearch → academicsearch → cleanfetch → pdf_parser toolchain" width="900">
 </p>
 
 ---
@@ -75,7 +75,7 @@ Four tools cover the web workflow. Results feed into each other — one config e
 Results are not raw aggregation. After engines return, the server locally dedups, fusion-ranks, and re-ranks for diversity, then optionally summarizes:
 
 <p align="center">
-  <img src="docs/images/pipeline.en.svg" alt="Query flows through factory, concurrent search, dedup, RRF, boost, threshold, MMR, then returns" width="900">
+  <img src="docs/images/pipeline.jpg" alt="Query flows through factory, concurrent search, dedup, RRF, boost, threshold, MMR, then returns" width="900">
 </p>
 
 ---
