@@ -29,7 +29,7 @@
 分层设计：客户端只面对 4 个 MCP 工具；引擎组由 `mode` 组装；评分、缓存、代理、抓取都在本进程内完成，查询不会经过第三方聚合服务。
 
 <p align="center">
-  <img src="docs/images/architecture.jpg" alt="系统组成架构：接入层、协议层、编排层、通用/学术引擎、支撑组件" width="900">
+  <img src="docs/images/architecture.zh.png" alt="系统组成架构：接入层、协议层、编排层、通用/学术引擎、支撑组件" width="900">
 </p>
 
 | 层 | 做什么 |
@@ -49,7 +49,7 @@
 四个工具覆盖联网工作流，结果互相衔接，一次配置全链路可用：
 
 <p align="center">
-  <img src="docs/images/toolchain.jpg" alt="smartsearch → academicsearch → cleanfetch → pdf_parser 工具链" width="900">
+  <img src="docs/images/toolchain.zh.png" alt="smartsearch → academicsearch → cleanfetch → pdf_parser 工具链" width="900">
 </p>
 
 ---
@@ -75,7 +75,7 @@
 结果不是原始聚合。多引擎回传后在本地做去重、融合排名和多样性重排，再可选生成摘要：
 
 <p align="center">
-  <img src="docs/images/pipeline.jpg" alt="查询经 factory、并发检索、去重、RRF、Boost、阈值、MMR 后返回" width="900">
+  <img src="docs/images/pipeline.zh.png" alt="查询经 factory、并发检索、去重、RRF、Boost、阈值、MMR 后返回" width="900">
 </p>
 
 ---
