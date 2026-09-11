@@ -160,7 +160,8 @@ autostart.vbs
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
 | `anysearch` | AnySearch API | `ANYSEARCH_API_KEY` |
-| `hybrid` | 全引擎混合（Anysearch + 百度 + Tavily + Exa + Bing + DuckDuckGo 等） | 各 Key 可选 |
+| `doubao` | 豆包搜索 Global / Custom / 双版本 | `DOUBAO_SEARCH_API_KEY` |
+| `hybrid` | 全引擎混合（Anysearch + 豆包搜索 + 百度 + Tavily + Exa + Bing + DuckDuckGo 等） | 各 Key 可选 |
 
 > 无 Key 时自动降级为 `engine` 模式。各模式与引擎的详细说明见 [docs/search.md](docs/search.md)。
 

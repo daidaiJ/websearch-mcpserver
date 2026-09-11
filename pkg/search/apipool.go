@@ -28,7 +28,7 @@ func (e *KeyError) Error() string {
 func (e *KeyError) Unwrap() error { return e.Err }
 
 // apipoolProvider 单个供应商：搜索引擎 + 对应的 KeyPool（免费引擎 pool 为 nil）。
-// name 为供应商配置名（baidu/tavily/exa/anysearch），weighted 策略权重匹配用；
+// name 为供应商配置名（baidu/tavily/exa/anysearch/doubao），weighted 策略权重匹配用；
 // 为空时回退 engine.Name()。
 type apipoolProvider struct {
 	name   string

@@ -160,7 +160,8 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 | `tavily` | Tavily Search API | `TAVILY_SK` |
 | `exa` | Exa Web Search API | `EXA_API_KEY` |
 | `anysearch` | AnySearch API | `ANYSEARCH_API_KEY` |
-| `hybrid` | Full mix (Anysearch + Baidu + Tavily + Exa + Bing + DuckDuckGo, etc.) | All optional |
+| `doubao` | Doubao Search Global / Custom / both | `DOUBAO_SEARCH_API_KEY` |
+| `hybrid` | Full mix (Anysearch + Doubao Search + Baidu + Tavily + Exa + Bing + DuckDuckGo, etc.) | All optional |
 
 > Auto-degrades to `engine` mode when keys are missing. See [docs/search.md](docs/search.md) for mode and engine details.
 

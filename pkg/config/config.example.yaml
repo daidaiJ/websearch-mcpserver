@@ -34,7 +34,8 @@ log_level: info
 #   - tavily     : 仅使用 Tavily Search API
 #   - exa        : 仅使用 Exa Web Search API
 #   - anysearch  : 仅使用 AnySearch API（https://www.anysearch.com/docs）
-#   - hybrid     : 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + DuckDuckGo）
+#   - doubao     : 仅使用豆包搜索 Custom 版（https://docs.volcengine.com/docs/87772/2272949）
+#   - hybrid     : 全引擎混合（Anysearch + 豆包搜索 + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + Bing + DuckDuckGo）
 #   - engine     : 百度网页搜索 + Bing + DuckDuckGo（代理启用时加入 DuckDuckGo），无需 API Key
 mode: engine
 
@@ -114,6 +115,28 @@ rate_limit:
 #     - "as-xxxx"
 #     - "as-yyyy"
 #   num_results: 10       # 单次搜索结果数量（默认 10）
+
+# ==============================================
+# 豆包搜索 Global / Custom 版（mode=doubao/apipool/hybrid 时需要）
+# 文档: https://docs.volcengine.com/docs/87772/2272949
+# 开通: https://console.volcengine.com/search-infinity/web-search
+# API Key: https://console.volcengine.com/search-infinity/api-key
+# 环境变量: DOUBAO_SEARCH_API_KEY（兼容 ASK_ECHO_SEARCH_INFINITY_API_KEY）
+# 注意: Global/Custom 共用同一搜索 API Key，不是 Ark 豆包大模型 Key
+# ==============================================
+# doubao:
+#   api_key: ""           # 单 Key（sk_list 为空时自动作为单元素列表）
+#   sk_list:              # 多 Key 轮询列表（优先级高于 api_key）
+#     - "your-search-api-key"
+#   version: global       # global（默认）/ custom / both（同时调用两版）
+#   num_results: 10       # 返回条数：Global 最大 20，Custom 最大 50
+#   max_snippet_length: 500        # Global: 单摘要片段最大 tokens，最大 3000
+#   max_image_count_per_doc: 0     # Global: 图片数，默认 0（本服务只消费文本）
+#   icp_host_only: false           # Global: 仅搜索国内 ICP 备案网站
+#   time_range: ""        # Custom: OneDay/OneWeek/OneMonth/OneYear 或日期区间
+#   auth_level: 0         # Custom: 0=默认，1=仅非常权威来源
+#   query_rewrite: false  # Custom: 是否启用查询改写
+#   need_content: false   # Custom: 是否请求网页正文
 
 # ==============================================
 # Bing 通用搜索引擎（兜底引擎 + engine 模式主力引擎）
@@ -298,14 +321,16 @@ log:
 #                         #   round-robin（默认）: 跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback
 #                         #   priority: 始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 引擎兜底
 #                         #   weighted: 按权重加权随机选起始供应商，突发请求天然分散（权重见 weights）
-#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, doubao, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
 #     - anysearch
+#     - doubao
 #     - baidu
 #     - tavily
 #     - exa
 #   weights:              # weighted 策略的供应商权重（单 Key 权重，实际权重 = 配置权重 × 当前可用 Key 数累加）
-#                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200；显式 0 = 不参与加权起始选择
+#                         # 默认值: anysearch=30000, doubao=1200, baidu=1500, tavily=1200, exa=1200；显式 0 = 不参与加权起始选择
 #     anysearch: 30000
+#     doubao: 1200
 #     baidu: 1500
 #     tavily: 1200
 #     exa: 1200

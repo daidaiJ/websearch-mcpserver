@@ -43,6 +43,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	tavilyPool := newKeyPoolFromList(conf.Tavily.EffectiveSKList(), "tavily")
 	exaPool := newKeyPoolFromList(conf.Exa.EffectiveSKList(), "exa")
 	anysearchPool := newKeyPoolFromList(conf.Anysearch.EffectiveSKList(), "anysearch")
+	doubaoPool := newKeyPoolFromList(conf.Doubao.EffectiveSKList(), "doubao")
 
 	// ── 按模式选择主引擎 ──
 	switch conf.GetMode() {
@@ -59,12 +60,15 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	case config.ModeAnysearch:
 		g.Primary = buildAnysearchMode(anysearchPool, g, conf)
 
+	case config.ModeDoubao:
+		g.Primary = buildDoubaoMode(doubaoPool, g, conf)
+
 	case config.ModeApipool:
-		g.Primary = buildApipoolMode(anysearchPool, baiduPool, tavilyPool, exaPool, baiduWebAdapter, g, conf)
+		g.Primary = buildApipoolMode(anysearchPool, doubaoPool, baiduPool, tavilyPool, exaPool, baiduWebAdapter, g, conf)
 		log.Infof("搜索模式: apipool（API Key 池轮转）")
 
 	case config.ModeHybrid:
-		g.Primary = buildHybridMode(anysearchPool, baiduPool, tavilyPool, exaPool, baiduWebAdapter, googleAdapter, ddgAdapter, g, conf)
+		g.Primary = buildHybridMode(anysearchPool, doubaoPool, baiduPool, tavilyPool, exaPool, baiduWebAdapter, googleAdapter, ddgAdapter, g, conf)
 
 	default: // baidu → 百度千帆 web_search
 		g.Primary = buildBaiduMode(baiduPool, baiduWebAdapter, g, conf)
@@ -176,11 +180,23 @@ func buildAnysearchMode(pool *KeyPool, g *SearchGroup, conf config.Config) Searc
 	return NewAnysearchSearch(pool, conf.Anysearch.NumResults, conf.BlackListHost)
 }
 
+// buildDoubaoMode 豆包搜索 Custom 版单引擎模式。
+func buildDoubaoMode(pool *KeyPool, g *SearchGroup, conf config.Config) SearchInf {
+	if pool == nil {
+		log.Error("mode=doubao 但未配置 doubao.api_key/sk_list，回退到 engine 模式")
+		if g.Fallback != nil {
+			return g.Fallback
+		}
+		return nil
+	}
+	return NewDoubaoSearch(pool, doubaoOptionsFromConfig(conf))
+}
+
 // buildApipoolMode API Key 池轮转模式：每次请求只调用一个供应商，失败自动切换下一个。
 // 跨请求时供应商选择由策略决定（round-robin / priority / weighted），Key 均 round-robin 轮转。
-// 供应商顺序由 conf.Apipool.Engines 配置控制（默认 anysearch → baidu → tavily → exa）。
+// 供应商顺序由 conf.Apipool.Engines 配置控制（默认 anysearch → doubao → baidu → tavily → exa）。
 // 百度端点由 baidu.enable_ai_search 配置控制（默认 true=智能搜索）。
-func buildApipoolMode(anysearchPool, baiduPool, tavilyPool, exaPool *KeyPool, baiduWeb *EngineSearchAdapter, g *SearchGroup, conf config.Config) SearchInf {
+func buildApipoolMode(anysearchPool, doubaoPool, baiduPool, tavilyPool, exaPool *KeyPool, baiduWeb *EngineSearchAdapter, g *SearchGroup, conf config.Config) SearchInf {
 	// 按配置顺序构建供应商（web 兜底始终追加在末尾）
 	var providers []apipoolProvider
 	for _, name := range conf.Apipool.GetEngines() {
@@ -188,6 +204,17 @@ func buildApipoolMode(anysearchPool, baiduPool, tavilyPool, exaPool *KeyPool, ba
 		case "anysearch":
 			if anysearchPool != nil {
 				providers = append(providers, apipoolProvider{name: "anysearch", engine: NewAnysearchSearch(anysearchPool, conf.Anysearch.NumResults, conf.BlackListHost), pool: anysearchPool})
+			}
+		case "doubao":
+			if doubaoPool != nil {
+				providers = append(providers, apipoolProvider{
+					name: "doubao",
+					engine: NewDoubaoSearch(
+						doubaoPool,
+						doubaoOptionsFromConfig(conf),
+					),
+					pool: doubaoPool,
+				})
 			}
 		case "baidu":
 			if baiduPool != nil {
@@ -218,7 +245,7 @@ func buildApipoolMode(anysearchPool, baiduPool, tavilyPool, exaPool *KeyPool, ba
 		providers = append(providers, apipoolProvider{name: "baidu_web", engine: baiduWeb, pool: nil})
 	}
 	if len(providers) == 0 {
-		log.Error("apipool 模式需要至少配置一个 API Key（anysearch/baidu/tavily/exa）")
+		log.Error("apipool 模式需要至少配置一个 API Key（anysearch/doubao/baidu/tavily/exa）")
 		return nil
 	}
 	ap := NewApipoolSearch(conf.Apipool.GetStrategy(), providers...)
@@ -231,11 +258,17 @@ func buildApipoolMode(anysearchPool, baiduPool, tavilyPool, exaPool *KeyPool, ba
 	return ap
 }
 
-// buildHybridMode 全引擎混合模式：Anysearch + 百度搜索 + 百度网页搜索 + Tavily + Exa + Bing + Google + DuckDuckGo。
-func buildHybridMode(anysearchPool, baiduPool, tavilyPool, exaPool *KeyPool, baiduWeb, google, ddg *EngineSearchAdapter, g *SearchGroup, conf config.Config) SearchInf {
+// buildHybridMode 全引擎混合模式：Anysearch + 豆包搜索 + 百度搜索 + 百度网页搜索 + Tavily + Exa + Bing + Google + DuckDuckGo。
+func buildHybridMode(anysearchPool, doubaoPool, baiduPool, tavilyPool, exaPool *KeyPool, baiduWeb, google, ddg *EngineSearchAdapter, g *SearchGroup, conf config.Config) SearchInf {
 	var engines []SearchInf
 	if anysearchPool != nil {
 		engines = append(engines, NewAnysearchSearch(anysearchPool, conf.Anysearch.NumResults, conf.BlackListHost))
+	}
+	if doubaoPool != nil {
+		engines = append(engines, NewDoubaoSearch(
+			doubaoPool,
+			doubaoOptionsFromConfig(conf),
+		))
 	}
 	if baiduPool != nil {
 		engines = append(engines, newBaiduSearchFromConf(baiduPool, conf))
@@ -276,6 +309,22 @@ func buildHybridMode(anysearchPool, baiduPool, tavilyPool, exaPool *KeyPool, bai
 }
 
 // ── 辅助函数 ──
+
+// doubaoOptionsFromConfig maps the shared Doubao config to adapter options.
+func doubaoOptionsFromConfig(conf config.Config) DoubaoOptions {
+	return DoubaoOptions{
+		NumResults:          conf.Doubao.NumResults,
+		ExcludeDomains:      conf.BlackListHost,
+		Version:             conf.Doubao.GetVersion(),
+		TimeRange:           conf.Doubao.TimeRange,
+		AuthLevel:           conf.Doubao.AuthLevel,
+		QueryRewrite:        conf.Doubao.QueryRewrite,
+		NeedContent:         conf.Doubao.NeedContent,
+		MaxSnippetLength:    conf.Doubao.MaxSnippetLength,
+		MaxImageCountPerDoc: conf.Doubao.MaxImageCountPerDoc,
+		ICPHostOnly:         conf.Doubao.ICPHostOnly,
+	}
+}
 
 // newBaiduSearchFromConf 根据配置创建百度搜索实例（enable_ai_search 控制端点选择）。
 func newBaiduSearchFromConf(pool *KeyPool, conf config.Config) SearchInf {

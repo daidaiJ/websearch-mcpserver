@@ -30,3 +30,9 @@ func TestBuildEngineMode_AllDisabledEngines(t *testing.T) {
 		t.Fatalf("expected nil primary when all engines disabled, got %v", got)
 	}
 }
+
+func TestBuildDoubaoMode_NoKey(t *testing.T) {
+	if got := buildDoubaoMode(nil, &SearchGroup{}, config.Config{}); got != nil {
+		t.Fatalf("expected nil primary when doubao has no key, got %v", got)
+	}
+}

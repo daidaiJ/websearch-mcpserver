@@ -49,6 +49,7 @@ pkg/
 │   ├── baidu_fallback.go  # 百度适配器（含智能回退）
 │   ├── bing_adapter.go    # Bing 适配器
 │   ├── apipool.go         # API Key 池轮转
+│   ├── doubao.go          # 豆包搜索 Custom API 适配器
 │   └── *_test.go          # 单元测试
 ├── antirobot/    # 反检测公共层：Searcher 接口、限流器、TLS 指纹
 ├── baidu/        # 百度底层引擎实现

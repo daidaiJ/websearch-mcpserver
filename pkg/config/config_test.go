@@ -97,7 +97,8 @@ func TestLoadOrDefault_MCPStateless(t *testing.T) {
 	}
 }
 
-func TestLoadOrDefault_MissingExplicitFile(t *testing.T) {	viper.Reset()
+func TestLoadOrDefault_MissingExplicitFile(t *testing.T) {
+	viper.Reset()
 	t.Setenv("WEBSEARCH_CONFIG", "")
 	_, err := LoadOrDefault(filepath.Join(t.TempDir(), "missing.yaml"))
 	if err == nil {
@@ -399,7 +400,7 @@ func TestApipoolConfig_GetStrategy(t *testing.T) {
 
 func TestApipoolConfig_GetEngines_DefaultIncludesAnysearch(t *testing.T) {
 	got := (ApipoolConfig{}).GetEngines()
-	want := []string{"anysearch", "baidu", "tavily", "exa"}
+	want := []string{"anysearch", "doubao", "baidu", "tavily", "exa"}
 	if len(got) != len(want) {
 		t.Fatalf("default engines = %v, want %v", got, want)
 	}
@@ -418,6 +419,7 @@ func TestApipoolConfig_GetWeights(t *testing.T) {
 	w := ApipoolConfig{}.GetWeights()
 	for name, want := range map[string]int{
 		"anysearch": 30000,
+		"doubao":    1200,
 		"baidu":     1500,
 		"tavily":    1200,
 		"exa":       1200,
@@ -452,6 +454,18 @@ func TestGetMode_Anysearch(t *testing.T) {
 	}
 }
 
+func TestGetMode_Doubao(t *testing.T) {
+	for _, mode := range []string{ModeDoubao, "volcengine", "doubao_search"} {
+		conf := Config{Mode: mode}
+		if conf.GetMode() != ModeDoubao {
+			t.Errorf("GetMode(%q) = %q, want %q", mode, conf.GetMode(), ModeDoubao)
+		}
+		if !conf.NeedsAPIKey() {
+			t.Errorf("mode=%s should require API key", mode)
+		}
+	}
+}
+
 func TestAnysearchConfig_EffectiveSKList(t *testing.T) {
 	if got := (AnysearchConfig{APIKey: "k1"}).EffectiveSKList(); len(got) != 1 || got[0] != "k1" {
 		t.Errorf("single api_key should become sk_list, got %v", got)
@@ -469,5 +483,50 @@ func TestDefault_AppliesAnysearchEnv(t *testing.T) {
 	conf := Default()
 	if conf.Anysearch.APIKey != "as-test" {
 		t.Errorf("Anysearch.APIKey = %q, want as-test", conf.Anysearch.APIKey)
+	}
+}
+
+func TestDoubaoConfig_EffectiveSKList(t *testing.T) {
+	if got := (DoubaoConfig{APIKey: "k1"}).EffectiveSKList(); len(got) != 1 || got[0] != "k1" {
+		t.Errorf("single api_key should become sk_list, got %v", got)
+	}
+	if got := (DoubaoConfig{SKList: []string{"k1", "k2"}}).EffectiveSKList(); len(got) != 2 {
+		t.Errorf("sk_list should win over api_key, got %v", got)
+	}
+	if got := (DoubaoConfig{}).EffectiveSKList(); got != nil {
+		t.Errorf("empty config should return nil, got %v", got)
+	}
+}
+
+func TestDoubaoConfig_GetVersion(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"", "global"},
+		{"global", "global"},
+		{"custom", "custom"},
+		{"both", "both"},
+		{"CUSTOM", "custom"},
+	}
+	for _, tt := range tests {
+		if got := (DoubaoConfig{Version: tt.in}).GetVersion(); got != tt.want {
+			t.Errorf("GetVersion(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestDefault_AppliesDoubaoEnv(t *testing.T) {
+	t.Setenv("DOUBAO_SEARCH_API_KEY", "doubao-test")
+	conf := Default()
+	if conf.Doubao.APIKey != "doubao-test" {
+		t.Errorf("Doubao.APIKey = %q, want doubao-test", conf.Doubao.APIKey)
+	}
+
+	t.Setenv("DOUBAO_SEARCH_API_KEY", "")
+	t.Setenv("ASK_ECHO_SEARCH_INFINITY_API_KEY", "official-test")
+	conf = Default()
+	if conf.Doubao.APIKey != "official-test" {
+		t.Errorf("Doubao.APIKey from official env = %q, want official-test", conf.Doubao.APIKey)
 	}
 }

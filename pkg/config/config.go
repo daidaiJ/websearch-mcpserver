@@ -18,10 +18,11 @@ var configDir string
 
 const (
 	ModeBaidu     = "baidu"     // 百度千帆搜索（enable_ai_search 控制端点，失败自动回退网页搜索）
-	ModeApipool   = "apipool"   // API Key 池轮转：Anysearch + 百度 + Tavily + Exa，失败自动切换
+	ModeApipool   = "apipool"   // API Key 池轮转：Anysearch + 豆包搜索 + 百度 + Tavily + Exa，失败自动切换
 	ModeTavily    = "tavily"
 	ModeExa       = "exa"
 	ModeAnysearch = "anysearch"
+	ModeDoubao    = "doubao"
 	ModeHybrid    = "hybrid"
 	ModeEngine    = "engine" // 纯引擎模式，无需 API Key
 )
@@ -43,6 +44,7 @@ type Config struct {
 	Tavily             TavilyConfig      `mapstructure:"tavily"`
 	Exa                ExaConfig         `mapstructure:"exa"`
 	Anysearch          AnysearchConfig   `mapstructure:"anysearch"`
+	Doubao             DoubaoConfig      `mapstructure:"doubao"`
 	LLM                LLMConfig         `mapstructure:"llm"`
 	Jina               JinaConfig        `mapstructure:"jina"`
 	Cache              CacheConfig       `mapstructure:"cache"`
@@ -146,6 +148,45 @@ func (c AnysearchConfig) EffectiveSKList() []string {
 		return []string{c.APIKey}
 	}
 	return nil
+}
+
+// DoubaoConfig 豆包搜索 Global / Custom 版配置。
+// API Key 从火山引擎“联网搜索 API”控制台创建，与 Ark 豆包大模型 Key 不通用。
+type DoubaoConfig struct {
+	APIKey              string   `mapstructure:"api_key"`                 // 搜索 API Key；环境变量 DOUBAO_SEARCH_API_KEY
+	SKList              []string `mapstructure:"sk_list"`                 // 多 Key 轮询列表（优先级高于 api_key）
+	Version             string   `mapstructure:"version"`                 // global（默认）/ custom / both
+	NumResults          int      `mapstructure:"num_results"`             // 请求条数：Global 最大 20，Custom 最大 50
+	TimeRange           string   `mapstructure:"time_range"`              // Custom: OneDay/OneWeek/OneMonth/OneYear 或日期区间
+	AuthLevel           int      `mapstructure:"auth_level"`              // Custom: 0=默认，1=仅非常权威来源
+	QueryRewrite        bool     `mapstructure:"query_rewrite"`           // Custom: 是否启用查询改写
+	NeedContent         bool     `mapstructure:"need_content"`            // Custom: 是否请求网页正文
+	MaxSnippetLength    int      `mapstructure:"max_snippet_length"`      // Global: 单片段最大 tokens，默认 500，最大 3000
+	MaxImageCountPerDoc int      `mapstructure:"max_image_count_per_doc"` // Global: 单结果图片数，默认 0（本服务不消费图片）
+	ICPHostOnly         bool     `mapstructure:"icp_host_only"`           // Global: 仅搜索国内 ICP 备案网站
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c DoubaoConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// GetVersion returns global/custom/both, defaulting to global.
+func (c DoubaoConfig) GetVersion() string {
+	switch strings.ToLower(strings.TrimSpace(c.Version)) {
+	case "custom":
+		return "custom"
+	case "both":
+		return "both"
+	default:
+		return "global"
+	}
 }
 
 type BingConfig struct {
@@ -393,7 +434,7 @@ type SmartSearchEngine struct {
 // ApipoolConfig apipool 模式配置。
 type ApipoolConfig struct {
 	Strategy string         `mapstructure:"strategy"` // "round-robin"(默认) / "priority" / "weighted"
-	Engines  []string       `mapstructure:"engines"`  // 供应商优先级顺序（默认: anysearch, baidu, tavily, exa）
+	Engines  []string       `mapstructure:"engines"`  // 供应商优先级顺序（默认: anysearch, doubao, baidu, tavily, exa）
 	Weights  map[string]int `mapstructure:"weights"`  // weighted 策略的供应商权重（单 Key 权重，实际权重按可用 Key 数累加）
 }
 
@@ -409,12 +450,12 @@ func (c ApipoolConfig) GetStrategy() string {
 	}
 }
 
-// GetEngines 返回供应商顺序，默认 anysearch → baidu → tavily → exa。
+// GetEngines 返回供应商顺序，默认 anysearch → doubao → baidu → tavily → exa。
 func (c ApipoolConfig) GetEngines() []string {
 	if len(c.Engines) > 0 {
 		return c.Engines
 	}
-	return []string{"anysearch", "baidu", "tavily", "exa"}
+	return []string{"anysearch", "doubao", "baidu", "tavily", "exa"}
 }
 
 // GetWeights 返回 weighted 策略的供应商权重（供应商名 → 单 Key 权重），
@@ -422,6 +463,7 @@ func (c ApipoolConfig) GetEngines() []string {
 func (c ApipoolConfig) GetWeights() map[string]int {
 	w := map[string]int{
 		"anysearch": 30000,
+		"doubao":    1200,
 		"baidu":     1500,
 		"tavily":    1200,
 		"exa":       1200,
@@ -476,6 +518,8 @@ func (c Config) GetMode() string {
 		return ModeExa
 	case ModeAnysearch:
 		return ModeAnysearch
+	case ModeDoubao, "volcengine", "doubao_search":
+		return ModeDoubao
 	case ModeHybrid, "hybird":
 		return ModeHybrid
 	case ModeEngine:
@@ -549,6 +593,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("tavily.api_key", "TAVILY_SK")
 	viper.BindEnv("exa.api_key", "EXA_API_KEY")
 	viper.BindEnv("anysearch.api_key", "ANYSEARCH_API_KEY")
+	viper.BindEnv("doubao.api_key", "DOUBAO_SEARCH_API_KEY")
 	viper.BindEnv("llm.base_url", "LLM_BASE_URL")
 	viper.BindEnv("llm.api_key", "LLM_API_KEY")
 	viper.BindEnv("pdf_parser.mineru_token", "MINERU_TOKEN")
@@ -749,6 +794,12 @@ func applyKnownEnv(conf *Config) {
 	}
 	if v := os.Getenv("ANYSEARCH_API_KEY"); v != "" {
 		conf.Anysearch.APIKey = v
+	}
+	for _, envName := range []string{"DOUBAO_SEARCH_API_KEY", "ASK_ECHO_SEARCH_INFINITY_API_KEY", "VOLCENGINE_SEARCH_API_KEY"} {
+		if v := os.Getenv(envName); v != "" {
+			conf.Doubao.APIKey = v
+			break
+		}
 	}
 	if v := os.Getenv("LLM_BASE_URL"); v != "" {
 		conf.LLM.BaseURL = v
