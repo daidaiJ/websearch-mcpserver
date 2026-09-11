@@ -12,6 +12,8 @@ import (
 	"websearch/pkg/antirobot"
 )
 
+var crossrefPath = "https://api.crossref.org/works"
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Crossref 学术文献元数据（国内友好）
 // ──────────────────────────────────────────────────────────────────────────────
@@ -37,15 +39,7 @@ func (e *crossrefEngine) Search(query string, page int, timeRange antirobot.Time
 		offset = 0
 	}
 
-	params := url.Values{
-		"query":  {query},
-		"offset": {fmt.Sprintf("%d", offset)},
-	}
-	if since := antirobot.TimeRangeSince(timeRange); since != "" {
-		params.Set("from-pub-date", since)
-	}
-
-	u := "https://api.crossref.org/works?" + params.Encode()
+	u := crossrefURL(query, offset, timeRange)
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
@@ -71,6 +65,19 @@ func (e *crossrefEngine) Search(query string, page int, timeRange antirobot.Time
 	return e.parse(body)
 }
 
+func crossrefURL(query string, offset int, timeRange antirobot.TimeRange) string {
+	params := url.Values{
+		"query":  {query},
+		"offset": {fmt.Sprintf("%d", offset)},
+	}
+	if since := antirobot.TimeRangeSince(timeRange); since != "" {
+		// Crossref expects date filters inside the `filter` parameter.
+		params.Set("filter", "from-pub-date:"+since)
+	}
+
+	return crossrefPath + "?" + params.Encode()
+}
+
 // ── JSON 解析 ──
 
 type crossrefResp struct {
@@ -82,20 +89,20 @@ type crossrefMessage struct {
 }
 
 type crossrefItem struct {
-	Title       []string          `json:"title"`
-	Container   []string          `json:"container-title"`
-	DOI         string            `json:"doi"`
-	URL         string            `json:"URL"`
-	Abstract    string            `json:"abstract"`
-	Authors     []crossrefAuthor  `json:"author"`
-	Published   crossrefPublished `json:"published"`
-	Subject     []string          `json:"subject"`
-	Type        string            `json:"type"`
-	Volume      string            `json:"volume"`
-	Page        string            `json:"page"`
-	ISSN        []string          `json:"ISSN"`
-	Publisher   string            `json:"publisher"`
-	Score       float64           `json:"score"`
+	Title     []string          `json:"title"`
+	Container []string          `json:"container-title"`
+	DOI       string            `json:"doi"`
+	URL       string            `json:"URL"`
+	Abstract  string            `json:"abstract"`
+	Authors   []crossrefAuthor  `json:"author"`
+	Published crossrefPublished `json:"published"`
+	Subject   []string          `json:"subject"`
+	Type      string            `json:"type"`
+	Volume    string            `json:"volume"`
+	Page      string            `json:"page"`
+	ISSN      []string          `json:"ISSN"`
+	Publisher string            `json:"publisher"`
+	Score     float64           `json:"score"`
 }
 
 type crossrefAuthor struct {

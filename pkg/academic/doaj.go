@@ -36,13 +36,7 @@ func (e *doajEngine) Name() string                    { return "doaj" }
 func (e *doajEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *doajEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
-	q := url.PathEscape(query)
-	if since := antirobot.TimeRangeSince(timeRange); since != "" {
-		// DOAJ 用 Lucene 语法：date >= since
-		q += " AND date:[" + since + " TO *]"
-	}
-
-	u := fmt.Sprintf("%s/%s?pageSize=10&page=%d", doajPath, q, page)
+	u := doajURL(query, page, timeRange)
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
@@ -68,6 +62,16 @@ func (e *doajEngine) Search(query string, page int, timeRange antirobot.TimeRang
 	return e.parse(body)
 }
 
+func doajURL(query string, page int, timeRange antirobot.TimeRange) string {
+	q := query
+	if since := antirobot.TimeRangeSince(timeRange); len(since) >= 4 {
+		// DOAJ rejects wildcard queries. Its article records expose a numeric
+		// `bibjson.year`, so use an explicit year range instead.
+		q += fmt.Sprintf(" AND bibjson.year:[%s TO %d]", since[:4], time.Now().Year()+1)
+	}
+	return fmt.Sprintf("%s/%s?pageSize=10&page=%d", doajPath, url.PathEscape(q), page)
+}
+
 // ── JSON 解析 ──
 
 type doajResp struct {
@@ -89,10 +93,10 @@ type doajLink struct {
 }
 
 type doajBibjson struct {
-	Title      string `json:"title"`
-	Abstract   string `json:"abstract"`
-	Year       string `json:"year"`
-	Author     []struct {
+	Title    string `json:"title"`
+	Abstract string `json:"abstract"`
+	Year     string `json:"year"`
+	Author   []struct {
 		Name string `json:"name"`
 	} `json:"author"`
 	Identifier []doajIdentifier `json:"identifier"`
