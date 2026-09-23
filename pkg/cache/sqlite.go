@@ -111,6 +111,16 @@ func (c *Cache) Close() error {
 	return c.db.Close()
 }
 
+// Clear removes cached search results and returns the number of deleted rows.
+// Dashboard telemetry is stored in a separate database and is unaffected.
+func (c *Cache) Clear() (int64, error) {
+	res, err := c.db.Exec(`DELETE FROM search_cache`)
+	if err != nil {
+		return 0, fmt.Errorf("清空缓存失败: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // Lookup 查询缓存，两步查询优化索引利用
 // 返回值: record(可能为nil), hitType("exact_intent" / "query_only" / "miss")
 func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, string, error) {

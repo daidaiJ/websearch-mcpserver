@@ -92,6 +92,20 @@ func NewHTTPClient(proxyEndpoint string, timeout time.Duration) *http.Client {
 	}
 }
 
+// NewUpstreamTransport 返回 API 供应商上游请求使用的 transport。
+// resolver 为 nil 时显式直连（Proxy 置 nil，不吃 HTTP(S)_PROXY 等环境变量，
+// 默认行为）；非 nil 时每次请求动态解析代理端点，与引擎层同一套缓存逻辑。
+func NewUpstreamTransport(resolver ProxyResolver) http.RoundTripper {
+	if resolver == nil {
+		return defaultBaseTransport()
+	}
+	return &dynamicProxyTransport{
+		resolver:   resolver,
+		base:       defaultBaseTransport(),
+		byEndpoint: make(map[string]*http.Transport),
+	}
+}
+
 // NewDynamicHTTPClient 创建动态代理 HTTP 客户端。
 // 每次请求时通过 resolver 实时获取代理端点，支持运行时代理开关切换。
 // resolver 为 nil 时返回无代理客户端。

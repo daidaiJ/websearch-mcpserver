@@ -2,6 +2,36 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.6.0 — 2026-09-23
+
+> Credits: the core of this release (passive telemetry + local control center) comes from PR #15 by [@MattLYT](https://github.com/MattLYT) (Matt.Li); his feature commits keep their original authorship (`535b03a` / `62f6be4` / `beb0f9a`), and the remaining commits are adaptations and extensions of his work (authored by pandazhangs).
+
+### Added
+- **Local control center (optional)**: read-only `/dashboard/` console (overview / sources / events / usage / settings) + passive telemetry (`pkg/telemetry`, SQLite with sanitized metadata; queries stored only as hash/topic/language/keywords); absorbed from PR #15 (Matt.Li) with failure classes, confidence-aware health, suspension display, request-id call chains and Prometheus text metrics
+- **Quota management**: local real-call counting with default caps (`dashboard.quotas.limits`, 1000/period when unset), automatic period resets (monthly/weekly/daily/none), admin-triggered manual reset and usage adjustment (real records untouched); Tavily official usage takes priority when available. **Note: caps are display/remaining math only — hitting the limit never blocks calls; enforcement is planned (TODO)**
+- **Customizable branding & themes**: `dashboard.brand` (title / logo / theme / accent) with three built-in themes (office green, blue-white tech, greyscale layered) plus custom accent; the desktop shortcut icon follows the theme with a lightweight per-boot check
+- **Desktop shortcut lazy start**: new `open` subcommand (launches the server if needed, then opens the console); `install` creates a deduplicated desktop shortcut with a hand-drawn W+magnifier icon (theme-aware via brand.theme, custom icon via brand.icon); boot autostart (autostart.vbs) remains an optional always-on mode
+- **Console enabled by default for fresh deployments**: first `start`/`install` auto-generates an enabled `dashboard.yaml` with a random local admin password; disable via `enabled: false` or delete the file for zero telemetry overhead
+- **Client usage grouping**: overview panel groups tool-level calls by MCP client (authoritative initialize clientInfo + UA fallback, last 7 days, embedded tabs for total/per-client); hidden automatically when no data
+- **Frontend modernization (relayout)**: provider events moved to a dedicated Events page (fixes a legacy 8-header vs 9-cell column mismatch); overview aligned as 3 KPIs + 3 panels (redundant total-calls card removed); settings as an aligned 2×2 grid (advanced ops merged into "Appearance & Maintenance"); sticky horizontal scrollbar for wide tables that stays at the viewport bottom; pinned sidebar about-block; no-cache headers for embedded assets
+- **Tiered source ordering**: source lists on the overview and sources pages now sort by "enabled → configured but inactive → unconfigured" (web and academic tables alike), keeping catalog order within each tier
+- **Official quota synced at startup**: the server prefetches official Tavily usage in the background at boot (read-only, never a billed call) so the console has data on first open; failures stay silent and are retried on demand when the panel loads
+- **Quota caps auto-scaled by key count**: `quotas.limits` now means the **per-key** per-period cap; the shown cap = per-key cap × configured key count, aligned with how apipool's real consumption scales with available keys — no manual math
+- **API providers default to direct connections (proxy hardening)**: upstream API requests (Qianfan/Tavily/Exa/AnySearch/Doubao/LLM/usage queries) explicitly clear the transport proxy so HTTP(S)_PROXY env vars can no longer silently hijack them; `proxy.api_providers: true` opts in; docs note that niche providers like AnySearch can hit broken DNS resolution
+- **Provider quota API survey (2026-09)**: Exa / AnySearch / Bocha (Doubao search) / Baidu Qianfan offer no official endpoint to query quota with the search key, so no auto-polling — caps are user-set via `dashboard.quotas.limits` alongside local real-call counting (conclusion documented in docs/dashboard.en.md)
+- **Configurable shortcut placement**: `dashboard.shortcut = desktop (default) / start (Start menu, searchable from the Start screen) / both / off`; changing the value cleans the previous location, uninstall always cleans everything
+- **Sidebar "about" block**: project intro + GitHub link, pinned above the loopback notice, hideable via `dashboard.brand.footer: false` (enabled by default)
+
+### Security
+- **Write gate**: settings/keys/restart/cache-clear/quota ops are loopback-only + `dashboard.admin_password` (or SHA-256); the password lives only in `dashboard.yaml` and can never be read or changed via the WebUI; with no password configured all write endpoints are disabled
+- **Optional admin username**: when `dashboard.admin_username` is set, write requests must also carry a matching `X-Admin-User` header (constant-time compare); unset = password-only (same behavior as upstream), and the username lives only in dashboard.yaml
+- **Access allowlist**: `dashboard.allowed_networks` (CIDR/bare IP) grants read-only access; any invalid entry falls back to loopback-only (fail-closed); the PR's Host-header loopback relaxation was removed as spoofable — Docker is handled by an explicit allowlist entry
+- **Separate config file**: control-center-specific settings live in `dashboard.yaml` (overrides the main `dashboard:` block); the main config.yaml stays untouched for upgrades, and deleting the file is a clean rollback; a broken overlay is warned about and ignored
+
+### Improved
+- The key dialog links each provider's official "get key" console; console pages unified in style, zero third-party frontend dependencies embedded via go:embed
+- The release workflow supports `-preview` tags: automatic Pre-release marking and GHCR skip
+- **Docker docs cover the control center**: no new port (the console shares 8338 with MCP/SearXNG), `dashboard.yaml` and `data/` volume mappings with what breaks without them, and the bridge-network read-only console spelled out (writes need a loopback source; `network_mode: host` on Linux)
 ## v3.5.1 — 2026-09-14
 
 ### Fixed

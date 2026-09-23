@@ -1,17 +1,18 @@
 package apipool
 
 import (
-	"websearch/pkg/search/core"
-	"websearch/pkg/search/provider"
 	"errors"
 	"fmt"
 	"math/rand/v2"
 	"strings"
 	"sync/atomic"
+	"time"
+	"websearch/pkg/search/core"
+	"websearch/pkg/search/provider"
 
 	"websearch/pkg/log"
+	"websearch/pkg/telemetry"
 )
-
 
 // ApipoolProvider 单个供应商：搜索引擎 + 对应的 KeyPool（免费引擎 pool 为 nil）。
 // name 为供应商配置名（baidu/tavily/exa/anysearch/doubao），weighted 策略权重匹配用；
@@ -192,6 +193,7 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(p ApipoolProvider, query strin
 
 // callSingle 调用一次搜索引擎。
 func (a *ApipoolSearchImpl) callSingle(p ApipoolProvider, query string, lookbackDays int) ([]core.SearchResult, error) {
+	started := time.Now()
 	var results []core.SearchResult
 	var err error
 	if lookbackDays > 0 {
@@ -203,6 +205,11 @@ func (a *ApipoolSearchImpl) callSingle(p ApipoolProvider, query string, lookback
 	} else {
 		results, err = p.engine.SearchRaw(query)
 	}
+	name := p.name
+	if name == "" {
+		name = p.engine.Name()
+	}
+	telemetry.Record(telemetry.Event{Kind: "provider", Provider: name, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
 	if err != nil {
 		return nil, err
 	}

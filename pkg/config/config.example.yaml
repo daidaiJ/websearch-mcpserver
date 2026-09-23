@@ -201,6 +201,8 @@ academic:
 proxy:
   enabled: false # 留空或不设则自动检测系统代理；显式 true 使用 endpoint；显式 false 禁用
   endpoint: "http://127.0.0.1:7897" # 代理端点（仅 enabled: true 时生效，默认 7897）
+  api_providers: false # API 供应商上游请求是否走代理；默认 false 强制直连（环境变量代理不劫持）。
+                       # 注意 AnySearch 等小众供应商 DNS 可能解析异常，必要时置 true 走代理绕开本地 DNS
 
 # ==============================================
 # LLM 配置（可选，用于搜索摘要生成）
@@ -351,3 +353,17 @@ log:
 #     tavily: 1200
 #     exa: 1200
 #     doubao: 500
+
+# ==============================================
+# 本机控制中心（可选；不执行主动健康探测）
+# ==============================================
+# dashboard:
+#   enabled: false
+#   storage_path: "./data/dashboard.db"
+#   retention_days: 30
+#   secrets_path: "./data/dashboard-secrets.json"
+#
+# 控制中心推荐使用独立配置文件 dashboard.yaml（主配置同目录，见
+# dashboard.example.yaml）：主 config.yaml 零改动，删除 dashboard.yaml 即完整回退。
+# 管理员口令 / 访问网段 / 额度 / 品牌主题只能配置在 dashboard.yaml，
+# 控制台 WebUI 永远无法读取或修改它们。

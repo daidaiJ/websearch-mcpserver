@@ -140,8 +140,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete "${{ github.ref_name }}" --yes || true
+          # 预览 tag（如 v3.6.0-preview.1）自动标记 Pre-release，不占正式版本号
+          PRERELEASE_FLAG=""
+          case "${{ github.ref_name }}" in
+            *-preview*|*-rc*|*-beta*|*-alpha*) PRERELEASE_FLAG="--prerelease" ;;
+          esac
           gh release create "${{ github.ref_name }}" \
             dist/websearch-mcpserver-* dist/websearch-mcp-cli-* \
+            $PRERELEASE_FLAG \
             --title "${{ github.ref_name }}" \
             --notes-file notes.md
 

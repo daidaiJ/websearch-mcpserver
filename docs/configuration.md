@@ -173,6 +173,14 @@ academic:
 proxy:
   enabled: false          # 留空→自动检测；true→使用 endpoint；false→禁用
   endpoint: "http://127.0.0.1:7897"  # 仅 enabled: true 时生效
+  # API 供应商上游请求（百度千帆/Tavily/Exa/AnySearch/豆包/LLM 等）是否走代理。
+  # 默认 false = 强制直连：即使系统设了 HTTP_PROXY/HTTPS_PROXY 环境变量也不会
+  # 被静默劫持（供应商请求对环境变量代理免疫）。true 时与引擎代理共用
+  # enabled/endpoint/自动检测同一套解析。
+  api_providers: false
+  # 注意：AnySearch 这类小众供应商的 DNS 解析可能异常（官方 GTM 曾只返回
+  # 单个海外 IP），直连下走系统 DNS；若解析到不可达地址可在 hosts 里固定
+  # 正确 IP，或开启 api_providers 走代理绕开本地 DNS 污染。
 
 # LLM 摘要（可选）
 llm:
@@ -185,6 +193,31 @@ cache:
   # enabled: true            # 不设置时默认关闭（v3.5.0 起）；显式 true 启用
   # storage_path: ""         # 未配置时默认 exe 同目录 cache/websearch-cache.db
   cleanup_interval: 30      # 清理间隔（分钟），最大 360
+
+# 本机控制中心（默认关闭；仅被动记录真实调用，不主动探测，不保存完整查询或 URL）
+# 推荐用独立配置文件 dashboard.yaml 管理（主配置同目录，样例见 dashboard.example.yaml）：
+# 按字段覆盖这里的 dashboard: 块；删除该文件并重启 = 完整回退。
+# 管理员口令 / 访问网段 / 额度 / 品牌主题建议只写在 dashboard.yaml（WebUI 无法修改）。
+# 完整配置项与字段说明见 docs/dashboard.md（含快捷方式落位 shortcut 与品牌 footer）。
+# dashboard:
+#   enabled: false
+#   storage_path: "./data/dashboard.db"
+#   retention_days: 30       # 明细保留天数；每日汇总长期保留
+#   secrets_path: "./data/dashboard-secrets.json" # 私密覆盖文件，不回显 Key
+#   config_path: ""          # 独立配置文件路径；空 = 主配置同目录 dashboard.yaml
+#   admin_password: ""       # 写操作口令（明文）；与 admin_password_sha256 二选一
+#   admin_password_sha256: "" # 写操作口令（SHA-256 十六进制）
+#   allowed_networks: []     # 只读放行网段（CIDR/裸 IP）；空 = 仅本机 loopback
+#   quotas:
+#     reset: monthly         # monthly / weekly / daily / none（仅手动重置）
+#     reset_day: 1           # monthly 的每月重置日（1-28）
+#     limits: {}             # 每供应商上限（次/周期），未配置默认 1000
+#   brand:
+#     title: ""              # 控制台标题，默认 "WebSearch 控制中心"
+#     logo: ""               # http(s) URL 或本地图片路径；空 = 内置 W+放大镜
+#     theme: ""              # green（默认）/ blue / mono
+#     accent: ""             # 自定义主色 #RRGGBB，覆盖主题主色
+#     icon: ""               # 自定义快捷方式图标（.ico 路径）；空 = 主题内置
 
 # Jina Reader（可选，cleanfetch 失败时回退）
 jina:
@@ -291,11 +324,59 @@ log:
 
 ---
 
+## 控制中心安全与品牌（dashboard）
+
+> 本文只覆盖安全要点；**完整配置参考**（含 `shortcut` 快捷方式落位、`brand.footer` 关于块、全部键的默认值）见 [dashboard.md](dashboard.md)。
+
+### 访问与写操作模型
+
+| 场景 | 规则 |
+|------|------|
+| 读取（页面 + 只读 API） | 默认仅本机 loopback；`dashboard.allowed_networks` 显式放行的网段只读 |
+| 写操作（设置 / 密钥 / 重启 / 清缓存 / 额度重置与修正） | **仅限本机 loopback + `X-Admin-Password` 头**，二者缺一不可 |
+| 管理员口令 | 只能配置在 `dashboard.yaml`（`admin_password` 明文或 `admin_password_sha256` 十六进制），**WebUI 无法读取或修改**；未配置 = 所有写端点禁用（安全的默认） |
+
+- 放行网段写法：`allowed_networks: ["192.168.1.0/24", "10.0.0.3"]`（CIDR 或裸 IP）；任一条目非法时**整体回退为仅本机**（fail-closed）。
+- Docker 部署发布到本机回环时，容器来源是 bridge 网关（如 `172.17.0.1`），需把对应网段加入 `allowed_networks` 才能从宿主机浏览器打开控制台。
+- 远程链路为明文 HTTP，只建议放行受信内网；不受信网络请走 SSH 隧道或带 TLS 的反向代理。
+- 口令校验为常量时间比较；推荐配置 `admin_password_sha256`（`sha256sum` 明文的小写十六进制）避免明文落盘。
+
+### 额度管理
+
+- 本地用量 = 遥测中的真实成功调用（按供应商、按周期计数），不主动探测供应商；Tavily 官方用量端点可用时优先展示官方数字。
+- 上限 `quotas.limits` 未配置的供应商默认 **1000 次/周期**；周期 `reset` 支持 monthly / weekly / daily / none（仅手动）。
+- WebUI「设置 → 额度管理」可手动重置（从现在重新累计）或把展示用量修正为指定值（真实记录不动），两者都需管理员口令且仅限本机。
+
+### 品牌与主题
+
+- `brand.theme`：`green`（默认，绿色办公）/ `blue`（蓝白科技）/ `mono`（黑白灰度·立体）；`brand.accent` 自定义主色（`#RRGGBB`）覆盖主题主色。
+- `brand.title` / `brand.logo` 自定义标题与 logo（http(s) URL 或本地图片路径）；WebUI 内也提供仅存本浏览器的外观选择。
+- 桌面快捷方式图标跟随 `brand.theme`：每次启动做一次轻量检查，主题变化即重建快捷方式（每主题独立 ico 文件，规避 Windows 图标缓存）。
+
+### 客户端用量归组
+
+- 识别来源：initialize 握手的 `clientInfo.name`（MCP 规范必带，权威）+ User-Agent 关键词归一化（兜底）；都拿不到记为 unknown。
+- 仅用于控制台展示分组（最近 7 天工具层调用），不做主动探测，不影响搜索；前端在无任何客户端数据时自动隐藏该面板。
+
+### 预设与默认启用
+
+- 全新部署（无任何控制中心配置）首次 `start` / `install` 会自动生成 `dashboard.yaml`：默认启用 + 随机本机管理员口令（0600）。
+- 用户显式配置过控制中心（主配置有 dashboard 块或 dashboard.yaml 已存在）时绝不静默追加；关闭 = 改 `enabled: false` 或删文件，运行时零遥测开销。
+
+### 迁移与回退
+
+- 老配置（无 `dashboard:` 块）零改动兼容：控制中心保持关闭，行为与上游一致。
+- PR 时代已建过的 `dashboard.db` 会自动补建 `quota_state` 表；回退旧版本时该表被忽略。
+- 回退到旧版本前建议删除桌面快捷方式（旧版本不识别 `open` 子命令）。
+
+---
+
 ## 环境变量覆盖
 
 | 环境变量 | 覆盖字段 | 说明 |
 |----------|---------|------|
 | `WEBSEARCH_CONFIG` | 配置文件路径 | 最高优先级 |
+| `WEBSEARCH_DASHBOARD_CONFIG` | 控制中心独立配置路径 | 见 [dashboard.example.yaml](../dashboard.example.yaml) |
 | `BAIDU_SK` | `baidu.api_key` | |
 | `TAVILY_SK` | `tavily.api_key` | Tavily API Key（[获取地址](https://app.tavily.com/home)） |
 | `EXA_API_KEY` | `exa.api_key` | Exa Web Search API Key（[获取地址](https://dashboard.exa.ai/api-keys)） |
@@ -348,6 +429,7 @@ log:
 | `academic.disable_doaj` | false | DOAJ 开放获取期刊，国内可直连 |
 | `proxy.enabled` | 未设置 | 未设置时自动检测系统代理；显式 false 禁用；显式 true 使用 endpoint |
 | `proxy.endpoint` | `http://127.0.0.1:7897` | 仅 `enabled: true` 时生效 |
+| `proxy.api_providers` | false | API 供应商上游请求（千帆/Tavily/Exa/AnySearch/豆包/LLM）是否走代理；false 强制直连，环境变量代理不生效 |
 | `cleanfetch.enabled` | false | 旧配置不启用，需显式开启；仅约束 cleanfetch 工具，`fetch_top_n` 不受限（惰性初始化 webfetch） |
 | `cleanfetch.file_ttl_hours` | 24 | |
 | `cleanfetch.max_inline_lines` | 100 | |

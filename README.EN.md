@@ -35,7 +35,7 @@ Layered design: clients see four MCP tools; the engine group is assembled by `mo
 | Layer | Role |
 |-------|------|
 | **Client** | Claude Code / Qwen Code / Cursor / HTTP API / embed as a Go module |
-| **Protocol** | `/mcp` four tools · `/searxng/search` for LiteLLM · `/__admin` process management |
+| **Protocol** | `/mcp` four tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console |
 | **Orchestration** | `factory` by mode · `hybrid` concurrent dedup/merge · RRF / boost / MMR scoring |
 | **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao; 9 academic sources in parallel |
 | **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary |
@@ -66,6 +66,7 @@ Four tools cover the web workflow. Results feed into each other — one config e
 | PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR |
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
+| Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits (off by default) |
 | Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
 
 ---
@@ -164,6 +165,57 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 | `hybrid` | Full mix (Anysearch + Baidu + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo, etc.) | All optional |
 
 > Auto-degrades to `engine` mode when keys are missing. See [docs/search.md](docs/search.md) for mode and engine details.
+
+---
+
+## Local Control Center (optional, off by default)
+
+> Full configuration reference (shortcut placement, brand about-block, every key and default) lives in [docs/dashboard.en.md](docs/dashboard.en.md).
+
+With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser to see four pages:
+
+![Control center overview](docs/images/dashboard-overview.jpg)
+
+| Page | What it shows |
+|------|---------------|
+| **Overview** | KPIs (calls / success / failure / avg latency), system status (including suspended count), running configuration, observation status of the four tools |
+| **Sources** | Per-source health, last 20 results, failure composition (e.g. `parse ×4`), success rate, avg / P95 latency, quotas, latest error and suspension countdown |
+| **Usage** | Tools and sources in separate dimensions; filter by level / status / tool / source / error kind; click a request id on a tool row to expand the source chain of that call |
+| **Settings** | Writes whitelisted config (mode, timeouts, thresholds, suspension durations, etc.) after backing up the current YAML; secrets are never echoed |
+
+Behavior boundaries:
+
+- **Passive observation only**: records metadata produced by real MCP calls; no active probing, no fabricated data. Tools never called still show "callable · not observed yet".
+- **Failure classes + confidence**: failures are classified as rate limit / captcha / access denied / timeout / network / parse / no result; fewer than 5 samples is flagged "insufficient samples", and only 3 consecutive failures show suspension — **reporting only, calls are never skipped**.
+- **Request-level correlation**: one tool call and the source events it triggered share a request id, answering "who supplied this result, who failed".
+
+To enable: copy `dashboard.example.yaml` to `dashboard.yaml` next to the main config (recommended), or append a `dashboard:` block to `config.yaml`:
+
+```yaml
+dashboard:
+  enabled: true
+  storage_path: ./data/dashboard.db
+  retention_days: 30                          # detail retention days; daily rollups kept long-term
+  secrets_path: ./data/dashboard-secrets.json # private overlay file; the API never returns values
+  # admin_password / allowed_networks / quotas / branding: see dashboard.example.yaml
+```
+
+On first `start` / `install`, the server auto-generates this file **enabled by default** (with a random local admin password); set `enabled: false` or delete the file to turn it off with zero telemetry overhead. The overlay file overrides the main config field-by-field; deleting it and restarting is a clean rollback. The admin password, allowed networks, quotas and branding live only in `dashboard.yaml` — **the WebUI can never read or modify them**. Takes effect after restart; the desktop shortcut (created by `install`) is a lazy-start entry: it launches the server if needed, then opens the console. Machine-readable endpoints (read-only, never trigger searches):
+
+```bash
+curl http://127.0.0.1:8338/__admin/api/providers   # per-source state machine and failure composition
+curl http://127.0.0.1:8338/__admin/api/metrics     # Prometheus text metrics
+```
+
+### Data & privacy
+
+- Only sanitized metadata is stored: queries are persisted as hash + topic + language + keywords; **full queries and URLs never reach the database**. Error text is sanitized server-side (URLs / emails / secret-like strings replaced with placeholders) before storage and truncation.
+- Secrets live in a separate private overlay file; pages and APIs **never echo the value** — the server simply never sends it, not a client-side mask. The settings page links each provider's official "get key" console.
+- Loopback-only by default; networks listed in `allowed_networks` are **read-only**. Writes (settings / keys / restart / cache clear / quota management) require `dashboard.admin_password` and loopback; the password itself cannot be changed through the WebUI.
+- The overview "client usage" panel groups calls by MCP client (identified from the initialize handshake `clientInfo` and User-Agent; local display grouping only, never affects search).
+- No active probing of any provider.
+
+Full configuration reference: [docs/configuration.en.md](docs/configuration.en.md).
 
 ---
 

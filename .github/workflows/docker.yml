@@ -21,7 +21,8 @@ permissions:
 jobs:
   docker:
     name: Build & push GHCR image
-    if: ${{ !endsWith(github.ref_name, '-registry') }}
+    # -registry 后缀不重复推镜像；预览 tag（如 v3.6.0-preview.1）不推官方镜像
+    if: ${{ !endsWith(github.ref_name, '-registry') && !contains(github.ref_name, '-preview') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

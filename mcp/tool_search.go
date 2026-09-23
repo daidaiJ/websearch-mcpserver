@@ -1,9 +1,9 @@
 package mcpserver
 
 import (
+	"fmt"
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,8 +11,9 @@ import (
 	"websearch/pkg/cache"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/log"
-	searchcore "websearch/pkg/search/core"
 	"websearch/pkg/search"
+	searchcore "websearch/pkg/search/core"
+	"websearch/pkg/telemetry"
 )
 
 import (
@@ -37,10 +38,26 @@ func WebSearchNoIntent(ctx context.Context, req *mcp.CallToolRequest, params *Se
 // doWebSearch 通用网页搜索逻辑。
 // timeRangeMonths 控制搜索时间范围（月），默认 3，0 表示不限。
 // 摘要阶段优先流式推送（MCP progress notification），客户端可实时看到生成过程。
-func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent string, timeRangeMonths int, fetchTopN *int) (*mcp.CallToolResult, any, error) {
+func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent string, timeRangeMonths int, fetchTopN *int) (result *mcp.CallToolResult, extra any, err error) {
+	started := time.Now()
+	engineName := ""
+	cacheHit := false
+	resultCount := 0
+	requestID := telemetry.RequestID(ctx)
+	if requestID == "" {
+		requestID = telemetry.NewRequestID()
+		ctx = telemetry.WithRequestID(ctx, requestID)
+	}
+	defer func() {
+		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "smartsearch", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 12)})
+		if !cacheHit && engineName != "" && engineName != "hybrid" && engineName != "apipool" {
+			telemetry.Record(telemetry.Event{Kind: "provider", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: resultCount, Error: err, RequestID: requestID})
+		}
+	}()
 	if searchapi == nil {
 		return nil, nil, fmt.Errorf("api 初始化未完成")
 	}
+	engineName = searchapi.Name()
 
 	n := effectiveFetchTopN(fetchTopN)
 
@@ -58,6 +75,10 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 			log.Errf("缓存查询异常，跳过缓存: %v", err)
 		} else if rec != nil && !rec.Academic {
 			if result, ok := finishCachedWebSearch(ctx, rec, hitType, query, intent, n); ok {
+				cacheHit = true
+				if parsed, parseErr := rec.GetRawResults(); parseErr == nil {
+					resultCount = len(parsed)
+				}
 				return result, nil, nil
 			}
 		}
@@ -67,6 +88,8 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 			if err == nil && rec != nil && !rec.Academic && hitType == "query_only" {
 				results, parseErr := rec.GetRawResults()
 				if parseErr == nil {
+					cacheHit = true
+					resultCount = len(results)
 					results = enrichFetchedTopN(ctx, results, n)
 					return finishWebSearch(ctx, req, query, intent, cacheQuery, results)
 				}
@@ -75,9 +98,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	}
 
 	// ---- 搜索 ----
-	engineName := searchapi.Name()
 	var results []search.SearchResult
-	var err error
 
 	// 优先使用支持时间范围的接口
 	if timeRanger, ok := searchapi.(search.SearchTimeRanger); ok {
@@ -102,6 +123,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	}
 
 	results = enrichFetchedTopN(ctx, results, n)
+	resultCount = len(results)
 	return finishWebSearch(ctx, req, query, intent, cacheQuery, results)
 }
 

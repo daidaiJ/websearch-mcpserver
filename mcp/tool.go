@@ -2,13 +2,16 @@ package mcpserver
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/llm"
 	"websearch/pkg/search"
+	"websearch/pkg/telemetry"
 )
 
 // searchBaseParams smartsearch 两个工具定义（LLM 摘要开/关）共用的参数集合，
@@ -75,6 +78,55 @@ func Init(conf config.Config, opts ...ServerOption) error {
 		return fmt.Errorf("搜索引擎未初始化，请检查配置")
 	}
 	return nil
+}
+
+// recentAttemptChain summarizes which providers were attempted during one
+// tool call and who returned the winning result. It reads the just-recorded
+// provider events and is therefore best-effort: a missing event only means
+// the chain is shorter, never that the tool call failed.
+func recentAttemptChain(started time.Time, limit int) string {
+	store := telemetry.Default()
+	if store == nil {
+		return ""
+	}
+	events, err := store.RecentFiltered(telemetry.EventFilter{Kind: "provider", Limit: limit})
+	if err != nil {
+		return ""
+	}
+	seen := map[string]bool{}
+	var attempted []string
+	winner := ""
+	for _, event := range events {
+		if !withinCall(event.OccurredAt, started) {
+			continue
+		}
+		if event.Provider == "" || seen[event.Provider] {
+			continue
+		}
+		seen[event.Provider] = true
+		attempted = append(attempted, event.Provider)
+		if event.Success && winner == "" {
+			winner = event.Provider
+		}
+	}
+	if len(attempted) == 0 {
+		return ""
+	}
+	if winner == "" {
+		return strings.Join(attempted, "→")
+	}
+	return strings.Join(attempted, "→") + " · 结果来自 " + winner
+}
+
+func withinCall(occurredAt string, started time.Time) bool {
+	if occurredAt == "" {
+		return true
+	}
+	parsed, err := time.Parse(time.RFC3339, occurredAt)
+	if err != nil {
+		return true
+	}
+	return !parsed.Before(started.Add(-2 * time.Second))
 }
 
 func GetCache() *cache.Cache {

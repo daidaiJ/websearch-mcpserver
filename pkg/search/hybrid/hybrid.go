@@ -9,9 +9,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"websearch/pkg/config"
 	"websearch/pkg/log"
+	"websearch/pkg/telemetry"
 )
 
 const defaultEngineMaxSize = 4 // 单引擎默认最大结果数
@@ -89,6 +91,7 @@ func (h *HybridSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int
 		wg.Add(1)
 		go func(idx int, e core.SearchInf) {
 			defer wg.Done()
+			started := time.Now()
 			var results []core.SearchResult
 			var err error
 			if timeRanger, ok := e.(core.SearchTimeRanger); ok {
@@ -96,6 +99,7 @@ func (h *HybridSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int
 			} else {
 				results, err = e.SearchRaw(query)
 			}
+			telemetry.Record(telemetry.Event{Kind: "provider", Provider: e.Name(), Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
 			ch <- indexedResult{index: idx, results: results, err: err}
 		}(i, engine)
 	}
@@ -113,7 +117,9 @@ func (h *HybridSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) 
 		wg.Add(1)
 		go func(idx int, e core.SearchInf) {
 			defer wg.Done()
+			started := time.Now()
 			results, err := e.SearchRaw(query)
+			telemetry.Record(telemetry.Event{Kind: "provider", Provider: e.Name(), Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
 			ch <- indexedResult{index: idx, results: results, err: err}
 		}(i, engine)
 	}

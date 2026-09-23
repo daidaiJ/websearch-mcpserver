@@ -59,7 +59,7 @@ Official images are on GHCR as a **linux/amd64 + linux/arm64** manifest (Apple S
 
 ```bash
 docker pull ghcr.io/daidaij/websearch-mcpserver:latest
-# or pin: ghcr.io/daidaij/websearch-mcpserver:3.4.0
+# or pin: ghcr.io/daidaij/websearch-mcpserver:3.6.0
 ```
 
 ```yaml
@@ -69,10 +69,39 @@ services:
     image: ghcr.io/daidaij/websearch-mcpserver:latest
     restart: always
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./config.yaml:/app/config.yaml               # main config (required)
+      - ./dashboard.yaml:/app/dashboard.yaml         # control center config (recommended)
+      - ./data:/app/data                             # control center data: telemetry DB + secrets overlay (recommended)
     ports:
       - "8338:8338"
 ```
+
+**Port**: the image exposes **8338 only** (`EXPOSE 8338`) — MCP (`/mcp`), SearXNG (`/searxng/search`) and the console (`/dashboard/`) all share it. The v3.6.0 control center **adds no new port**, so no change to your port mappings. With `network_mode: host`, make sure port 8338 is free on the host.
+
+**Volume mappings** (`/app` is the image workdir; relative paths in the config resolve against it):
+
+| Host | Container | Purpose | What breaks without it |
+|---|---|---|---|
+| `./config.yaml` | `/app/config.yaml` | main config (required) | the bundled `config.example.yaml` is used; changing config means rebuilding the image |
+| `./dashboard.yaml` | `/app/dashboard.yaml` | control center settings: admin password, allowed networks, quotas, branding | the first `start` auto-generates a `dashboard.yaml` with a **random password**; recreating the container loses the password, allowlist, quotas and branding |
+| `./data` | `/app/data` | telemetry DB `dashboard.db` + secrets overlay `dashboard-secrets.json` | call history, quota usage and API keys written through the WebUI are wiped when the container is recreated |
+| `./cache` (optional) | `/app/cache` | search cache (when `cache.enabled: true`) | cache is wiped when the container is recreated |
+| `./fetchdata` (optional) | `/app/fetchdata` | page bodies saved by cleanfetch | saved files are wiped when the container is recreated |
+
+> The control-center config can live elsewhere too: point `WEBSEARCH_DASHBOARD_CONFIG` or `dashboard.config_path` at another path (see [dashboard.en.md](dashboard.en.md)).
+
+**Console access in Docker**: write operations (settings / API keys / restart / cache clear / quotas) require the request source to be **loopback inside the container**, but with bridge networking plus a published port the source is the bridge gateway (e.g. `172.17.0.1`) — so **the console is read-only in the default compose setup**: pages, call history and metrics all work, while any settings action returns 403.
+
+- Read-only: to open the console from the host browser, add the bridge subnet to the allowlist (the default bridge sits inside `172.16.0.0/12`; for a custom network use its actual subnet, kept as narrow as possible):
+
+  ```yaml
+  # dashboard.yaml
+  dashboard:
+    allowed_networks: ["172.16.0.0/12"]
+  ```
+
+- Write operations (Linux hosts): switch to `network_mode: host` — the container shares the host network stack, so a host browser hitting `127.0.0.1:8338` is seen as loopback and writes are accepted (the `ports` mapping is ignored in that mode).
+- Leaving the network alone works too: edit `config.yaml` / `dashboard.yaml` on the host and restart the container — write operations are convenience, the files are the source of truth.
 
 Build locally:
 
@@ -415,6 +444,7 @@ launchctl list | grep websearch
 | Port in use | `status` to check if already running, or `kill` then restart |
 | Stale cache results | Cache auto-expires after 6h, or delete `cache.storage_path` file and restart |
 | Docker container exits immediately | Confirm `config.yaml` is mounted, check log output |
+| Console settings return 403 under Docker | Write operations require a loopback source; bridge networking is read-only — see the [Docker](#docker) section |
 | Process still running after stop | Wait up to 10s; if still running use `kill` to force terminate |
 | No results or rate-limited | Check `rate_limit` config (default 3/s, 60/min); Google etc. auto-skipped when proxy unavailable |
 

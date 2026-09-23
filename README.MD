@@ -35,7 +35,7 @@
 | 层 | 做什么 |
 |----|--------|
 | **接入** | Claude Code / Qwen Code / Cursor / HTTP API / 嵌入 Go 模块 |
-| **协议** | `/mcp` 四个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 |
+| **协议** | `/mcp` 四个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 |
 | **编排** | `factory` 按 mode 组装 · `hybrid` 并发去重合并 · RRF / Boost / MMR 评分 |
 | **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包；学术 9 源并行 |
 | **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要 |
@@ -66,6 +66,7 @@
 | PDF 解析 | 本地 PDF 文本优先提取，扫描件可回退 MinerU OCR |
 | LLM 摘要 | 可选接入 OpenAI 兼容 API 生成结构化摘要，支持流式推送 |
 | 系统代理 | Clash 等开启系统代理后，海外引擎 / Jina Reader 自动走代理 |
+| 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改（默认关闭） |
 | 轻量部署 | 单二进制、无 CGO、引用计数进程管理，可嵌入 Go 模块 |
 
 ---
@@ -164,6 +165,58 @@ autostart.vbs
 | `hybrid` | 全引擎混合（Anysearch + 百度 + Tavily + Exa + 豆包(有 Key 时) + Bing + DuckDuckGo 等） | 各 Key 可选 |
 
 > 无 Key 时自动降级为 `engine` 模式。各模式与引擎的详细说明见 [docs/search.md](docs/search.md)。
+
+---
+
+## 本机控制中心（可选，默认关闭）
+
+> 完整配置参考（快捷方式落位、品牌关于块、全部键与默认值）见 [docs/dashboard.md](docs/dashboard.md)。
+
+`dashboard.enabled: true` 后，本机浏览器访问 `http://127.0.0.1:8338/dashboard/`，可以看到四个页面：
+
+![控制中心总览](docs/images/dashboard-overview.jpg)
+
+| 页面 | 能看到什么 |
+|------|------------|
+| **总览** | KPI（成功调用含总数与缓存命中 / 失败 / 平均耗时）、系统状态（含熔断中数量）、运行配置、四个工具模块的观测状态、客户端用量归组 |
+| **事件** | Provider 事件流（最近 20 条，独立页）：时间 / 来源 / 状态 / 耗时 / 结果数 / 主题语言 / 关键词 / 错误摘要 |
+| **搜索源** | 每个来源的健康、最近 20 次结果、失败构成（如 `解析失败 ×4`）、成功率、平均 / P95 延迟、额度、最近错误与熔断倒计时 |
+| **调用记录** | 工具与来源分列；可按层级 / 状态 / 工具 / 来源 / 错误类型筛选；工具行可点 request id 展开这次调用的来源链 |
+| **设置** | 备份当前 YAML 后写入白名单配置（模式、超时、阈值、熔断时长等），密钥永不回显；外观主题与高级操作合并为「外观与维护」卡片 |
+
+行为边界：
+
+- **被动观测**：只记录真实 MCP 调用产生的元数据，不主动探测、不伪造数据；未调用过的工具也显示「可调用 · 尚无观测」。
+- **失败分类 + 置信度**：失败归类为限流 / 验证码 / 访问被拒 / 超时 / 网络 / 解析 / 无结果；样本少于 5 次标记「样本不足」，连续 3 次失败才显示熔断，**只报告不干预调用**。
+- **请求级调用链**：一次工具调用与其触发的来源事件共享 request id，回答「这次结果是谁给的、谁失败了」。
+
+启用方式：把 `dashboard.example.yaml` 复制为主配置同目录的 `dashboard.yaml`（推荐），或在 `config.yaml` 追加 `dashboard:` 块：
+
+```yaml
+dashboard:
+  enabled: true
+  storage_path: ./data/dashboard.db
+  retention_days: 30                          # 明细保留天数，每日汇总长期保留
+  secrets_path: ./data/dashboard-secrets.json # 私密覆盖文件，接口不返回原值
+  # admin_password / allowed_networks / quotas / brand 见 dashboard.example.yaml
+```
+
+首次 `start` / `install` 会自动生成这份文件并**默认启用**（含随机本机管理员口令）；不需要时改 `enabled: false` 或删除该文件并重启，运行时即回到零遥测开销。独立文件按字段覆盖主配置，删除它并重启即完整回退；管理员口令、访问网段、额度、品牌主题只能写在 `dashboard.yaml`，**WebUI 无法读取或修改**。重启后生效；桌面快捷方式（`install` 创建）双击即「lazy 启动」：先拉起服务再打开控制台。机器可读出口（只读，不触发搜索）：
+
+```bash
+curl http://127.0.0.1:8338/__admin/api/providers   # 每个来源的状态机与失败构成
+curl http://127.0.0.1:8338/__admin/api/metrics     # Prometheus 文本指标
+```
+
+### 数据与隐私
+
+- 只保存脱敏元数据：查询以哈希 + 主题 + 语言 + 关键词落库，**完整查询与 URL 不写入数据库**；错误文本在服务端先把 URL / 邮箱 / 疑似密钥替换为占位符再截断落库。
+- 密钥保存在独立的私密覆盖文件，页面与接口**永不回显原值**——是服务端不出网，不是前端掩码；配置页内置各供应商「获取 Key」直达链接。
+- 默认仅本机 loopback 可访问；`allowed_networks` 放行的网段**只读**。写操作（设置 / 密钥 / 重启 / 清缓存 / 额度管理）需 `dashboard.admin_password` 且仅限本机，口令不可经 WebUI 修改。
+- 总览页「客户端用量」按接入的 MCP 客户端归组展示（识别来源：initialize 握手的 clientInfo 与 User-Agent，仅用于本机展示分组，不影响搜索）。
+- 不发起任何主动探测。
+
+完整配置项见 [docs/configuration.md](docs/configuration.md)。
 
 ---
 

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"websearch/pkg/config"
 )
 
 // newAdminMux 注册 admin 路由用于测试观测。
@@ -13,7 +15,7 @@ func newAdminMux(initRef int32) (*Server, *http.ServeMux) {
 	s := New()
 	s.SetRefCount(initRef)
 	mux := http.NewServeMux()
-	s.registerAdminHandlers(mux)
+	s.registerAdminHandlers(mux, *config.Default(), nil)
 	return s, mux
 }
 

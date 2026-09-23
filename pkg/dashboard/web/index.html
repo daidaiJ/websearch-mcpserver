@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="green">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WebSearch 控制中心</title>
+  <link id="favicon" rel="icon" type="image/png" href="logo-green.png">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><img id="brand-logo" src="logo-green.png" alt="" width="26" height="26"><div><strong id="brand-title">WebSearch</strong><small>控制中心</small></div></div>
+      <nav>
+        <button class="nav active" type="button" data-page="overview">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="1.5" y="1.5" width="5.4" height="5.4" rx="1.4"/><rect x="9.1" y="1.5" width="5.4" height="5.4" rx="1.4"/><rect x="1.5" y="9.1" width="5.4" height="5.4" rx="1.4"/><rect x="9.1" y="9.1" width="5.4" height="5.4" rx="1.4"/></svg>
+          总览</button>
+        <button class="nav" type="button" data-page="sources">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M1.6 8h12.8M8 1.6c-4.8 4-4.8 8.8 0 12.8M8 1.6c4.8 4 4.8 8.8 0 12.8"/></svg>
+          搜索源</button>
+        <button class="nav" type="button" data-page="events">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 11.5 6 7l2.5 2.5L13 4"/><path d="M13 7.5V4h-3.5"/></svg>
+          事件</button>
+        <button class="nav" type="button" data-page="usage">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 3.5h12M2 8h9M2 12.5h12"/></svg>
+          调用记录</button>
+        <button class="nav" type="button" data-page="settings">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.5v2.2M8 12.3v2.2M14.5 8h-2.2M3.7 8H1.5M12.6 3.4l-1.6 1.6M5 11l-1.6 1.6M12.6 12.6 11 11M5 5 3.4 3.4"/></svg>
+          设置</button>
+      </nav>
+      <div class="side-bottom">
+        <div class="about" id="app-about">
+          <b id="about-title">WebSearch 控制中心</b>
+          <small>MCP 搜索服务 · 多引擎并发 / 学术检索 / 网页抓取 / PDF 解析</small>
+          <a href="https://github.com/daidaiJ/websearch-mcpserver" target="_blank" rel="noopener noreferrer">daidaiJ/websearch-mcpserver →</a>
+        </div>
+        <div class="privacy"><span class="dot healthy"></span><div><b>仅限本机</b><small>查询全文不会被保存</small></div></div>
+      </div>
+    </aside>
+
+    <main>
+      <header>
+        <div><p class="eyebrow">LOCAL OBSERVABILITY</p><h1 id="page-title">运行总览</h1></div>
+        <div class="header-actions">
+          <span id="updated" class="updated">尚未刷新</span>
+          <button id="refresh" class="icon-btn" type="button" title="立即刷新全部数据" aria-label="立即刷新全部数据">↻</button>
+        </div>
+      </header>
+
+      <section id="page-overview" class="page active">
+        <div class="kpi-grid" id="overview-kpis"></div>
+
+        <div class="overview-grid">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">SYSTEM</p><h2>系统状态</h2></div><span id="system-dot" class="dot unknown"></span></div>
+            <p class="sys-value" id="system-status">—</p>
+            <p class="panel-note" id="system-note"></p>
+            <dl class="kv">
+              <div><dt>启用来源</dt><dd id="system-enabled">—</dd></div>
+              <div><dt>已观测 Web 来源</dt><dd id="system-observed">—</dd></div>
+              <div><dt>不稳定</dt><dd id="system-degraded">—</dd></div>
+              <div><dt>异常</dt><dd id="system-down">—</dd></div>
+              <div><dt>熔断中</dt><dd id="system-suspended">—</dd></div>
+            </dl>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">EFFECTIVE CONFIG</p><h2>运行配置</h2></div></div>
+            <p class="panel-note" id="config-note"></p>
+            <dl class="kv" id="config-list"></dl>
+            <p class="secret-line" id="config-secrets"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">MCP TOOLS</p><h2>工具模块</h2></div><span class="muted" id="mcp-tools-note">4 个公开工具</span></div>
+            <p class="panel-note" id="mcp-tools-help"></p>
+            <div class="tool-list" id="mcp-tools-list"></div>
+          </article>
+        </div>
+
+        <article class="panel hidden" id="clients-panel">
+          <div class="panel-head"><div><p class="eyebrow">MCP CLIENTS</p><h2>客户端用量</h2></div><span class="muted">按 User-Agent 归组 · 最近 7 天 · 工具层调用</span></div>
+          <div class="client-tabs" id="client-tabs"></div>
+          <p class="panel-note" id="client-note"></p>
+          <div id="client-stats"></div>
+        </article>
+
+      </section>
+
+      <section id="page-events" class="page">
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">REDACTED METADATA</p><h2>Provider 事件流</h2></div><span class="muted">最近 20 条 · 查询全文不保存</span></div>
+          <p class="panel-note" id="overview-events-note"></p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>时间</th><th>来源</th><th>状态</th><th class="num">耗时</th><th class="num">结果数</th><th>主题 / 语言</th><th>关键词</th><th>错误摘要</th></tr></thead>
+              <tbody id="overview-events-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-sources" class="page">
+        <div class="status-key">
+          <span><i class="tag-dot active"></i>当前启用</span>
+          <span><i class="tag-dot inactive"></i>已配置未使用</span>
+          <span><i class="tag-dot not_configured"></i>未配置</span>
+          <span><i class="dot healthy"></i>正常</span>
+          <span><i class="dot degraded"></i>不稳定</span>
+          <span><i class="dot down"></i>异常</span>
+          <span><i class="dot unknown"></i>未知</span>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">WEB GROUP</p><h2>Web 搜索源</h2></div><span class="muted" id="sources-web-counts">—</span></div>
+          <p class="panel-note" id="sources-web-note"></p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>来源</th><th>启用状态</th><th>健康</th><th>最近 20 次</th><th class="num">今日尝试</th><th>失败构成</th><th class="num">成功 / 失败</th><th class="num">成功率</th><th class="num">平均 / P95</th><th>最近观测</th><th>额度</th><th>最近错误</th></tr></thead>
+              <tbody id="sources-web-body"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">ACADEMIC GROUP</p><h2>学术来源</h2></div><span class="muted" id="sources-academic-counts">—</span></div>
+          <p class="panel-note" id="sources-academic-note"></p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>来源</th><th>启用状态</th><th>健康</th><th>最近 20 次</th><th class="num">今日尝试</th><th>失败构成</th><th class="num">成功 / 失败</th><th class="num">成功率</th><th class="num">平均 / P95</th><th>最近观测</th><th>额度</th><th>最近错误</th></tr></thead>
+              <tbody id="sources-academic-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-usage" class="page">
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">REDACTED METADATA</p><h2>调用记录</h2></div><span class="muted">明细保留 30 天</span></div>
+          <div class="toolbar">
+            <label class="field"><span>层级</span>
+              <select id="filter-kind">
+                <option value="">全部</option>
+                <option value="tool">工具</option>
+                <option value="provider" selected>来源</option>
+              </select>
+            </label>
+            <label class="field"><span>状态</span>
+              <select id="filter-status">
+                <option value="">全部</option>
+                <option value="success">成功</option>
+                <option value="failure">失败</option>
+              </select>
+            </label>
+            <label class="field"><span>错误类型</span>
+              <select id="filter-error-kind"><option value="">全部</option></select>
+            </label>
+            <label class="field"><span>工具</span>
+              <select id="filter-tool"><option value="">全部</option></select>
+            </label>
+            <label class="field"><span>来源</span>
+              <select id="filter-provider"><option value="">全部</option></select>
+            </label>
+            <label class="field"><span>条数</span>
+              <select id="filter-limit">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <div class="toolbar-actions">
+              <button id="reload-events" type="button" class="primary-btn">应用筛选</button>
+              <button id="export-csv" type="button">导出 CSV</button>
+            </div>
+          </div>
+          <p class="panel-note" id="events-note"></p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>时间</th><th>层级</th><th>工具</th><th>来源</th><th>状态</th><th>错误类型</th><th class="num">耗时</th><th class="num">结果数</th><th>缓存</th><th>主题 / 语言</th><th>关键词</th><th>查询哈希</th><th>错误摘要</th></tr></thead>
+              <tbody id="usage-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-settings" class="page">
+        <div class="settings-grid">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">SAFE SETTINGS</p><h2>常用设置</h2></div><span id="settings-dirty" class="pill hidden">有未保存更改</span></div>
+            <form id="settings-form" class="form-grid">
+              <label>搜索模式<select name="mode" data-key="mode"><option>hybrid</option><option>engine</option><option>apipool</option><option>baidu</option><option>tavily</option><option>exa</option><option>anysearch</option><option>doubao</option></select></label>
+              <label>网络区域<select name="network" data-key="network"><option value="china">中国</option><option value="international">国际</option></select></label>
+              <label>上游超时（秒）<input type="number" min="0" max="120" name="upstream_timeout_sec" data-key="upstream_timeout_sec"></label>
+              <label>最大结果数<input type="number" min="1" max="50" name="smartsearch.max_size" data-key="smartsearch.max_size"></label>
+              <label>相关性阈值<input type="number" min="0" max="1" step="0.01" name="smartsearch.relevance_threshold" data-key="smartsearch.relevance_threshold"></label>
+              <label>MMR λ<input type="number" min="0" max="1" step="0.05" name="smartsearch.mmr.lambda" data-key="smartsearch.mmr.lambda"></label>
+              <label>熔断首次暂停<input type="text" placeholder="5s" name="dashboard.suspension.ban_time_on_fail" data-key="dashboard.suspension.ban_time_on_fail"></label>
+              <label>熔断暂停上限<input type="text" placeholder="24h" name="dashboard.suspension.max_ban_time_on_fail" data-key="dashboard.suspension.max_ban_time_on_fail"></label>
+              <label class="toggle"><input type="checkbox" name="cache.enabled" data-key="cache.enabled"><span></span>启用缓存</label>
+              <label class="toggle"><input type="checkbox" name="academic.enabled" data-key="academic.enabled"><span></span>学术检索</label>
+              <label class="toggle"><input type="checkbox" name="cleanfetch.enabled" data-key="cleanfetch.enabled"><span></span>网页抓取</label>
+              <label class="toggle"><input type="checkbox" name="pdf_parser.enabled" data-key="pdf_parser.enabled"><span></span>PDF 解析</label>
+              <div class="form-actions"><button type="button" id="save-settings" class="primary-btn">预览并保存</button></div>
+            </form>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">CREDENTIALS</p><h2>API Key 状态</h2></div><span class="muted">永不回显原值</span></div>
+            <div id="secret-list" class="secret-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">APPEARANCE &amp; MAINTENANCE</p><h2>外观与维护</h2></div></div>
+            <h3 class="sub-head">外观主题</h3>
+            <div class="theme-picker" id="theme-picker">
+              <button type="button" data-theme-pick="green" class="theme-chip"><i class="swatch green"></i>绿色办公</button>
+              <button type="button" data-theme-pick="blue" class="theme-chip"><i class="swatch blue"></i>蓝白科技</button>
+              <button type="button" data-theme-pick="mono" class="theme-chip"><i class="swatch mono"></i>黑白灰度·立体</button>
+              <label class="accent-field">自定义主色<input type="text" id="accent-input" placeholder="#14633f" spellcheck="false"></label>
+            </div>
+            <p class="panel-note">选择仅保存在本浏览器；服务器默认主题由 dashboard.yaml 的 dashboard.brand.theme 控制。</p>
+            <h3 class="sub-head">高级操作</h3>
+            <div class="advanced-actions">
+              <div><b>重启服务</b><small>应用已保存的设置或新密钥</small><button id="restart-service" type="button">确认并重启</button></div>
+              <div><b>清空搜索缓存</b><small>监控历史不会被删除</small><button id="clear-cache" type="button" class="danger">确认并清空</button></div>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">QUOTAS</p><h2>额度管理</h2></div><span class="muted">本地真实调用统计 · 可重置 / 修正</span></div>
+            <p class="panel-note" id="quota-manage-note"></p>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr><th>供应商</th><th class="num">已用 / 上限</th><th>下次自动重置</th><th>操作</th></tr></thead>
+                <tbody id="quota-manage-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="confirm-dialog">
+    <form method="dialog">
+      <h3 id="dialog-title">确认操作</h3>
+      <p id="dialog-copy"></p>
+      <pre id="dialog-diff"></pre>
+      <div><button value="cancel">取消</button><button value="confirm" class="primary-btn">确认</button></div>
+    </form>
+  </dialog>
+  <dialog id="secret-dialog">
+    <form method="dialog">
+      <h3 id="secret-dialog-title">更新密钥</h3>
+      <p class="secret-link-row">还没有 Key？<a id="secret-dialog-link" href="#" target="_blank" rel="noopener noreferrer">前往供应商控制台获取 →</a></p>
+      <label class="secret-input-row">新值<input id="secret-dialog-input" name="secret-value" type="password" autocomplete="off" placeholder="粘贴 Key（留空 = 删除）"></label>
+      <label class="secret-input-row hidden" id="secret-dialog-user-row">管理员用户名<input id="secret-dialog-user" name="admin-username" type="text" autocomplete="off" placeholder="dashboard.admin_username"></label>
+      <label class="secret-input-row">管理员口令<input id="secret-dialog-pass" name="admin-password" type="password" autocomplete="off" placeholder="dashboard.admin_password"></label>
+      <p class="panel-note">新值只写入服务端私密覆盖文件，页面与接口永不回显。</p>
+      <div><button value="cancel">取消</button><button value="confirm" class="primary-btn">保存</button></div>
+    </form>
+  </dialog>
+  <div id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,9 +1,14 @@
 package config
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +20,7 @@ import (
 )
 
 var configDir string
+var configFile string
 
 const (
 	ModeBaidu     = "baidu"   // 百度千帆搜索（enable_ai_search 控制端点，失败自动回退网页搜索）
@@ -58,6 +64,7 @@ type Config struct {
 	Proxy              ProxyConfig       `mapstructure:"proxy"`
 	SmartSearch        SmartSearchConfig `mapstructure:"smartsearch"`
 	Apipool            ApipoolConfig     `mapstructure:"apipool"`
+	Dashboard          DashboardConfig   `mapstructure:"dashboard"`
 }
 
 // ── 各搜索引擎配置 ──
@@ -345,7 +352,22 @@ func (c PDFParserConfig) GetMinerUTable() bool {
 type ProxyConfig struct {
 	Enabled      bool   `mapstructure:"enabled"`  // 显式启用代理（默认 false，未设置时自动检测）
 	Endpoint     string `mapstructure:"endpoint"` // 代理地址（默认 http://127.0.0.1:7897")
-	autoDisabled bool   // Load() 中设置：用户显式 enabled: false 时为 true，跳过自动检测
+	// APIProviders 控制 API 供应商上游请求（baidu/tavily/exa/anysearch/doubao/LLM 等）
+	// 是否走代理。默认 false = 强制直连：显式置空 transport 的 Proxy，不吃
+	// HTTP(S)_PROXY 等环境变量，避免本机代理环境静默劫持供应商请求。
+	// true 时按 enabled/endpoint/自动检测的同一套解析走代理。
+	APIProviders bool `mapstructure:"api_providers"`
+	autoDisabled bool // Load() 中设置：用户显式 enabled: false 时为 true，跳过自动检测
+}
+
+// UpstreamResolver 返回 API 供应商上游请求使用的代理解析器。
+// api_providers 未启用时返回 nil（调用方据此强制直连）；启用时与引擎层
+// 共用同一套 enabled/endpoint/自动检测解析。
+func (c ProxyConfig) UpstreamResolver() proxy.ProxyResolver {
+	if !c.APIProviders {
+		return nil
+	}
+	return c.ProxyResolver()
 }
 
 // GetProxyEndpoint 返回代理端点地址。
@@ -409,6 +431,241 @@ type CacheConfig struct {
 	Enabled         *bool  `mapstructure:"enabled"`          // 缓存总开关（默认 nil = 关闭；显式 true 启用并按 storage_path 或默认路径建库）
 	StoragePath     string `mapstructure:"storage_path"`     // SQLite 数据库文件存储路径（空 = exe 同目录 cache/websearch-cache.db）
 	CleanupInterval int    `mapstructure:"cleanup_interval"` // 清理间隔（分钟），默认30分钟，最大360分钟
+}
+
+// DashboardConfig controls the local-only observability dashboard. It does not
+// enable active provider probes; all health observations come from real calls.
+type DashboardConfig struct {
+	Enabled       bool             `mapstructure:"enabled"`
+	StoragePath   string           `mapstructure:"storage_path"`
+	RetentionDays int              `mapstructure:"retention_days"`
+	SecretsPath   string           `mapstructure:"secrets_path"`
+	// ConfigPath 指定控制中心独立配置文件（dashboard.yaml）。空 = 主配置
+	// 同目录的 dashboard.yaml；也可用环境变量 WEBSEARCH_DASHBOARD_CONFIG 覆盖。
+	// 独立文件按字段覆盖主配置的 dashboard: 块，删除该文件即完整回退。
+	ConfigPath    string           `mapstructure:"config_path"`
+	// AllowedNetworks 显式放行可「查看」控制台的来源网段（CIDR，如 192.168.1.0/24）。
+	// 空列表 = 仅本机 loopback 可访问；放行仅限只读，写操作永远仅限 loopback。
+	AllowedNetworks []string `mapstructure:"allowed_networks"`
+	// Shortcut 控制快捷方式落位行为（Windows）：desktop（默认，桌面）/
+	// start（开始菜单，可在开始屏幕搜索并手动固定）/ both / off（不创建）。
+	// 仅 start/open 安装路径生效；uninstall 始终清理全部已知位置。
+	Shortcut string `mapstructure:"shortcut"`
+	// AdminPassword 是写操作（设置/密钥/重启/清缓存/额度管理）的口令，必须在
+	// config.yaml 显式配置。出于安全考虑它不在控制台设置页的白名单里，也不能
+	// 写入 secrets 覆盖文件——即 WebUI 永远无法读取或修改它。二选一：明文或
+	// SHA-256 十六进制（admin_password_sha256 = sha256(明文) 的小写十六进制）。
+	// AdminUsername 是可选的管理员用户名：仅当显式配置时，写请求才必须携带
+	// 匹配的 X-Admin-User 头（常量时间比较）；未配置 = 不做任何用户名检查
+	// （与口令-only 行为一致）。和口令一样只能配在 dashboard.yaml，
+	// WebUI 无法读取或修改。
+	AdminUsername       string           `mapstructure:"admin_username"`
+	AdminPassword       string           `mapstructure:"admin_password"`
+	AdminPasswordSHA256 string           `mapstructure:"admin_password_sha256"`
+	Suspension          SuspensionConfig `mapstructure:"suspension"`
+	Quotas              QuotasConfig     `mapstructure:"quotas"`
+	// Brand 允许自托管用户自定义控制台的标题与 logo（更开放：打自己的牌子）。
+	// 空值 = 内置默认品牌；旧配置文件没有该块时完全兼容。
+	Brand BrandConfig `mapstructure:"brand"`
+}
+
+// BrandConfig 控制控制台的品牌呈现。
+type BrandConfig struct {
+	// Title 覆盖侧栏与浏览器标签页标题，默认 "WebSearch 控制中心"。
+	Title string `mapstructure:"title"`
+	// Logo 指向 logo 图片：http(s) URL 原样使用；本地文件路径经
+	// /__admin/api/brand/logo 端点提供（仅限控制台同一访问边界）。
+	// 空值 = 内置默认 logo。支持绝对路径或相对 config.yaml 所在目录。
+	Logo string `mapstructure:"logo"`
+	// Theme 内置主题预设：green（默认，绿色办公）/ blue（蓝白科技）/
+	// mono（黑白灰度立体）。只影响 WebUI 与桌面快捷方式图标配色。
+	Theme string `mapstructure:"theme"`
+	// Accent 自定义主色（#RGB / #RRGGBB），设置后覆盖主题预设的主色。
+	Accent string `mapstructure:"accent"`
+	// Icon 自定义快捷方式图标（.ico 文件路径）。空 = 按主题内置图标；
+	// 每次启动轻量检查，文件变化时重建桌面快捷方式。
+	Icon string `mapstructure:"icon"`
+	// Footer 控制页面底部的项目介绍（含 GitHub 项目链接）。nil/true =
+	// 显示（默认）；false = 隐藏。零值兼容：旧配置无该字段时保持显示。
+	Footer *bool `mapstructure:"footer"`
+}
+
+// GetFooter 报告是否显示页面底部项目介绍，默认启用（nil = true）。
+func (b BrandConfig) GetFooter() bool {
+	return b.Footer == nil || *b.Footer
+}
+
+// GetTitle 返回控制台标题，空值回退内置默认。
+func (b BrandConfig) GetTitle() string {
+	if t := strings.TrimSpace(b.Title); t != "" {
+		return t
+	}
+	return "WebSearch 控制中心"
+}
+
+// GetTheme 返回主题预设名，非法值回退 green。
+func (b BrandConfig) GetTheme() string {
+	switch strings.ToLower(strings.TrimSpace(b.Theme)) {
+	case "blue", "mono":
+		return strings.ToLower(strings.TrimSpace(b.Theme))
+	default:
+		return "green"
+	}
+}
+
+// GetAccent 返回合法的自定义主色（规范化为 #rrggbb）；未设置或非法时返回空。
+func (b BrandConfig) GetAccent() string {
+	s := strings.TrimSpace(b.Accent)
+	if s == "" {
+		return ""
+	}
+	if !strings.HasPrefix(s, "#") {
+		return ""
+	}
+	hex := strings.ToLower(s[1:])
+	switch len(hex) {
+	case 3: // #RGB → #rrggbb
+		for _, c := range hex {
+			if !isHexDigit(byte(c)) {
+				return ""
+			}
+		}
+		return "#" + string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+	case 6:
+		for i := 0; i < 6; i++ {
+			if !isHexDigit(hex[i]) {
+				return ""
+			}
+		}
+		return "#" + hex
+	default:
+		return ""
+	}
+}
+
+func isHexDigit(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f'
+}
+
+// QuotasConfig 控制 API 供应商的本地用量统计与上限。
+// 用量本身来自遥测的真实调用记录（成功次数），不主动探测供应商。
+type QuotasConfig struct {
+	// Reset 自动重置周期：monthly（默认）/ weekly / daily / none（仅手动重置）。
+	Reset string `mapstructure:"reset"`
+	// ResetDay monthly 周期的每月重置日（1-28，默认 1）。
+	ResetDay int `mapstructure:"reset_day"`
+	// Limits 每供应商调用次数上限；未配置的供应商使用 DefaultQuotaLimit。
+	Limits map[string]int `mapstructure:"limits"`
+}
+
+// DefaultQuotaLimit 是未显式配置 limits 的供应商的默认上限（次/周期）。
+const DefaultQuotaLimit = 1000
+
+// GetReset 返回重置周期，空值回退 monthly；非法值也回退 monthly。
+func (q QuotasConfig) GetReset() string {
+	switch strings.ToLower(strings.TrimSpace(q.Reset)) {
+	case "weekly", "daily", "none":
+		return strings.ToLower(strings.TrimSpace(q.Reset))
+	default:
+		return "monthly"
+	}
+}
+
+// GetResetDay 返回 monthly 周期的重置日，范围钳制到 1-28（默认 1）。
+func (q QuotasConfig) GetResetDay() int {
+	if q.ResetDay >= 1 && q.ResetDay <= 28 {
+		return q.ResetDay
+	}
+	return 1
+}
+
+// GetLimit 返回供应商的上限；未配置时用 DefaultQuotaLimit。
+func (q QuotasConfig) GetLimit(provider string) int {
+	if v, ok := q.Limits[provider]; ok && v > 0 {
+		return v
+	}
+	return DefaultQuotaLimit
+}
+
+// PeriodStart 返回 now 所在统计周期的起点（本地时区）；"none" 返回零值，
+// 表示不做自动重置，只认手动重置。周期边界由调用方用于推进本地额度状态。
+func (q QuotasConfig) PeriodStart(now time.Time) time.Time {
+	y, m, d := now.Date()
+	switch q.GetReset() {
+	case "daily":
+		return time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	case "weekly":
+		offset := (int(now.Weekday()) + 6) % 7 // 周一为一周起点
+		return time.Date(y, m, d-offset, 0, 0, 0, 0, now.Location())
+	case "none":
+		return time.Time{}
+	default: // monthly
+		day := q.GetResetDay()
+		if d >= day {
+			return time.Date(y, m, day, 0, 0, 0, 0, now.Location())
+		}
+		return time.Date(y, m, day, 0, 0, 0, 0, now.Location()).AddDate(0, -1, 0)
+	}
+}
+
+// NextReset 返回下一次自动重置时间；"none" 返回零值。
+func (q QuotasConfig) NextReset(now time.Time) time.Time {
+	if q.GetReset() == "none" {
+		return time.Time{}
+	}
+	start := q.PeriodStart(now)
+	switch q.GetReset() {
+	case "daily":
+		return start.AddDate(0, 0, 1)
+	case "weekly":
+		return start.AddDate(0, 0, 7)
+	default: // monthly
+		return start.AddDate(0, 1, 0)
+	}
+}
+
+// AdminPasswordConfigured 报告管理员口令是否已显式配置。
+// 未配置时所有写端点直接禁用（返回 403），这是安全的默认。
+func (d DashboardConfig) AdminPasswordConfigured() bool {
+	return d.AdminPassword != "" || d.AdminPasswordSHA256 != ""
+}
+
+// GetShortcut 归一化快捷方式落位配置：desktop（默认）/ start / both / off。
+// 非法值回退 desktop（向后兼容：旧配置无该字段 = 桌面快捷方式）。
+func (d DashboardConfig) GetShortcut() string {
+	switch strings.ToLower(strings.TrimSpace(d.Shortcut)) {
+	case "start", "startmenu", "start-menu":
+		return "start"
+	case "both", "all":
+		return "both"
+	case "off", "none", "false", "disabled":
+		return "off"
+	default:
+		return "desktop"
+	}
+}
+
+// VerifyAdminPassword 以常量时间比较校验管理员口令，支持明文与 SHA-256 两种配置。
+func (d DashboardConfig) VerifyAdminPassword(input string) bool {
+	if input == "" {
+		return false
+	}
+	if d.AdminPasswordSHA256 != "" {
+		sum := sha256.Sum256([]byte(input))
+		want := strings.ToLower(strings.TrimSpace(d.AdminPasswordSHA256))
+		return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(want)) == 1
+	}
+	return subtle.ConstantTimeCompare([]byte(input), []byte(d.AdminPassword)) == 1
+}
+
+// SuspensionConfig mirrors SearXNG's ban_time_on_fail / max_ban_time_on_fail /
+// suspended_times knobs. Values are duration strings such as "5s", "10m",
+// "1h", "24h" (or plain numbers, treated as seconds). The control center only
+// reports suspension; it never skips a call.
+type SuspensionConfig struct {
+	BanTimeOnFail    string            `mapstructure:"ban_time_on_fail"`
+	MaxBanTimeOnFail string            `mapstructure:"max_ban_time_on_fail"`
+	SuspendedTimes   map[string]string `mapstructure:"suspended_times"`
 }
 
 type JinaConfig struct {
@@ -612,6 +869,7 @@ func Load(configPath string) (*Config, error) {
 
 	if cfgFile := viper.ConfigFileUsed(); cfgFile != "" {
 		configDir = filepath.Dir(cfgFile)
+		configFile = cfgFile
 	}
 
 	viper.SetEnvPrefix("APP")
@@ -747,9 +1005,17 @@ func Load(configPath string) (*Config, error) {
 		conf.SmartSearch.MMR.Lambda = 0.7
 	}
 
+	// 用户显式声明过控制中心（主配置 dashboard: 块）则不再套用
+	// 「默认生成启用配置」的兜底，尊重用户选择（含显式关闭）。
+	if viper.IsSet("dashboard.enabled") {
+		dashboardExplicit = true
+	}
+
 	// 环境变量回填：精简 yaml 缺字段时（如未写 tavily.api_key），
 	// viper 的 BindEnv 不会为不存在的 key 生效，这里显式覆盖。
 	applyKnownEnv(&conf)
+	applyDashboardOverlay(&conf)
+	applyDashboardSecrets(&conf)
 
 	return &conf, nil
 }
@@ -881,6 +1147,218 @@ func GetConfigDir() string {
 		return cwd
 	}
 	return os.TempDir()
+}
+
+// GetConfigFile returns the exact file Viper loaded. The dashboard uses this
+// only for validated, backed-up settings changes.
+func GetConfigFile() string { return configFile }
+
+func (c Config) GetDashboardStoragePath() string {
+	if c.Dashboard.StoragePath != "" {
+		return c.Dashboard.StoragePath
+	}
+	return filepath.Join(filepath.Dir(c.GetCacheStoragePath()), "dashboard.db")
+}
+
+func (c Config) GetDashboardSecretsPath() string {
+	if c.Dashboard.SecretsPath != "" {
+		return c.Dashboard.SecretsPath
+	}
+	return filepath.Join(filepath.Dir(c.GetDashboardStoragePath()), "dashboard-secrets.json")
+}
+
+// ParseAllowedNetworks 解析 allowed_networks 中的 CIDR 网段；裸 IP 视为单地址
+// 网段。任一条目非法即返回错误，调用方必须 fail-closed（回退为仅 loopback）。
+func (d DashboardConfig) ParseAllowedNetworks() ([]*net.IPNet, error) {
+	out := make([]*net.IPNet, 0, len(d.AllowedNetworks))
+	for _, raw := range d.AllowedNetworks {
+		s := strings.TrimSpace(raw)
+		if s == "" {
+			continue
+		}
+		if strings.Contains(s, "/") {
+			_, ipnet, err := net.ParseCIDR(s)
+			if err != nil {
+				return nil, fmt.Errorf("条目 %q 不是合法 CIDR: %w", raw, err)
+			}
+			out = append(out, ipnet)
+			continue
+		}
+		ip := net.ParseIP(s)
+		if ip == nil {
+			return nil, fmt.Errorf("条目 %q 不是合法 IP 或 CIDR", raw)
+		}
+		bits := 32
+		if ip.To4() == nil {
+			bits = 128
+		}
+		out = append(out, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+	}
+	return out, nil
+}
+
+// applyDashboardSecrets loads an optional private overlay from the persistent
+// data volume. Values are intentionally kept out of config.yaml and logs.
+var dashboardOverlayFile string
+
+// GetDashboardOverlayFile 返回本次加载实际使用的控制中心独立配置文件路径；
+// 未使用时返回空串。仅供启动日志提示，不参与业务逻辑。
+func GetDashboardOverlayFile() string { return dashboardOverlayFile }
+
+// DashboardOverlayPath 返回控制中心独立配置文件（dashboard.yaml）的路径：
+// 环境变量 WEBSEARCH_DASHBOARD_CONFIG > dashboard.config_path（相对主配置
+// 目录解析）> 主配置同目录的 dashboard.yaml。
+func DashboardOverlayPath(conf *Config) string {
+	if v := strings.TrimSpace(os.Getenv("WEBSEARCH_DASHBOARD_CONFIG")); v != "" {
+		return v
+	}
+	base := configDir
+	if base == "" {
+		base = GetConfigDir()
+	}
+	if p := strings.TrimSpace(conf.Dashboard.ConfigPath); p != "" {
+		if filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(base, p)
+	}
+	return filepath.Join(base, "dashboard.yaml")
+}
+
+// applyDashboardOverlay 读取控制中心独立配置文件（dashboard.yaml），按字段
+// 覆盖主配置的 dashboard: 块（整键覆盖，不做深合并）。
+//
+// 设计动机（迁移与回退）：
+//   - 升级：主 config.yaml 零改动，控制中心专属配置（管理员口令、访问网段、
+//     额度、品牌）全部住在这个文件，且完全在控制台设置页写路径之外——WebUI
+//     无法读取或修改它们，这是结构性保证而非白名单约定；
+//   - 回退：删除该文件并重启即回到基线；旧版本二进制不读取该文件，不受影响。
+//
+// 文件不存在时无操作；存在但解析失败时打警告并忽略，不拖垮主服务。
+func applyDashboardOverlay(conf *Config) {
+	path := DashboardOverlayPath(conf)
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	v := viper.New()
+	v.SetConfigFile(path)
+	if err := v.ReadInConfig(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: 控制中心配置 %s 无法解析，已忽略: %v\n", path, err)
+		return
+	}
+	var dash DashboardConfig
+	if err := v.UnmarshalKey("dashboard", &dash); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: 控制中心配置 %s 结构异常，已忽略: %v\n", path, err)
+		return
+	}
+	// Enabled 的零值与「未设置」无法从结构体区分，用 IsSet 判定显式配置。
+	if v.IsSet("dashboard.enabled") {
+		conf.Dashboard.Enabled = dash.Enabled
+	}
+	if dash.StoragePath != "" {
+		conf.Dashboard.StoragePath = dash.StoragePath
+	}
+	if dash.RetentionDays > 0 {
+		conf.Dashboard.RetentionDays = dash.RetentionDays
+	}
+	if dash.SecretsPath != "" {
+		conf.Dashboard.SecretsPath = dash.SecretsPath
+	}
+	if dash.ConfigPath != "" {
+		conf.Dashboard.ConfigPath = dash.ConfigPath
+	}
+	if len(dash.AllowedNetworks) > 0 {
+		conf.Dashboard.AllowedNetworks = dash.AllowedNetworks
+	}
+	if dash.Shortcut != "" {
+		conf.Dashboard.Shortcut = dash.Shortcut
+	}
+	if dash.AdminUsername != "" {
+		conf.Dashboard.AdminUsername = dash.AdminUsername
+	}
+	if dash.AdminPassword != "" {
+		conf.Dashboard.AdminPassword = dash.AdminPassword
+	}
+	if dash.AdminPasswordSHA256 != "" {
+		conf.Dashboard.AdminPasswordSHA256 = dash.AdminPasswordSHA256
+	}
+	if dash.Suspension.BanTimeOnFail != "" {
+		conf.Dashboard.Suspension.BanTimeOnFail = dash.Suspension.BanTimeOnFail
+	}
+	if dash.Suspension.MaxBanTimeOnFail != "" {
+		conf.Dashboard.Suspension.MaxBanTimeOnFail = dash.Suspension.MaxBanTimeOnFail
+	}
+	if len(dash.Suspension.SuspendedTimes) > 0 {
+		conf.Dashboard.Suspension.SuspendedTimes = dash.Suspension.SuspendedTimes
+	}
+	if dash.Quotas.Reset != "" {
+		conf.Dashboard.Quotas.Reset = dash.Quotas.Reset
+	}
+	if dash.Quotas.ResetDay > 0 {
+		conf.Dashboard.Quotas.ResetDay = dash.Quotas.ResetDay
+	}
+	if len(dash.Quotas.Limits) > 0 {
+		conf.Dashboard.Quotas.Limits = dash.Quotas.Limits
+	}
+	if dash.Brand.Title != "" {
+		conf.Dashboard.Brand.Title = dash.Brand.Title
+	}
+	if dash.Brand.Logo != "" {
+		conf.Dashboard.Brand.Logo = dash.Brand.Logo
+	}
+	if dash.Brand.Theme != "" {
+		conf.Dashboard.Brand.Theme = dash.Brand.Theme
+	}
+	if dash.Brand.Accent != "" {
+		conf.Dashboard.Brand.Accent = dash.Brand.Accent
+	}
+	if dash.Brand.Icon != "" {
+		conf.Dashboard.Brand.Icon = dash.Brand.Icon
+	}
+	// Footer 用指针区分「未设置」（保持默认显示）与显式 false
+	if dash.Brand.Footer != nil {
+		conf.Dashboard.Brand.Footer = dash.Brand.Footer
+	}
+	dashboardOverlayFile = path
+	dashboardExplicit = true
+}
+
+func applyDashboardSecrets(conf *Config) {
+	path := conf.GetDashboardSecretsPath()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var values map[string]string
+	if json.Unmarshal(b, &values) != nil {
+		return
+	}
+	if v := values["BAIDU_SK"]; v != "" {
+		conf.Baidu.APIKey = v
+		conf.Baidu.SKList = nil
+	}
+	if v := values["TAVILY_SK"]; v != "" {
+		conf.Tavily.APIKey = v
+		conf.Tavily.SKList = nil
+	}
+	if v := values["EXA_API_KEY"]; v != "" {
+		conf.Exa.APIKey = v
+		conf.Exa.SKList = nil
+	}
+	if v := values["ANYSEARCH_API_KEY"]; v != "" {
+		conf.Anysearch.APIKey = v
+		conf.Anysearch.SKList = nil
+	}
+	if v := values["DOUBAO_SEARCH_API_KEY"]; v != "" {
+		conf.Doubao.APIKey = v
+		conf.Doubao.SKList = nil
+	}
+	if v := values["JINA_API_KEY"]; v != "" {
+		conf.Jina.APIKey = v
+	}
+	if v := values["MINERU_TOKEN"]; v != "" {
+		conf.PDFParser.MinerUToken = v
+	}
 }
 
 // ExeBaseDir 返回可执行文件所在目录，获取失败时回退配置目录。

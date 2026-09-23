@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -17,7 +18,9 @@ import (
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
 	"websearch/pkg/daemon"
+	"websearch/pkg/dashboard"
 	"websearch/pkg/log"
+	"websearch/pkg/telemetry"
 	"websearch/searxng"
 )
 
@@ -49,11 +52,7 @@ func (s *Server) RefCount() int32 {
 // localOnlyMiddleware 限制 admin 接口仅本地访问
 func localOnlyMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			host = r.RemoteAddr
-		}
-		if host != "127.0.0.1" && host != "::1" && host != "localhost" {
+		if !dashboard.IsLoopbackRemote(r) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
@@ -61,7 +60,39 @@ func localOnlyMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *Server) registerAdminHandlers(mux *http.ServeMux) {
+// dashboardAccessMiddleware 控制台访问边界：loopback 始终放行；其它来源仅在
+// dashboard.allowed_networks 显式声明的网段内放行（默认空 = 仅本机）。
+// Host 头不参与判定：它可被任意伪造，与连接的真实来源无关。
+// 网段配置非法时返回错误，调用方应回退为仅本机（fail-closed）。
+func dashboardAccessMiddleware(conf config.Config) (func(http.HandlerFunc) http.HandlerFunc, error) {
+	nets, err := conf.Dashboard.ParseAllowedNetworks()
+	if err != nil {
+		return nil, err
+	}
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if dashboard.IsLoopbackRemote(r) {
+				next(w, r)
+				return
+			}
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				host = r.RemoteAddr
+			}
+			if ip := net.ParseIP(host); ip != nil {
+				for _, n := range nets {
+					if n.Contains(ip) {
+						next(w, r)
+						return
+					}
+				}
+			}
+			http.Error(w, "Forbidden", http.StatusForbidden)
+		}
+	}, nil
+}
+
+func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, metrics *telemetry.Store) {
 	mux.HandleFunc("/__admin/refcount", localOnlyMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -123,6 +154,22 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux) {
 			Message:  "running",
 		})
 	})
+
+	if conf.Dashboard.Enabled {
+		guard, err := dashboardAccessMiddleware(conf)
+		if err != nil {
+			log.Errf("dashboard.allowed_networks 配置非法，控制台回退为仅本机访问: %v", err)
+			guard = localOnlyMiddleware
+		}
+		h := dashboard.New(conf, metrics, mcpserver.GetCache(), func() {
+			select {
+			case s.shutdownCh <- struct{}{}:
+			default:
+			}
+		})
+		h.Register(mux, guard)
+		h.WarmQuota()
+	}
 }
 
 // Run 启动 HTTP 服务并阻塞直到收到关闭信号或引用计数归零。
@@ -130,6 +177,28 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux) {
 // 监听失败（如端口占用）返回错误，不 panic。
 // 外部项目可直接调用此方法将 MCP 服务嵌入到自己的 HTTP Server 中。
 func (s *Server) Run(conf config.Config, onListening ...func()) error {
+	var metrics *telemetry.Store
+	if conf.Dashboard.Enabled {
+		var err error
+		metrics, err = telemetry.Open(conf.GetDashboardStoragePath(), conf.Dashboard.RetentionDays)
+		if err != nil {
+			return fmt.Errorf("initialize dashboard telemetry: %w", err)
+		}
+		if p := config.GetDashboardOverlayFile(); p != "" {
+			log.Infof("控制中心独立配置: %s", p)
+		}
+		if !conf.Dashboard.AdminPasswordConfigured() {
+			log.Warnf("管理员口令未配置（dashboard.yaml 的 dashboard.admin_password），控制台写操作已禁用；只读访问不受影响")
+		}
+		telemetry.SetDefault(metrics)
+		if policy, err := dashboard.SuspensionPolicy(conf.Dashboard.Suspension); err == nil {
+			telemetry.SetSuspensionPolicy(policy)
+		}
+		// 明细按 retention_days 滚动过期：启动清一次，此后每 6 小时滚一次
+		stopCleanup := metrics.StartCleanupLoop(6 * time.Hour)
+		defer func() { stopCleanup(); _ = metrics.Close() }()
+		_ = metrics.Cleanup()
+	}
 	if err := mcpserver.Init(conf,
 		mcpserver.WithSearchEngine(conf),
 		mcpserver.WithSummarizer(conf),
@@ -143,7 +212,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux, conf)
 	searxng.RegisterRouter(mux, conf)
-	s.registerAdminHandlers(mux)
+	s.registerAdminHandlers(mux, conf, metrics)
 
 	// 启动缓存清理协程
 	var cleanup *cache.CleanupScheduler
@@ -245,6 +314,6 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux, conf)
 	searxng.RegisterRouter(mux, conf)
-	s.registerAdminHandlers(mux)
+	s.registerAdminHandlers(mux, conf, nil)
 	return mux
 }

@@ -19,6 +19,10 @@ import (
 var version = "dev"
 
 func runStart(conf *config.Config) {
+	// 控制台启用时确保桌面快捷方式存在（幂等、尽力而为）：
+	// 给 lazy 启动一个入口，替代开机自启动的常驻模式。
+	ensureDashboardShortcut(conf)
+
 	// 尝试通过 health 端点检测服务是否已运行
 	_, err := daemon.GetHealth(conf.Port)
 	if err == nil {
@@ -140,12 +144,13 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  start       Start the server or increase refcount if already running")
+	fmt.Println("  open        Lazy start: launch server if needed, then open the WebUI (desktop shortcut target)")
 	fmt.Println("  stop        Decrease refcount, shutdown server when refcount reaches zero")
 	fmt.Println("  kill        Force kill the server")
 	fmt.Println("  status      Show server status")
 	fmt.Println("  version     Show version")
-	fmt.Println("  install     Install autostart script and create shortcut in startup folder (Windows only)")
-	fmt.Println("  uninstall   Remove shortcut from startup folder (Windows only)")
+	fmt.Println("  install     Install autostart script and create shortcuts (Windows only)")
+	fmt.Println("  uninstall   Remove autostart and desktop shortcuts (Windows only)")
 	fmt.Println("  help        Show this help")
 	fmt.Println()
 	fmt.Println("Flags:")
@@ -231,6 +236,20 @@ func main() {
 		}
 	}
 
+	// 默认启用控制台：从未显式配置过控制中心时生成 dashboard.yaml
+	// （随机本机口令）。不需要时改 enabled: false 或删除该文件即回到零开销。
+	// 只对 start/open 生效；stop/kill/status 等运维命令不产生文件。
+	if args[0] == "start" || args[0] == "open" {
+		if !config.DashboardExplicitlyConfigured() {
+			if created, path, gerr := config.EnsureDashboardFile(config.GetConfigDir()); gerr == nil && created {
+				fmt.Printf("已生成控制中心配置: %s（默认启用，本机管理员口令在文件内；不需要可删除或改 enabled: false）\n", path)
+				if reloaded, lerr := config.Load(configPath); lerr == nil {
+					conf = reloaded
+				}
+			}
+		}
+	}
+
 	configDir := config.GetConfigDir()
 	daemon.SetBaseDir(configDir)
 	log.NewLogger(configDir, conf.Log)
@@ -239,6 +258,8 @@ func main() {
 	switch args[0] {
 	case "start":
 		runStart(conf)
+	case "open":
+		runOpen(conf)
 	case "stop":
 		runStop(conf)
 	case "kill":

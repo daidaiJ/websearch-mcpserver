@@ -37,3 +37,13 @@ qwen-code-export-*.html
 # docs: 官方文档直接跟踪；无关/草稿/历史文档放 docs/archive/ 与 docs/plans/（忽略）
 docs/archive/
 docs/plans/
+
+# 对外介绍页需要纳入版本管理（控制台内嵌页面仍忽略）
+!docs/**/*.html
+pkg/dashboard/web/*.html
+
+# wiki knowledge dirs (managed by wiki CLI)
+/issues
+
+# 本地工作留档（不提交）
+/wiki

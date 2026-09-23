@@ -59,7 +59,7 @@
 
 ```bash
 docker pull ghcr.io/daidaij/websearch-mcpserver:latest
-# 或钉版本：ghcr.io/daidaij/websearch-mcpserver:3.4.0
+# 或钉版本：ghcr.io/daidaij/websearch-mcpserver:3.6.0
 ```
 
 ```yaml
@@ -69,10 +69,39 @@ services:
     image: ghcr.io/daidaij/websearch-mcpserver:latest
     restart: always
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./config.yaml:/app/config.yaml               # 主配置（必须）
+      - ./dashboard.yaml:/app/dashboard.yaml         # 控制中心配置（建议）
+      - ./data:/app/data                             # 控制中心数据：遥测库 + 密钥覆盖文件（建议）
     ports:
       - "8338:8338"
 ```
+
+**端口**：镜像只暴露 8338（`EXPOSE 8338`），MCP（`/mcp`）、SearXNG（`/searxng/search`）与控制台（`/dashboard/`）共用这一个端口。v3.6.0 的控制中心**没有新增端口**，端口映射不用改。容器内用 `network_mode: host` 时注意主机 8338 未被占用。
+
+**卷映射**（`/app` 是镜像工作目录，配置里的相对路径都相对它解析）：
+
+| 宿主机 | 容器 | 作用 | 不挂载的后果 |
+|---|---|---|---|
+| `./config.yaml` | `/app/config.yaml` | 主配置（必须） | 用镜像内置的 `config.example.yaml`，改配置只能重建镜像 |
+| `./dashboard.yaml` | `/app/dashboard.yaml` | 控制中心配置：管理员口令、放行网段、额度、品牌 | 首次 `start` 会在容器内自动生成一份随机口令的 `dashboard.yaml`；容器重建后口令、放行网段、额度、品牌全部丢失 |
+| `./data` | `/app/data` | 遥测库 `dashboard.db` + 密钥覆盖文件 `dashboard-secrets.json` | 调用记录、额度用量、WebUI 里写入的 API Key 随容器重建清空 |
+| `./cache`（可选） | `/app/cache` | 搜索缓存（`cache.enabled: true` 时） | 缓存随容器重建清空 |
+| `./fetchdata`（可选） | `/app/fetchdata` | cleanfetch 落盘的页面正文 | 落盘文件随容器重建清空 |
+
+> 控制中心配置也可以放别处：用环境变量 `WEBSEARCH_DASHBOARD_CONFIG` 或 `dashboard.config_path` 指定路径（详见 [dashboard.md](dashboard.md)）。
+
+**控制台在 Docker 下的访问边界**：写操作（设置 / API Key / 重启 / 清缓存 / 额度）要求请求来源是容器内的 **loopback**，而桥接网络 + 端口发布时来源是 bridge 网关（如 `172.17.0.1`）——**默认 compose 部署下控制台只读**：页面、调用记录与指标都能看，设置类操作一律返回 403。
+
+- 只读：从宿主机浏览器打开控制台，需把 bridge 网段加入放行白名单（默认 bridge 落在 `172.16.0.0/12` 内，自定义网络按实际网段填，尽量收窄）：
+
+  ```yaml
+  # dashboard.yaml
+  dashboard:
+    allowed_networks: ["172.16.0.0/12"]
+  ```
+
+- 要写操作（Linux 主机）：改用 `network_mode: host`，容器与主机共用网络栈，主机浏览器访问 `127.0.0.1:8338` 来源即为 loopback，此时 `ports` 映射会被忽略。
+- 不改网络也行：直接在宿主机改 `config.yaml` / `dashboard.yaml` 后重启容器——写操作只是便利，文件才是配置来源。
 
 本地构建：
 
@@ -414,6 +443,7 @@ launchctl list | grep websearch
 | 端口被占用 | `status` 查看是否已运行，或 `kill` 后重启 |
 | 缓存结果过旧 | 缓存 6h 自动过期，或删除 `cache.storage_path` 文件重启 |
 | Docker 容器立即退出 | 确认挂载了 `config.yaml`，检查日志输出 |
+| Docker 下控制台设置页 403 | 写操作要求来源为 loopback；桥接网络下控制台只读，见 [Docker](#docker) 小节 |
 | stop 后进程仍在 | 等待最多 10s；若仍在用 `kill` 强制结束 |
 | 搜索无结果或限流 | 检查 `rate_limit` 配置（默认 3/s, 60/min）；Google 等引擎代理不可用时自动跳过 |
 

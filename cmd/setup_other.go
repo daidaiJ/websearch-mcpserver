@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+
+	"websearch/pkg/config"
 )
 
 func runInstall() {
@@ -14,3 +16,6 @@ func runInstall() {
 func runUninstall() {
 	fmt.Println("Auto-start uninstallation is not supported on this platform.")
 }
+
+// ensureDashboardShortcut 非 Windows 平台暂无快捷方式实现（no-op）。
+func ensureDashboardShortcut(conf *config.Config) {}

@@ -175,6 +175,15 @@ academic:
 proxy:
   enabled: false          # Empty → auto-detect; true → use endpoint; false → disable
   endpoint: "http://127.0.0.1:7897"  # Only effective when enabled: true
+  # Whether upstream API-provider requests (Baidu Qianfan / Tavily / Exa / AnySearch /
+  # Doubao / LLM) go through the proxy. Default false = forced direct connection:
+  # HTTP_PROXY/HTTPS_PROXY env vars can never silently hijack provider requests.
+  # When true, the same enabled/endpoint/auto-detect resolution as engines applies.
+  api_providers: false
+  # Note: niche providers like AnySearch can hit broken DNS (the vendor's GTM once
+  # returned a single overseas IP). Direct connections use system DNS; if it resolves
+  # to an unreachable address, pin the correct IP in hosts or enable api_providers
+  # to bypass local DNS pollution.
 
 # LLM summary (optional)
 llm:
@@ -187,6 +196,32 @@ cache:
   # enabled: true            # Unset → disabled by default (since v3.5.0); set true to enable
   # storage_path: ""         # Unset → exe sibling dir cache/websearch-cache.db
   cleanup_interval: 30      # Cleanup interval (minutes), max 360
+
+# Local control center (off by default; passive real-call telemetry only, no active probes,
+# raw queries/URLs are never stored). Prefer a separate dashboard.yaml next to the main config
+# (see dashboard.example.yaml): it overrides the dashboard: block field-by-field, and deleting
+# it plus a restart is a clean rollback. Keep the admin password / allowed networks / quotas /
+# branding only in dashboard.yaml — the WebUI cannot read or modify them.
+# For the full reference (shortcut placement, brand.footer, every key's default) see docs/dashboard.en.md.
+# dashboard:
+#   enabled: false
+#   storage_path: "./data/dashboard.db"
+#   retention_days: 30       # Detail retention; daily aggregates are retained
+#   secrets_path: "./data/dashboard-secrets.json" # Private overlay; keys are never returned
+#   config_path: ""          # Overlay file path; empty = dashboard.yaml next to the main config
+#   admin_password: ""       # Write-operation password (plaintext); or use the SHA-256 form
+#   admin_password_sha256: "" # Write-operation password (lowercase hex SHA-256)
+#   allowed_networks: []     # Read-only CIDR/IP allowlist; empty = loopback only
+#   quotas:
+#     reset: monthly         # monthly / weekly / daily / none (manual reset only)
+#     reset_day: 1           # Day of month for the monthly reset (1-28)
+#     limits: {}             # Per-provider call cap per period; default 1000
+#   brand:
+#     title: ""              # Console title; default "WebSearch 控制中心"
+#     logo: ""               # http(s) URL or local image path; empty = built-in mark
+#     theme: ""              # green (default) / blue / mono
+#     accent: ""             # Custom accent color #RRGGBB, overrides the theme
+#     icon: ""               # Custom shortcut icon (.ico path); empty = built-in per theme
 
 # Jina Reader (optional, fallback for cleanfetch)
 jina:
@@ -293,11 +328,57 @@ log:
 
 ---
 
+## Control Center Security & Branding (dashboard)
+
+### Access and write model
+
+| Scenario | Rule |
+|----------|------|
+| Reads (pages + read-only APIs) | Loopback only by default; networks explicitly listed in `dashboard.allowed_networks` get read-only access |
+| Writes (settings / keys / restart / cache clear / quota reset & adjust) | **Loopback only + `X-Admin-Password` header**, both required |
+| Admin password | Configured only in `dashboard.yaml` (`admin_password` plaintext or `admin_password_sha256` hex); **the WebUI can never read or modify it**; unset password = all write endpoints disabled (secure default) |
+
+- Allowlist syntax: `allowed_networks: ["192.168.1.0/24", "10.0.0.3"]` (CIDR or bare IP); any invalid entry **falls the whole allowlist back to loopback-only** (fail-closed).
+- Docker: when the port is published to host loopback, the connection source inside the container is the bridge gateway (e.g. `172.17.0.1`); add that network to `allowed_networks` to open the console from the host browser.
+- The remote link is plain HTTP; only allow trusted LANs. Use an SSH tunnel or a TLS reverse proxy for anything else.
+- Password comparison is constant-time; prefer `admin_password_sha256` (lowercase hex of `sha256sum`) so no plaintext stays on disk.
+
+### Quota management
+
+- Local usage = real successful calls from telemetry (per provider, per period); providers are never probed. Tavily official usage takes priority when the official endpoint is available.
+- Providers without a configured `quotas.limits` entry default to **1000 calls/period**; `reset` supports monthly / weekly / daily / none (manual only).
+- WebUI "Settings → Quota management" offers manual reset (recount from now) and usage adjustment (real records untouched); both require the admin password and loopback.
+
+### Branding & themes
+
+- `brand.theme`: `green` (default, office green) / `blue` (blue-white tech) / `mono` (greyscale, layered); `brand.accent` (`#RRGGBB`) overrides the theme accent.
+- `brand.title` / `brand.logo` customize the title and logo (http(s) URL or local image path); the WebUI also offers a browser-local appearance picker.
+- The desktop shortcut icon follows `brand.theme`: every startup does a lightweight check and rebuilds the shortcut when the theme changes (one .ico per theme, avoiding the Windows icon cache).
+
+### Client usage grouping
+
+- Identity sources: `clientInfo.name` from the initialize handshake (spec-mandated, authoritative) + User-Agent keyword normalization (fallback); unknown when neither is available.
+- Display grouping only (last 7 days of tool-level calls); no active probing, never affects search. The frontend hides the panel entirely when no client data exists.
+
+### Presets & default-enabled
+
+- Fresh deployments (no control-center config anywhere) auto-generate `dashboard.yaml` on first `start` / `install`: enabled by default with a random local admin password (0600).
+- Deployments that explicitly configured the control center are never silently modified; turning it off = `enabled: false` or deleting the file, with zero telemetry overhead at runtime.
+
+### Migration & rollback
+
+- Old configs without a `dashboard:` block stay fully compatible: the console stays off, upstream behavior unchanged.
+- A `dashboard.db` created by earlier preview builds gains the `quota_state` table automatically; older binaries ignore it.
+- Remove the desktop shortcut before rolling back to an older build (older binaries do not know the `open` subcommand).
+
+---
+
 ## Environment Variable Overrides
 
 | Env Var | Overrides | Notes |
 |---------|-----------|-------|
 | `WEBSEARCH_CONFIG` | Config file path | Highest priority |
+| `WEBSEARCH_DASHBOARD_CONFIG` | Control-center overlay file path | See [dashboard.example.yaml](../dashboard.example.yaml) |
 | `BAIDU_SK` | `baidu.api_key` | |
 | `TAVILY_SK` | `tavily.api_key` | Tavily API Key ([get key](https://app.tavily.com/home)) |
 | `EXA_API_KEY` | `exa.api_key` | Exa Web Search API Key ([get key](https://dashboard.exa.ai/api-keys)) |
@@ -350,6 +431,7 @@ log:
 | `academic.disable_doaj` | false | DOAJ open-access journals, reachable from China |
 | `proxy.enabled` | unset | Auto-detects system proxy when not set; explicit false disables; explicit true uses endpoint |
 | `proxy.endpoint` | `http://127.0.0.1:7897` | Only effective when `enabled: true` |
+| `proxy.api_providers` | false | Whether upstream API-provider requests (Qianfan/Tavily/Exa/AnySearch/Doubao/LLM) use the proxy; false forces direct connections immune to proxy env vars |
 | `cleanfetch.enabled` | false | Old configs don't enable; must be explicit. Only gates the cleanfetch tool — `fetch_top_n` is not gated (webfetch lazily initializes) |
 | `cleanfetch.file_ttl_hours` | 24 | |
 | `cleanfetch.max_inline_lines` | 100 | |

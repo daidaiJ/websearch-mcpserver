@@ -1,0 +1,51 @@
+# ==============================================
+# 控制中心独立配置（dashboard.yaml）
+# ==============================================
+# 放在主 config.yaml 同目录（或用环境变量 WEBSEARCH_DASHBOARD_CONFIG /
+# dashboard.config_path 指定其它路径）。存在时按字段覆盖主配置的
+# dashboard: 块；删除本文件并重启 = 完整回退，旧版本二进制不读取它。
+#
+# 安全模型：
+#   - 访问：默认仅本机 loopback；allowed_networks 显式放行的网段只读。
+#   - 写操作（设置/密钥/重启/清缓存/额度管理）：仅限本机 + 管理员口令。
+#   - admin_password 只能在这里手改，WebUI 无法读取或修改它；
+#     未配置口令 = 所有写端点禁用（安全的默认）。
+
+dashboard:
+  enabled: true
+  # 快捷方式落位（Windows，start/open 时自动创建）：desktop（桌面，默认）/
+  # start（开始菜单，开始屏幕可搜索并手动固定）/ both / off（不创建）。
+  # uninstall 始终清理全部已知位置。
+  shortcut: desktop
+  storage_path: "./data/dashboard.db"
+  retention_days: 30                          # 明细保留天数，每日汇总长期保留
+  secrets_path: "./data/dashboard-secrets.json" # 私密覆盖文件，接口不返回原值
+
+  # 管理员口令：明文与 SHA-256 二选一（sha256sum 明文 → 小写十六进制）
+  # admin_password: "change-me"
+  # admin_password_sha256: ""
+
+  # 只读访问白名单（CIDR 或裸 IP）；空 = 仅本机。
+  # Docker 部署发布到本机回环时，容器来源是 bridge 网关，按需放行 172.16.0.0/12。
+  # allowed_networks: []
+  # allowed_networks: ["192.168.1.0/24", "172.16.0.0/12"]
+
+  # 额度管理：本地真实调用计数（成功次数），自动按周期重置；
+  # 注意上限仅展示与剩余量计算，超限不阻断调用（超限熔断为计划中 TODO）
+  quotas:
+    reset: monthly        # monthly / weekly / daily / none（仅手动重置）
+    reset_day: 1          # monthly 的每月重置日（1-28）
+    limits:               # 每供应商单 Key 上限（次/周期），未配置的用默认 1000；多把 Key 时展示上限自动乘以 Key 数
+      tavily: 1000
+      exa: 1000
+      anysearch: 1000
+      doubao: 1000
+
+  # 品牌呈现（更开放：自托管可打自己的牌子）
+  brand:
+    title: ""             # 默认 "WebSearch 控制中心"
+    logo: ""              # http(s) URL 或本地图片路径；空 = 内置 W+放大镜
+    theme: ""             # green（默认，绿色办公）/ blue（蓝白科技）/ mono（黑白灰度·立体）
+    accent: ""            # 自定义主色 #RRGGBB，覆盖主题主色
+    icon: ""              # 自定义快捷方式图标（.ico 路径）；空 = 主题内置图标
+    footer: true          # 侧边栏「关于」项目介绍（GitHub 链接）；false = 隐藏
