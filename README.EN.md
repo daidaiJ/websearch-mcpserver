@@ -200,7 +200,7 @@ dashboard:
   # admin_password / allowed_networks / quotas / branding: see dashboard.example.yaml
 ```
 
-On first `start` / `install`, the preview line auto-generates this file **enabled by default** (with a random local admin password); set `enabled: false` or delete the file to turn it off with zero telemetry overhead. The overlay file overrides the main config field-by-field; deleting it and restarting is a clean rollback. The admin password, allowed networks, quotas and branding live only in `dashboard.yaml` — **the WebUI can never read or modify them**. Takes effect after restart; the desktop shortcut (created by `install`) is a lazy-start entry: it launches the server if needed, then opens the console. Machine-readable endpoints (read-only, never trigger searches):
+On first `start` / `install`, the server auto-generates this file **enabled by default** (with a random local admin password); set `enabled: false` or delete the file to turn it off with zero telemetry overhead. The overlay file overrides the main config field-by-field; deleting it and restarting is a clean rollback. The admin password, allowed networks, quotas and branding live only in `dashboard.yaml` — **the WebUI can never read or modify them**. Takes effect after restart; the desktop shortcut (created by `install`) is a lazy-start entry: it launches the server if needed, then opens the console. Machine-readable endpoints (read-only, never trigger searches):
 
 ```bash
 curl http://127.0.0.1:8338/__admin/api/providers   # per-source state machine and failure composition

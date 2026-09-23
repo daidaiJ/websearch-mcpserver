@@ -201,7 +201,7 @@ dashboard:
   # admin_password / allowed_networks / quotas / brand 见 dashboard.example.yaml
 ```
 
-预览版首次 `start` / `install` 会自动生成这份文件并**默认启用**（含随机本机管理员口令）；不需要时改 `enabled: false` 或删除该文件并重启，运行时即回到零遥测开销。独立文件按字段覆盖主配置，删除它并重启即完整回退；管理员口令、访问网段、额度、品牌主题只能写在 `dashboard.yaml`，**WebUI 无法读取或修改**。重启后生效；桌面快捷方式（`install` 创建）双击即「lazy 启动」：先拉起服务再打开控制台。机器可读出口（只读，不触发搜索）：
+首次 `start` / `install` 会自动生成这份文件并**默认启用**（含随机本机管理员口令）；不需要时改 `enabled: false` 或删除该文件并重启，运行时即回到零遥测开销。独立文件按字段覆盖主配置，删除它并重启即完整回退；管理员口令、访问网段、额度、品牌主题只能写在 `dashboard.yaml`，**WebUI 无法读取或修改**。重启后生效；桌面快捷方式（`install` 创建）双击即「lazy 启动」：先拉起服务再打开控制台。机器可读出口（只读，不触发搜索）：
 
 ```bash
 curl http://127.0.0.1:8338/__admin/api/providers   # 每个来源的状态机与失败构成

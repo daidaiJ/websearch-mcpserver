@@ -9,7 +9,7 @@ import (
 )
 
 // dashboardExplicit 用户是否在配置里显式声明过控制中心（主配置 dashboard:
-// 块或独立 dashboard.yaml 任一存在即视为显式）。用于「预览版默认启用」
+// 块或独立 dashboard.yaml 任一存在即视为显式）。用于「默认启用控制台」
 // 的判定：显式配置过的部署绝不静默追加启用配置。
 var dashboardExplicit bool
 
@@ -17,7 +17,7 @@ var dashboardExplicit bool
 func DashboardExplicitlyConfigured() bool { return dashboardExplicit }
 
 const dashboardPresetTemplate = `# ==============================================
-# 控制中心配置（预览版默认启用）
+# 控制中心配置（默认启用）
 # ==============================================
 # 不需要时：把 enabled 改为 false，或直接删除本文件并重启 ——
 # 运行时即回到零遥测开销；主 config.yaml 无需任何改动。
@@ -55,7 +55,7 @@ func randomPassword() string {
 }
 
 // EnsureDashboardFile 在 dir 下生成默认启用的控制中心配置（dashboard.yaml）。
-// 预览版约定：全新部署开箱即有 WebUI；不需要时改 enabled: false 或删文件。
+// 约定：全新部署开箱即有 WebUI；不需要时改 enabled: false 或删文件。
 // 幂等：文件已存在时不做任何修改（不覆盖用户口令）。返回是否新创建。
 func EnsureDashboardFile(dir string) (bool, string, error) {
 	path := filepath.Join(dir, "dashboard.yaml")

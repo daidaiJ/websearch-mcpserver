@@ -236,7 +236,7 @@ func main() {
 		}
 	}
 
-	// 预览版默认启用控制台：从未显式配置过控制中心时生成 dashboard.yaml
+	// 默认启用控制台：从未显式配置过控制中心时生成 dashboard.yaml
 	// （随机本机口令）。不需要时改 enabled: false 或删除该文件即回到零开销。
 	// 只对 start/open 生效；stop/kill/status 等运维命令不产生文件。
 	if args[0] == "start" || args[0] == "open" {

@@ -1006,7 +1006,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// 用户显式声明过控制中心（主配置 dashboard: 块）则不再套用
-	// 「预览版默认生成启用配置」的兜底，尊重用户选择（含显式关闭）。
+	// 「默认生成启用配置」的兜底，尊重用户选择（含显式关闭）。
 	if viper.IsSet("dashboard.enabled") {
 		dashboardExplicit = true
 	}
@@ -1228,7 +1228,7 @@ func DashboardOverlayPath(conf *Config) string {
 // applyDashboardOverlay 读取控制中心独立配置文件（dashboard.yaml），按字段
 // 覆盖主配置的 dashboard: 块（整键覆盖，不做深合并）。
 //
-// 设计动机（预览版迁移与回退）：
+// 设计动机（迁移与回退）：
 //   - 升级：主 config.yaml 零改动，控制中心专属配置（管理员口令、访问网段、
 //     额度、品牌）全部住在这个文件，且完全在控制台设置页写路径之外——WebUI
 //     无法读取或修改它们，这是结构性保证而非白名单约定；
