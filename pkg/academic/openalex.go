@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"websearch/pkg/antirobot"
 )
@@ -24,7 +23,7 @@ type openalexEngine struct {
 // NewOpenAlex 创建 OpenAlex 引擎。client 为 nil 时使用默认客户端。
 func NewOpenAlex(opts antirobot.OpenAlexOpts, client *http.Client) antirobot.Engine {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &openalexEngine{
 		client: client,

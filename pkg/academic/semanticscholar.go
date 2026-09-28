@@ -35,7 +35,7 @@ type semanticScholarEngine struct {
 // NewSemanticScholar 创建 Semantic Scholar 引擎。client 为 nil 时使用默认客户端。
 func NewSemanticScholar(opts antirobot.SemanticScholarOpts, client *http.Client) antirobot.Engine {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &semanticScholarEngine{client: client, apiKey: opts.APIKey}
 }

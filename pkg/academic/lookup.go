@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"websearch/pkg/antirobot"
 )
@@ -17,7 +16,7 @@ import (
 var (
 	openalexAPI   = "https://api.openalex.org"
 	unpaywallAPI  = "https://api.unpaywall.org/v2"
-	lookupClient  = &http.Client{Timeout: 15 * time.Second}
+	lookupClient  = defaultHTTPClient
 	unpaywallGate = make(chan struct{}, 4)
 )
 

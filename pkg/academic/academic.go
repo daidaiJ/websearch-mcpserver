@@ -1,11 +1,16 @@
 package academic
 
 import (
+	"net/http"
 	"time"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/proxy"
 )
+
+// defaultHTTPClient 是各引擎未注入 client 时的共享兜底（测试/独立构造场景）；
+// 生产路径由 BuildAcademic 统一注入 direct/intl 动态代理客户端。
+var defaultHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
 // BuildAcademic 根据配置创建学术搜索引擎列表。
 // ProxyResolve 非 nil 时，对 RegionInternational 引擎使用动态代理。

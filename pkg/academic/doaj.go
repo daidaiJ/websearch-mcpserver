@@ -27,7 +27,7 @@ type doajEngine struct {
 // NewDOAJ 创建 DOAJ 引擎。client 为 nil 时使用默认客户端。
 func NewDOAJ(_ antirobot.DOAJOpts, client *http.Client) antirobot.Engine {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &doajEngine{client: client}
 }

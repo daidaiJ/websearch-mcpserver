@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"websearch/pkg/antirobot"
 )
@@ -26,7 +25,7 @@ type europePMCEngine struct {
 // NewEuropePMC 创建 Europe PMC 引擎。client 为 nil 时使用默认客户端。
 func NewEuropePMC(_ antirobot.EuropePMCOpts, client *http.Client) antirobot.Engine {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &europePMCEngine{client: client}
 }

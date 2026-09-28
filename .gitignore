@@ -47,3 +47,6 @@ pkg/dashboard/web/*.html
 
 # 本地工作留档（不提交）
 /wiki
+
+# 杀软锁系统 TEMP 的绕行构建目录
+.gtmp/
