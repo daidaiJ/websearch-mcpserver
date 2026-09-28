@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"websearch/pkg/antirobot"
 )
@@ -26,7 +25,7 @@ type pubmedEngine struct {
 // NewPubMed 创建 PubMed 引擎。client 为 nil 时使用默认客户端。
 func NewPubMed(_ antirobot.PubMedOpts, client *http.Client) antirobot.Engine {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &pubmedEngine{client: client}
 }

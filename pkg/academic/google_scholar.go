@@ -50,7 +50,7 @@ func NewGoogleScholar(opts antirobot.GoogleScholarOpts, client *http.Client) ant
 		domain = defaultScholarDomain
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &googleScholarEngine{
 		client: client,

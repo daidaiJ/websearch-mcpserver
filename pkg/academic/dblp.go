@@ -29,7 +29,7 @@ type dblpEngine struct {
 // 无强制限流，仍按礼貌访问惯例套 2/s、30/min 限流器。
 func NewDBLP(_ antirobot.DBLPOpts, client *http.Client) antirobot.Engine {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = defaultHTTPClient
 	}
 	return &dblpEngine{
 		client:  client,
