@@ -12,6 +12,9 @@ import (
 
 var baseDir string
 
+// adminClient 用于访问本机 admin API 的共享 client，带超时防止对端挂起时永久阻塞。
+var adminClient = &http.Client{Timeout: 5 * time.Second}
+
 func SetBaseDir(dir string) {
 	baseDir = dir
 }
@@ -89,7 +92,7 @@ type RefCountResponse struct {
 func PostRefCount(port, delta int) (*RefCountResponse, error) {
 	url := AdminURL(port, "/refcount")
 	body := fmt.Sprintf(`{"delta":%d}`, delta)
-	resp, err := http.Post(url, "application/json", strings.NewReader(body))
+	resp, err := adminClient.Post(url, "application/json", strings.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +108,7 @@ func PostRefCount(port, delta int) (*RefCountResponse, error) {
 // GetStatus 获取服务端状态
 func GetStatus(port int) (*RefCountResponse, error) {
 	url := AdminURL(port, "/status")
-	resp, err := http.Get(url)
+	resp, err := adminClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +124,7 @@ func GetStatus(port int) (*RefCountResponse, error) {
 // GetHealth 通过 health 端点检测服务是否存活。
 func GetHealth(port int) (*RefCountResponse, error) {
 	url := AdminURL(port, "/health")
-	resp, err := http.Get(url)
+	resp, err := adminClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +140,7 @@ func GetHealth(port int) (*RefCountResponse, error) {
 // PostShutdown 请求服务端强制关闭
 func PostShutdown(port int) error {
 	url := AdminURL(port, "/shutdown")
-	resp, err := http.Post(url, "application/json", nil)
+	resp, err := adminClient.Post(url, "application/json", nil)
 	if err != nil {
 		return err
 	}
