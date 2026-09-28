@@ -12,23 +12,23 @@ import (
 	"sync/atomic"
 	"time"
 	"websearch/pkg/config"
-	"websearch/pkg/log"
 	"websearch/pkg/fetch/mineru"
+	"websearch/pkg/log"
 
 	webfetch "github.com/daidaiJ/go-webfetch"
 )
 
 // Result 封装 go-webfetch 的返回结果。
 type Result struct {
-	Title      string
-	Mode       string // "inline" 或 "saved_to_file"
-	Markdown   string
-	FilePath   string
-	TotalLines int
-	TotalChars int
-	AgentHint  string
-	PageCount  int    // PDF 内容：文档总页数（非 PDF 为 0）
-	Preamble   string // 页截断/选择说明，工具输出时置于正文前
+	Title       string
+	Mode        string // "inline" 或 "saved_to_file"
+	Markdown    string
+	FilePath    string
+	TotalLines  int
+	TotalChars  int
+	AgentHint   string
+	PageCount   int    // PDF 内容：文档总页数（非 PDF 为 0）
+	Preamble    string // 页截断/选择说明，工具输出时置于正文前
 	ParseEngine string // PDF：实际解析器（pdf-lib / mineru-remote / mineru-ocr）
 	ParsedPages int    // PDF：本次实际解析页数；0 表示解析器未返回页数
 }
@@ -45,7 +45,9 @@ type fetchEngine interface {
 type mineruParser interface {
 	HasToken() bool
 	ParseURL(ctx context.Context, fileURL string) (string, error)
-	ParseFile(ctx context.Context, filePath string) (string, error)
+	ParseURLWithPages(ctx context.Context, fileURL string, pages []int, maxPages int) (string, error)
+	ParseStandardFile(ctx context.Context, filePath string) (string, error)
+	ParseFileWithPages(ctx context.Context, filePath string, pages []int, maxPages int) (string, error)
 }
 
 // Fetcher 封装 go-webfetch Engine。
@@ -173,14 +175,14 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 		return nil, fmt.Errorf("%s", classifyError(err))
 	}
 	return &Result{
-		Title:      res.Title,
-		Mode:       res.Mode,
-		Markdown:   res.Markdown,
-		FilePath:   res.FilePath,
-		TotalLines: res.TotalLines,
-		TotalChars: res.TotalChars,
-		AgentHint:  cleanAgentHint(res.AgentHint),
-		PageCount:  res.PageCount,
+		Title:       res.Title,
+		Mode:        res.Mode,
+		Markdown:    res.Markdown,
+		FilePath:    res.FilePath,
+		TotalLines:  res.TotalLines,
+		TotalChars:  res.TotalChars,
+		AgentHint:   cleanAgentHint(res.AgentHint),
+		PageCount:   res.PageCount,
 		ParseEngine: "pdf-lib",
 	}, nil
 }
@@ -193,6 +195,25 @@ func isPDFURL(rawURL string) bool {
 		return false
 	}
 	return strings.HasSuffix(strings.ToLower(u.Path), ".pdf")
+}
+
+// CanUseMinerURemotePDF reports whether this URL takes the precise MinerU route.
+func (f *Fetcher) CanUseMinerURemotePDF(rawURL string) bool {
+	return f.mineru != nil && f.mineru.HasToken() && f.mineruRemotePDF && isPDFURL(rawURL)
+}
+
+// ParseCroppedPDF uploads a locally selected PDF through MinerU's precise API.
+func (f *Fetcher) ParseCroppedPDF(ctx context.Context, path string) (*Result, error) {
+	f.beginActivity()
+	defer f.endActivity()
+	if f.mineru == nil || !f.mineru.HasToken() {
+		return nil, fmt.Errorf("MinerU 精准解析 API 需要 Token")
+	}
+	md, err := f.mineru.ParseStandardFile(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{Mode: "inline", Markdown: md, ParseEngine: "mineru-remote"}, nil
 }
 
 // localPathFromFileURL 将 file:// URL 规范为本地文件路径（兼容 Windows 三斜杠格式）。
@@ -208,7 +229,7 @@ func localPathFromFileURL(rawURL string) string {
 // FetchPDFWithPages 解析 PDF 的指定页（pdf_parser 专用）。
 // pages 非空时按指定页（1-based）；为空且 maxPages>0 时只取前 maxPages 页，
 // 发生截断时经 Result.Preamble 说明总页数与用 pages 继续的方式。
-// MinerU 路径（远程精准 API / 本地 OCR 回退）无页范围 API，返回全文并加说明。
+// MinerU 路径分别使用精准 API 的 page_ranges 和轻量 API 的 page_range。
 // 无页约束时与 Fetch 的 PDF 分支行为一致。
 func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []int, maxPages int) (*Result, error) {
 	f.beginActivity()
@@ -219,16 +240,20 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 	}
 
 	// 远程 PDF：MinerU 精准 API 优先（与 Fetch 一致）
+	var mineruErr error
 	if f.mineru != nil && f.mineru.HasToken() && f.mineruRemotePDF && isPDFURL(rawURL) {
 		log.Infof("MinerU 精准 API 命中 PDF URL: %s", rawURL)
-		md, err := f.mineru.ParseURL(ctx, rawURL)
+		md, err := f.mineru.ParseURLWithPages(ctx, rawURL, pages, maxPages)
 		if err == nil {
-			res := &Result{Mode: "inline", Markdown: md, ParseEngine: "mineru-remote"}
-			if len(pages) > 0 || maxPages > 0 {
-				res.Preamble = pagesUnsupportedNote
-			}
-			return res, nil
+			return &Result{
+				Mode: "inline", Markdown: md, ParseEngine: "mineru-remote",
+				Preamble: mineruPageNote(pages, maxPages, 200),
+			}, nil
 		}
+		if errors.Is(err, mineru.ErrPageLimit) || errors.Is(err, mineru.ErrRemoteURLRejected) {
+			return nil, err
+		}
+		mineruErr = err
 		log.Infof("MinerU 精准 API 解析失败(%v)，回退到 webfetch", err)
 	}
 
@@ -252,27 +277,56 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 		res, err = f.engine.Fetch(ctx, rawURL)
 	}
 	if err != nil {
+		if mineruErr != nil {
+			return nil, fmt.Errorf("MinerU 解析失败: %v；PDF 文本回退失败: %s", mineruErr, classifyError(err))
+		}
 		return nil, fmt.Errorf("%s", classifyError(err))
 	}
 
 	out := &Result{
-		Title:      res.Title,
-		Mode:       res.Mode,
-		Markdown:   res.Markdown,
-		FilePath:   res.FilePath,
-		TotalLines: res.TotalLines,
-		TotalChars: res.TotalChars,
-		AgentHint:  cleanAgentHint(res.AgentHint),
-		PageCount:  res.PageCount,
+		Title:       res.Title,
+		Mode:        res.Mode,
+		Markdown:    res.Markdown,
+		FilePath:    res.FilePath,
+		TotalLines:  res.TotalLines,
+		TotalChars:  res.TotalChars,
+		AgentHint:   cleanAgentHint(res.AgentHint),
+		PageCount:   res.PageCount,
 		ParseEngine: "pdf-lib",
 	}
 	out.ParsedPages = parsedPDFPageCount(pages, maxPages, out.PageCount)
 	out.Preamble = pdfPagesPreamble(out, pages, maxPages)
+	if mineruErr != nil {
+		out.Preamble = fmt.Sprintf("> MinerU 解析失败（%v），已改用 PDF 文本提取；图片未随文本返回。\n\n%s", mineruErr, out.Preamble)
+	}
 	return out, nil
 }
 
-// pagesUnsupportedNote MinerU 解析路径的页约束说明。
-const pagesUnsupportedNote = "> 注：该 PDF 经 MinerU 解析，MinerU 暂不支持按页截断/选择，以下为全文。"
+// mineruPageNote 说明已提交的选页请求；MinerU 不保证返回原文件总页数。
+func mineruPageNote(pages []int, maxPages, limit int) string {
+	if limit == 20 {
+		if len(pages) > 0 {
+			return fmt.Sprintf("> MinerU 轻量 API 已请求 %d 页；单次最多 20 页，较长 PDF 可继续用 pages 读取。", len(pages))
+		}
+		if maxPages > 0 {
+			if maxPages > limit {
+				maxPages = limit
+			}
+			return fmt.Sprintf("> MinerU 轻量 API 已请求前 %d 页；原文件总页数未知，后续页可用 pages 读取。", maxPages)
+		}
+		return ""
+	}
+	if len(pages) > 0 {
+		return fmt.Sprintf("> MinerU 已请求 %d 页；原 PDF 超过 %d 页时服务会裁切所需页面后上传。", len(pages), limit)
+	}
+	if maxPages > 0 {
+		if maxPages > limit {
+			maxPages = limit
+		}
+		return fmt.Sprintf("> MinerU 已请求前 %d 页；原文件总页数未知，后续页可用 pages 指定。原 PDF 超过 %d 页时服务会裁切所需页面后上传。", maxPages, limit)
+	}
+	return ""
+}
 
 // pdfPagesPreamble 截断说明：仅「未指定 pages 且按 max_pages 截断」时返回非空。
 func pdfPagesPreamble(result *Result, pages []int, maxPages int) string {
@@ -293,7 +347,7 @@ func (f *Fetcher) parseLocalPDF(ctx context.Context, localPath string) (*Result,
 }
 
 // parseLocalPDFWithPages parseLocalPDF 的按页版本：pages 非空时按指定页提取，
-// 否则 maxPages>0 时截前 N 页。扫描件回退 MinerU OCR 时无页能力，返回全文加说明。
+// 否则 maxPages>0 时截前 N 页。扫描件回退 MinerU OCR 时传递选页范围。
 func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, pages []int, maxPages int) (*Result, error) {
 	var engineOpts []webfetch.PDFOption
 	if len(pages) > 0 {
@@ -317,7 +371,7 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 	}
 
 	log.Infof("本地 PDF 库未提取到文本，尝试 MinerU OCR: %s", localPath)
-	md, mineruErr := f.mineru.ParseFile(ctx, localPath)
+	md, mineruErr := f.mineru.ParseFileWithPages(ctx, localPath, pages, maxPages)
 	if mineruErr == nil {
 		res := &Result{
 			Title:       filepath.Base(localPath),
@@ -325,9 +379,7 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 			Markdown:    md,
 			ParseEngine: "mineru-ocr",
 		}
-		if len(pages) > 0 || maxPages > 0 {
-			res.Preamble = pagesUnsupportedNote
-		}
+		res.Preamble = mineruPageNote(pages, maxPages, 20)
 		return res, nil
 	}
 	if errors.Is(mineruErr, mineru.ErrFileTooLarge) {
@@ -365,14 +417,14 @@ func (f *Fetcher) parsePDFFileOpts(ctx context.Context, filePath string, opts []
 		mode = "inline"
 	}
 	return &Result{
-		Title:      res.Title,
-		Mode:       mode,
-		Markdown:   res.Markdown,
-		FilePath:   res.FilePath,
-		TotalLines: res.TotalLines,
-		TotalChars: res.TotalChars,
-		AgentHint:  cleanAgentHint(res.AgentHint),
-		PageCount:  res.PageCount,
+		Title:       res.Title,
+		Mode:        mode,
+		Markdown:    res.Markdown,
+		FilePath:    res.FilePath,
+		TotalLines:  res.TotalLines,
+		TotalChars:  res.TotalChars,
+		AgentHint:   cleanAgentHint(res.AgentHint),
+		PageCount:   res.PageCount,
 		ParseEngine: "pdf-lib",
 	}, nil
 }

@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -52,13 +54,44 @@ func validateURLSecurity(rawURL string) error {
 		if ip == nil {
 			continue
 		}
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-			ip.IsLinkLocalMulticast() || ip.IsUnspecified() ||
-			isCloudMetadata(ip) {
+		if !isPublicIP(ip) {
 			return fmt.Errorf("不允许访问内网地址: %s → %s", host, ipStr)
 		}
 	}
 	return nil
+}
+
+func isPublicIP(ip net.IP) bool {
+	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !isCloudMetadata(ip)
+}
+
+// cropDialContext checks every DNS answer at connection time and dials a checked
+// IP directly, so a hostname cannot resolve to a private address after preflight.
+func cropDialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("无法解析下载地址: %s", host)
+	}
+	for _, addr := range addrs {
+		if !isPublicIP(addr.IP) {
+			return nil, fmt.Errorf("不允许连接内网地址: %s → %s", host, addr.IP)
+		}
+	}
+	var dialer net.Dialer
+	for _, addr := range addrs {
+		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(addr.IP.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+	}
+	return nil, fmt.Errorf("无法连接下载地址: %s", host)
 }
 
 // isPrivateHostFast 快速检查主机名是否为已知内网地址（无需 DNS 解析）。
@@ -103,7 +136,10 @@ func headCheck(ctx context.Context, rawURL string) error {
 	if maxSizeMB <= 0 {
 		maxSizeMB = 10
 	}
+	return headCheckWithLimit(ctx, rawURL, maxSizeMB)
+}
 
+func headCheckWithLimit(ctx context.Context, rawURL string, maxSizeMB int) error {
 	req, err := http.NewRequestWithContext(ctx, "HEAD", rawURL, nil)
 	if err != nil {
 		return nil // URL 构造失败不阻断，由后续 fetch 报错
@@ -144,4 +180,55 @@ func headCheck(ctx context.Context, rawURL string) error {
 		}
 	}
 	return nil
+}
+
+// downloadPDFForCrop keeps the original file local only until qpdf selects pages.
+func downloadPDFForCrop(ctx context.Context, rawURL string) (string, func(), error) {
+	const maxBytes = 200 * 1024 * 1024
+	if err := validateURLSecurity(rawURL); err != nil {
+		return "", nil, err
+	}
+	transport := &http.Transport{DialContext: cropDialContext}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{
+		Timeout:   2 * time.Minute,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= maxRedirectHops {
+				return fmt.Errorf("重定向跳数超过 %d", maxRedirectHops)
+			}
+			return validateURLSecurity(req.URL.String())
+		},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return "", nil, err
+	}
+	req.Header.Set("Accept-Encoding", "identity")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("下载待裁切 PDF 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, fmt.Errorf("下载待裁切 PDF 失败: HTTP %d", resp.StatusCode)
+	}
+	if resp.ContentLength > maxBytes {
+		return "", nil, fmt.Errorf("原 PDF 超过本地裁切下载上限 200MB")
+	}
+	file, err := os.CreateTemp("", "mineru-source-*.pdf")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.Remove(file.Name()) }
+	n, copyErr := io.Copy(file, io.LimitReader(resp.Body, maxBytes+1))
+	closeErr := file.Close()
+	if copyErr != nil || closeErr != nil || n > maxBytes {
+		cleanup()
+		if n > maxBytes {
+			return "", nil, fmt.Errorf("原 PDF 超过本地裁切下载上限 200MB")
+		}
+		return "", nil, fmt.Errorf("保存待裁切 PDF 失败: %v %v", copyErr, closeErr)
+	}
+	return file.Name(), cleanup, nil
 }

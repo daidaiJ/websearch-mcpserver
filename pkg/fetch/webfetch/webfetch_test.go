@@ -1,15 +1,17 @@
 package webfetch
 
 import (
-	"websearch/internal/testenv"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"websearch/internal/testenv"
 	"websearch/pkg/config"
+	"websearch/pkg/fetch/mineru"
 
 	webfetch "github.com/daidaiJ/go-webfetch"
 )
@@ -215,6 +217,9 @@ func TestNewFromConfigDefaults(t *testing.T) {
 type spyMineru struct {
 	hasToken      bool
 	parseURLCalls int
+	parseURLErr   error
+	pages         []int
+	maxPages      int
 }
 
 func (s *spyMineru) HasToken() bool { return s.hasToken }
@@ -222,7 +227,15 @@ func (s *spyMineru) ParseURL(ctx context.Context, fileURL string) (string, error
 	s.parseURLCalls++
 	return "# MinerU", nil
 }
-func (s *spyMineru) ParseFile(ctx context.Context, filePath string) (string, error) {
+func (s *spyMineru) ParseURLWithPages(ctx context.Context, fileURL string, pages []int, maxPages int) (string, error) {
+	s.parseURLCalls++
+	s.pages, s.maxPages = pages, maxPages
+	return "# MinerU", s.parseURLErr
+}
+func (s *spyMineru) ParseStandardFile(ctx context.Context, filePath string) (string, error) {
+	return "# MinerU upload", nil
+}
+func (s *spyMineru) ParseFileWithPages(ctx context.Context, filePath string, pages []int, maxPages int) (string, error) {
 	return "", nil
 }
 
@@ -293,6 +306,39 @@ func TestFetch_MineruOnlyForPDFURL(t *testing.T) {
 	}
 }
 
+func TestFetchPDFWithPages_PassesMinerUPages(t *testing.T) {
+	spy := &spyMineru{hasToken: true}
+	f := &Fetcher{engine: &stubEngine{}, mineru: spy, mineruRemotePDF: true}
+	result, err := f.FetchPDFWithPages(context.Background(), "https://example.com/doc.pdf", []int{2, 4}, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spy.parseURLCalls != 1 || len(spy.pages) != 2 || spy.pages[0] != 2 || spy.pages[1] != 4 || spy.maxPages != 20 {
+		t.Fatalf("MinerU page request = %v, max=%d, calls=%d", spy.pages, spy.maxPages, spy.parseURLCalls)
+	}
+	if result.ParseEngine != "mineru-remote" || strings.Contains(result.Preamble, "不支持按页") {
+		t.Fatalf("unexpected MinerU result: %+v", result)
+	}
+}
+
+func TestFetchPDFWithPages_ReportsMinerUPageLimitForLocalCrop(t *testing.T) {
+	for _, want := range []error{mineru.ErrPageLimit, mineru.ErrRemoteURLRejected} {
+		spy := &spyMineru{hasToken: true, parseURLErr: want}
+		f := &Fetcher{engine: &stubEngine{}, mineru: spy, mineruRemotePDF: true}
+		_, err := f.FetchPDFWithPages(context.Background(), "https://example.com/doc.pdf", []int{201}, 20)
+		if !errors.Is(err, want) {
+			t.Fatalf("expected retryable MinerU error %v, got %v", want, err)
+		}
+	}
+}
+
+func TestMinerUPageNoteForLongAgentPDF(t *testing.T) {
+	note := mineruPageNote([]int{21, 22}, 20, 20)
+	if !strings.Contains(note, "继续用 pages") || strings.Contains(note, "须先拆分") {
+		t.Fatalf("misleading Agent page guidance: %s", note)
+	}
+}
+
 func TestIsPDFURL(t *testing.T) {
 	tests := []struct {
 		rawURL string
@@ -354,12 +400,12 @@ func TestCleanExpiredFiles_StrictFilter(t *testing.T) {
 	old := time.Now().Add(-2 * time.Hour)
 	fresh := time.Now()
 	files := map[string]time.Time{
-		"20240101_000000_some-title_a1b2c3.md": old,     // 过期 + 匹配 → 删
-		"20260913_194110_rfc-editor_e3b0c4.md": fresh,   // 匹配但未过期 → 留
-		"20240101_000000_notes_a1b2c3.txt":     old,     // 扩展名不符 → 留
-		"notes.md":                             old,     // 用户自己的 md → 留
-		"20240101_000000_bad-hash_a1b2zz.md":   old,     // hash 段非 hex → 留
-		"random-20240101_000000_x_a1b2c3.md":   old,     // 前缀不符 → 留
+		"20240101_000000_some-title_a1b2c3.md": old,   // 过期 + 匹配 → 删
+		"20260913_194110_rfc-editor_e3b0c4.md": fresh, // 匹配但未过期 → 留
+		"20240101_000000_notes_a1b2c3.txt":     old,   // 扩展名不符 → 留
+		"notes.md":                             old,   // 用户自己的 md → 留
+		"20240101_000000_bad-hash_a1b2zz.md":   old,   // hash 段非 hex → 留
+		"random-20240101_000000_x_a1b2c3.md":   old,   // 前缀不符 → 留
 	}
 	for name, mt := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0644); err != nil {

@@ -139,7 +139,7 @@ mcp/tool_pdf.go PDFParserHandler
       ├► resolvePDFPath (local path/file:// vs remote http(s); remote goes through SSRF+HEAD pre-checks)
       └► pkg/fetch/webfetch Fetcher.FetchPDFWithPages (pages + pdf_parser.max_pages)
             ├► local: go-webfetch ledongthuc per-page extraction (keeps CJK cleanup / structure heuristics)
-            ├► remote: MinerU standard API (fetch/mineru, no page ranges → full text + note)
+            ├► remote: MinerU standard API (page_ranges first; on page 201+ or source page/URL rejection, download and crop with qpdf, then signed upload with a complete ZIP URL)
             │        or webfetch pipeline routing PDF by Content-Type
             └► on truncation Result.Preamble states total pages and how to continue with pages
 ```

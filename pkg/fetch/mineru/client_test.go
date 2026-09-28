@@ -2,6 +2,9 @@ package mineru
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -106,7 +109,7 @@ func TestMapAgentError(t *testing.T) {
 		{0, "ok", ""},
 		{-30001, "", "文件超过轻量 API 大小限制 (10MB)"},
 		{-30002, "", "轻量 API 不支持该文件格式"},
-		{-30003, "", "文件页数超过轻量 API 限制 (20页)"},
+		{-30003, "", "文件页数超过轻量 API 限制 (20页)；可用 pages 指定 20 页以内范围"},
 		{-30004, "", "请求参数错误"},
 	}
 	for _, tt := range tests {
@@ -114,6 +117,45 @@ func TestMapAgentError(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("mapAgentError(%d, %q) = %q, want %q", tt.code, tt.msg, got, tt.want)
 		}
+	}
+}
+
+func TestMinerUPageRanges(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		pages    []int
+		max      int
+		standard string
+	}{
+		{"default", nil, 20, "1-20"},
+		{"standard cap", nil, 500, "1-200"},
+		{"selected", []int{2, 4, 5, 6}, 20, "2,4-6"},
+		{"single", []int{5}, 20, "5"},
+		{"contiguous", []int{3, 4, 5}, 20, "3-5"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			standard, err := standardPageRanges(tt.pages, tt.max)
+			if err != nil || standard != tt.standard {
+				t.Fatalf("standardPageRanges = %q, %v; want %q", standard, err, tt.standard)
+			}
+		})
+	}
+	if _, err := standardPageRanges([]int{201}, 20); !errors.Is(err, ErrPageLimit) {
+		t.Fatal("standard API must reject pages beyond its 200-page file limit")
+	}
+}
+
+func TestCreateTaskRemoteURLRejected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":-60023,"msg":"URL restricted"}`))
+	}))
+	defer server.Close()
+	c := NewFromConfig("test-token", "pipeline", "ch", false, true, true, "")
+	c.endpoint = server.URL
+	_, err := c.createTask(context.Background(), "https://example.com/doc.pdf", "1")
+	if !errors.Is(err, ErrRemoteURLRejected) {
+		t.Fatalf("expected local-upload fallback, got %v", err)
 	}
 }
 

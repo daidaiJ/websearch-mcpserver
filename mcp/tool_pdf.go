@@ -2,11 +2,13 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"websearch/pkg/fetch/mineru"
 	"websearch/pkg/telemetry"
 )
 
@@ -87,12 +89,37 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		if err := validateURLSecurity(pdfPath); err != nil {
 			return nil, nil, err
 		}
-		if err := headCheck(ctx, pdfPath); err != nil {
+		maxSizeMB := cleanFetchMaxSizeMB
+		if maxSizeMB <= 0 {
+			maxSizeMB = 10
+		}
+		if webfetchInst.CanUseMinerURemotePDF(pdfPath) {
+			maxSizeMB = 200
+		}
+		if err := headCheckWithLimit(ctx, pdfPath, maxSizeMB); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	result, err := webfetchInst.FetchPDFWithPages(ctx, pdfPath, pages, maxPages)
+	if remote && (errors.Is(err, mineru.ErrPageLimit) || errors.Is(err, mineru.ErrRemoteURLRejected)) {
+		source, removeSource, downloadErr := downloadPDFForCrop(ctx, pdfPath)
+		if downloadErr != nil {
+			return nil, nil, fmt.Errorf("MinerU 远程 PDF 本地裁切准备失败: %w", downloadErr)
+		}
+		defer removeSource()
+		cropped, total, selected, removeCropped, cropErr := mineru.CropPDF(ctx, source, pages, maxPages, 200)
+		if cropErr != nil {
+			return nil, nil, fmt.Errorf("MinerU 远程 PDF 本地裁切失败: %w", cropErr)
+		}
+		defer removeCropped()
+		result, err = webfetchInst.ParseCroppedPDF(ctx, cropped)
+		if err == nil {
+			result.PageCount = total
+			result.ParsedPages = selected
+			result.Preamble = fmt.Sprintf("> 原 PDF 共 %d 页，已在本地裁切所需的 %d 页后上传 MinerU；结果页码从 1 重新编号。", total, selected)
+		}
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("PDF 解析失败: %v", err)
 	}
