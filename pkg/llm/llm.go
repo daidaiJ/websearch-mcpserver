@@ -119,7 +119,7 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", c.apiKey)).
 		SetHeader("Content-Type", "application/json").
 		SetBody(bytes.NewReader(body)).
-		SetDoNotParseResponse(true).
+		SetResponseDoNotParse(true).
 		Post(url)
 	if err != nil {
 		log.Errf("llm stream req failed : %s", err.Error())
