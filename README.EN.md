@@ -221,9 +221,13 @@ Full configuration reference: [docs/configuration.en.md](docs/configuration.en.m
 
 ## Documentation
 
-| Document | Contents |
-|----------|----------|
-| [docs/installation.md](docs/installation.md) | Installation (4-platform binaries / GHCR linux amd64+arm64 / source / client registration), operations & troubleshooting |
+> All documents default to Chinese; the same-named `.en.md` file is the English edition.
+
+| Reader | Document | Contents |
+|--------|----------|----------|
+| 👤 Human users | [docs/HUMAN_GUIDE.md](docs/HUMAN_GUIDE.md) | Human edition: doc routing, mode selection, tuning path, troubleshooting quick reference |
+| 🤖 AI agents | [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) | Token-efficient edition: deploy quick reference, tool parameters, machine contract, error diagnosis |
+| Reference | [docs/installation.md](docs/installation.md) | Installation (4-platform binaries / GHCR linux amd64+arm64 / source / client registration), operations & troubleshooting |
 | [docs/configuration.md](docs/configuration.md) | Full config reference, environment variable overrides, defaults quick reference |
 | [docs/search.md](docs/search.md) | Search modes, engine reference, relevance scoring, MCP tool parameters |
 | [docs/architecture.md](docs/architecture.md) | Architecture, fallback chain, proxy detection, caching, Go module embedding, web-researcher extension |

@@ -222,9 +222,13 @@ curl http://127.0.0.1:8338/__admin/api/metrics     # Prometheus 文本指标
 
 ## 文档导航
 
-| 文档 | 内容 |
-|------|------|
-| [docs/installation.md](docs/installation.md) | 安装部署（二进制 4 平台 / GHCR linux amd64+arm64 / 源码 / 客户端注册）、运维与排障 |
+> 各文档均为中文默认，同名 `.en.md` 为英文版。
+
+| 读者 | 文档 | 内容 |
+|------|------|------|
+| 👤 人类用户 | [docs/HUMAN_GUIDE.md](docs/HUMAN_GUIDE.md) | 人类阅读版：文档导读、模式选择、调优路线、排障速查 |
+| 🤖 AI Agent | [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) | 省 token 版：部署速查、工具参数速查、机器契约、错误速诊 |
+| 参考 | [docs/installation.md](docs/installation.md) | 安装部署（二进制 4 平台 / GHCR linux amd64+arm64 / 源码 / 客户端注册）、运维与排障 |
 | [docs/configuration.md](docs/configuration.md) | 完整配置参考、环境变量覆盖、默认值速查 |
 | [docs/search.md](docs/search.md) | 搜索模式详解、引擎对照、相关性评分、MCP 工具参数 |
 | [docs/architecture.md](docs/architecture.md) | 架构设计、回退链、代理检测、缓存、Go 模块嵌入、web-researcher 扩展 |
