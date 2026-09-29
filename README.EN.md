@@ -227,12 +227,14 @@ Full configuration reference: [docs/configuration.en.md](docs/configuration.en.m
 |--------|----------|----------|
 | 👤 Human users | [docs/HUMAN_GUIDE.md](docs/HUMAN_GUIDE.md) | Human edition: doc routing, mode selection, tuning path, troubleshooting quick reference |
 | 🤖 AI agents | [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) | Token-efficient edition: deploy quick reference, tool parameters, machine contract, error diagnosis |
-| Reference | [docs/installation.md](docs/installation.md) | Installation (4-platform binaries / GHCR linux amd64+arm64 / source / client registration), operations & troubleshooting |
-| [docs/configuration.md](docs/configuration.md) | Full config reference, environment variable overrides, defaults quick reference |
-| [docs/search.md](docs/search.md) | Search modes, engine reference, relevance scoring, MCP tool parameters |
-| [docs/architecture.md](docs/architecture.md) | Architecture, fallback chain, proxy detection, caching, Go module embedding, web-researcher extension |
-| [docs/api.md](docs/api.md) | Go Module API and HTTP API (MCP / SearXNG / Admin endpoints) |
-| [CHANGELOG.md](CHANGELOG.md) | Version changelog |
+| 📚 Reference | [docs/installation.md](docs/installation.md) | Installation (4-platform binaries / GHCR linux amd64+arm64 / source / client registration), operations & troubleshooting |
+| 📚 Reference | [docs/configuration.md](docs/configuration.md) | Full config reference, environment variable overrides, defaults quick reference |
+| 📚 Reference | [docs/search.md](docs/search.md) | Search modes, engine reference, relevance scoring, MCP tool parameters |
+| 📚 Reference | [docs/architecture.md](docs/architecture.md) | Architecture, fallback chain, proxy detection, caching, Go module embedding, web-researcher extension |
+| 📚 Reference | [docs/api.md](docs/api.md) | Go Module API and HTTP API (MCP / SearXNG / Admin endpoints) |
+| 📚 Reference | [docs/dashboard.md](docs/dashboard.md) | Local dashboard: every config key, write-operation security model, privacy boundaries |
+| 📚 Reference | [docs/developers.md](docs/developers.md) | Developer guide: package layout, interface contracts, tool call chains, change touchpoints |
+| 📚 Reference | [CHANGELOG.md](CHANGELOG.md) | Version changelog |
 
 ## Related Projects
 
