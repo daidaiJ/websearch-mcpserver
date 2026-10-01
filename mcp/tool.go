@@ -7,6 +7,7 @@ import (
 	"time"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/llm"
@@ -58,6 +59,11 @@ var (
 	jinaInst            *jina.Reader
 	webfetchInst        *webfetch.Fetcher
 	academicSearcher    search.AcademicSearcher
+	everythingInst       *everything.Client
+	everythingRoots      []string
+	everythingMaxResults int
+	everythingNoise      map[string]struct{}
+	everythingMinAlign   float64
 	smartSearchConf     config.SmartSearchConfig
 	cleanFetchMaxSizeMB int
 	pdfMaxPages         int
