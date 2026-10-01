@@ -17,6 +17,7 @@
   - [`academicsearch` — Academic Paper Search](#academicsearch--academic-paper-search)
   - [`cleanfetch` — Web Content Fetch](#cleanfetch--web-content-fetch)
   - [`pdf_parser` — PDF Parsing](#pdf_parser--pdf-parsing)
+  - [`file_search` — Local File Quick Search](#file_search--local-file-quick-search)
 - [Academic Search Tips](#academic-search-tips)
 
 ---
@@ -204,7 +205,7 @@ apipool:
 
 ## MCP Tools
 
-> Tool registration conditions: `smartsearch` needs `bing.enabled=true`; `academicsearch` needs `academic.enabled=true`; `cleanfetch` needs `cleanfetch.enabled=true`; `pdf_parser` needs `pdf_parser.enabled=true`.
+> Tool registration conditions: `smartsearch` needs `bing.enabled=true`; `academicsearch` needs `academic.enabled=true`; `cleanfetch` needs `cleanfetch.enabled=true`; `pdf_parser` needs `pdf_parser.enabled=true`; `file_search` has no switch — it is registered when the startup probe of the Everything HTTP Server succeeds, and stays hidden otherwise.
 
 ### `smartsearch` — General Web Search
 
@@ -267,6 +268,32 @@ When `pages` is omitted, the first `pdf_parser.max_pages` (default 20) pages are
 - `mineru_token`: Standard API for remote URLs (≤200MB/600 pages); can also be used with OCR fallback
 - Get Token: https://mineru.net/apiManage
 - Environment variable: `MINERU_TOKEN`
+
+---
+
+### `file_search` — Local File Quick Search
+
+Filename/path search over the index of [Everything (voidtools)](https://www.voidtools.com/) HTTP Server on Windows (millisecond results, read-only, never reads file contents). Windows only; **not recommended on any Linux distribution unless WSL** (set `everything.url` explicitly to the Windows host — on non-Windows platforms without an explicit url there is no probe and the tool stays hidden). For version-specific enable/hardening guidance (1.4 built-in vs 1.5a plugin, ini pitfalls, curl verification, hardening checklist) see [skills/everything-http-server](../skills/everything-http-server/SKILL.md).
+
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `query` | string | ✅ | Search text with Everything syntax: `factory`, `*.go`, `ext:pdf report`, `dm:lastweek`, `size:>1mb`; use `match_regex` for regular expressions |
+| `folder` | string | ❌ | Scope the search to a directory; accepts Windows (`D:\CODEi`) or Git Bash (`/d/code/ai`) style paths. When a whitelist is configured the folder must fall inside it; when omitted, all whitelisted directories are searched |
+| `match_case` | bool | ❌ | Case-sensitive match (Everything `i` flag) |
+| `whole_word` | bool | ❌ | Whole-word match (`w` flag) |
+| `match_regex` | bool | ❌ | Regex search (spliced as a `regex:` function so directory scoping is unaffected) |
+| `match_diacritics` | bool | ❌ | Match diacritics (`m` flag) |
+| `exclude` | []string | ❌ | Exclusion terms, each appended as an Everything NOT term (space-containing terms are auto-quoted): `["\obj\", "
+ode_modules\"]`; wrap path fragments with leading/trailing backslashes to avoid false hits on filenames |
+| `min_alignment` | number | ❌ | Lexical alignment threshold (0-1) overriding `everything.min_alignment`; start at 0.3 when results overflow, 0 = re-rank only |
+| `max_results` | int | ❌ | Max results returned (default 50, hard cap 200); keep it small to save context |
+| `sort` | string | ❌ | `name` (default) / `date_modified` / `size` / `path` |
+| `descending` | bool | ❌ | Descending order (with `sort`) |
+| `time_format` | string | ❌ | `datetime` (default, `2026-01-02 15:04:05`) / `iso` (ISO 8601 UTC) / `filetime` (raw FILETIME) |
+
+**Registration (automatic probe, no enabled switch)**: at startup the server probes `everything.url`; the tool is registered only when the server is reachable and authentication passes. If Everything is not running, its HTTP Server is disabled, or authentication fails, the tool stays hidden without affecting anything else.
+
+**Restraint constraints**: with `everything.roots` (directory whitelist) configured, every search is forcibly scoped to the whitelist and out-of-scope folders fail with an error. **Second-stage filtering (agent cost optimization)**: the server over-fetches 3x candidates (hard cap 600), when `sort` is not explicitly set, re-ranks them locally by lexical alignment of the query against filename/path (reusing the smartsearch scoring pipeline tokenizer and stop words; an explicit `sort` is respected and only the threshold filter applies), demotes results under noise directories such as `node_modules`/`.git`/`target` (`everything.noise_dirs` overrides), and `everything.min_alignment` drops weak matches — one line per result, weak hits never reach the context.
 
 ---
 

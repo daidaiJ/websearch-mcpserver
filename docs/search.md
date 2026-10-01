@@ -17,6 +17,7 @@
   - [`academicsearch` — 学术论文检索](#academicsearch--学术论文检索)
   - [`cleanfetch` — 网页内容抓取](#cleanfetch--网页内容抓取)
   - [`pdf_parser` — PDF 解析](#pdf_parser--pdf-解析)
+  - [`file_search` — 本地文件快速检索](#file_search--本地文件快速检索)
 - [学术搜索建议](#学术搜索建议)
 
 ---
@@ -204,7 +205,7 @@ apipool:
 
 ## MCP 工具
 
-> 工具注册条件：`smartsearch` 需 `bing.enabled=true`；`academicsearch` 需 `academic.enabled=true`；`cleanfetch` 需 `cleanfetch.enabled=true`；`pdf_parser` 需 `pdf_parser.enabled=true`。
+> 工具注册条件：`smartsearch` 需 `bing.enabled=true`；`academicsearch` 需 `academic.enabled=true`；`cleanfetch` 需 `cleanfetch.enabled=true`；`pdf_parser` 需 `pdf_parser.enabled=true`；`file_search` 无开关——启动探测 Everything HTTP Server 通过即注册，探测不过不暴露。
 
 ### `smartsearch` — 通用网络检索
 
@@ -269,6 +270,30 @@ apipool:
 - 环境变量：`MINERU_TOKEN`
 
 ---
+
+### `file_search` — 本地文件快速检索
+
+基于 Windows 下 [Everything (voidtools)](https://www.voidtools.com/) 的 HTTP Server 索引做本地文件名/路径检索（毫秒级、只读，不读文件内容）。仅 Windows 提供；**任何 Linux 发行版不建议启用，除非 WSL**（显式配置 `everything.url` 指向 Windows 宿主，非 Windows 且未配置 url 时不探测、工具不暴露）。 启用/加固的分版本操作指导（1.4 内建 vs 1.5a 插件、ini 陷阱、curl 验证、加固清单）见 [skills/everything-http-server](../skills/everything-http-server/SKILL.md)，agent 可直接调用 `/everything-http-server`。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `query` | string | ✅ | 检索词，支持 Everything 语法：`factory`、`*.go`、`ext:pdf report`、`dm:lastweek`、`size:>1mb` 等；正则请用 `match_regex` |
+| `folder` | string | ❌ | 限定检索目录，接受 Windows（`D:\CODE\ai`）或 Git Bash（`/d/code/ai`）风格；配置白名单时必须落在白名单内，省略则在白名单全部目录内检索 |
+| `match_case` | bool | ❌ | 区分大小写（透传 Everything `i` 参数） |
+| `whole_word` | bool | ❌ | 全字匹配（`w` 参数） |
+| `match_regex` | bool | ❌ | 正则检索（以 `regex:` 函数拼入，不影响目录限定） |
+| `match_diacritics` | bool | ❌ | 区分变音符号（`m` 参数） |
+| `exclude` | []string | ❌ | 排除项，每条作为一个 Everything NOT 词（含空格自动加引号）：`["\obj\", "
+ode_modules\"]`；带首尾反斜杠匹配路径片段才不误伤文件名 |
+| `min_alignment` | number | ❌ | 词汇对齐阈值（0~1），覆盖服务端 `everything.min_alignment`；结果过多时建议 0.3 起步，0 = 只重排不过滤 |
+| `max_results` | int | ❌ | 返回条数上限（默认 50，硬上限 200），建议按需调小节省上下文 |
+| `sort` | string | ❌ | `name`（默认）/ `date_modified` / `size` / `path` |
+| `descending` | bool | ❌ | 降序（配合 `sort`） |
+| `time_format` | string | ❌ | `datetime`（默认 `2026-01-02 15:04:05`）/ `iso`（ISO 8601 UTC）/ `filetime`（原始 FILETIME） |
+
+**注册条件（自动探测，无 enabled 开关）**：启动时探测 `everything.url`，连通且鉴权通过才注册该工具；Everything 未运行、HTTP Server 未启用或鉴权失败时静默不暴露，不影响其它工具。
+
+**克制约束**：配置 `everything.roots`（目录白名单）后所有检索强制限定在白名单内，白名单外目录直接报错，防越界。**二次过滤（agent cost 优化）**：服务端按 3 倍超采候选（硬上限 600），`sort` 未显式指定时本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线的分词与停用词；显式指定 `sort` 则尊重服务端排序，仅保留阈值过滤），命中 `node_modules`/`.git`/`target` 等噪声目录的结果排序减半（`everything.noise_dirs` 可覆盖），`everything.min_alignment` 阈值可丢弃弱匹配——每条结果一行，弱相关不进上下文。
 
 ## 学术搜索建议
 

@@ -324,6 +324,22 @@ pdf_parser:
 #     doubao: 500
 
 # Log rotation
+
+# Everything local file search (file_search tool, optional; Windows + Everything HTTP Server only)
+# Note: not recommended on any Linux distribution unless running under WSL with everything.url explicitly pointing at the Windows host; on non-Windows platforms without an explicit url there is no probe and the tool stays hidden.
+# No enabled switch: the server probes everything.url at startup and registers file_search
+# only when the HTTP Server is reachable and authentication passes; otherwise the tool
+# stays hidden without affecting anything else.
+# everything:
+#   url: "http://127.0.0.1:4180"   # HTTP Server address (Everything Tools -> Options -> HTTP Server)
+#   username: ""                   # Basic username/password when the server has auth enabled
+#   password: ""
+#   roots: []                      # Directory whitelist (absolute paths): when set, searches are forcibly scoped to it
+#   max_results: 50                # Max results per call (default 50, hard cap 200)
+#   timeout_sec: 5                 # Per-request timeout in seconds
+#   noise_dirs: ~                  # Noise-directory demotion: nil = built-in defaults (node_modules/.git/target...); [] = disable
+#   min_alignment: 0               # Lexical alignment threshold (0-1): weak results below it are dropped; 0 = re-rank only
+
 log:
   max_size: 1               # Max file size (MB)
   max_age: 1                # Retention (days)

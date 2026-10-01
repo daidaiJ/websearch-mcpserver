@@ -102,6 +102,7 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 | Provider resilience | Single provider, no fallback | Engine aggregation | Multi-engine + auto-fallback |
 | LLM optimization | Raw results | Raw results | Local scoring + dedup + optional summary |
 | Academic search | No | No | 9 academic engines |
+| Local file search | `file_search` locates local files in milliseconds via the Everything index, with a directory whitelist against scope creep and lexical-alignment second-stage filtering to protect context (needs Everything HTTP Server) |
 | Fetch / PDF | Separate integration | No | Built-in cleanfetch / pdf_parser |
 | Data privacy | Third-party servers | Local | Local |
 
@@ -113,9 +114,9 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 
 **Scalable complexity** — One config file, with `mode` scaling from `engine` (zero config) to `hybrid` (all engines). Zero-config and power users each get what they need without paying for complexity.
 
-**Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, the 4 tools each have their own `enabled` switch, keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
+**Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, the 4 web tools each have their own `enabled` switch (`file_search` is probe-gated instead), keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
 
-**A complete tool chain for LLMs** — The 4 tools cover the full web workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser`, with results feeding into each other — one config enables the whole chain.
+**A complete tool chain for LLMs** — The 5 tools cover the full retrieval workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser` → `file_search` (Windows + Everything, auto-exposed when the startup probe passes), with results feeding into each other — one config enables the whole chain.
 
 **Scenario-specific optimization** — Optimized for real usage scenarios: academic search (9 engines + citation / journal / PDF scoring), China networking (direct connect + system proxy auto-detection), scanned PDFs (MinerU OCR fallback), recency queries (`time_range`).
 
