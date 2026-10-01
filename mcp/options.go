@@ -1,9 +1,13 @@
 package mcpserver
 
 import (
+	"context"
 	"fmt"
+	"runtime"
+	"time"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
@@ -38,6 +42,12 @@ func WithJinaReader(conf config.Config) ServerOption {
 // 未启用时保留配置，供 fetch_top_n 惰性初始化。
 func WithWebFetch(conf config.Config) ServerOption {
 	return func() { applyWebFetch(conf) }
+}
+
+// WithEverything 探测 Everything HTTP Server：连通且鉴权通过才启用
+// file_search 工具；不可达或鉴权失败时保持未初始化，工具不暴露。
+func WithEverything(conf config.Config) ServerOption {
+	return func() { applyEverything(conf) }
 }
 
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
@@ -78,6 +88,33 @@ func applyJinaReader(conf config.Config) {
 	if jinaInst != nil {
 		log.Info("Jina Reader 已启用")
 	}
+}
+
+// applyEverything 初始化 Everything 客户端并做启动探测。
+// 探测不过（服务未启动 / 鉴权失败）只记一条 Info，不算启动失败——
+// Everything 是可选能力，file_search 工具在本次进程中不暴露。
+func applyEverything(conf config.Config) {
+	if conf.Everything.URL == "" {
+		log.Info("everything.url 未配置且当前平台非 Windows，file_search 不启用")
+		return
+	}
+	if runtime.GOOS != "windows" {
+		log.Warnf("当前平台为 %s：Everything 仅支持 Windows，任何 Linux 发行版都不建议启用 file_search，除非运行在 WSL 且 everything.url 指向 Windows 宿主的 Everything HTTP Server（%s）", runtime.GOOS, conf.Everything.URL)
+	}
+	client := everything.New(conf.Everything.URL, conf.Everything.Username, conf.Everything.Password,
+		time.Duration(conf.Everything.TimeoutSec)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.Probe(ctx); err != nil {
+		log.Infof("Everything HTTP Server 探测未通过（%v），file_search 工具不暴露；请确认 Everything 正在运行、已启用 HTTP Server 插件，且 everything.username/password 与服务端一致", err)
+		return
+	}
+	everythingInst = client
+	everythingRoots = conf.Everything.Roots
+	everythingMaxResults = conf.Everything.MaxResults
+	everythingNoise = everything.NoiseDirSet(conf.Everything.NoiseDirs)
+	everythingMinAlign = conf.Everything.MinAlignment
+	log.Infof("Everything HTTP Server 探测通过，file_search 已启用（url: %s, 白名单目录: %d 个）", conf.Everything.URL, len(conf.Everything.Roots))
 }
 
 func applyWebFetch(conf config.Config) {

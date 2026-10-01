@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -61,6 +62,7 @@ type Config struct {
 	Academic           AcademicConfig    `mapstructure:"academic"`
 	CleanFetch         CleanFetchConfig  `mapstructure:"cleanfetch"`
 	PDFParser          PDFParserConfig   `mapstructure:"pdf_parser"`
+	Everything         EverythingConfig  `mapstructure:"everything"`
 	Proxy              ProxyConfig       `mapstructure:"proxy"`
 	SmartSearch        SmartSearchConfig `mapstructure:"smartsearch"`
 	Apipool            ApipoolConfig     `mapstructure:"apipool"`
@@ -263,6 +265,23 @@ type AcademicConfig struct {
 
 	// UnpaywallEmail 用于补全缺失的 OA PDF（环境变量 UNPAYWALL_EMAIL）。空则跳过 Unpaywall。
 	UnpaywallEmail string `mapstructure:"unpaywall_email"`
+}
+
+// ── Everything 文件检索配置 ──
+
+type EverythingConfig struct {
+	URL        string   `mapstructure:"url"`         // Everything HTTP Server 地址（默认 http://127.0.0.1:4180）
+	Username   string   `mapstructure:"username"`    // Basic 鉴权用户名（服务端启用了鉴权时必填）
+	Password   string   `mapstructure:"password"`    // Basic 鉴权密码
+	Roots      []string `mapstructure:"roots"`        // 目录白名单（绝对路径）：非空时检索强制限定在白名单内，空 = 不限
+	MaxResults int      `mapstructure:"max_results"`  // 单次返回上限（默认 50，硬上限 200）
+	TimeoutSec int      `mapstructure:"timeout_sec"`  // 单次请求超时（秒），默认 5
+	// NoiseDirs 噪声目录：命中片段的结果排序减半（不剔除）。nil = 内置默认
+	// （node_modules/.git/target 等）；显式空数组 = 关闭降权。
+	NoiseDirs []string `mapstructure:"noise_dirs"`
+	// MinAlignment 词汇对齐阈值（0~1，默认 0 = 只重排不过滤）：查询词与
+	// 文件名+路径的对齐率低于该值的结果被丢弃，防止弱匹配打爆上下文。
+	MinAlignment float64 `mapstructure:"min_alignment"`
 }
 
 // ── CleanFetch 配置 ──
@@ -1004,6 +1023,23 @@ func Load(configPath string) (*Config, error) {
 	// MinerU 远程 PDF 精准解析默认开启（false 则远程 URL 一律不走 MinerU）
 	if !viper.IsSet("pdf_parser.mineru_remote_pdf") {
 		conf.PDFParser.MinerURemotePDF = true
+	}
+
+	// Everything 文件检索默认值。无 enabled 开关：可用性完全由启动探测决定，
+	// 探测不过则 file_search 工具不暴露。默认地址仅在 Windows 上注入——
+	// Everything 是 Windows 软件，任何 Linux 发行版默认不启用（除非 WSL，
+	// 用户显式配置 everything.url 指向 Windows 宿主）。
+	if conf.Everything.URL == "" && runtime.GOOS == "windows" {
+		conf.Everything.URL = "http://127.0.0.1:4180"
+	}
+	if conf.Everything.MaxResults <= 0 {
+		conf.Everything.MaxResults = 50
+	}
+	if conf.Everything.MaxResults > 200 {
+		conf.Everything.MaxResults = 200
+	}
+	if conf.Everything.TimeoutSec <= 0 {
+		conf.Everything.TimeoutSec = 5
 	}
 
 	// 代理：标记用户显式禁用（enabled: false），跳过自动检测

@@ -205,6 +205,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 		mcpserver.WithCache(conf),
 		mcpserver.WithWebFetch(conf),
 		mcpserver.WithJinaReader(conf),
+		mcpserver.WithEverything(conf),
 	); err != nil {
 		return err
 	}
@@ -307,6 +308,7 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 		mcpserver.WithCache(conf),
 		mcpserver.WithWebFetch(conf),
 		mcpserver.WithJinaReader(conf),
+		mcpserver.WithEverything(conf),
 	); err != nil {
 		panic(err)
 	}
