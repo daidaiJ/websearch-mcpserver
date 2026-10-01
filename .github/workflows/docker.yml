@@ -4,7 +4,7 @@
 # GitHub Release 不含 linux-arm64 / windows-arm64 二进制；MCP mcpb 跟 Release 四平台。
 #
 # Trigger: 普通 semver tag（v3.4.0）推 GHCR；发完后再打的 -registry 后缀不重复推镜像
-#   - Go 交叉编译在 Dockerfile BUILDPLATFORM 阶段完成，不装 QEMU
+#   - Go 交叉编译在 Dockerfile BUILDPLATFORM 阶段完成；QEMU 仅用于安装 qpdf
 #   - 失败不影响 GitHub Release / MCP Registry 工作流
 
 name: Docker
@@ -27,6 +27,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up QEMU for qpdf runtime package
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -54,7 +57,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          # 无 QEMU：builder/certs 阶段跑在 runner 上交叉编译，最终 alpine 只有 COPY
+          # Go 仍在 runner 上交叉编译；运行镜像用 QEMU 安装目标架构的 qpdf
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: false

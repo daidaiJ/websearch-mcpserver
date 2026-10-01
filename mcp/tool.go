@@ -61,6 +61,10 @@ var (
 	smartSearchConf     config.SmartSearchConfig
 	cleanFetchMaxSizeMB int
 	pdfMaxPages         int
+	// MinerU 本地裁切路径的分批与预算参数（0 值语义见 config.PDFParserConfig）。
+	pdfMineruPageLimit  int
+	pdfMineruPageBatch  int
+	pdfMineruPageBudget int
 
 	// webfetchLazyCfg 保存 Init 时的配置，供 fetch_top_n 在
 	// cleanfetch/pdf_parser 均未启用时惰性初始化 webfetch（F1）。

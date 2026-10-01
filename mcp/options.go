@@ -108,6 +108,9 @@ func ensureWebFetch() bool {
 	webfetchInst = f
 	cleanFetchMaxSizeMB = webfetchLazyCfg.CleanFetch.MaxFetchSizeMB
 	pdfMaxPages = webfetchLazyCfg.PDFParser.GetMaxPages()
+	pdfMineruPageLimit = webfetchLazyCfg.PDFParser.GetMinerUPageLimit()
+	pdfMineruPageBatch = webfetchLazyCfg.PDFParser.GetMinerUPageBatchSize()
+	pdfMineruPageBudget = webfetchLazyCfg.PDFParser.GetMinerUPageBudget()
 	log.Info("WebFetch 已按需初始化（fetch_top_n）")
 	return true
 }

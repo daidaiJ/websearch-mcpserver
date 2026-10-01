@@ -252,6 +252,9 @@ pdf_parser:
   # mineru_formula: true     # Formula recognition (default true)
   # mineru_table: true       # Table recognition (default true)
   # mineru_lang: "ch"        # Document language (default ch)
+  # mineru_page_limit: 600   # Standard API per-task page limit (default 600, per MinerU official docs)
+  # mineru_page_batch_size: 0 # Auto batch size for local crop fallback: 0=no batching (over-limit rejected); 10-200=pages per batch, submitted serially
+  # mineru_page_budget: 0    # MinerU page budget per call (0=same as mineru_page_limit); on exhaustion returns parsed part with continuation hint
 
 # Search result filtering and output format (optional)
 # smartsearch:
@@ -445,6 +448,9 @@ log:
 | `pdf_parser.mineru_formula` | true | Formula recognition |
 | `pdf_parser.mineru_table` | true | Table recognition |
 | `pdf_parser.mineru_lang` | ch | Document language |
+| `pdf_parser.mineru_page_limit` | 600 | Standard API per-task page limit; requests beyond it trigger the local qpdf crop fallback |
+| `pdf_parser.mineru_page_batch_size` | 0 | Auto batch size for crop fallback: 0=no batching; 10-200=pages per batch (1-9 treated as 0, >200 clamped to 200) |
+| `pdf_parser.mineru_page_budget` | 0 | MinerU page budget per call (0=same as page_limit); on exhaustion returns the parsed part and suggests continuation pages |
 | `smartsearch.show_meta` | true | Show engine source and relevance score in output |
 | `smartsearch.fetch_top_n` | 0 | Server-side default body-fetch count (applies when the agent omits `fetch_top_n`); default 0 = no fetch (same as before), 1-5 = one search returns full text (API engines use the fast path, web engines fetch internally) |
 | `smartsearch.enhance` | true | Local scoring enhancement |

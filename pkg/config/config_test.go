@@ -279,6 +279,40 @@ func TestMinerUEnabled(t *testing.T) {
 	}
 }
 
+func TestMinerUPageScalingGetters(t *testing.T) {
+	// 默认值：上限 600（对齐 MinerU 官方），不分批，预算=上限
+	d := PDFParserConfig{}
+	if got := d.GetMinerUPageLimit(); got != 600 {
+		t.Errorf("GetMinerUPageLimit() = %d, want 600", got)
+	}
+	if got := d.GetMinerUPageBatchSize(); got != 0 {
+		t.Errorf("GetMinerUPageBatchSize() = %d, want 0", got)
+	}
+	if got := d.GetMinerUPageBudget(); got != 600 {
+		t.Errorf("GetMinerUPageBudget() = %d, want 600", got)
+	}
+	// 显式配置
+	c := PDFParserConfig{MinerUPageLimit: 400, MinerUPageBatchSize: 120, MinerUPageBudget: 800}
+	if got := c.GetMinerUPageLimit(); got != 400 {
+		t.Errorf("limit = %d, want 400", got)
+	}
+	if got := c.GetMinerUPageBatchSize(); got != 120 {
+		t.Errorf("batch = %d, want 120", got)
+	}
+	if got := c.GetMinerUPageBudget(); got != 800 {
+		t.Errorf("budget = %d, want 800", got)
+	}
+	// 非法值收敛
+	bad := PDFParserConfig{MinerUPageBatchSize: 5}
+	if got := bad.GetMinerUPageBatchSize(); got != 0 {
+		t.Errorf("batch=5 → %d, want 0", got)
+	}
+	bad.MinerUPageBatchSize = 500
+	if got := bad.GetMinerUPageBatchSize(); got != 200 {
+		t.Errorf("batch=500 → %d, want 200", got)
+	}
+}
+
 func TestExampleConfigIsYAML(t *testing.T) {
 	if len(ExampleConfig) == 0 {
 		t.Fatal("ExampleConfig is empty")

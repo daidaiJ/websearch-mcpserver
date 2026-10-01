@@ -29,30 +29,44 @@ const (
 
 	defaultModelVersion = "pipeline"
 	defaultLang         = "ch"
+
+	// DefaultPageLimit MinerU 精准 API 单任务页数上限（官方文档 2026-10：200MB / 600 页）。
+	DefaultPageLimit = 600
 )
 
 // ErrFileTooLarge 文件超过 Agent 轻量 API 限制（10MB）。
 var ErrFileTooLarge = errors.New("file exceeds MinerU Agent API size limit (10MB)")
 
+// ErrPageLimit means MinerU rejected the original document's page count.
+var ErrPageLimit = errors.New("MinerU PDF 页数超过接口限制")
+
+// ErrRemoteURLRejected means MinerU cannot fetch a URL that the local service may still read.
+var ErrRemoteURLRejected = errors.New("MinerU 无法直接读取远程 PDF URL")
+
 // Client MinerU 文档解析 API 客户端。
 type Client struct {
 	token        string
+	endpoint     string
 	modelVersion string
 	ocr          bool
 	formula      bool
 	table        bool
 	lang         string
+	pageLimit    int
 	client       *resty.Client
 }
 
 // NewFromConfig 根据配置创建 MinerU 客户端。
-// Token 为空时仍可创建（Agent 轻量 API 可用）。
-func NewFromConfig(token, modelVersion, lang string, ocr, formula, table bool, proxyURL string) *Client {
+// Token 为空时仍可创建（Agent 轻量 API 可用）；pageLimit <= 0 时取 DefaultPageLimit。
+func NewFromConfig(token, modelVersion, lang string, ocr, formula, table bool, proxyURL string, pageLimit int) *Client {
 	if modelVersion == "" {
 		modelVersion = defaultModelVersion
 	}
 	if lang == "" {
 		lang = defaultLang
+	}
+	if pageLimit <= 0 {
+		pageLimit = DefaultPageLimit
 	}
 
 	var rc *resty.Client
@@ -66,14 +80,19 @@ func NewFromConfig(token, modelVersion, lang string, ocr, formula, table bool, p
 
 	return &Client{
 		token:        token,
+		endpoint:     baseURL,
 		modelVersion: modelVersion,
 		ocr:          ocr,
 		formula:      formula,
 		table:        table,
 		lang:         lang,
+		pageLimit:    pageLimit,
 		client:       rc,
 	}
 }
+
+// PageLimit 返回精准 API 单任务页数上限。
+func (c *Client) PageLimit() int { return c.pageLimit }
 
 // HasToken 返回是否配置了 Token（可使用精准解析 API）。
 func (c *Client) HasToken() bool {
@@ -82,11 +101,20 @@ func (c *Client) HasToken() bool {
 
 // ParseURL 通过精准解析 API 解析远程文件 URL。需要 Token。
 func (c *Client) ParseURL(ctx context.Context, fileURL string) (string, error) {
+	return c.ParseURLWithPages(ctx, fileURL, nil, 0)
+}
+
+// ParseURLWithPages 向 MinerU 传递选页范围；省略选页时使用 maxPages。
+func (c *Client) ParseURLWithPages(ctx context.Context, fileURL string, pages []int, maxPages int) (string, error) {
 	if c.token == "" {
 		return "", fmt.Errorf("MinerU 精准解析 API 需要 Token")
 	}
+	pageRanges, err := standardPageRanges(pages, maxPages, c.pageLimit)
+	if err != nil {
+		return "", err
+	}
 
-	taskID, err := c.createTask(ctx, fileURL)
+	taskID, err := c.createTask(ctx, fileURL, pageRanges)
 	if err != nil {
 		return "", err
 	}
@@ -101,12 +129,58 @@ func (c *Client) ParseURL(ctx context.Context, fileURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("MinerU 结果下载失败: %w", err)
 	}
-	return md, nil
+	return fmt.Sprintf("> **MinerU 完整结果 ZIP（含图片资源）**：%s。Markdown 中的相对图片路径需与 ZIP 内的 images/ 一起使用。\n\n%s", zipURL, md), nil
+}
+
+// standardPageRanges 将已排序的 MCP 页码转成精准 API 的 page_ranges。
+// API 对原文件有页数上限（limit），指定页范围也不能解除该限制；
+// 页码超出上限时返回 ErrPageLimit，由调用方决定是否本地裁切后重试。
+func standardPageRanges(pages []int, maxPages, limit int) (string, error) {
+	if len(pages) == 0 {
+		if maxPages <= 0 {
+			return "", nil
+		}
+		if maxPages > limit {
+			maxPages = limit
+		}
+		return fmt.Sprintf("1-%d", maxPages), nil
+	}
+	if len(pages) > limit || pages[len(pages)-1] > limit {
+		return "", fmt.Errorf("%w：精准 API 单次最多 %d 页", ErrPageLimit, limit)
+	}
+	var parts []string
+	for i := 0; i < len(pages); {
+		start, end := pages[i], pages[i]
+		for i+1 < len(pages) && pages[i+1] == end+1 {
+			i++
+			end = pages[i]
+		}
+		if start == end {
+			parts = append(parts, fmt.Sprint(start))
+		} else {
+			parts = append(parts, fmt.Sprintf("%d-%d", start, end))
+		}
+		i++
+	}
+	return strings.Join(parts, ","), nil
 }
 
 // ParseFile 通过 Agent 轻量 API 解析本地文件（签名上传模式）。
 // 文件大小超过 10MB 时返回 ErrFileTooLarge。
 func (c *Client) ParseFile(ctx context.Context, filePath string) (string, error) {
+	return c.ParseFileWithPages(ctx, filePath, nil, 0)
+}
+
+// ParseFileWithPages 先裁切所选页，再通过轻量 API 上传不超过 20 页的子 PDF。
+func (c *Client) ParseFileWithPages(ctx context.Context, filePath string, pages []int, maxPages int) (string, error) {
+	if len(pages) > 0 || maxPages > 0 {
+		cropped, _, _, cleanup, err := CropPDF(ctx, filePath, pages, maxPages, 20)
+		if err != nil {
+			return "", err
+		}
+		defer cleanup()
+		filePath = cropped
+	}
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return "", fmt.Errorf("文件不存在: %w", err)
@@ -135,6 +209,9 @@ func (c *Client) ParseFile(ctx context.Context, filePath string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("MinerU 结果下载失败: %w", err)
 	}
+	if strings.Contains(md, "images/") {
+		md = "> 注：MinerU 轻量 API 仅提供 Markdown 链接，未提供可下载的图片包；文中的 images/ 相对路径可能无法读取。需要完整配图时请使用带 Token 的精准 API。\n\n" + md
+	}
 	return md, nil
 }
 
@@ -148,7 +225,7 @@ type createTaskResp struct {
 	} `json:"data"`
 }
 
-func (c *Client) createTask(ctx context.Context, fileURL string) (string, error) {
+func (c *Client) createTask(ctx context.Context, fileURL, pageRanges string) (string, error) {
 	body := map[string]any{
 		"url":            fileURL,
 		"model_version":  c.modelVersion,
@@ -157,6 +234,9 @@ func (c *Client) createTask(ctx context.Context, fileURL string) (string, error)
 		"enable_table":   c.table,
 		"language":       c.lang,
 	}
+	if pageRanges != "" {
+		body["page_ranges"] = pageRanges
+	}
 
 	var resp createTaskResp
 	res, err := c.client.R().
@@ -164,7 +244,7 @@ func (c *Client) createTask(ctx context.Context, fileURL string) (string, error)
 		SetHeader("Authorization", "Bearer "+c.token).
 		SetBody(body).
 		SetResult(&resp).
-		Post(baseURL + standardAPIPath + "/extract/task")
+		Post(c.endpoint + standardAPIPath + "/extract/task")
 	if err != nil {
 		return "", fmt.Errorf("MinerU 服务连接失败: %w", err)
 	}
@@ -175,20 +255,36 @@ func (c *Client) createTask(ctx context.Context, fileURL string) (string, error)
 		return "", fmt.Errorf("MinerU 服务异常 (HTTP %d)", res.StatusCode())
 	}
 	if resp.Code != 0 {
+		if err := classifyStandardError(resp.Code, resp.Msg); err != nil {
+			return "", err
+		}
 		return "", fmt.Errorf("MinerU 任务提交失败: %s", mapAPIError(resp.Code, resp.Msg))
 	}
 	return resp.Data.TaskID, nil
+}
+
+// classifyStandardError 把精准 API 中「可本地补救」的错误码转成哨兵错误：
+// -60006 页数超限（本地裁切可解）、-60023 源 URL 被拒（本地下载上传可解）。
+func classifyStandardError(code int, msg string) error {
+	switch code {
+	case -60006:
+		return fmt.Errorf("%w: %s", ErrPageLimit, mapAPIError(code, msg))
+	case -60023:
+		return fmt.Errorf("%w: %s", ErrRemoteURLRejected, mapAPIError(code, msg))
+	default:
+		return nil
+	}
 }
 
 type taskStatusResp struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
 	Data struct {
-		TaskID      string `json:"task_id"`
-		State       string `json:"state"`
-		FullZipURL  string `json:"full_zip_url"`
-		ErrMsg      string `json:"err_msg"`
-		ErrCode     int    `json:"err_code"`
+		TaskID          string `json:"task_id"`
+		State           string `json:"state"`
+		FullZipURL      string `json:"full_zip_url"`
+		ErrMsg          string `json:"err_msg"`
+		ErrCode         int    `json:"err_code"`
 		ExtractProgress struct {
 			ExtractedPages int    `json:"extracted_pages"`
 			TotalPages     int    `json:"total_pages"`
@@ -213,7 +309,7 @@ func (c *Client) pollStandardTask(ctx context.Context, taskID string) (string, e
 			SetContext(deadline).
 			SetHeader("Authorization", "Bearer "+c.token).
 			SetResult(&resp).
-			Get(fmt.Sprintf("%s%s/extract/task/%s", baseURL, standardAPIPath, taskID))
+			Get(fmt.Sprintf("%s%s/extract/task/%s", c.endpoint, standardAPIPath, taskID))
 		if err != nil {
 			return "", fmt.Errorf("MinerU 查询失败: %w", err)
 		}
@@ -224,6 +320,9 @@ func (c *Client) pollStandardTask(ctx context.Context, taskID string) (string, e
 			return "", fmt.Errorf("MinerU 服务异常 (HTTP %d)", res.StatusCode())
 		}
 		if resp.Code != 0 {
+			if err := classifyStandardError(resp.Code, resp.Msg); err != nil {
+				return "", err
+			}
 			return "", fmt.Errorf("MinerU 查询失败: %s", mapAPIError(resp.Code, resp.Msg))
 		}
 
@@ -234,6 +333,9 @@ func (c *Client) pollStandardTask(ctx context.Context, taskID string) (string, e
 			}
 			return resp.Data.FullZipURL, nil
 		case "failed":
+			if err := classifyStandardError(resp.Data.ErrCode, resp.Data.ErrMsg); err != nil {
+				return "", err
+			}
 			return "", fmt.Errorf("MinerU 解析失败: %s", mapAPIError(resp.Data.ErrCode, resp.Data.ErrMsg))
 		case "pending", "running", "converting":
 			ep := resp.Data.ExtractProgress
@@ -273,7 +375,7 @@ func (c *Client) createFileTask(ctx context.Context, fileName string) (taskID, u
 		SetHeader("Content-Type", "application/json").
 		SetBody(body).
 		SetResult(&resp).
-		Post(baseURL + agentAPIPath + "/parse/file")
+		Post(c.endpoint + agentAPIPath + "/parse/file")
 	if err != nil {
 		return "", "", fmt.Errorf("MinerU 服务连接失败: %w", err)
 	}
@@ -287,13 +389,14 @@ func (c *Client) createFileTask(ctx context.Context, fileName string) (taskID, u
 }
 
 func (c *Client) uploadFile(ctx context.Context, uploadURL, filePath string) error {
-	data, err := os.ReadFile(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	// 签名上传使用原生 http.Client，避免 resty 添加额外请求头
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, file)
 	if err != nil {
 		return err
 	}
@@ -336,7 +439,7 @@ func (c *Client) pollAgentTask(ctx context.Context, taskID string) (string, erro
 		res, err := c.client.R().
 			SetContext(deadline).
 			SetResult(&resp).
-			Get(fmt.Sprintf("%s%s/parse/%s", baseURL, agentAPIPath, taskID))
+			Get(fmt.Sprintf("%s%s/parse/%s", c.endpoint, agentAPIPath, taskID))
 		if err != nil {
 			return "", fmt.Errorf("MinerU 查询失败: %w", err)
 		}
@@ -474,7 +577,7 @@ func mapAgentError(code int, msg string) string {
 	case -30002:
 		return "轻量 API 不支持该文件格式"
 	case -30003:
-		return "文件页数超过轻量 API 限制 (20页)"
+		return "文件页数超过轻量 API 限制 (20页)；可用 pages 指定 20 页以内范围"
 	case -30004:
 		return "请求参数错误"
 	default:

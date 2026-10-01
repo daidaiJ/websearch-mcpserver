@@ -2,6 +2,19 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.6.1 — 2026-10-01
+
+> 致谢：本版核心改动来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR #17（MinerU 超页 PDF 本地裁切 + 图片资源包），其提交保留原作者署名进入本版（`06e28e4`）；后续提交为基于其实现的扩展（可配置化 / 分批 / 预算 / 进度推送）。
+
+### 修复与增强
+- **MinerU 超页 PDF 与图片资源包**（PR #17，@MattLYT）：远程精准 API 优先透传 `page_ranges`（不再全文返回）；原 PDF 超页或 MinerU 拒绝源 URL 时，本地下载原件用 qpdf 裁切所选页后走签名上传，返回完整 ZIP 地址（含 images/ 图片资源）；扫描件 OCR 回退同样支持选页裁切；新增回归测试与文档
+
+### 新增
+- **`pdf_parser.mineru_page_limit`**（默认 600，对齐 MinerU 官方 2026-10 限制 200MB/600 页）：精准 API 单任务页数上限，替代硬编码 200；请求页码超出时触发本地裁切回退
+- **`pdf_parser.mineru_page_batch_size`**（10–200，0=不分批默认）：超出单任务上限的页码自动分批、串行提交，批内标注原页码；保护 2000 页/天优先级额度
+- **`pdf_parser.mineru_page_budget`**（0=等于单任务上限）：单次调用 MinerU 页数预算，耗尽返回已解析部分并在 Preamble 提示续读页码
+- **分批进度实时推送**：下载原件与每批开始/完成经 MCP progress notification 推送（Streamable HTTP 下走 SSE），agent 无需整批盲等
+
 ## v3.6.0 — 2026-09-23
 
 > 致谢：本版核心能力（被动遥测层 + 本机控制中心）来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR #15，其功能提交保留原作者署名进入本版（`535b03a` / `62f6be4` / `beb0f9a`）；其余提交为基于其实现的适配与扩展（署名 pandazhangs）。

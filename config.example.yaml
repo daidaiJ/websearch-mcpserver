@@ -261,7 +261,7 @@ pdf_parser:
   # max_pages: 20            # 省略 pages 时一次最多解析的页数（默认 20）；工具可用 pages 参数指定页码范围
   # MinerU 解析（可选）
   # 本地 PDF：优先用 PDF 库抽文本；抽不到且 mineru_ocr=true 时回退 MinerU OCR
-  # 远程 URL：有 Token 时可用精准解析 API（≤200MB/200页）
+  # 远程 URL：有 Token 时可用精准解析 API（≤200MB/600页，单任务页数上限可用 mineru_page_limit 调整）
   # 无 Token + OCR：Agent 轻量 API（本地文件签名上传，≤10MB/20页）
   # 获取 Token: https://mineru.net/apiManage
   # 环境变量: MINERU_TOKEN
@@ -272,6 +272,10 @@ pdf_parser:
   # mineru_table: true        # 表格识别（默认 true）
   # mineru_lang: "ch"         # 文档语言（默认 ch，中英文）
   # mineru_remote_pdf: true  # 远程 PDF URL 走 MinerU 精准 API（默认 true，false 则远程一律不走 MinerU）
+  # 超页/URL 被拒时的本地裁切回退（需宿主机安装 qpdf；项目 Docker 镜像已内置）
+  # mineru_page_limit: 600     # 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）
+  # mineru_page_batch_size: 0  # 自动分批大小：0=不分批（超上限即拒绝）；10-200=每批页数，超限页码切成多个任务串行提交
+  # mineru_page_budget: 0      # 单次调用 MinerU 页数预算（0=等于 mineru_page_limit）；预算耗尽返回已解析部分并提示续读页码
 
 # ==============================================
 # 日志文件滚动配置（可选）

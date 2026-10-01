@@ -63,7 +63,7 @@ Four tools cover the web workflow. Results feed into each other — one config e
 | Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up mirrors / reposts |
 | Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |
 | Web fetching | `cleanfetch` with built-in SSRF / DNS-rebinding protection and oversized-file pre-check; fallback to Jina Reader |
-| PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR |
+| PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR; remote MinerU returns the ZIP URL with images; when the source exceeds the per-task page limit (default 600), selected pages are cropped locally with qpdf, with configurable auto-batching and a per-call page budget |
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits (off by default) |
