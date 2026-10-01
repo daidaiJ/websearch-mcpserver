@@ -65,7 +65,7 @@ Once registered, your LLM client gets 4 MCP tools covering one connected workflo
 | `smartsearch` | General web search, multi-engine fusion + local scoring | Daily connected Q&A, news (`time_range` for freshness) |
 | `academicsearch` | 9 academic engines in parallel | Finding papers; pass a DOI / arXiv id directly as `query` for exact lookup |
 | `cleanfetch` | Fetch page content | Read a full article; `urls` batches up to 5 |
-| `pdf_parser` | Parse PDFs (local text first, MinerU OCR fallback for scans) | Pass `pdf_url` from an `academicsearch` result to read the full text |
+| `pdf_parser` | Parse PDFs (local text first, MinerU OCR fallback for scans; oversized sources are cropped and batched automatically) | Pass `pdf_url` from an `academicsearch` result to read the full text; use `pages` for long documents |
 
 > If a tool is missing in the client, check the registration conditions (`bing.enabled` / `academic.enabled` / `cleanfetch.enabled` / `pdf_parser.enabled`), see [search.en.md](search.en.md#mcp-tools).
 

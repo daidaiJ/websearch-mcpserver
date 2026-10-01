@@ -65,7 +65,7 @@
 | `smartsearch` | 通用网络检索，多引擎融合 + 本地评分 | 日常联网问答、查新闻（`time_range` 控时效） |
 | `academicsearch` | 9 大学术引擎并行检索 | 找论文；已有 DOI / arXiv id 直接作 `query` 精确查询 |
 | `cleanfetch` | 抓取网页正文 | 读某篇文章全文；`urls` 可批量（最多 5 个） |
-| `pdf_parser` | 解析 PDF（本地文本优先，扫描件回退 MinerU OCR） | 把 `academicsearch` 结果里的 `pdf_url` 直接传入读论文全文 |
+| `pdf_parser` | 解析 PDF（本地文本优先，扫描件回退 MinerU OCR；原件超页自动裁切分批） | 把 `academicsearch` 结果里的 `pdf_url` 直接传入读论文全文；超长文档用 `pages` 分次读 |
 
 > 工具没在客户端里全部出现时，先检查注册条件（`bing.enabled` / `academic.enabled` / `cleanfetch.enabled` / `pdf_parser.enabled`），见 [search.md](search.md#mcp-工具)。
 

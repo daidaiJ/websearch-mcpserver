@@ -72,6 +72,8 @@ Once a result carries `pdf_url`, pass it straight to `pdf_parser` for the full t
 | `path` | ✅ | Local PDF path or http(s) URL (`pdf_url` from academic results passes directly) |
 | `pages` | | Page ranges (1-based), e.g. `1-10`, `1,3,5-7`; omitted = first 20 pages only, with a continuation hint |
 
+When the source exceeds MinerU's page limit or the source URL is rejected, selected pages are cropped locally and uploaded automatically (`mineru_page_batch_size` for batching, `mineru_page_budget` for a per-call quota), with per-batch progress streamed via MCP progress notifications; explicit page counts are capped by `max_pages` (default 20)
+
 ## Task → tool routing
 
 | Task | Use |

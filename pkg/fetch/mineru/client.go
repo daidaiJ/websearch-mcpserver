@@ -540,7 +540,7 @@ func mapAPIError(code int, msg string) string {
 	case -60005:
 		return "文件超过大小限制 (200MB)"
 	case -60006:
-		return "文件页数超过限制 (200页)"
+		return "文件页数超过限制 (600页)"
 	case -60007:
 		return "MinerU 模型服务暂不可用，请稍后重试"
 	case -60008:

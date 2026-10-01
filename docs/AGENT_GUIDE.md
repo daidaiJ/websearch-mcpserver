@@ -72,6 +72,8 @@ curl -s http://127.0.0.1:8338/__admin/health   # 期望 {"ref_count":N,"message"
 | `path` | ✅ | 本地 PDF 路径或 http(s) URL（学术结果的 `pdf_url` 可直接传入） |
 | `pages` | | 页码范围（1-based），如 `1-10`、`1,3,5-7`；省略时只解析前 20 页并提示续读 |
 
+原件超页或 MinerU 拒绝源 URL 时自动本地裁切所选页再上传（可 `mineru_page_batch_size` 分批、`mineru_page_budget` 限单次额度），分批进度经 MCP progress notification 实时推送；单次显式页数受 `max_pages`（默认 20）约束
+
 ## 任务 → 工具选型
 
 | 任务 | 用什么 |

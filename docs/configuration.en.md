@@ -241,7 +241,7 @@ cleanfetch:
   max_retries: 3            # Max retries (429/502/503 only), default 3
 
 # PDF parser (disabled by default, independent of cleanfetch)
-# MinerU AI enhancement (optional): with Token uses Standard API (remote URL, ≤200MB), without Token uses Agent API (local file, ≤10MB)
+# MinerU AI enhancement (optional): with Token uses Standard API (remote URL, ≤200MB/600 pages), without Token uses Agent API (local file, ≤10MB/20 pages)
 # Get Token: https://mineru.net/apiManage | Env: MINERU_TOKEN
 pdf_parser:
   # max_pages: 20            # Max pages parsed per call when pages is omitted (default 20)

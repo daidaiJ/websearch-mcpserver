@@ -85,6 +85,9 @@ func registerTools(server *mcp.Server, conf config.Config) {
 		} else if conf.PDFParser.MinerUToken != "" {
 			pdfDesc += "已配置 MinerU Token（远程 URL 可用精准解析）。"
 		}
+		if conf.PDFParser.MinerUEnabled() {
+			pdfDesc += "原件超页或源 URL 被 MinerU 拒绝时自动本地裁切所选页分批上传，并实时推送分批进度。"
+		}
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "pdf_parser",
 			Description: pdfDesc,

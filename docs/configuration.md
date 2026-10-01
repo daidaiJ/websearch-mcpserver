@@ -237,7 +237,7 @@ cleanfetch:
   max_retries: 3            # 最大重试次数（仅 429/502/503），默认 3
 
 # PDF 解析工具（默认关闭，独立于 cleanfetch）
-# MinerU AI 增强（可选）：有 Token 用精准 API（远程 URL，≤200MB），无 Token 用 Agent 轻量 API（本地文件，≤10MB）
+# MinerU AI 增强（可选）：有 Token 用精准 API（远程 URL，≤200MB/600页），无 Token 用 Agent 轻量 API（本地文件，≤10MB/20页）
 # 获取 Token: https://mineru.net/apiManage | 环境变量: MINERU_TOKEN
 pdf_parser:
   # max_pages: 20            # 省略 pages 时一次最多解析的页数（默认 20）
