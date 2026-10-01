@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	"websearch/pkg/fetch/mineru"
+	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/telemetry"
 )
 
@@ -103,22 +104,7 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 
 	result, err := webfetchInst.FetchPDFWithPages(ctx, pdfPath, pages, maxPages)
 	if remote && (errors.Is(err, mineru.ErrPageLimit) || errors.Is(err, mineru.ErrRemoteURLRejected)) {
-		source, removeSource, downloadErr := downloadPDFForCrop(ctx, pdfPath)
-		if downloadErr != nil {
-			return nil, nil, fmt.Errorf("MinerU 远程 PDF 本地裁切准备失败: %w", downloadErr)
-		}
-		defer removeSource()
-		cropped, total, selected, removeCropped, cropErr := mineru.CropPDF(ctx, source, pages, maxPages, 200)
-		if cropErr != nil {
-			return nil, nil, fmt.Errorf("MinerU 远程 PDF 本地裁切失败: %w", cropErr)
-		}
-		defer removeCropped()
-		result, err = webfetchInst.ParseCroppedPDF(ctx, cropped)
-		if err == nil {
-			result.PageCount = total
-			result.ParsedPages = selected
-			result.Preamble = fmt.Sprintf("> 原 PDF 共 %d 页，已在本地裁切所需的 %d 页后上传 MinerU；结果页码从 1 重新编号。", total, selected)
-		}
+		result, err = parseRemotePDFWithCrop(ctx, req, pdfPath, pages, maxPages)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("PDF 解析失败: %v", err)
@@ -126,6 +112,90 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 	parseEngine = result.ParseEngine
 	parsedPages = result.ParsedPages
 	return textResult(formatWebFetchResult(result)), nil, nil
+}
+
+// parseRemotePDFWithCrop 远程 PDF 的本地裁切回退：MinerU 拒绝原文件（页数超限
+// 或源 URL 不可读）时，下载原件、用 qpdf 裁出所选页再走签名上传。
+// mineru_page_batch_size > 0 时按批切分串行提交；累计页数受 mineru_page_budget
+// 预算约束，预算耗尽返回已解析部分并在 Preamble 说明续读页码（元数据先行、
+// 按需续读，避免一次调用烧掉当天全部 MinerU 额度）。
+// 每批开始/结束经 MCP progress notification 推送进度，agent 无需整批盲等。
+func parseRemotePDFWithCrop(ctx context.Context, req *mcp.CallToolRequest, pdfPath string, pages []int, maxPages int) (*webfetch.Result, error) {
+	notifyProgress(ctx, req, 0, 1, "MinerU 无法直接解析原文件，正在下载原件准备本地裁切…")
+	source, removeSource, err := downloadPDFForCrop(ctx, pdfPath)
+	if err != nil {
+		return nil, fmt.Errorf("MinerU 远程 PDF 本地裁切准备失败: %w", err)
+	}
+	defer removeSource()
+
+	total, err := mineru.PDFPageCount(ctx, source)
+	if err != nil {
+		return nil, fmt.Errorf("MinerU 远程 PDF 本地裁切失败: %w", err)
+	}
+	selected := pages
+	if len(selected) == 0 {
+		end := maxPages
+		if end <= 0 || end > total {
+			end = total
+		}
+		for p := 1; p <= end; p++ {
+			selected = append(selected, p)
+		}
+	}
+	batches, truncated := mineru.PlanPageBatches(selected, pdfMineruPageBatch, pdfMineruPageBudget)
+	if len(batches) == 0 {
+		return nil, fmt.Errorf("MinerU 远程 PDF 本地裁切失败: 页预算 %d 内没有可解析的页码", pdfMineruPageBudget)
+	}
+
+	var merged strings.Builder
+	parsed := 0
+	for i, batch := range batches {
+		notifyProgress(ctx, req, float64(parsed), float64(len(selected)),
+			fmt.Sprintf("开始第 %d/%d 批：裁切原页码 %d-%d 并上传 MinerU…", i+1, len(batches), batch[0], batch[len(batch)-1]))
+		cropped, _, _, removeCropped, cropErr := mineru.CropPDF(ctx, source, batch, 0, pdfMineruPageLimit)
+		if cropErr != nil {
+			return nil, cropErr
+		}
+		part, err := webfetchInst.ParseCroppedPDF(ctx, cropped)
+		removeCropped()
+		if err != nil {
+			if parsed > 0 {
+				return nil, fmt.Errorf("第 %d/%d 批（原页码 %d-%d）解析失败（前 %d 页已成功，可用 pages 续读）: %w",
+					i+1, len(batches), batch[0], batch[len(batch)-1], parsed, err)
+			}
+			return nil, err
+		}
+		parsed += len(batch)
+		notifyProgress(ctx, req, float64(parsed), float64(len(selected)),
+			fmt.Sprintf("第 %d/%d 批完成（原页码 %d-%d），累计已解析 %d/%d 页", i+1, len(batches), batch[0], batch[len(batch)-1], parsed, len(selected)))
+		if len(batches) == 1 {
+			merged.WriteString(part.Markdown)
+			continue
+		}
+		fmt.Fprintf(&merged, "\n\n### 原文第 %d-%d 页（第 %d/%d 批，批内页码从 1 重新编号）\n\n%s",
+			batch[0], batch[len(batch)-1], i+1, len(batches), part.Markdown)
+	}
+
+	result := &webfetch.Result{
+		Mode:        "inline",
+		Markdown:    merged.String(),
+		PageCount:   total,
+		ParsedPages: parsed,
+		ParseEngine: "mineru-remote",
+	}
+	last := batches[len(batches)-1]
+	if len(batches) == 1 {
+		result.Preamble = fmt.Sprintf("> 原 PDF 共 %d 页，已在本地裁切所需的 %d 页后上传 MinerU；结果页码从 1 重新编号。", total, parsed)
+	} else {
+		result.Preamble = fmt.Sprintf("> 原 PDF 共 %d 页，已本地裁切并分 %d 批上传 MinerU（每批最多 %d 页，串行提交）；各批页码从 1 重新编号，原页码见各节标题。本次解析原页码 %d-%d（共 %d 页）。",
+			total, len(batches), pdfMineruPageBatch, batches[0][0], last[len(last)-1], parsed)
+	}
+	if truncated {
+		next := last[len(last)-1] + 1
+		result.Preamble += fmt.Sprintf("\n> 单次页预算 %d 页已用完，其余页请再次调用并用 pages 指定（如 \"%d-%d\"）。",
+			pdfMineruPageBudget, next, min(next+pdfMineruPageBatch-1, total))
+	}
+	return result, nil
 }
 
 // pageSpecWidthCap 页码区间展开宽度的硬顶（F2）：防止 pages="1-2147483647"

@@ -135,7 +135,7 @@ mcp/tool.go PDFParserHandler
       ├► resolvePDFPath（本地路径/file:// 与远程 http(s) 分流；远程走 SSRF+HEAD 预检）
       └► pkg/fetch/webfetch Fetcher.FetchPDFWithPages（pages + pdf_parser.max_pages）
             ├► 本地：go-webfetch ledongthuc 按页抽取（保留 CJK 清洗/结构启发式）
-            ├► 远程：MinerU 精准 API（先尝试 page_ranges；请求第 201 页以后或原件页数／URL 被拒绝时，用 qpdf 裁切后签名上传，返回完整 ZIP 地址）
+            ├► 远程：MinerU 精准 API（先尝试 page_ranges；请求页码超出单任务上限（mineru_page_limit，默认 600）或原件页数／URL 被拒绝时，下载原件按 mineru_page_batch_size 分批 qpdf 裁切串行上传，累计受 mineru_page_budget 预算约束，逐批经 MCP progress notification 推送进度，返回完整 ZIP 地址）
             │        或 webfetch 管线按 Content-Type 分流 PDF 解析
             └► 截断时 Result.Preamble 说明总页数与用 pages 继续
 ```

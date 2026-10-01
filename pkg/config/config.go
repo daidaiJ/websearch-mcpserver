@@ -291,6 +291,17 @@ type PDFParserConfig struct {
 	MinerUTable     *bool  `mapstructure:"mineru_table"`      // 表格识别（nil=默认 true）
 	MinerULang      string `mapstructure:"mineru_lang"`       // 文档语言（默认 ch）
 	MinerURemotePDF bool   `mapstructure:"mineru_remote_pdf"` // 远程 PDF URL 走 MinerU 精准 API（默认 true；false 则远程一律不走 MinerU，只保留本地 PDF OCR 回退）
+	// MinerUPageLimit 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）。
+	// 请求页码超出该上限时触发本地 qpdf 裁切后分批上传，而不是直接拒绝。
+	MinerUPageLimit int `mapstructure:"mineru_page_limit"`
+	// MinerUPageBatchSize 本地裁切后的自动分批大小：0 = 不分批（超出单任务上限即拒绝）；
+	// 10-200 = 每批页数，超出上限的页码切成多个任务串行提交（MinerU 每账号每天 2000 页优先级额度，不并发）。
+	// 1-9 视为 0，超过 200 收敛到 200。
+	MinerUPageBatchSize int `mapstructure:"mineru_page_batch_size"`
+	// MinerUPageBudget 单次 pdf_parser 调用允许 MinerU 解析的页数预算（跨分批累计）。
+	// 0 = 默认等于 mineru_page_limit（即一次调用最多消耗一个单任务的页数额度）；
+	// 正数可放宽（如 1200 允许两批）或收紧。预算耗尽时返回已解析部分并提示续读页码。
+	MinerUPageBudget int `mapstructure:"mineru_page_budget"`
 }
 
 // GetMaxPages 返回省略 pages 时一次最多解析的页数，默认 20。
@@ -342,6 +353,36 @@ func (c PDFParserConfig) GetMinerUTable() bool {
 		return *c.MinerUTable
 	}
 	return true
+}
+
+// GetMinerUPageLimit 返回精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）。
+func (c PDFParserConfig) GetMinerUPageLimit() int {
+	if c.MinerUPageLimit > 0 {
+		return c.MinerUPageLimit
+	}
+	return 600
+}
+
+// GetMinerUPageBatchSize 返回本地裁切后的自动分批大小；0 = 不分批。
+// 1-9 视为 0，超过 200 收敛到 200（分批的意义在于控制单任务与额度节奏，
+// 更大的批次没有意义，交给 mineru_page_limit 表达）。
+func (c PDFParserConfig) GetMinerUPageBatchSize() int {
+	switch {
+	case c.MinerUPageBatchSize >= 200:
+		return 200
+	case c.MinerUPageBatchSize >= 10:
+		return c.MinerUPageBatchSize
+	default:
+		return 0
+	}
+}
+
+// GetMinerUPageBudget 返回单次调用的 MinerU 页数预算；0 = 等于单任务页数上限。
+func (c PDFParserConfig) GetMinerUPageBudget() int {
+	if c.MinerUPageBudget > 0 {
+		return c.MinerUPageBudget
+	}
+	return c.GetMinerUPageLimit()
 }
 
 // ── 代理配置 ──

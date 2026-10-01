@@ -10,16 +10,25 @@ import (
 	"strings"
 )
 
-// CropPDF creates a short-lived PDF containing the requested original pages.
-// qpdf preserves page resources, including images, without rendering pages.
-func CropPDF(ctx context.Context, source string, pages []int, maxPages, limit int) (string, int, int, func(), error) {
+// PDFPageCount 用 qpdf 读取 PDF 总页数（需安装 qpdf）。
+func PDFPageCount(ctx context.Context, source string) (int, error) {
 	countOutput, err := exec.CommandContext(ctx, "qpdf", "--show-npages", source).CombinedOutput()
 	if err != nil {
-		return "", 0, 0, nil, fmt.Errorf("读取 PDF 页数失败（文件可能不是有效 PDF；需安装 qpdf）: %w: %s", err, strings.TrimSpace(string(countOutput)))
+		return 0, fmt.Errorf("读取 PDF 页数失败（文件可能不是有效 PDF；需安装 qpdf）: %w: %s", err, strings.TrimSpace(string(countOutput)))
 	}
 	total, err := strconv.Atoi(strings.TrimSpace(string(countOutput)))
 	if err != nil || total <= 0 {
-		return "", 0, 0, nil, fmt.Errorf("PDF 页数无效: %q", strings.TrimSpace(string(countOutput)))
+		return 0, fmt.Errorf("PDF 页数无效: %q", strings.TrimSpace(string(countOutput)))
+	}
+	return total, nil
+}
+
+// CropPDF creates a short-lived PDF containing the requested original pages.
+// qpdf preserves page resources, including images, without rendering pages.
+func CropPDF(ctx context.Context, source string, pages []int, maxPages, limit int) (string, int, int, func(), error) {
+	total, err := PDFPageCount(ctx, source)
+	if err != nil {
+		return "", 0, 0, nil, err
 	}
 	selected := pages
 	if len(selected) == 0 {

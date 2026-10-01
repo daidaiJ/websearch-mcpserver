@@ -223,6 +223,7 @@ type spyMineru struct {
 }
 
 func (s *spyMineru) HasToken() bool { return s.hasToken }
+func (s *spyMineru) PageLimit() int { return 600 }
 func (s *spyMineru) ParseURL(ctx context.Context, fileURL string) (string, error) {
 	s.parseURLCalls++
 	return "# MinerU", nil
@@ -333,7 +334,7 @@ func TestFetchPDFWithPages_ReportsMinerUPageLimitForLocalCrop(t *testing.T) {
 }
 
 func TestMinerUPageNoteForLongAgentPDF(t *testing.T) {
-	note := mineruPageNote([]int{21, 22}, 20, 20)
+	note := mineruPageNote([]int{21, 22}, 20, true, 20)
 	if !strings.Contains(note, "继续用 pages") || strings.Contains(note, "须先拆分") {
 		t.Fatalf("misleading Agent page guidance: %s", note)
 	}

@@ -63,7 +63,7 @@ func TestParseStandardFileUploadsCroppedPDF(t *testing.T) {
 	if err := os.WriteFile(file, testOnePagePDF(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	client := NewFromConfig("test-token", "pipeline", "ch", false, true, true, "")
+	client := NewFromConfig("test-token", "pipeline", "ch", false, true, true, "", 0)
 	client.endpoint = server.URL
 	result, err := client.ParseStandardFile(context.Background(), file)
 	if err != nil {

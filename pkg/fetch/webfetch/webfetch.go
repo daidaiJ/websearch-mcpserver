@@ -44,6 +44,7 @@ type fetchEngine interface {
 // mineruParser 抽象 MinerU 客户端，便于测试注入替身。
 type mineruParser interface {
 	HasToken() bool
+	PageLimit() int
 	ParseURL(ctx context.Context, fileURL string) (string, error)
 	ParseURLWithPages(ctx context.Context, fileURL string, pages []int, maxPages int) (string, error)
 	ParseStandardFile(ctx context.Context, filePath string) (string, error)
@@ -135,11 +136,12 @@ func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, p
 			pdfCfg.GetMinerUFormula(),
 			pdfCfg.GetMinerUTable(),
 			proxyURL,
+			pdfCfg.GetMinerUPageLimit(),
 		)
 		if pdfCfg.MinerUOcr {
 			log.Infof("MinerU OCR 回退已启用 (本地 PDF 库读不到文本时使用, model=%s)", pdfCfg.GetMinerUModel())
 		} else if pdfCfg.MinerUToken != "" {
-			log.Infof("MinerU 精准解析 API 已启用 (远程 URL, model=%s)", pdfCfg.GetMinerUModel())
+			log.Infof("MinerU 精准解析 API 已启用 (远程 URL, model=%s, page_limit=%d)", pdfCfg.GetMinerUModel(), pdfCfg.GetMinerUPageLimit())
 		}
 	}
 
@@ -247,7 +249,7 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 		if err == nil {
 			return &Result{
 				Mode: "inline", Markdown: md, ParseEngine: "mineru-remote",
-				Preamble: mineruPageNote(pages, maxPages, 200),
+				Preamble: mineruPageNote(pages, maxPages, false, f.mineru.PageLimit()),
 			}, nil
 		}
 		if errors.Is(err, mineru.ErrPageLimit) || errors.Is(err, mineru.ErrRemoteURLRejected) {
@@ -303,8 +305,9 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 }
 
 // mineruPageNote 说明已提交的选页请求；MinerU 不保证返回原文件总页数。
-func mineruPageNote(pages []int, maxPages, limit int) string {
-	if limit == 20 {
+// lightweight 区分轻量 API（20 页硬上限、无图片包）与精准 API 文案。
+func mineruPageNote(pages []int, maxPages int, lightweight bool, limit int) string {
+	if lightweight {
 		if len(pages) > 0 {
 			return fmt.Sprintf("> MinerU 轻量 API 已请求 %d 页；单次最多 20 页，较长 PDF 可继续用 pages 读取。", len(pages))
 		}
@@ -379,7 +382,7 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 			Markdown:    md,
 			ParseEngine: "mineru-ocr",
 		}
-		res.Preamble = mineruPageNote(pages, maxPages, 20)
+		res.Preamble = mineruPageNote(pages, maxPages, true, 20)
 		return res, nil
 	}
 	if errors.Is(mineruErr, mineru.ErrFileTooLarge) {

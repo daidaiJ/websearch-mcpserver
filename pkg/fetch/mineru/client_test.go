@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewFromConfig(t *testing.T) {
-	c := NewFromConfig("test-token", "vlm", "en", true, false, false, "")
+	c := NewFromConfig("test-token", "vlm", "en", true, false, false, "", 0)
 	if c.token != "test-token" {
 		t.Errorf("token = %q, want %q", c.token, "test-token")
 	}
@@ -28,7 +28,7 @@ func TestNewFromConfig(t *testing.T) {
 }
 
 func TestNewFromConfigDefaults(t *testing.T) {
-	c := NewFromConfig("", "", "", false, true, true, "")
+	c := NewFromConfig("", "", "", false, true, true, "", 0)
 	if c.modelVersion != defaultModelVersion {
 		t.Errorf("modelVersion = %q, want %q", c.modelVersion, defaultModelVersion)
 	}
@@ -66,6 +66,7 @@ func TestNewFromConfigFromPDFParserConfig(t *testing.T) {
 		pdfCfg.GetMinerUFormula(),
 		pdfCfg.GetMinerUTable(),
 		"",
+		0,
 	)
 	if c.modelVersion != "vlm" {
 		t.Errorf("modelVersion = %q, want %q", c.modelVersion, "vlm")
@@ -134,13 +135,13 @@ func TestMinerUPageRanges(t *testing.T) {
 		{"contiguous", []int{3, 4, 5}, 20, "3-5"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			standard, err := standardPageRanges(tt.pages, tt.max)
+			standard, err := standardPageRanges(tt.pages, tt.max, 200)
 			if err != nil || standard != tt.standard {
 				t.Fatalf("standardPageRanges = %q, %v; want %q", standard, err, tt.standard)
 			}
 		})
 	}
-	if _, err := standardPageRanges([]int{201}, 20); !errors.Is(err, ErrPageLimit) {
+	if _, err := standardPageRanges([]int{601}, 20, 600); !errors.Is(err, ErrPageLimit) {
 		t.Fatal("standard API must reject pages beyond its 200-page file limit")
 	}
 }
@@ -151,7 +152,7 @@ func TestCreateTaskRemoteURLRejected(t *testing.T) {
 		_, _ = w.Write([]byte(`{"code":-60023,"msg":"URL restricted"}`))
 	}))
 	defer server.Close()
-	c := NewFromConfig("test-token", "pipeline", "ch", false, true, true, "")
+	c := NewFromConfig("test-token", "pipeline", "ch", false, true, true, "", 0)
 	c.endpoint = server.URL
 	_, err := c.createTask(context.Background(), "https://example.com/doc.pdf", "1")
 	if !errors.Is(err, ErrRemoteURLRejected) {
@@ -160,7 +161,7 @@ func TestCreateTaskRemoteURLRejected(t *testing.T) {
 }
 
 func TestParseFileTooLarge(t *testing.T) {
-	c := NewFromConfig("", "pipeline", "ch", false, true, true, "")
+	c := NewFromConfig("", "pipeline", "ch", false, true, true, "", 0)
 	// 用一个不存在的路径测试 ErrFileTooLarge 不会被触发（文件不存在优先）
 	_, err := c.ParseFile(context.Background(), "/nonexistent/file.pdf")
 	if err == nil {
@@ -181,7 +182,7 @@ func TestParseFile(t *testing.T) {
 		t.Skipf("PDF file not found: %s", pdfPath)
 	}
 
-	c := NewFromConfig(token, "pipeline", "ch", false, true, true, "")
+	c := NewFromConfig(token, "pipeline", "ch", false, true, true, "", 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -203,7 +204,7 @@ func TestParseURL(t *testing.T) {
 		t.Skip("MINERU_TOKEN not set, skipping integration test")
 	}
 
-	c := NewFromConfig(token, "pipeline", "ch", false, true, true, "")
+	c := NewFromConfig(token, "pipeline", "ch", false, true, true, "", 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

@@ -248,6 +248,9 @@ pdf_parser:
   # mineru_formula: true     # 公式识别（默认 true）
   # mineru_table: true       # 表格识别（默认 true）
   # mineru_lang: "ch"        # 文档语言（默认 ch）
+  # mineru_page_limit: 600   # 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）
+  # mineru_page_batch_size: 0 # 本地裁切回退的自动分批大小：0=不分批（超上限即拒绝）；10-200=每批页数，串行提交
+  # mineru_page_budget: 0    # 单次调用 MinerU 页数预算（0=等于 mineru_page_limit）；耗尽时返回已解析部分并提示续读
 
 # 搜索结果过滤与输出格式（可选）
 # smartsearch:
@@ -443,6 +446,9 @@ log:
 | `pdf_parser.mineru_formula` | true | 公式识别 |
 | `pdf_parser.mineru_table` | true | 表格识别 |
 | `pdf_parser.mineru_lang` | ch | 文档语言 |
+| `pdf_parser.mineru_page_limit` | 600 | 精准 API 单任务页数上限；请求超出时触发本地 qpdf 裁切回退 |
+| `pdf_parser.mineru_page_batch_size` | 0 | 裁切回退自动分批大小：0=不分批；10-200=每批页数（1-9 视为 0，>200 收敛到 200） |
+| `pdf_parser.mineru_page_budget` | 0 | 单次调用 MinerU 页数预算（0=等于 page_limit）；预算耗尽返回已解析部分并提示续读页码 |
 | `smartsearch.show_meta` | true | 输出中显示引擎来源和相关性分数 |
 | `smartsearch.fetch_top_n` | 0 | 服务端默认抓取正文条数（agent 未传 `fetch_top_n` 参数时生效）；默认 0 = 与旧版一致不抓取，1-5 = 一次搜索即含正文（API 引擎走原文传参快速路径，网页引擎内部抓取） |
 | `smartsearch.enhance` | true | 本地评分增强 |
