@@ -162,6 +162,7 @@ MCP 客户端通过此端点完成协议握手、工具列表获取和工具调�
 | `academicsearch` | 学术论文检索（arXiv / Crossref / OpenAlex / PubMed / Europe PMC / DBLP / DOAJ 等） | `query`（必填；也可直接传 DOI 或 arXiv id 走单篇精确查询，忽略 `engines`/`time_range`/`page`）、`engines`（可选）、`time_range`（可选：`year`/`month`/`week`/`day`）、`page`（可选） |
 | `cleanfetch` | 网页内容抓取，返回 Markdown | `url`（与 `urls` 至少一者）、`urls`（可选批量，合并去重最多 5 个） — 需配置 `cleanfetch.enabled` |
 | `pdf_parser` | PDF 解析，支持 MinerU AI 增强（表格/公式/多栏识别） | `path`（必填，本地路径或远程 URL）、`pages`（可选页码范围，如 1-10；单个区间宽度上限 1000 页） — 需配置 `pdf_parser.enabled`，可选 `mineru_token`；省略 pages 时受 `max_pages`（默认 20）约束。请求页码超出单任务上限（默认 600，`mineru_page_limit` 可调）或 MinerU 拒绝原件页数／URL 时，本地裁切所选页再上传（`mineru_page_batch_size` 可开启自动分批，`mineru_page_budget` 控制单次页数预算；分批进度经 MCP progress notification 实时推送）；精准 API 返回含图片 ZIP 地址，轻量 API 单次上限 20 页 |
+| `file_search` | 本地文件快速检索（Everything 索引，只读，Windows 专属） | `query`（必填，Everything 语法）、`folder`（可选目录限定，接受 Git Bash `/d/code/ai` 风格）、`match_case`/`whole_word`/`match_regex`/`match_diacritics`（可选原生过滤）、`max_results`（默认 50，硬上限 200）、`sort`/`descending`、`exclude`（可选 NOT 排除项）、`min_alignment`（可选，覆盖服务端对齐阈值）、`time_format`（`datetime`/`iso`/`filetime`） — 无 enabled 开关：启动探测 `everything.url` 通过即注册，探测不过不暴露；仅 Windows，Linux 发行版不建议启用（除非 WSL 指向 Windows 宿主）；`everything.roots` 白名单强制限定检索范围，二次过滤（对齐重排/噪声降权/阈值）防止弱匹配打爆上下文 |
 
 #### 响应行为
 

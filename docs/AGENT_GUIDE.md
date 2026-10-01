@@ -2,7 +2,7 @@
 
 [English](AGENT_GUIDE.en.md) | [中文](AGENT_GUIDE.md)
 
-Go 编写的 MCP 搜索服务：4 个工具（`smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser`），零 API Key 可用（`engine` 模式），HTTP daemon 或 stdio 两种接入。给人类看的完整版见 [HUMAN_GUIDE.md](HUMAN_GUIDE.md)。
+Go 编写的 MCP 搜索服务：5 个工具（`smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`），零 API Key 可用（`engine` 模式），HTTP daemon 或 stdio 两种接入。给人类看的完整版见 [HUMAN_GUIDE.md](HUMAN_GUIDE.md)。
 
 > **反模式警告**：① 不要用 `cleanfetch` 抓搜索结果页来"搜索"——那是 `smartsearch` 的事；② 已持有 DOI / arXiv id 时不要拿标题再搜——直接把 id 作为 `academicsearch` 的 `query` 走精确查询；③ 不要给 `pdf_parser` 传网页 URL——网页用 `cleanfetch`。
 
