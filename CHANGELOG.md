@@ -2,6 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### 新增
+- **`file_search` 本地文件快速检索工具**：基于 Everything (voidtools) HTTP Server 索引的本地文件名/路径检索（毫秒级、只读），Windows 专属——任何 Linux 发行版不建议启用，除非 WSL 下显式配置 `everything.url` 指向 Windows 宿主。**无 enabled 开关**：启动探测 `everything.url`，连通且鉴权通过才注册工具，探测不过不暴露、不影响其它功能
+- **克制约束与二次过滤**（agent cost 优化）：`everything.roots` 目录白名单强制限定检索范围（不传 folder 也不给全盘口子，支持 Git Bash 路径风格）；3 倍超采候选（硬上限 600）后本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线），噪声目录（node_modules/.git/target 等）降权、`everything.min_alignment` 阈值丢弃弱匹配；每条结果一行紧凑输出
+- **参数灵活分层**：Everything 原生过滤透传（`match_case`/`whole_word`/`match_regex`/`match_diacritics`）、`sort`/`descending`/`max_results`、`exclude` NOT 排除项、`min_alignment` 调用级覆盖（配置作默认）、`time_format`（`datetime`/`iso`/`filetime`）
+- **`skills/everything-http-server`**：分版本启用指导（1.4 内建 vs 1.5a 插件）、ini 运行中覆盖陷阱、curl 验证、加固清单（loopback / Basic 鉴权 / 禁下载 / 白名单）与故障速查
+
 ## v3.6.1 — 2026-10-01
 
 > 致谢：本版核心改动来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR #17（MinerU 超页 PDF 本地裁切 + 图片资源包），其提交保留原作者署名进入本版（`06e28e4`）；后续提交为基于其实现的扩展（可配置化 / 分批 / 预算 / 进度推送）。
