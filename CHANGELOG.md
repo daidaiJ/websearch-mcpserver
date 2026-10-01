@@ -2,6 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### 新增
+- **`file_search` 本地文件快速检索工具**：基于 Everything (voidtools) HTTP Server 索引的本地文件名/路径检索（毫秒级、只读），Windows 专属——任何 Linux 发行版不建议启用，除非 WSL 下显式配置 `everything.url` 指向 Windows 宿主。**无 enabled 开关**：启动探测 `everything.url`，连通且鉴权通过才注册工具，探测不过不暴露、不影响其它功能
+- **克制约束与二次过滤**（agent cost 优化）：`everything.roots` 目录白名单强制限定检索范围（不传 folder 也不给全盘口子，支持 Git Bash 路径风格）；3 倍超采候选（硬上限 600）后本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线），噪声目录（node_modules/.git/target 等）降权、`everything.min_alignment` 阈值丢弃弱匹配；每条结果一行紧凑输出
+- **参数灵活分层**：Everything 原生过滤透传（`match_case`/`whole_word`/`match_regex`/`match_diacritics`）、`sort`/`descending`/`max_results`、`exclude` NOT 排除项、`min_alignment` 调用级覆盖（配置作默认）、`time_format`（`datetime`/`iso`/`filetime`）
+- **`skills/everything-http-server`**：分版本启用指导（1.4 内建 vs 1.5a 插件）、ini 运行中覆盖陷阱、curl 验证、加固清单（loopback / Basic 鉴权 / 禁下载 / 白名单）与故障速查
+
 ## v3.6.2 — 2026-10-06（搜索服务升级）
 
 > 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的五期落地——一期失败透出统一契约与评分口径修正（P0-1 + P1-6/7/8）；二期结果来源注记、熔断落盘与 Resource 化（P1-4/P1-5/P1-10）；三期零 Key 来源扩充、响应超限落盘与守卫三态处置（P0-2）；五期全量文档同步与工具描述路由边界。四期（证据预算）与 P0-3 插件市场分发经评估取消。
