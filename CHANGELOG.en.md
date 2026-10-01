@@ -2,6 +2,19 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.6.1 — 2026-10-01
+
+> Credits: the core of this release comes from PR #17 by [@MattLYT](https://github.com/MattLYT) (Matt.Li) — MinerU oversized-PDF local cropping + image asset ZIP; his commit keeps its original authorship (`06e28e4`); later commits are extensions of his work (configurability / batching / budget / progress streaming).
+
+### Fixed & improved
+- **MinerU oversized PDFs and image assets** (PR #17, @MattLYT): the remote Standard API now passes `page_ranges` through instead of returning full text; when the source PDF exceeds the page limit or MinerU rejects the source URL, the service downloads the original, crops the selected pages locally with qpdf, and uploads via signed upload, returning a complete ZIP URL (with images/ assets); the scanned-OCR fallback supports page selection too; regression tests and docs included
+
+### Added
+- **`pdf_parser.mineru_page_limit`** (default 600, aligned with MinerU's official 2026-10 limits of 200MB/600 pages): per-task page limit for the Standard API, replacing the hardcoded 200; requests beyond it trigger the local crop fallback
+- **`pdf_parser.mineru_page_batch_size`** (10–200, 0 = no batching by default): pages beyond the per-task limit are split into batches submitted serially with per-batch original page ranges; protects the 2000-pages/day priority quota
+- **`pdf_parser.mineru_page_budget`** (0 = same as the per-task limit): MinerU page budget per call; on exhaustion the parsed part is returned with a continuation hint in the Preamble
+- **Real-time batch progress**: source download and per-batch start/completion are streamed via MCP progress notifications (SSE under Streamable HTTP), so agents no longer block through the whole run
+
 ## v3.6.0 — 2026-09-23
 
 > Credits: the core of this release (passive telemetry + local control center) comes from PR #15 by [@MattLYT](https://github.com/MattLYT) (Matt.Li); his feature commits keep their original authorship (`535b03a` / `62f6be4` / `beb0f9a`), and the remaining commits are adaptations and extensions of his work (authored by pandazhangs).
