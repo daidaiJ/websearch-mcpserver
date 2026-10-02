@@ -254,7 +254,8 @@ pdf_parser:
 
 # Everything 本地文件检索（file_search 工具，可选；仅 Windows + Everything HTTP Server）
 # 注意：任何 Linux 发行版不建议启用，除非 WSL 下显式配置 everything.url 指向 Windows 宿主；非 Windows 且未显式配置 url 时不会探测、工具不暴露。
-# 无 enabled 开关：启动探测 everything.url，连通且鉴权通过才注册 file_search 工具，
+# 无 enabled 开关：首个 MCP 客户端接入时探测 everything.url（延迟探测，避免与
+# Everything 自启动的时序竞争），连通且鉴权通过才注册 file_search 工具，
 # 探测不过（Everything 未运行 / HTTP Server 未启用 / 鉴权失败）则不暴露，不影响其它功能。
 # everything:
 #   url: "http://127.0.0.1:4180"   # HTTP Server 地址（Everything 工具→选项→HTTP Server）

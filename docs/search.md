@@ -205,7 +205,7 @@ apipool:
 
 ## MCP 工具
 
-> 工具注册条件：`smartsearch` 需 `bing.enabled=true`；`academicsearch` 需 `academic.enabled=true`；`cleanfetch` 需 `cleanfetch.enabled=true`；`pdf_parser` 需 `pdf_parser.enabled=true`；`file_search` 无开关——启动探测 Everything HTTP Server 通过即注册，探测不过不暴露。
+> 工具注册条件：`smartsearch` 需 `bing.enabled=true`；`academicsearch` 需 `academic.enabled=true`；`cleanfetch` 需 `cleanfetch.enabled=true`；`pdf_parser` 需 `pdf_parser.enabled=true`；`file_search` 无开关——首个 MCP 客户端接入时探测 Everything HTTP Server，通过即注册，探测不过不暴露。
 
 ### `smartsearch` — 通用网络检索
 
@@ -291,7 +291,7 @@ ode_modules\"]`；带首尾反斜杠匹配路径片段才不误伤文件名 |
 | `descending` | bool | ❌ | 降序（配合 `sort`） |
 | `time_format` | string | ❌ | `datetime`（默认 `2026-01-02 15:04:05`）/ `iso`（ISO 8601 UTC）/ `filetime`（原始 FILETIME） |
 
-**注册条件（自动探测，无 enabled 开关）**：启动时探测 `everything.url`，连通且鉴权通过才注册该工具；Everything 未运行、HTTP Server 未启用或鉴权失败时静默不暴露，不影响其它工具。
+**注册条件（自动探测，无 enabled 开关）**：首个 MCP 客户端接入时探测 `everything.url`（延迟探测，避免 websearch 与 Everything 双自启动的时序竞争导致工具缺失），连通且鉴权通过才注册该工具；Everything 未运行、HTTP Server 未启用或鉴权失败时静默不暴露，不影响其它工具。
 
 **克制约束**：配置 `everything.roots`（目录白名单）后所有检索强制限定在白名单内，白名单外目录直接报错，防越界。**二次过滤（agent cost 优化）**：服务端按 3 倍超采候选（硬上限 600），`sort` 未显式指定时本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线的分词与停用词；显式指定 `sort` 则尊重服务端排序，仅保留阈值过滤），命中 `node_modules`/`.git`/`target` 等噪声目录的结果排序减半（`everything.noise_dirs` 可覆盖），`everything.min_alignment` 阈值可丢弃弱匹配——每条结果一行，弱相关不进上下文。
 

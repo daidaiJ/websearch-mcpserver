@@ -1025,7 +1025,8 @@ func Load(configPath string) (*Config, error) {
 		conf.PDFParser.MinerURemotePDF = true
 	}
 
-	// Everything 文件检索默认值。无 enabled 开关：可用性完全由启动探测决定，
+	// Everything 文件检索默认值。无 enabled 开关：可用性完全由接入时探测决定
+	// （首个 MCP 客户端接入时执行，避免与 Everything 自启动的时序竞争），
 	// 探测不过则 file_search 工具不暴露。默认地址仅在 Windows 上注入——
 	// Everything 是 Windows 软件，任何 Linux 发行版默认不启用（除非 WSL，
 	// 用户显式配置 everything.url 指向 Windows 宿主）。
