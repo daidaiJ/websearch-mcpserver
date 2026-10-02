@@ -18,7 +18,7 @@
 ## 整体架构
 
 <p align="center">
-  <img src="images/architecture.png" alt="系统组成架构：接入层、协议层、编排层、通用/学术引擎、支撑组件" width="900">
+  <img src="images/architecture.png" alt="系统组成架构：接入层、协议层（5 个工具与 dashboard）、编排层、8 个通用引擎与 9 个学术引擎、支撑组件" width="900">
 </p>
 
 **关键设计**：

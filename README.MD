@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero-banner.png" alt="多引擎搜索融合示意：百度 / Bing / DuckDuckGo / 学术源汇入本地编排，输出结构化结果" width="900">
+  <img src="docs/images/hero-banner.png" alt="多引擎搜索融合示意：百度 / Bing / DuckDuckGo / API 引擎 / 9 大学术源汇入本地编排，输出搜索结果、论文、网页 PDF 与本地文件" width="900">
 </p>
 
 用 Go 编写的 MCP 搜索服务。内置百度网页、Bing、DuckDuckGo 等通用引擎和 9 个学术引擎，搜索、评分、缓存全部在本地完成。可作为 MCP 工具接入 Claude Code、Qwen Code、Cursor，也可作为 Go 模块嵌入自有服务。
@@ -26,19 +26,19 @@
 
 ## 架构一览
 
-分层设计：客户端只面对 4 个 MCP 工具；引擎组由 `mode` 组装；评分、缓存、代理、抓取都在本进程内完成，查询不会经过第三方聚合服务。
+分层设计：客户端面对 5 个 MCP 工具；引擎组由 `mode` 组装；评分、缓存、代理、抓取都在本进程内完成，查询不会经过第三方聚合服务。
 
 <p align="center">
-  <img src="docs/images/architecture.png" alt="系统组成架构：接入层、协议层、编排层、通用/学术引擎、支撑组件" width="900">
+  <img src="docs/images/architecture.png" alt="系统组成架构：接入层、协议层（5 个工具与 dashboard）、编排层、8 个通用引擎与 9 个学术引擎、支撑组件" width="900">
 </p>
 
 | 层 | 做什么 |
 |----|--------|
 | **接入** | Claude Code / Qwen Code / Cursor / HTTP API / 嵌入 Go 模块 |
 | **协议** | `/mcp` 五个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 |
-| **编排** | `factory` 按 mode 组装 · `hybrid` 并发去重合并 · RRF / Boost / MMR 评分 |
+| **编排** | `factory` / `mode` 组装 · `hybrid` / `apipool` · `enhance`（RRF / Boost / MMR） |
 | **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包；学术 9 源并行 |
-| **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要 |
+| **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要、Everything |
 
 更完整的回退链、代理检测与嵌入方式见 [docs/architecture.md](docs/architecture.md)。
 
@@ -49,7 +49,7 @@
 五个工具覆盖检索工作流，结果互相衔接，一次配置全链路可用：
 
 <p align="center">
-  <img src="docs/images/toolchain.png" alt="smartsearch → academicsearch → cleanfetch → pdf_parser 工具链" width="900">
+  <img src="docs/images/toolchain.png" alt="smartsearch → academicsearch → cleanfetch → pdf_parser 工具链，以及 file_search 本地文件检索" width="900">
 </p>
 
 ---
@@ -77,7 +77,7 @@
 结果不是原始聚合。多引擎回传后在本地做去重、融合排名和多样性重排，再可选生成摘要：
 
 <p align="center">
-  <img src="docs/images/pipeline.png" alt="查询经 factory、并发检索、去重、RRF、Boost、阈值、MMR 后返回" width="900">
+  <img src="docs/images/pipeline.png" alt="查询经 factory/mode、并发检索、去重、RRF、Boost、阈值、MMR 后返回" width="900">
 </p>
 
 ---
@@ -173,7 +173,7 @@ autostart.vbs
 
 > 完整配置参考（快捷方式落位、品牌关于块、全部键与默认值）见 [docs/dashboard.md](docs/dashboard.md)。
 
-`dashboard.enabled: true` 后，本机浏览器访问 `http://127.0.0.1:8338/dashboard/`，可以看到四个页面：
+`dashboard.enabled: true` 后，本机浏览器访问 `http://127.0.0.1:8338/dashboard/`，可以看到五个页面：
 
 ![控制中心总览](docs/images/dashboard-overview.jpg)
 
