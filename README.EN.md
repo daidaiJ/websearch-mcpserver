@@ -117,7 +117,7 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 
 **Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, the 4 web tools each have their own `enabled` switch (`file_search` is probe-gated instead), keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
 
-**A complete tool chain for LLMs** — The 5 tools cover the full retrieval workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser` → `file_search` (Windows + Everything, auto-exposed when the startup probe passes), with results feeding into each other — one config enables the whole chain.
+**A complete tool chain for LLMs** — The 5 tools cover the full retrieval workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser` → `file_search` (Windows + Everything, auto-exposed when the client-connection probe passes), with results feeding into each other — one config enables the whole chain.
 
 **Scenario-specific optimization** — Optimized for real usage scenarios: academic search (9 engines + citation / journal / PDF scoring), China networking (direct connect + system proxy auto-detection), scanned PDFs (MinerU OCR fallback), recency queries (`time_range`).
 

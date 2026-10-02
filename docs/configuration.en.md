@@ -362,7 +362,8 @@ pdf_parser:
 
 # Everything local file search (file_search tool, optional; Windows + Everything HTTP Server only)
 # Note: not recommended on any Linux distribution unless running under WSL with everything.url explicitly pointing at the Windows host; on non-Windows platforms without an explicit url there is no probe and the tool stays hidden.
-# No enabled switch: the server probes everything.url at startup and registers file_search
+# No enabled switch: the server lazily probes everything.url when the first MCP client connects
+# (avoiding the autostart race between websearch and Everything) and registers file_search
 # only when the HTTP Server is reachable and authentication passes; otherwise the tool
 # stays hidden without affecting anything else.
 # everything:

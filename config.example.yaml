@@ -416,7 +416,8 @@ log:
 # 基于 Windows 下 Everything (voidtools) 的 HTTP Server 索引做本地文件快速检索。
 # 仅 Windows 提供（Everything 为 Windows 软件）：任何 Linux 发行版不建议启用，
 # 除非 WSL 下显式配置 everything.url 指向 Windows 宿主。
-# 无 enabled 开关：启动时自动探测 everything.url，探测不过（Everything 未运行 /
+# 无 enabled 开关：首个 MCP 客户端接入时自动探测 everything.url（延迟探测，
+# 避免与 Everything 自启动的时序竞争），探测不过（Everything 未运行 /
 # HTTP Server 未启用 / 鉴权不通过）则 file_search 工具不暴露，不影响其它功能；
 # 非 Windows 且未显式配置 url 时根本不会探测。
 # everything:

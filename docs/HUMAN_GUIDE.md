@@ -68,7 +68,7 @@
 | `pdf_parser` | 解析 PDF（本地文本优先，扫描件回退 MinerU OCR；原件超页自动裁切分批） | 把 `academicsearch` 结果里的 `pdf_url` 直接传入读论文全文；超长文档用 `pages` 分次读 |
 | `file_search` | 基于 Everything 索引毫秒级定位本地文件（Windows 专属，需装 Everything） | "帮我找本地那份 XX 的 PDF"；目录白名单限定检索范围 |
 
-> 工具没在客户端里全部出现时，先检查注册条件（`bing.enabled` / `academic.enabled` / `cleanfetch.enabled` / `pdf_parser.enabled`；`file_search` 为启动探测门控，需 Everything 在运行并启用 HTTP Server），见 [search.md](search.md#mcp-工具)。
+> 工具没在客户端里全部出现时，先检查注册条件（`bing.enabled` / `academic.enabled` / `cleanfetch.enabled` / `pdf_parser.enabled`；`file_search` 为接入时探测门控，需 Everything 在运行并启用 HTTP Server），见 [search.md](search.md#mcp-工具)。
 
 ## 调优：先观测再动手
 

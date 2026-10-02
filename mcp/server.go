@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"websearch/pkg/config"
 	"websearch/pkg/log"
@@ -82,8 +83,8 @@ func registerTools(server *mcp.Server, conf config.Config) {
 		log.Info("Available tool: cleanfetch")
 	}
 
-	// ── 注册 file_search 工具（探测通过才暴露，见 WithEverything） ──
-	if everythingInst != nil {
+	// ── 注册 file_search 工具（接入时探测通过才暴露，见 ensureEverything） ──
+	if ensureEverything() {
 		fileDesc := "本地文件快速检索工具，基于 Everything 索引毫秒级返回文件名与路径（只读，不读文件内容）。适合定位本地文件：源码、文档、PDF 等。query 支持 Everything 语法（通配符、ext:、dm:、size: 等）。"
 		if len(everythingRoots) > 0 {
 			fileDesc += fmt.Sprintf("检索范围限定在 %d 个白名单目录内，可用 folder 参数进一步指定其中一个目录。", len(everythingRoots))
@@ -117,9 +118,19 @@ func registerTools(server *mcp.Server, conf config.Config) {
 }
 
 func RegisterRouter(mux *http.ServeMux, conf config.Config) {
-	server := NewMCPServer(conf, nil)
+	// MCP Server 惰性创建：NewMCPServer 内的工具注册包含 Everything 探测
+	// （ensureEverything），推迟到首个客户端请求时执行，避免 websearch 与
+	// Everything 双自启动的时序竞争导致 file_search 在进程周期内缺失。
+	var (
+		once      sync.Once
+		mcpServer *mcp.Server
+	)
+	getServer := func() *mcp.Server {
+		once.Do(func() { mcpServer = NewMCPServer(conf, nil) })
+		return mcpServer
+	}
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
-		return server
+		return getServer()
 	}, &mcp.StreamableHTTPOptions{
 		SessionTimeout: 5 * time.Minute,
 		// 无状态模式：不校验 Mcp-Session-Id，每个请求用临时会话独立处理，

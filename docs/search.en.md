@@ -231,7 +231,7 @@ apipool:
 
 ## MCP Tools
 
-> Tool registration conditions: `smartsearch` needs `bing.enabled=true`; `academicsearch` needs `academic.enabled=true`; `cleanfetch` needs `cleanfetch.enabled=true`; `pdf_parser` needs `pdf_parser.enabled=true`; `file_search` has no switch — it is registered when the startup probe of the Everything HTTP Server succeeds, and stays hidden otherwise.
+> Tool registration conditions: `smartsearch` needs `bing.enabled=true`; `academicsearch` needs `academic.enabled=true`; `cleanfetch` needs `cleanfetch.enabled=true`; `pdf_parser` needs `pdf_parser.enabled=true`; `file_search` has no switch — it is registered when the lazy probe of the Everything HTTP Server at first MCP client connection succeeds, and stays hidden otherwise.
 
 ### `smartsearch` — General Web Search
 
@@ -325,7 +325,7 @@ ode_modules\"]`; wrap path fragments with leading/trailing backslashes to avoid 
 | `descending` | bool | ❌ | Descending order (with `sort`) |
 | `time_format` | string | ❌ | `datetime` (default, `2026-01-02 15:04:05`) / `iso` (ISO 8601 UTC) / `filetime` (raw FILETIME) |
 
-**Registration (automatic probe, no enabled switch)**: at startup the server probes `everything.url`; the tool is registered only when the server is reachable and authentication passes. If Everything is not running, its HTTP Server is disabled, or authentication fails, the tool stays hidden without affecting anything else.
+**Registration (automatic probe, no enabled switch)**: when the first MCP client connects, the server lazily probes `everything.url` (this avoids the autostart race between websearch and Everything hiding the tool for the whole process lifetime); the tool is registered only when the server is reachable and authentication passes. If Everything is not running, its HTTP Server is disabled, or authentication fails, the tool stays hidden without affecting anything else.
 
 **Restraint constraints**: with `everything.roots` (directory whitelist) configured, every search is forcibly scoped to the whitelist and out-of-scope folders fail with an error. **Second-stage filtering (agent cost optimization)**: the server over-fetches 3x candidates (hard cap 600), when `sort` is not explicitly set, re-ranks them locally by lexical alignment of the query against filename/path (reusing the smartsearch scoring pipeline tokenizer and stop words; an explicit `sort` is respected and only the threshold filter applies), demotes results under noise directories such as `node_modules`/`.git`/`target` (`everything.noise_dirs` overrides), and `everything.min_alignment` drops weak matches — one line per result, weak hits never reach the context.
 
