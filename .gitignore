@@ -50,3 +50,11 @@ pkg/dashboard/web/*.html
 
 # 杀软锁系统 TEMP 的绕行构建目录
 .gtmp/
+
+# 本机运行时产物：控制中心库、跑测留档、日志、工具缓存
+/data/
+/latest_logs/
+/tmp/
+*.log
+/.codegraph/
+/.playwright-mcp/
