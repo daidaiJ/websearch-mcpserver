@@ -53,3 +53,11 @@ pkg/dashboard/web/*.html
 
 # 会话交接记录（handoff skill 管理不入库）
 .handoff/
+
+# 本机运行时产物：控制中心库、跑测留档、日志、工具缓存
+/data/
+/latest_logs/
+/tmp/
+*.log
+/.codegraph/
+/.playwright-mcp/
