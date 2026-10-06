@@ -117,6 +117,7 @@ func (e *europePMCEngine) parse(data []byte) (*antirobot.SearchResponse, error) 
 			Content:     "", // 列表接口无摘要
 			Authors:     antirobot.CollapseSpace(strings.TrimSuffix(strings.TrimSpace(item.AuthorString), ".")),
 			PublishedAt: item.FirstPublicationDate,
+			DateSource:  antirobot.DateSourceStructured,
 			DOI:         item.DOI,
 			Journal:     journal,
 			CitedBy:     item.CitedByCount,

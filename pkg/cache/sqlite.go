@@ -14,6 +14,23 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// DefaultTTL 缓存记录默认存活时长（写入时未指定 TTL 时的安全默认）。
+const DefaultTTL = 6 * time.Hour
+
+// TTLForFreshness 按 freshness 档位返回缓存 TTL：
+// day → 1h、week → 6h（默认）、month → 24h，未指定/其它取默认。
+// 时效敏感查询（day）命中陈旧缓存会给出错误时效，故分桶收紧。
+func TTLForFreshness(freshness string) time.Duration {
+	switch freshness {
+	case "day":
+		return time.Hour
+	case "month":
+		return 24 * time.Hour
+	default:
+		return DefaultTTL
+	}
+}
+
 // CacheRecord 缓存记录
 type CacheRecord struct {
 	ID         int64     `json:"id"`
@@ -24,6 +41,7 @@ type CacheRecord struct {
 	Summary    string    `json:"summary"`     // LLM 摘要文本，可能为空
 	CreatedAt  time.Time `json:"created_at"`  // 存储时间
 	LastHitAt  time.Time `json:"last_hit_at"` // 最近一次命中时间
+	TTLSeconds int64     `json:"ttl_seconds"` // 存活时长（秒，按 freshness 分桶写入）
 }
 
 // Cache SQLite 缓存层，并发安全
@@ -55,7 +73,8 @@ func New(storagePath string) (*Cache, error) {
 			raw_results TEXT    NOT NULL DEFAULT '[]',
 			summary     TEXT    NOT NULL DEFAULT '',
 			created_at  INTEGER NOT NULL,
-			last_hit_at INTEGER NOT NULL
+			last_hit_at INTEGER NOT NULL,
+			ttl_seconds INTEGER NOT NULL DEFAULT 21600
 		)
 	`)
 	if err != nil {
@@ -68,6 +87,13 @@ func New(storagePath string) (*Cache, error) {
 	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
 		db.Close()
 		return nil, fmt.Errorf("迁移 academic 列失败: %w", err)
+	}
+
+	// 迁移：为旧表添加 ttl_seconds 列（freshness 分桶 TTL，默认 6h 与旧行为一致）
+	_, err = db.Exec(`ALTER TABLE search_cache ADD COLUMN ttl_seconds INTEGER NOT NULL DEFAULT 21600`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		db.Close()
+		return nil, fmt.Errorf("迁移 ttl_seconds 列失败: %w", err)
 	}
 
 	// 迁移：删除 (query, intent, academic) 重复行，每组保留 last_hit_at 最新的一条。
@@ -123,6 +149,7 @@ func (c *Cache) Clear() (int64, error) {
 
 // Lookup 查询缓存，两步查询优化索引利用
 // 返回值: record(可能为nil), hitType("exact_intent" / "query_only" / "miss")
+// 记录按创建时间 + TTL 判活，过期记录惰性删除并视为未命中。
 func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, string, error) {
 	now := time.Now().Unix()
 	academicInt := 0
@@ -131,22 +158,27 @@ func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, strin
 	}
 
 	var rec CacheRecord
-	var createdAt, lastHitAt int64
+	var createdAt, lastHitAt, ttlSeconds int64
 	var recAcademicInt int
 
 	// 第一步：精确匹配（query + intent + academic），直接利用索引 B-tree 定位
 	err := c.db.QueryRow(`
-		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at
+		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at, ttl_seconds
 		  FROM search_cache
 		 WHERE query = ? AND intent = ? AND academic = ?
 		 LIMIT 1`,
 		query, intent, academicInt,
-	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt)
+	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt, &ttlSeconds)
 
 	if err == nil {
+		if expired(now, createdAt, ttlSeconds) {
+			c.evictExpired(rec.ID)
+			return nil, "miss", nil
+		}
 		rec.Academic = recAcademicInt == 1
 		rec.CreatedAt = time.Unix(createdAt, 0)
 		rec.LastHitAt = time.Unix(lastHitAt, 0)
+		rec.TTLSeconds = ttlSeconds
 		c.touchLastHit(rec.ID, now)
 		if rec.Summary != "" {
 			return &rec, "exact_intent", nil
@@ -160,13 +192,13 @@ func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, strin
 
 	// 第二步：仅 query 匹配（回退），按 last_hit_at 降序取最新
 	err = c.db.QueryRow(`
-		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at
+		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at, ttl_seconds
 		  FROM search_cache
 		 WHERE query = ?
 		 ORDER BY last_hit_at DESC
 		 LIMIT 1`,
 		query,
-	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt)
+	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt, &ttlSeconds)
 
 	if err == sql.ErrNoRows {
 		return nil, "miss", nil
@@ -175,11 +207,31 @@ func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, strin
 		return nil, "miss", fmt.Errorf("缓存查询失败: %w", err)
 	}
 
+	if expired(now, createdAt, ttlSeconds) {
+		c.evictExpired(rec.ID)
+		return nil, "miss", nil
+	}
 	rec.Academic = recAcademicInt == 1
 	rec.CreatedAt = time.Unix(createdAt, 0)
 	rec.LastHitAt = time.Unix(lastHitAt, 0)
+	rec.TTLSeconds = ttlSeconds
 	c.touchLastHit(rec.ID, now)
 	return &rec, "query_only", nil
+}
+
+// expired 记录是否已过 TTL（按创建时间计，与 last_hit_at 无关：
+// 持续命中不能无限续命时效敏感的结果）。
+func expired(now, createdAt, ttlSeconds int64) bool {
+	ttl := ttlSeconds
+	if ttl <= 0 {
+		ttl = int64(DefaultTTL / time.Second)
+	}
+	return now-createdAt > ttl
+}
+
+// evictExpired 惰性删除过期记录（后台 EvictStale 之外的兜底，单行删除开销可忽略）。
+func (c *Cache) evictExpired(id int64) {
+	_, _ = c.db.Exec(`DELETE FROM search_cache WHERE id = ?`, id)
 }
 
 // touchLastHit 更新命中时间
@@ -187,8 +239,9 @@ func (c *Cache) touchLastHit(id int64, now int64) {
 	_, _ = c.db.Exec(`UPDATE search_cache SET last_hit_at = ? WHERE id = ?`, now, id)
 }
 
-// Store 存储缓存记录
-func (c *Cache) Store(query, intent string, academic bool, results []core.SearchResult, summary string) error {
+// Store 存储缓存记录。ttl 为记录存活时长（按 freshness 分桶，见 TTLForFreshness），
+// ttl <= 0 时取 DefaultTTL。
+func (c *Cache) Store(query, intent string, academic bool, results []core.SearchResult, summary string, ttl time.Duration) error {
 	now := time.Now().Unix()
 	rawJSON, err := json.Marshal(results)
 	if err != nil {
@@ -198,21 +251,27 @@ func (c *Cache) Store(query, intent string, academic bool, results []core.Search
 	if academic {
 		academicInt = 1
 	}
+	if ttl <= 0 {
+		ttl = DefaultTTL
+	}
+	ttlSeconds := int64(ttl / time.Second)
 
 	_, err = c.db.Exec(
-		`INSERT INTO search_cache (query, intent, academic, raw_results, summary, created_at, last_hit_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO search_cache (query, intent, academic, raw_results, summary, created_at, last_hit_at, ttl_seconds)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(query, intent, academic) DO UPDATE SET
 			raw_results = excluded.raw_results,
 			summary     = excluded.summary,
-			last_hit_at = excluded.last_hit_at`,
-		query, intent, academicInt, string(rawJSON), summary, now, now,
+			last_hit_at = excluded.last_hit_at,
+			created_at  = excluded.created_at,
+			ttl_seconds = excluded.ttl_seconds`,
+		query, intent, academicInt, string(rawJSON), summary, now, now, ttlSeconds,
 	)
 	if err != nil {
 		return fmt.Errorf("缓存写入失败: %w", err)
 	}
 
-	log.Infof("缓存已存储: query=%q, intent=%q, academic=%v, has_summary=%v", query, intent, academic, summary != "")
+	log.Infof("缓存已存储: query=%q, intent=%q, academic=%v, has_summary=%v, ttl=%v", query, intent, academic, summary != "", ttl)
 	return nil
 }
 

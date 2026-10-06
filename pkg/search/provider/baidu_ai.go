@@ -163,6 +163,7 @@ func (b *BaiduAISearchImpl) SearchRaw(query string) ([]core.SearchResult, error)
 			Url:         ref.Url,
 			Content:     ref.Content,
 			PublishDate: ref.Date,
+			DateSource:  core.DateSourceStructured,
 			Engine:      b.name,
 		})
 	}
@@ -191,7 +192,7 @@ func (b *BaiduAISearchImpl) MergeContent(query string, results []core.SearchResu
 		val := results[i]
 		idx := i - startIdx + 1
 		if core.ShowMeta {
-			buf.WriteString(core.FormatMDScore(idx, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), val.Content))
+			buf.WriteString(core.FormatMDScore(idx, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(idx, val.Title, val.Url, val.Content))
 		}

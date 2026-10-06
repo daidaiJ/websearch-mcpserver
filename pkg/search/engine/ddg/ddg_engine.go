@@ -247,14 +247,32 @@ func (e *ddgEngine) recordSuccess() {
 	e.cooldown = 0
 	e.cooldownUntil = time.Time{}
 	e.mu.Unlock()
+	antirobot.ClearCooldown(e.Name())
 }
 
 // enterCooldown 进入冷却：时长由 cooldownDuration 计算，冷却期内不打上游。
 func (e *ddgEngine) enterCooldown(retryAfter time.Duration) {
 	cd := e.cooldownDuration(retryAfter)
+	until := time.Now().Add(cd)
 	e.mu.Lock()
 	e.cooldown = cd
-	e.cooldownUntil = time.Now().Add(cd)
+	e.cooldownUntil = until
+	e.mu.Unlock()
+	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, "HTTP 202/429 限流", until, cd)
+}
+
+// adoptPersistedCooldown 收养上一次进程落盘的冷却：未过期则继续避让至截止时间，
+// 已过期仅续接翻倍档位（升级记忆跨进程存活），避免重启后从头试探已被限流的引擎。
+func (e *ddgEngine) adoptPersistedCooldown() {
+	until, cd, ok := antirobot.AdoptCooldown(e.Name())
+	if !ok {
+		return
+	}
+	e.mu.Lock()
+	e.cooldown = cd
+	if !until.IsZero() {
+		e.cooldownUntil = until
+	}
 	e.mu.Unlock()
 }
 

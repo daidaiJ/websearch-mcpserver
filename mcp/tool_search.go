@@ -88,10 +88,11 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 			if err == nil && rec != nil && !rec.Academic && hitType == "query_only" {
 				results, parseErr := rec.GetRawResults()
 				if parseErr == nil {
-					cacheHit = true
+		cacheHit = true
 					resultCount = len(results)
 					results = enrichFetchedTopN(ctx, results, n)
-					return finishWebSearch(ctx, req, query, intent, cacheQuery, results)
+					// 缓存命中不带诊断：失败清单不写入缓存（与学术搜索同策略）
+					return finishWebSearch(ctx, req, query, intent, cacheQuery, results, nil, 0, cacheProvenance(rec.CreatedAt))
 				}
 			}
 		}
@@ -108,9 +109,14 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	}
 	if err != nil {
 		if fallbackSearch != nil && searchapi != fallbackSearch {
+			mainErr := err
 			log.Errf("主搜索引擎失败(%v)，回退到 Bing 引擎", err)
 			results, err = fallbackSearch.SearchRaw(query)
 			engineName = "bing"
+			// 回退也失败时，错误信息带上主引擎失败原因，保证空结果可归因
+			if err != nil {
+				return nil, nil, fmt.Errorf("%v（主搜索引擎亦失败: %v）", err, mainErr)
+			}
 		}
 		if err != nil {
 			return nil, nil, err
@@ -122,9 +128,42 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		results = postSearchFilter(results, engineName)
 	}
 
+	// 失败透出统一契约：空结果必须可解释（失败清单 + 过滤诊断），失败不受预算裁剪
+	if len(results) == 0 {
+		msg := "搜索未返回有效结果"
+		if d := searchDiagnostics(); d != nil {
+			msg += d.FormatFailures() + d.FormatFilterDrops()
+		}
+		return nil, nil, fmt.Errorf("%s", msg)
+	}
+
 	results = enrichFetchedTopN(ctx, results, n)
 	resultCount = len(results)
-	return finishWebSearch(ctx, req, query, intent, cacheQuery, results)
+	return finishWebSearch(ctx, req, query, intent, cacheQuery, results, searchDiagnostics(), cacheTTLForMonths(timeRangeMonths), provenance{retrievedAt: time.Now()})
+}
+
+// provenance 响应溯源头数据（P1-4 结果来源注记）：retrievedAt 为结果检索时间，
+// 缓存命中时为原检索时间且 cacheAge > 0（响应头输出 cache_age_seconds）。
+type provenance struct {
+	retrievedAt time.Time
+	cacheAge    time.Duration
+}
+
+// cacheProvenance 缓存命中路径的溯源头：retrieved_at 取原检索时间（缓存写入时刻）。
+func cacheProvenance(createdAt time.Time) provenance {
+	return provenance{retrievedAt: createdAt, cacheAge: time.Since(createdAt)}
+}
+
+// searchDiagnostics 读取编排层最近一次搜索的失败诊断（非编排实现或无失败时返回 nil）。
+// 诊断不写入缓存：缓存命中路径不携带上次搜索的失败信息。
+func searchDiagnostics() *searchcore.SearchDiagnostics {
+	if dp, ok := searchapi.(searchcore.DiagnosticsProvider); ok {
+		d := dp.LastDiagnostics()
+		if d.HasFailures() || len(d.FilterDrops) > 0 {
+			return &d
+		}
+	}
+	return nil
 }
 
 const maxFetchTopN = 5
@@ -162,7 +201,7 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 	case "exact_intent":
 		if rec.Summary != "" {
 			log.Infof("缓存命中(exact_intent+summary): query=%s", query)
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: rec.Summary}}}, true
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + rec.Summary}}}, true
 		}
 		fallthrough
 	case "query_only":
@@ -175,11 +214,15 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 		if mergeErr != nil {
 			return nil, false
 		}
+		// 超限落盘与实时路径共用：缓存命中的大体量渲染结果同样转存临时文件
+		if notice, dumped := dumpSearchResultsIfOversize(len(results), ret); dumped {
+			ret = notice
+		}
 		if intent != "" && summarizerInst != nil && rec.Summary == "" {
 			cacheQuery := webSearchCacheQuery(query, fetchTopN)
 			go asyncSummarize(query, cacheQuery, intent, results)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, true
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + ret}}}, true
 	}
 	return nil, false
 }
@@ -197,7 +240,12 @@ func asyncSummarize(query, cacheQuery, intent string, results []search.SearchRes
 	}
 }
 
-func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent, cacheQuery string, results []search.SearchResult) (*mcp.CallToolResult, any, error) {
+// finishWebSearch 组装最终响应：溯源头 → LLM 摘要（可选）→ 原始结果格式化 → 失败诊断追加。
+// diag 仅在全新搜索路径非空（缓存命中不带诊断）；失败清单追加在响应末尾且不受
+// 后续证据预算裁剪，过滤诊断仅在结果稀疏（≤3 条）时透出。
+// ttl 为本次缓存写入的存活时长（按查询时间范围分桶，见 cacheTTLForMonths）；
+// prov 为响应头溯源头（retrieved_at / cache_age_seconds / usage_note）。
+func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent, cacheQuery string, results []search.SearchResult, diag *searchcore.SearchDiagnostics, ttl time.Duration, prov provenance) (*mcp.CallToolResult, any, error) {
 	if intent != "" && summarizerInst != nil {
 		var output string
 		var sumErr error
@@ -212,9 +260,10 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 		}
 		if sumErr == nil {
 			if cacheInst != nil {
-				_ = cacheInst.Store(cacheQuery, intent, false, results, output)
+				// 缓存只存干净摘要，失败诊断不落缓存
+				_ = cacheInst.Store(cacheQuery, intent, false, results, output, ttl)
 			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}}, nil, nil
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(output, diag, len(results))}}}, nil, nil
 		}
 		log.Errf("LLM 摘要失败，回退到原始结果: %v", sumErr)
 	}
@@ -223,10 +272,36 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 	if err != nil {
 		return nil, nil, err
 	}
-	if cacheInst != nil {
-		_ = cacheInst.Store(cacheQuery, intent, false, results, "")
+	// 超限落盘（P1-11 移交小项）：响应体恒定，完整结果转存临时文件供 agent 分段读取；
+	// 缓存仍存原始结果，缓存命中路径按同一规则再落盘
+	if notice, dumped := dumpSearchResultsIfOversize(len(results), ret); dumped {
+		ret = notice
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
+	if cacheInst != nil {
+		_ = cacheInst.Store(cacheQuery, intent, false, results, "", ttl)
+	}
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(ret, diag, len(results))}}}, nil, nil
+}
+
+// cacheTTLForMonths 按查询时间范围分桶缓存 TTL：时间窗越小，内容时效越敏感，
+// 缓存存活越短（≤1 个月 → 24h，其余保持默认 6h）。
+func cacheTTLForMonths(timeRangeMonths int) time.Duration {
+	if timeRangeMonths > 0 && timeRangeMonths <= 1 {
+		return 24 * time.Hour
+	}
+	return cache.DefaultTTL
+}
+
+// appendDiagnostics 把失败清单（总是）与过滤诊断（结果稀疏时）追加到响应文本末尾。
+func appendDiagnostics(text string, diag *searchcore.SearchDiagnostics, resultCount int) string {
+	if diag == nil {
+		return text
+	}
+	appended := text + diag.FormatFailures()
+	if resultCount <= 3 {
+		appended += diag.FormatFilterDrops()
+	}
+	return appended
 }
 
 type pageFetcher func(ctx context.Context, rawURL string) (string, error)

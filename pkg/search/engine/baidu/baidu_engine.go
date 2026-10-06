@@ -256,8 +256,10 @@ func (e *baiduEngine) parseResponse(body []byte) ([]antirobot.Result, error) {
 		content := html.UnescapeString(entry.Abs)
 
 		publishedAt := ""
+		dateSource := ""
 		if entry.Time > 0 {
 			publishedAt = time.Unix(entry.Time, 0).Format("2006-01-02")
+			dateSource = antirobot.DateSourceStructured
 		}
 
 		results = append(results, antirobot.Result{
@@ -266,6 +268,7 @@ func (e *baiduEngine) parseResponse(body []byte) ([]antirobot.Result, error) {
 			URL:         entry.URL,
 			Content:     content,
 			PublishedAt: publishedAt,
+			DateSource:  dateSource,
 			Engine:      "baidu_web",
 		})
 	}

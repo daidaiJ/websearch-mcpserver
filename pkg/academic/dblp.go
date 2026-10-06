@@ -181,6 +181,7 @@ func (e *dblpEngine) parse(data []byte) (*antirobot.SearchResponse, error) {
 			Content:     "", // DBLP 无摘要
 			Authors:     dblpAuthorNames(info.Authors),
 			PublishedAt: pubDate,
+			DateSource:  antirobot.DateSourceStructured,
 			DOI:         info.DOI,
 			Journal:     antirobot.CollapseSpace(strings.TrimSpace(info.Venue)),
 			Engine:      "dblp",

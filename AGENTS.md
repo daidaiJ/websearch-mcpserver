@@ -120,6 +120,9 @@ pkg/
 | Google wml + Nokia UA 绕过（SearXNG PR #6546 路线） | 2026-09-03 实测：HK 代理出口下首请求 429 进 /sorry/，其余 200 均为 JS 挑战空壳，Google 未对 Nokia UA 返回 WML/XML | 强依赖出口 IP 信誉，非普适方案；wml 遗留端点随时可能被 Google 移除，勿照抄 |
 | 百度 tn=json 接口（SearXNG baidu.py 路线） | 2026-09-03 实测：直连裸客户端 3/3 被 302 至 wappass 验证码，预热 cookie 无效；同 IP 下 HTML 引擎同样被 CAPTCHA。识别主因疑似 IP 信誉 + TLS 指纹，与 HTML/JSON 入口无关 | tn=json 非免检通道，JSON 接口不能替代 pkg/engine/baidu 现有反检测层 |
 | DDG / arXiv 限流 | 服务端窗口限流，引擎内置钳制（DDG 1/s·6/min，arXiv 1/s·12/min + 3s 间隔）+ 429 冷却避让 + 预算感知重试 | 调整限流参数须实测校准，勿放宽内置上限 |
+| 360 搜索（so360，2026-10-06 出口实测） | 直连与代理均 HTTP 200 + 自然结果（`li.res-list` + `data-mdurl` 真实 URL，`div.g-mohe` 特型卡需过滤）；解析契约对齐上游 so360.py | 已注册（`so360.enabled`，默认关闭）；验证码页 wappass 按反爬拦截报错 |
+| AnySearch 匿名档（2026-10-06 出口实测） | 直连与代理均 200，POST 不带 Authorization 即匿名 IP 限流档（上游 anysearch.py 注释同口径），结果在 `data.results` | KeyPool 为空自动走匿名档，本端保守钳制 1/s·20/min；上游未公布阈值，调参须实测 |
+| Wikipedia / Google News（2026-10-06 出口实测） | 直连均超时；代理下 Wikipedia MediaWiki API 200 + 正常 JSON，Google News RSS 200 + 52 item 且 batchexecute RPC 可回源发布方 URL（f.req 须三层嵌套 + ts 数字形态，否则 400） | 已注册（均需代理，无可用代理解析时跳过）；Google News 解析契约对齐上游 gnews.py |
 
 ---
 
@@ -164,8 +167,29 @@ docker build -t websearch-mcpserver .
 6. **配置文档唯一入口**：控制中心所有可配置项（含 `dashboard.shortcut` 快捷方式落位、`brand.footer` 关于块）的完整参考与「agent 向人类确认清单」住 `docs/dashboard.md` / `dashboard.en.md`；新增配置键必须同步该文档与 `dashboard.example.yaml`，不允许只在代码注释里出现。
 6. **图标资产再生成**：改设计 → `go run ./tools/genicon`（在仓库根目录跑），产出 3 主题 ico + web logo，不要手工改二进制资产。
 
+## 本地环境
+
+- **Go 构建临时目录**：`GOTMPDIR=D:	mp`（`go env -w` + 用户环境变量已配置）。卡巴斯基锁定系统 TEMP 会导致 `go build` 偶发 Access denied，构建/测试编译临时目录已统一指向 `D:	mp`，在该目录配置杀软排除即可规避；`go test` 的 `t.TempDir()` 数据目录仍走系统 TEMP（改全局 TMP/TEMP 影响面大，未动）。
+
 ## 提交与发布卫生
 
 1. **推送前必须按功能 rebase 压缩**（硬规则）：分支历史按功能聚合成少量提交（如 PR 引入层 / 安全加固层 / 功能层 / 文档层各一个），不推"一堆 WIP 碎提交"。吸收外部 PR 时保留原作者（`git commit --author`），功能分组用 `git checkout <src> -- <paths>` 按路径重建，每步过 `go build ./...`。
 2. **webui 分支只发预览版**：tag 形如 `vX.Y.Z-preview.N`，release.yml 检测 `-preview` 自动 `--prerelease` 并跳过 GHCR；不进 CHANGELOG 正式版本区（记 Unreleased/预览段），不打 `-registry` tag、不进 MCP Registry。
 3. **外部贡献吸收必须显式署名**（开源尊重，硬规则）：压缩聚合不能丢失作者归属——author 字段 + GitHub noreply 邮箱保证提交在 GitHub 上关联到贡献者账号与头像；相关 commit message 追加 `Credit: 来自 PR #N（作者 @handle）…` 标注来源；CHANGELOG（中英）与预览版 release notes 中必须致谢贡献者并列明其贡献范围。
+
+## 🔄 Handoff 摘要
+
+### search-upgrade — in-progress（一至五期全部完成，待推送）
+
+- **当前状态：** 按五期拆分推进（用户确认）；**一期已提交 `6aa7ca8`**（P0-1 失败透出统一契约 + P1-6 共识按 family 计票 + P1-7 off-topic 整桶守卫 + P1-8 freshness 缓存 TTL）；**二期已提交 `f6da753`**（P1-4 date_source 三态注记 + P1-5 熔断落盘 + P1-10 Resource 化）；**三期已提交 `9b16ef7`**（P0-2 零 Key 来源扩充：so360 直连可用 / anysearch 匿名档 / wikipedia+googlenews 需代理，逐个出口实测后注册且结论补能力边界表；超限落盘 `smartsearch.inline_max_chars`；P1-7 处置=三态 `off_topic_guard` 默认 shadow（用户拍板）；小修：学术日期 FormatDateSource 注记 + MCP 握手版本对齐；BuildEngineMode/BuildHybridMode 改用 EngineAdapters 命名结构体）；**四期已取消**；**五期已提交（P0-3 插件市场分发经评估后取消——2026-10-06 用户拍板"不折腾插件，等 agent 生态原生支持 mcpb/Registry"，调研结论留档 .handoff；五期落地 = 全量文档同步：docs/search 中英新增「响应行为与可靠性」+ 引擎对照补 so360/wikipedia/google_news + docs/api 响应契约摘要 + README 响应透明行 + 四个 MCP 工具描述补适用边界路由提示）**，未推送。提交已按期聚合（一至五期各一个提交），可直接推送/发版
+- **关键证据：** 计划全文 `docs/plans/2026-10-search-upgrade.md`；分支 `feat/search-upgrade`（基线 master@67ac2fb v3.6.1）；一期契约层在 `pkg/search/core/diagnostics.go`；`feat/file-search-everything` 尚未合并（领先 6 提交）
+- **纪律（用户 mid-turn 明示）：** 遵循项目既有设计风格与原则；提交前性能审查（避免负面性能影响的实现）；每期完成即交接
+- **详情指针：** [.handoff/search-upgrade.md](.handoff/search-upgrade.md)
+
+### 未验证事项
+- [x] 候选零 Key 引擎在国内出口的实际可用性 —— 三期已实测（so360 直连✓ / anysearch 匿名档直连✓ / wikipedia+googlenews 代理✓，结论见能力边界表）
+- [x] P1-7 off-topic 守卫处置（2026-10-06 用户拍板：三态 `smartsearch.off_topic_guard`，默认 shadow 只记录不丢弃）；守卫阈值仍未校准，shadow 日志/失败清单为后续校准积累证据
+- [x] 超限落盘小项 + 学术日期注记 + 握手版本对齐 —— 三期已完成
+- [x] 五期：全量文档同步（docs/search/api/README 补一至三期响应行为说明 + 工具描述适用边界）—— 已完成；P0-3 插件市场分发经评估取消（结论见 .handoff）
+- [ ] 三期新引擎真实链路长期回归（验证码页出现频率、anysearch 匿名档限流阈值实测校准、googlenews 回源失败率）
+- [ ] 二期冷却落盘真网冷启动回归（重启后 ddg/arxiv 实际避让）；date_source 新旧行缓存往返实测

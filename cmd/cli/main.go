@@ -102,6 +102,7 @@ func runStdio(conf *config.Config) {
 }
 
 func main() {
+	mcpserver.SetServerVersion(version)
 	flag.Usage = printUsage
 	var configPath string
 	var showHelp bool

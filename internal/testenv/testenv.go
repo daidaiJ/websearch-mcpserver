@@ -43,6 +43,9 @@ const (
 	SemanticScholar = "semantic_scholar"
 	Baidu           = "baidu"
 	Bing            = "bing"
+	So360           = "so360"
+	Wikipedia       = "wikipedia"
+	GoogleNews      = "googlenews"
 	Google          = "google"
 	DuckDuckGo      = "duckduckgo"
 	Web             = "web"          // 通用外网连通性
@@ -57,6 +60,9 @@ var probeURLs = map[string]string{
 	SemanticScholar: "https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1",
 	Baidu:           "https://www.baidu.com",
 	Bing:            "https://www.bing.com",
+	So360:           "https://www.so.com",
+	Wikipedia:       "https://zh.wikipedia.org",
+	GoogleNews:      "https://news.google.com/rss",
 	Google:          "https://www.google.com/generate_204",
 	DuckDuckGo:      "https://duckduckgo.com/",
 	Web:             "https://example.com",

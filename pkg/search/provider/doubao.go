@@ -289,6 +289,7 @@ func (d *DoubaoSearchImpl) searchGlobal(query string) ([]core.SearchResult, erro
 			Url:         rawURL,
 			Content:     doubaoGlobalContent(doc),
 			PublishDate: strings.TrimSpace(doc.DocumentInfo.PublishTime),
+			DateSource:  core.DateSourceStructured,
 			Engine:      d.name,
 		})
 	}
@@ -362,6 +363,7 @@ func (d *DoubaoSearchImpl) searchCustom(query string) ([]core.SearchResult, erro
 			Url:         rawURL,
 			Content:     firstNonEmpty(item.Content, item.Summary, item.Snippet),
 			PublishDate: firstNonEmpty(item.PublishTime, item.PublishDate, item.Time),
+			DateSource:  core.DateSourceStructured,
 			Score:       score,
 			Engine:      d.name,
 		})
@@ -378,7 +380,7 @@ func (d *DoubaoSearchImpl) MergeContent(query string, results []core.SearchResul
 	buf.WriteString(core.MDSearchHeader(query, len(results)))
 	for i, val := range results {
 		if core.ShowMeta {
-			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), val.Content))
+			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(i+1, val.Title, val.Url, val.Content))
 		}

@@ -163,6 +163,7 @@ func (e *doajEngine) parse(data []byte) (*antirobot.SearchResponse, error) {
 			Content:     antirobot.CollapseSpace(strings.TrimSpace(b.Abstract)),
 			Authors:     strings.Join(authors, ", "),
 			PublishedAt: pubDate,
+			DateSource:  antirobot.DateSourceStructured,
 			DOI:         doi,
 			Journal:     antirobot.CollapseSpace(strings.TrimSpace(b.Journal.Title)),
 			Engine:      "doaj",

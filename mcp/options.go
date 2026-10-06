@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"fmt"
+	"path/filepath"
+	"websearch/pkg/antirobot"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/jina"
@@ -43,6 +45,9 @@ func WithWebFetch(conf config.Config) ServerOption {
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
 
 func applySearchEngine(conf config.Config) {
+	// 引擎冷却落盘（P1-5）：与缓存数据库同目录的 engine_health.json，
+	// 跨进程复用冷却状态；须在引擎构造（收养落盘状态）之前设置
+	antirobot.SetHealthStore(filepath.Join(filepath.Dir(conf.GetCacheStoragePath()), "engine_health.json"))
 	g, err := search.NewFromConfig(conf)
 	if err != nil {
 		panic(fmt.Sprintf("搜索引擎初始化失败: %v", err))
@@ -52,6 +57,8 @@ func applySearchEngine(conf config.Config) {
 	fallbackSearch = g.Fallback
 	academicSearcher = g.Academic
 	smartSearchConf = conf.SmartSearch
+	// smartsearch 超限落盘目录沿用 cleanfetch file_output_dir 约定（search_dump.go 未配置时回退 exe 同目录 fetchdata/）
+	searchDumpDir = conf.CleanFetch.FileOutputDir
 }
 
 func applySummarizer(conf config.Config) {

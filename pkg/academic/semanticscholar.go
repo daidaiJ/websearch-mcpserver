@@ -190,6 +190,7 @@ func (e *semanticScholarEngine) parse(data []byte) (*antirobot.SearchResponse, e
 			PDFURL:      pdfURL,
 			Authors:     strings.Join(authors, ", "),
 			PublishedAt: pubDate,
+			DateSource:  antirobot.DateSourceStructured,
 			DOI:         p.ExternalIDs.DOI,
 			Journal:     p.Venue,
 			CitedBy:     p.CitationCount,

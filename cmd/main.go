@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	mcpserver "websearch/mcp"
 	"websearch/pkg/config"
 	"websearch/pkg/daemon"
 	"websearch/pkg/log"
@@ -164,6 +165,7 @@ func printUsage() {
 }
 
 func main() {
+	mcpserver.SetServerVersion(version)
 	var configPath string
 	var showHelp bool
 	flag.Usage = printUsage

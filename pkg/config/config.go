@@ -40,6 +40,7 @@ type Config struct {
 	Host               string            `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
 	AuthToken          string            `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
 	MCPStateless       bool              `mapstructure:"mcp_stateless"`        // MCP 无状态 HTTP 模式：每个 POST 独立处理，无需 initialize 握手与 Mcp-Session-Id 会话（对齐 MCP 2026-07-28 stateless-first 方向），便于水平扩展；代价是 GET SSE 长连与 sampling/elicitation 等服务端主动交互不可用（本项目未使用，见 mcp/server.go RegisterRouter）
+MCPResources       *bool             `mapstructure:"mcp_resources"`        // MCP Resource 观测开关（search://capabilities 与 search://health）：只读、结构上不含密钥、不占工具槽位；省略 = 启用，显式 false 关闭
 	UpstreamTimeoutSec int               `mapstructure:"upstream_timeout_sec"` // API 上游超时（秒），默认 30；显式 0 = 不设超时（有挂起风险）
 	LogLevel           string            `mapstructure:"log_level"`
 	Mode               string            `mapstructure:"mode"`
@@ -56,6 +57,9 @@ type Config struct {
 	Cache              CacheConfig       `mapstructure:"cache"`
 	Log                LogConfig         `mapstructure:"log"`
 	Bing               BingConfig        `mapstructure:"bing"`
+	So360              So360Config       `mapstructure:"so360"`
+	Wikipedia          WikipediaConfig   `mapstructure:"wikipedia"`
+	GoogleNews         GoogleNewsConfig  `mapstructure:"google_news"`
 	DuckDuckGo         DuckDuckGoConfig  `mapstructure:"duckduckgo"`
 	Google             GoogleConfig      `mapstructure:"google"`
 	Academic           AcademicConfig    `mapstructure:"academic"`
@@ -203,6 +207,39 @@ func (c DoubaoConfig) GetVersion() string {
 type BingConfig struct {
 	Enabled bool     `mapstructure:"enabled"` // 总开关（默认 true）
 	Blocked []string `mapstructure:"blocked"` // Bing 屏蔽域名
+}
+
+// So360Config 360 搜索（so.com）配置。
+// 国内直连可用（2026-10-06 出口实测：直连/代理均 200 + 自然结果），无需代理；
+// 解析契约与上游对齐（li.res-list + data-mdurl），验证码页按反爬拦截报错。
+type So360Config struct {
+	Enabled    bool     `mapstructure:"enabled"`     // 总开关（默认 false）
+	Blocked    []string `mapstructure:"blocked"`     // 屏蔽域名
+	PerSec     int      `mapstructure:"per_sec"`     // 每秒限流（默认 3）
+	PerMin     int      `mapstructure:"per_min"`     // 每分钟限流（默认 60）
+	SafeSearch int      `mapstructure:"safe_search"` // 0=关, 1/2=开（请求带 secure=1）
+}
+
+// WikipediaConfig 维基百科引擎配置（MediaWiki API，零 Key）。
+// 国内出口需代理（2026-10-06 实测直连超时、代理 200），与 DDG 同策略：
+// 无可用代理解析时跳过注册。
+type WikipediaConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`     // 总开关（默认 false）
+	Lang       string `mapstructure:"lang"`        // 语言版本（默认 zh）
+	NumResults int    `mapstructure:"num_results"` // 单次结果数（默认 10，上限 50）
+	PerSec     int    `mapstructure:"per_sec"`     // 每秒限流（默认 1，MediaWiki 礼仪取保守值）
+	PerMin     int    `mapstructure:"per_min"`     // 每分钟限流（默认 30）
+}
+
+// GoogleNewsConfig Google News RSS 引擎配置（零 Key，独立新闻索引，带结构化发布日期）。
+// 国内出口需代理（2026-10-06 实测：直连超时，代理 RSS 200）；跳转链接经
+// batchexecute RPC 回源发布方 URL（同日实测可回源）。
+type GoogleNewsConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`     // 总开关（默认 false）
+	Edition    string `mapstructure:"edition"`     // 新闻版本（默认 zh-CN，支持 zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR）
+	NumResults int    `mapstructure:"num_results"` // 单次结果数（默认 10）
+	PerSec     int    `mapstructure:"per_sec"`     // 每秒限流（默认 1）
+	PerMin     int    `mapstructure:"per_min"`     // 每分钟限流（默认 30）
 }
 
 type DuckDuckGoConfig struct {
@@ -726,8 +763,45 @@ type SmartSearchConfig struct {
 	ShowMeta           bool                         `mapstructure:"show_meta"`           // 输出中是否显示引擎来源和 score（默认 true）
 	Enhance            *bool                        `mapstructure:"enhance"`             // 是否启用 Wigolo 本地评分增强（RRF+词汇对齐+域名品质+多层 Boost），默认 true
 	RelevanceThreshold float64                      `mapstructure:"relevance_threshold"` // 增强评分后的相关性阀值，低于此值丢弃（Top-1/每引擎保底），默认 0.05
+	InlineMaxChars     int                          `mapstructure:"inline_max_chars"`    // 渲染响应内联字符上限，超限整体落盘临时文件（0 = 默认 32768，负数 = 禁用落盘）
+	OffTopicGuard      string                       `mapstructure:"off_topic_guard"`     // off-topic 整桶守卫模式：shadow（默认，只记录不丢弃）/ enforce（拦截）/ off
 	MMR                MMRConfig                    `mapstructure:"mmr"`                 // MMR 多样性重排配置
 	Engines            map[string]SmartSearchEngine `mapstructure:"engines"`             // 按引擎名配置
+}
+
+// off-topic 整桶守卫三态（P1-7 回查处置，2026-10-06 用户拍板：默认 shadow）。
+const (
+	OffTopicGuardEnforce = "enforce" // 疑似诱饵整桶丢弃并透出失败清单（原行为，须显式开启）
+	OffTopicGuardShadow  = "shadow"  // 照常计算回声率，疑似整桶只记失败清单与日志，结果保留
+	OffTopicGuardOff     = "off"     // 完全关闭，不计算不记录
+)
+
+// OffTopicGuardMode 归一化 off-topic 守卫模式：省略（零值）与非法值按 shadow 处理
+// （零值=安全默认：守卫阈值未实测校准前不主动丢整桶结果，shadow 记录为后续校准积累证据）。
+func (c SmartSearchConfig) OffTopicGuardMode() string {
+	switch c.OffTopicGuard {
+	case OffTopicGuardEnforce:
+		return OffTopicGuardEnforce
+	case OffTopicGuardOff:
+		return OffTopicGuardOff
+	default:
+		return OffTopicGuardShadow
+	}
+}
+
+// defaultInlineMaxChars 渲染响应内联字符上限缺省值（约 32KB）。
+const defaultInlineMaxChars = 32768
+
+// InlineMaxCharsOrDefault 渲染响应的内联字符上限与落盘开关：
+// 0 = 默认 32768；负数 = 禁用落盘（恒内联，旧版行为）；正数 = 自定义上限。
+func (c SmartSearchConfig) InlineMaxCharsOrDefault() (limit int, enabled bool) {
+	if c.InlineMaxChars < 0 {
+		return 0, false
+	}
+	if c.InlineMaxChars == 0 {
+		return defaultInlineMaxChars, true
+	}
+	return c.InlineMaxChars, true
 }
 
 // MMRConfig MMR（Maximal Marginal Relevance）多样性重排配置。
@@ -811,6 +885,15 @@ func (c Config) CacheEnabled() bool {
 	// 未显式设置时默认关闭（v3.5.0 起）：SQLite 缓存对轻量部署收益有限，
 	// 需要缓存时在配置中显式 enabled: true（storage_path 未配置时用默认路径）
 	return false
+}
+
+// ResourcesEnabled MCP Resource 观测是否启用：只读、无密钥、按需读取，
+// 未显式配置时默认开启；客户端不需要观测时显式 mcp_resources: false 关闭。
+func (c Config) ResourcesEnabled() bool {
+if c.MCPResources != nil {
+return *c.MCPResources
+}
+return true
 }
 
 // GetCacheStoragePath 返回缓存 SQLite 数据库路径。

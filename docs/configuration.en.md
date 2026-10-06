@@ -71,6 +71,8 @@ mcp_stateless: false        # Stateless MCP HTTP mode (default false = stateful)
                             # independently, no initialize handshake or Mcp-Session-Id session — easier
                             # horizontal scaling behind proxies/LBs; GET SSE returns 405. All tools are
                             # request-response, so stateless mode loses nothing
+mcp_resources: true         # MCP Resource observability (default true): search://capabilities and
+                            # search://health — read-only, secret-free, no tool slot; false to disable
 log_level: info             # debug / info / warn / error
 mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine
 network: china              # china (skip overseas engines) / international
@@ -112,12 +114,15 @@ exa:
   num_results: 5            # Results per search (default 5)
   lookback_days: 90         # Search time range (days), default 90
 
-# AnySearch (required for mode=anysearch/apipool/hybrid)
+# AnySearch (required for mode=anysearch/apipool/hybrid; also usable keyless via the anonymous tier)
 # Get API key: https://www.anysearch.com/console/api-keys
 anysearch:
   api_key: ""               # Env: ANYSEARCH_API_KEY (falls back to single-element sk_list when empty)
   sk_list: []               # Multi-key rotation list (priority over api_key; duplicate keys are deduplicated)
   num_results: 10           # Results per search (default 10)
+  # With no keys configured the anonymous tier is used automatically (no auth header, IP-rate-limited upstream,
+  # conservative local clamp 1/s·20/min); failures hand over to the next source in the orchestration layer
+  # (verified reachable from a CN egress on 2026-10-06)
 
 # Doubao Search Global / Custom (mode=doubao/hybrid; add to apipool.engines explicitly)
 # Activate: https://console.volcengine.com/search-infinity/web-search
@@ -140,6 +145,30 @@ doubao:
 bing:
   enabled: true             # Master switch
   blocked: []               # Bing-specific blocked domains (merged with black_list_host)
+
+# 360 engine (so.com, second Chinese index, no key, no proxy needed; verified reachable from a CN egress on 2026-10-06)
+so360:
+  enabled: false            # Master switch (default false)
+  blocked: []               # 360-specific blocked domains (merged with black_list_host)
+  # per_sec: 3              # Rate limit per second (default 3)
+  # per_min: 60             # Rate limit per minute (default 60)
+  # safe_search: 0          # Safe search: 0=off, 1/2=on (sends secure=1)
+
+# Wikipedia engine (MediaWiki API, keyless, reference-type source; needs proxy)
+wikipedia:
+  enabled: false            # Master switch (default false)
+  # lang: zh                # Language edition (default zh)
+  # num_results: 10         # Results per search (default 10, max 50)
+  # per_sec: 1              # Rate limit per second (default 1, conservative per MediaWiki etiquette)
+  # per_min: 30             # Rate limit per minute (default 30)
+
+# Google News RSS engine (keyless, independent news index with structured dates; needs proxy)
+google_news:
+  enabled: false            # Master switch (default false)
+  # edition: zh-CN          # News edition (default zh-CN; zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR)
+  # num_results: 10         # Results per search (default 10)
+  # per_sec: 1              # Rate limit per second (default 1)
+  # per_min: 30             # Rate limit per minute (default 30)
 
 # DuckDuckGo engine (needs proxy, no key needed)
 duckduckgo:
@@ -262,11 +291,17 @@ pdf_parser:
 #   show_meta: true       # Show engine source and relevance score in output (default true)
 #   enhance: true         # Local scoring enhancement (RRF fusion + lexical alignment + domain quality + boosts + threshold), default true
 #   relevance_threshold: 0.05  # Relevance threshold after enhancement; below this is filtered (Top-1 protected), default 0.05
+#   inline_max_chars: 32768    # Inline char limit for the rendered response; over the limit the whole result is dumped to a
+#                              # temp file (search-*.md under cleanfetch.file_output_dir, kept 7 days). The response keeps
+#                              # the provenance header / stats / file path / read hint / failure list. 0 = default 32768,
+#                              # negative = disable dumping (always inline)
+#   off_topic_guard: shadow    # Off-topic bucket guard: shadow (default, suspected decoy buckets are only logged to the
+#                              # failure list, results kept) / enforce (whole bucket dropped and reported) / off
 #   mmr:                       # MMR diversity re-ranking (breaks up same-topic similar results)
 #     enabled: true            # Master switch (default true)
 #     lambda: 0.7              # Relevance-diversity tradeoff [0,1], higher = more relevance (default 0.7)
 #     target_count: 0          # Target count after MMR, 0 = no extra truncation
-#   engines:              # Per-engine config (names: tavily_api, exa, baidu_api, baidu, bing, google, duckduckgo, anysearch, doubao)
+#   engines:              # Per-engine config (names: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao)
 #     tavily_api:
 #       min_score: 0.5    # Tavily API minimum relevance score threshold (0 = no filter)
 #       max_size: 6       # Tavily API per-engine max results (default 4)
@@ -402,6 +437,7 @@ log:
 |-------|---------|-------|
 | `port` | 8338 | stop/kill/status also use this port when no config |
 | `mode` | engine | Auto-degrades to engine when no keys; `apipool` = API Key pool rotation, supports round-robin / priority / weighted strategies |
+| `mcp_resources` | true | MCP Resource observability toggle: `search://capabilities` and `search://health`, read-only, secret-free, no tool slot |
 | `mcp_stateless` | false | Stateless MCP HTTP mode: each POST handled independently, no session handshake, easier horizontal scaling; GET SSE returns 405 |
 | `baidu.web_enabled` | false | Baidu web search engine disabled by default (CAPTCHA-blocked in testing); may be enabled explicitly with clean egress IPs |
 | `network` | china | |
@@ -455,6 +491,14 @@ log:
 | `smartsearch.fetch_top_n` | 0 | Server-side default body-fetch count (applies when the agent omits `fetch_top_n`); default 0 = no fetch (same as before), 1-5 = one search returns full text (API engines use the fast path, web engines fetch internally) |
 | `smartsearch.enhance` | true | Local scoring enhancement |
 | `smartsearch.relevance_threshold` | 0.05 | Relevance threshold after enhancement |
+| `smartsearch.inline_max_chars` | 32768 | Inline char limit for the rendered response; over the limit the whole result is dumped to a temp file (search-*.md under fetchdata/, kept 7 days; the response keeps path and failure list). 0 = default, negative = disable dumping |
+| `smartsearch.off_topic_guard` | shadow | Off-topic bucket guard mode: shadow logs without dropping / enforce drops the whole bucket and reports / off disables |
+| `so360.enabled` | false | 360 search engine (so.com, second Chinese index, keyless, direct-connect reachable from CN; verified 2026-10-06) |
+| `so360.blocked` | [] | 360-specific blocked domains (merged with black_list_host) |
+| `wikipedia.enabled` | false | Wikipedia engine (MediaWiki API, keyless, reference-type source; needs proxy, verified 2026-10-06) |
+| `wikipedia.lang` | zh | Language edition |
+| `google_news.enabled` | false | Google News RSS engine (keyless news index with structured dates; needs proxy, verified 2026-10-06; redirect links are resolved to publisher URLs) |
+| `google_news.edition` | zh-CN | News edition (zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR) |
 | `smartsearch.mmr.enabled` | true | MMR diversity re-ranking |
 | `smartsearch.mmr.lambda` | 0.7 | Relevance-diversity tradeoff |
 | `cache.enabled` | false | Unset → disabled by default (since v3.5.0); set true to enable (storage_path defaults to exe sibling dir cache/websearch-cache.db) |

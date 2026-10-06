@@ -157,7 +157,7 @@ func (t *TavilySearchImpl) MergeContent(query string, results []core.SearchResul
 	buf.WriteString(core.MDSearchHeader(query, len(results)))
 	for i, val := range results {
 		if core.ShowMeta {
-			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), val.Content))
+			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(i+1, val.Title, val.Url, val.Content))
 		}

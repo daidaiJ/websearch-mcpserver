@@ -52,7 +52,7 @@ func (a *BingSearchAdapter) MergeContent(query string, results []core.SearchResu
 	buf.WriteString(core.MDSearchHeader(query, len(results)))
 	for i, val := range results {
 		if core.ShowMeta {
-			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), val.Content))
+			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(i+1, val.Title, val.Url, val.Content))
 		}
@@ -91,6 +91,7 @@ func (a *BingSearchAdapter) doSearch(query string) ([]core.SearchResult, error) 
 			Url:         strings.TrimSpace(r.URL),
 			Content:     r.Content,
 			PublishDate: r.PublishedAt,
+			DateSource:  r.DateSource,
 			Score:       r.Score,
 			Engine:      "bing",
 		})

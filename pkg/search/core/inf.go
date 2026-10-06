@@ -3,6 +3,7 @@ package core
 import (
 	"sort"
 	"fmt"
+	"strings"
 	"websearch/pkg/antirobot"
 )
 
@@ -10,11 +11,22 @@ import (
 // 由工厂函数根据 smartsearch.show_meta 配置设置，默认 true。
 var ShowMeta = true
 
+// 日期来源注记三态（与 antirobot.Result.DateSource 同名透传）。
+//   - structured：引擎 API / 结构化字段给出的日期（强，可直接采信）
+//   - snippet：从页面展示文本 / 摘要解析出的日期（弱，仅用于定位来源）
+//   - undated：无日期。结构中以空 PublishDate 表达，仅经 DateSourceState 规范化后出现
+const (
+	DateSourceStructured = antirobot.DateSourceStructured
+	DateSourceSnippet    = antirobot.DateSourceSnippet
+	DateSourceUndated    = "undated"
+)
+
 type SearchResult struct {
 	Title       string  `json:"title"`
 	Url         string  `json:"url"`
 	Content     string  `json:"content"`
 	PublishDate string  `json:"publishedDate"`
+	DateSource  string  `json:"date_source,omitempty"` // PublishDate 来源注记（DateSource*，旧缓存行可能缺失）
 	Score       float64 `json:"score,omitempty"`       // 搜索相关性分数（Tavily 等引擎回传，0 表示无分数）
 	Engine      string  `json:"engine,omitempty"`      // 结果来源引擎名（首个返回该 URL 的引擎）
 	Engines     []string `json:"engines,omitempty"`    // 返回该 URL 的全部引擎（Wigolo 评分增强的共识 Boost 使用）
@@ -88,6 +100,35 @@ func ParseTimeRange(s string) antirobot.TimeRange {
 		return antirobot.TimeRangeYear
 	default:
 		return antirobot.TimeRangeNone
+	}
+}
+
+// DateSourceState 规范化日期来源三态：无日期 → undated；有日期但无注记
+// （旧缓存行 / 未注记引擎）→ 弱口径 snippet；有注记按注记返回。
+func DateSourceState(r SearchResult) string {
+	if strings.TrimSpace(r.PublishDate) == "" {
+		return DateSourceUndated
+	}
+	if r.DateSource == DateSourceStructured {
+		return DateSourceStructured
+	}
+	return DateSourceSnippet
+}
+
+// PreferDate 跨引擎合并同一结果时的日期采信规则：结构化来源优先于摘要解析
+// （弱日期可被强日期覆盖），缺日期时补齐。date_source 注记随日期一同透传。
+func PreferDate(dst *SearchResult, src SearchResult) {
+	if src.PublishDate == "" {
+		return
+	}
+	if src.DateSource == DateSourceStructured && dst.DateSource != DateSourceStructured {
+		dst.PublishDate = src.PublishDate
+		dst.DateSource = src.DateSource
+		return
+	}
+	if dst.PublishDate == "" {
+		dst.PublishDate = src.PublishDate
+		dst.DateSource = src.DateSource
 	}
 }
 

@@ -10,6 +10,7 @@
   - [General Search Scoring (Wigolo)](#general-search-scoring-wigolo)
   - [MMR Diversity Re-ranking](#mmr-diversity-re-ranking)
   - [Academic Search Scoring](#academic-search-scoring)
+- [Response Behavior & Reliability](#response-behavior--reliability)
 - [SmartSearch Advanced Config](#smartsearch-advanced-config)
 - [Apipool Config](#apipool-config)
 - [MCP Tools](#mcp-tools)
@@ -25,14 +26,14 @@
 
 | Mode | Description | Key Required |
 |------|-------------|--------------|
-| `engine` | Baidu web search + Bing concurrently (DuckDuckGo joins when a proxy is available, Google when enabled) | **None** |
+| `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
 | `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; Baidu web search as final fallback | All optional |
 | `tavily` | Tavily Search API ([get key](https://app.tavily.com/home)) | `TAVILY_SK` |
 | `exa` | Exa Web Search API ([get key](https://dashboard.exa.ai/api-keys)) | `EXA_API_KEY` |
-| `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)) | `ANYSEARCH_API_KEY` |
+| `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
-| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo + Google) | All optional |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo + Google) | All optional |
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
 
@@ -40,14 +41,14 @@
 
 | Mode | Engines |
 |------|---------|
-| `engine` | Baidu web + Bing + Google (if enabled) + DuckDuckGo (if proxy available), concurrent |
+| `engine` | Baidu web + Bing + so360 (if enabled) + Google (if enabled) + DuckDuckGo / Wikipedia / Google News (if proxy available), concurrent |
 | `baidu` | Baidu Qianfan (`enable_ai_search` controls endpoint) → falls back to Baidu web search |
 | `tavily` | Tavily; falls back to Bing when no key |
 | `exa` | Exa; falls back to Bing when no key |
-| `anysearch` | AnySearch; falls back to Bing when no key |
+| `anysearch` | AnySearch; key-pool rotation with keys, anonymous tier (no auth header, IP-rate-limited) when keyless |
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
 | `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` must be listed in `apipool.engines`), Baidu web search always last |
-| `hybrid` | Anysearch + Baidu AI + Baidu web + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
 
 ---
 
@@ -66,6 +67,9 @@
 | `anysearch` | AnySearch API (built-in local blacklist filtering) | ❌ | No |
 | `doubao` | Doubao Search Global/Custom API (local blacklist; Custom returns score) | ✅ | No |
 | `baidu_api` | Baidu Qianfan search (`enable_ai_search` controls endpoint) | ❌ | No |
+| `so360` | 360 Search (HTML, second Chinese index; disabled by default, enable via `so360.enabled`) | ❌ | No |
+| `wikipedia` | Wikipedia MediaWiki API (reference source; disabled by default, enable via `wikipedia.enabled`, `lang` picks the edition) | ❌ | Yes (auto-detected) |
+| `google_news` | Google News RSS (redirect links resolved to publisher URLs, structured publish dates; disabled by default, enable via `google_news.enabled`, `edition` picks the locale) | ❌ | Yes (auto-detected) |
 
 **Academic engines** (no keys required):
 
@@ -122,6 +126,28 @@ Nine academic engines are fused via RRF ranking with academic-specific signals:
 - **Recency factor** (×1.15 for the last year on time-sensitive queries)
 
 Low-score papers are auto-filtered (Top-1 + per-engine floor). Config: `academic.enhance` (default true), `academic.threshold` (default 0.02), independent of smartsearch.
+
+---
+
+## Response Behavior & Reliability
+
+Response behaviors introduced in phases 1-3, shared by `smartsearch` and `academicsearch` (equally effective on the HTTP MCP endpoint):
+
+**Failure list (empty results are explainable)**: main-engine failures no longer fall back silently — the response ends with a structured failure list carrying engine name, failure kind (`timeout` / `rate_limit` (with remaining cooldown seconds) / `challenge` / `off_topic` / `error`) and a short reason; gated/benched engines include the cause and expected recovery time. The failure list is never written to cache and is exempt from any budget or dump trimming, aligned with the academic search per-engine error reporting.
+
+**Filter diagnostics (filter_diagnostics)**: when filtered results are ≤3, the response lists each filter's drop counts (global threshold / MMR / per-engine score, etc.) with relaxation hints, separating "nothing found" from "filtered away".
+
+**Off-topic whole-bucket guard (`smartsearch.off_topic_guard`)**: when a whole engine bucket shows almost no lexical echo of the query (the HTTP-200 decoy-page signature), it is reported as `off_topic` in the failure list. Three states: `shadow` (default — record only, keep the bucket, accumulating calibration data) / `enforce` (actually drop) / `off`.
+
+**Result date provenance**: each result date carries a `date_source` state — `structured` (from the engine API) / `snippet` (parsed from snippet text, weak) / `undated`; academic results use the same scheme. Response headers carry `retrieved_at` (search time; on cache hits the original search time) and `cache_age_seconds`, plus a fixed `usage_note`: snippet dates only locate sources — verify dates, amounts and versions on the page itself before citing.
+
+**Oversize response dump**: when the rendered result exceeds `smartsearch.inline_max_chars` (default 32768, negative = disabled), the full text is written to `fetchdata/search-*.md` (stale files lazily cleaned after 7 days) and the response keeps the provenance header, result/char counts, file path and a segmented-read hint — zero loss; the failure list always stays in the response. Shared by the live and cache-hit paths.
+
+**Freshness-aware cache TTL**: smartsearch `time_range` ≤1 month → 24h, otherwise the default 6h; academic `time_range` buckets day → 1h / week → 6h (default) / month → 24h. Time-sensitive queries no longer hit stale cache.
+
+**Persisted circuit-breaker state**: engine cooldown/rate-limit state lives in a unified registry persisted to `engine_health.json` (next to the cache DB, 24h memory window, advisory semantics); after a restart, unexpired cooldowns are adopted automatically so dead engines are not re-hit. Currently covers DuckDuckGo / arXiv.
+
+**Status Resources**: `search://capabilities` (version / engine list / capabilities) and `search://health` (engine health / circuit breaking / cache hits) are exposed as read-only MCP Resources — no tool slots consumed, no secrets in responses; `mcp_resources: false` disables them entirely (enabled by default).
 
 ---
 
@@ -219,6 +245,8 @@ Results include engine source and relevance score by default (for engines that s
 
 **LLM summarization**: with the `llm` section configured, `smartsearch` accepts `intent` and generates a structured summary; the summary stage pushes tokens in real time via MCP progress notifications, auto-cancels on client disconnect, and falls back to non-streaming summary on failure.
 
+**Scope boundary**: current facts, web leads and documentation lookups; for systematic literature reviews or academic questions needing citation data, use `academicsearch`.
+
 ### `academicsearch` — Academic Paper Search
 
 | Parameter | Type | Required | Description |
@@ -240,6 +268,8 @@ With `time_range`, each academic engine uses its official syntax (aligned in v3.
 
 Results are ranked by the academic scoring enhancement (enabled by default): RRF fusion ranking + citation / journal authority / PDF availability / recency signals, with low-score papers auto-filtered (Top-1 + per-engine floor). Config: `academic.enhance` (default true), `academic.threshold` (default 0.02).
 
+**Scope boundary**: papers, preprints and DOI-level academic lookup; for news, product docs and other general web information, use `smartsearch`.
+
 ### `cleanfetch` — Web Content Fetch
 
 | Parameter | Type | Required | Description |
@@ -250,6 +280,8 @@ Results are ranked by the academic scoring enhancement (enabled by default): RRF
 Requires `cleanfetch.enabled: true`. Based on go-webfetch, no proxy needed; built-in DNS rebinding protection and HEAD pre-check for large files (`max_fetch_size_mb` controls threshold, default 10MB; every redirect hop is re-checked against private-network/metadata rules, up to 5 hops); falls back to Jina Reader on failure (requires `jina.api_key`, proxy auto-detected).
 
 In batch mode (`urls`), each URL is pre-checked and fetched independently; one failure does not affect the others, and results are returned grouped by URL. With only `url`, output is identical to previous versions.
+
+**Scope boundary**: fetching body text of known URLs; to discover new sources, run `smartsearch` first (this tool does not search).
 
 ### `pdf_parser` — PDF Parsing
 
@@ -267,6 +299,8 @@ When `pages` is omitted, the first `pdf_parser.max_pages` (default 20) pages are
 - `mineru_token`: Standard API for remote URLs (≤200MB/600 pages); can also be used with OCR fallback
 - Get Token: https://mineru.net/apiManage
 - Environment variable: `MINERU_TOKEN`
+
+**Scope boundary**: PDF parsing only; for web page body text use `cleanfetch`.
 
 ---
 

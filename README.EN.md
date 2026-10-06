@@ -61,6 +61,7 @@ Four tools cover the web workflow. Results feed into each other — one config e
 | Zero-key search | `engine` mode runs Baidu web search + Bing concurrently, no API keys required |
 | Multi-engine fusion | Multiple search modes, 8 general engines + 9 academic engines, auto-fallback on primary failure |
 | Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up mirrors / reposts |
+| Response transparency | Structured failure lists (engine / failure kind / reason) make empty results explainable; result dates carry `date_source` provenance plus response-header provenance; oversize responses are dumped to file (zero loss) |
 | Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |
 | Web fetching | `cleanfetch` with built-in SSRF / DNS-rebinding protection and oversized-file pre-check; fallback to Jina Reader |
 | PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR; remote MinerU returns the ZIP URL with images; when the source exceeds the per-task page limit (default 600), selected pages are cropped locally with qpdf, with configurable auto-batching and a per-call page budget |

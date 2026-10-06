@@ -185,6 +185,7 @@ func parseScholarHTML(data []byte) (*antirobot.SearchResponse, error) {
 			Authors:     authors,
 			Journal:     journal,
 			PublishedAt: pubDate,
+			DateSource:  antirobot.DateSourceSnippet,
 			CitedBy:     citedBy,
 			PDFURL:      pdfURL,
 			DOI:         doi,

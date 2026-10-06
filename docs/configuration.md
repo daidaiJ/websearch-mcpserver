@@ -67,6 +67,8 @@ mode: engine
 port: 8338                  # MCP HTTP 端口（stdio CLI 忽略此字段）
 host: "127.0.0.1"           # 监听地址（默认 127.0.0.1，只绑本机；0.0.0.0 开放所有网卡，需配 auth_token）
 auth_token: ""              # 业务端点鉴权 token（空 = 不鉴权；环境变量 WEBSEARCH_TOKEN）
+mcp_resources: true         # MCP Resource 观测（默认 true）：search://capabilities 与 search://health，
+                            # 只读、不含密钥、不占工具槽位；false 关闭
 mcp_stateless: false        # MCP 无状态 HTTP 模式（默认 false = 会话式）：true 时每个 POST 独立处理，
                             # 免 initialize 握手与 Mcp-Session-Id 会话，便于反向代理/负载均衡水平扩展；
                             # GET SSE 长连返回 405。本服务工具均为请求-响应式，无状态模式下功能无损
@@ -110,12 +112,14 @@ exa:
   num_results: 5            # 单次搜索结果数量（默认 5）
   lookback_days: 90         # 搜索时间范围（天），默认 90
 
-# AnySearch（mode=anysearch/apipool/hybrid 时需要）
+# AnySearch（mode=anysearch/apipool/hybrid 时需要；也可零 Key 使用匿名档）
 # 获取地址: https://www.anysearch.com/console/api-keys
 anysearch:
   api_key: ""               # 环境变量: ANYSEARCH_API_KEY（sk_list 为空时自动作为单元素列表）
   sk_list: []               # 多 Key 轮询列表（优先级高于 api_key；重复 Key 自动去重）
   num_results: 10           # 单次搜索结果数量（默认 10）
+  # 未配置任何 Key 时自动走匿名档（省略鉴权头，按出口 IP 限流，本端保守钳制 1/s·20/min）；
+  # 匿名档无 Key 轮转，失败由编排层切换下一来源（2026-10-06 出口实测可用）
 
 # 豆包联网搜索 Global / Custom（mode=doubao/hybrid；apipool 需显式加入 engines）
 # 开通: https://console.volcengine.com/search-infinity/web-search
@@ -138,6 +142,30 @@ doubao:
 bing:
   enabled: true             # 总开关
   blocked: []               # Bing 专用屏蔽（与 black_list_host 合并）
+
+# 360 引擎（so.com，中文第二索引，无需 Key、无需代理，2026-10-06 出口实测可用）
+so360:
+  enabled: false            # 总开关（默认 false）
+  blocked: []               # 360 专用屏蔽（与 black_list_host 合并）
+  # per_sec: 3              # 每秒限流（默认 3）
+  # per_min: 60             # 每分钟限流（默认 60）
+  # safe_search: 0          # 安全搜索：0=关, 1/2=开（secure=1）
+
+# Wikipedia 引擎（MediaWiki API，零 Key，参考型来源；需代理）
+wikipedia:
+  enabled: false            # 总开关（默认 false）
+  # lang: zh                # 语言版本（默认 zh）
+  # num_results: 10         # 单次结果数（默认 10，上限 50）
+  # per_sec: 1              # 每秒限流（默认 1，MediaWiki 礼仪取保守值）
+  # per_min: 30             # 每分钟限流（默认 30）
+
+# Google News RSS 引擎（零 Key，独立新闻索引，带结构化发布日期；需代理）
+google_news:
+  enabled: false            # 总开关（默认 false）
+  # edition: zh-CN          # 新闻版本（默认 zh-CN；zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR）
+  # num_results: 10         # 单次结果数（默认 10）
+  # per_sec: 1              # 每秒限流（默认 1）
+  # per_min: 30             # 每分钟限流（默认 30）
 
 # DuckDuckGo 引擎（需代理，无需 Key）
 duckduckgo:
@@ -258,11 +286,16 @@ pdf_parser:
 #   show_meta: true       # 输出中显示引擎来源和相关性分数（默认 true）
 #   enhance: true         # 本地评分增强（RRF 融合 + 词汇对齐 + 域名品质 + 多层 Boost + 阀值过滤），默认 true
 #   relevance_threshold: 0.05  # 增强后相关性阀值，低于此值过滤（Top-1 保护），默认 0.05
+#   inline_max_chars: 32768    # 渲染响应内联字符上限，超限整体落盘临时文件（cleanfetch.file_output_dir 目录下
+#                              # search-*.md，保留 7 天）；响应内保留溯源头/统计/路径/读取提示/失败清单。
+#                              # 0 = 默认 32768，负数 = 禁用落盘恒内联
+#   off_topic_guard: shadow    # off-topic 整桶守卫：shadow（默认，疑似诱饵整桶只记失败清单与日志、不丢弃结果）/
+#                              # enforce（整桶丢弃并在失败清单透出）/ off（完全关闭）
 #   mmr:                       # MMR 多样性重排（打散同话题高相似结果）
 #     enabled: true            # 总开关（默认 true）
 #     lambda: 0.7              # 相关性-多样性权衡系数 [0,1]，越高越偏相关性（默认 0.7）
 #     target_count: 0          # MMR 后目标条数，0 = 不额外截断
-#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, bing, google, duckduckgo, anysearch, doubao）
+#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao）
 #     tavily_api:
 #       min_score: 0.5    # Tavily API 最低相关性分数阈值（0 = 不过滤）
 #       max_size: 6       # Tavily API 单引擎最大结果数（默认 4）
@@ -400,6 +433,7 @@ log:
 |------|--------|------|
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
 | `mode` | engine | 无 Key 时自动回退 engine；`apipool` 为 API Key 池轮转模式，支持 round-robin / priority / weighted 策略 |
+| `mcp_resources` | true | MCP Resource 观测开关：`search://capabilities` 与 `search://health`，只读、不含密钥、不占工具槽位 |
 | `mcp_stateless` | false | MCP 无状态 HTTP 模式：每个 POST 独立处理、免会话握手，便于水平扩展；GET SSE 返回 405 |
 | `baidu.web_enabled` | false | 百度网页搜索引擎默认禁用（实测被 CAPTCHA 识别），出口 IP 干净时可显式开启 |
 | `network` | china | |
@@ -453,6 +487,14 @@ log:
 | `smartsearch.fetch_top_n` | 0 | 服务端默认抓取正文条数（agent 未传 `fetch_top_n` 参数时生效）；默认 0 = 与旧版一致不抓取，1-5 = 一次搜索即含正文（API 引擎走原文传参快速路径，网页引擎内部抓取） |
 | `smartsearch.enhance` | true | 本地评分增强 |
 | `smartsearch.relevance_threshold` | 0.05 | 增强后相关性阀值 |
+| `smartsearch.inline_max_chars` | 32768 | 渲染响应内联字符上限；超限整体落盘临时文件（fetchdata/ 下 search-*.md，保留 7 天，响应内留路径与失败清单）。0 = 默认值，负数 = 禁用落盘 |
+| `smartsearch.off_topic_guard` | shadow | off-topic 整桶守卫模式：shadow 只记录不丢弃 / enforce 整桶丢弃并透出 / off 关闭 |
+| `so360.enabled` | false | 360 搜索引擎（so.com，中文第二索引，零 Key、国内直连可用；2026-10-06 出口实测） |
+| `so360.blocked` | [] | 360 专用屏蔽域名（与 black_list_host 合并） |
+| `wikipedia.enabled` | false | Wikipedia 引擎（MediaWiki API，零 Key，参考型来源；需代理，2026-10-06 出口实测） |
+| `wikipedia.lang` | zh | 语言版本 |
+| `google_news.enabled` | false | Google News RSS 引擎（零 Key 新闻索引，带结构化发布日期；需代理，2026-10-06 出口实测；跳转链接自动回源发布方 URL） |
+| `google_news.edition` | zh-CN | 新闻版本（zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR） |
 | `smartsearch.mmr.enabled` | true | MMR 多样性重排 |
 | `smartsearch.mmr.lambda` | 0.7 | 相关性-多样性权衡系数 |
 | `cache.enabled` | false | 不设置时默认关闭（v3.5.0 起）；显式 true 启用（storage_path 默认 exe 同目录 cache/websearch-cache.db） |

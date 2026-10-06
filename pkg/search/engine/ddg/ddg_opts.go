@@ -49,6 +49,7 @@ func NewDuckDuckGo(opts DuckDuckGoOpts) antirobot.Engine {
 		opts:    opts,
 		limiter: antirobot.NewRateLimiter(perSec, perMin),
 	}
+	e.adoptPersistedCooldown()
 	e.rotateSession()
 	return e
 }

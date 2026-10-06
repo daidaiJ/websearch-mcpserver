@@ -10,7 +10,10 @@ import (
 	"websearch/pkg/search/engine/baidu"
 	"websearch/pkg/search/engine/bing"
 	"websearch/pkg/search/engine/ddg"
+	"websearch/pkg/search/engine/googlenews"
 	"websearch/pkg/search/engine/google"
+	"websearch/pkg/search/engine/so360"
+	"websearch/pkg/search/engine/wikipedia"
 	"websearch/pkg/log"
 	"websearch/pkg/search/adapter"
 	"websearch/pkg/search/apipool"
@@ -21,20 +24,40 @@ import (
 
 // ── 各模式构建函数 ────────────────────────────────────────────────────────────
 
-// BuildEngineMode 纯引擎模式：百度网页 + Bing + Google + DuckDuckGo 并发。
-func BuildEngineMode(conf config.Config, fallback *adapter.BingSearchAdapter, baiduWeb, googleAd, ddg *adapter.EngineSearchAdapter) core.SearchInf {
+// EngineAdapters engine/hybrid 模式的通用引擎适配器集合（nil = 未启用）。
+// 用命名结构体承载同类型适配器，避免长位置参数列表静默交换顺序。
+type EngineAdapters struct {
+	BaiduWeb  *adapter.EngineSearchAdapter
+	So360     *adapter.EngineSearchAdapter
+	Wikipedia *adapter.EngineSearchAdapter
+	GNews     *adapter.EngineSearchAdapter
+	Google    *adapter.EngineSearchAdapter
+	DDG       *adapter.EngineSearchAdapter
+}
+
+// BuildEngineMode 纯引擎模式：百度网页 + 360 + Wikipedia + Google News + Bing + Google + DuckDuckGo 并发。
+func BuildEngineMode(conf config.Config, fallback *adapter.BingSearchAdapter, ads EngineAdapters) core.SearchInf {
 	var engines []core.SearchInf
-	if baiduWeb != nil {
-		engines = append(engines, baiduWeb)
+	if ads.BaiduWeb != nil {
+		engines = append(engines, ads.BaiduWeb)
+	}
+	if ads.So360 != nil {
+		engines = append(engines, ads.So360)
+	}
+	if ads.Wikipedia != nil {
+		engines = append(engines, ads.Wikipedia)
+	}
+	if ads.GNews != nil {
+		engines = append(engines, ads.GNews)
 	}
 	if fallback != nil {
 		engines = append(engines, fallback)
 	}
-	if googleAd != nil {
-		engines = append(engines, googleAd)
+	if ads.Google != nil {
+		engines = append(engines, ads.Google)
 	}
-	if ddg != nil {
-		engines = append(engines, ddg)
+	if ads.DDG != nil {
+		engines = append(engines, ads.DDG)
 	}
 	if len(engines) == 0 {
 		log.Error("engine 模式需要至少一个引擎，请检查 bing 配置")
@@ -118,8 +141,10 @@ func BuildExaMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.
 // BuildAnysearchMode AnySearch 单引擎模式。
 func BuildAnysearchMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	if pool == nil {
-		log.Error("mode=anysearch 但未配置 anysearch.api_key/sk_list，回退到 engine 模式")
-		return fallback
+		// 零 Key 匿名档（P0-2 来源扩充）：上游支持免鉴权匿名 IP 限流档，
+		// 本项目出口实测可用（2026-10-06）；匿名档受 provider 内保守限流钳制
+		log.Info("mode=anysearch 未配置 Key，启用匿名档（免鉴权，按出口 IP 限流）")
+		return provider.NewAnysearchSearch(nil, conf.Anysearch.NumResults, conf.BlackListHost)
 	}
 	return provider.NewAnysearchSearch(pool, conf.Anysearch.NumResults, conf.BlackListHost)
 }
@@ -145,6 +170,9 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 		case "anysearch":
 			if anysearchPool != nil {
 				providers = append(providers, apipool.NewApipoolProvider("anysearch", provider.NewAnysearchSearch(anysearchPool, conf.Anysearch.NumResults, conf.BlackListHost), anysearchPool))
+			} else {
+				// 零 Key 匿名档（P0-2）：无 SK 轮转，失败直接切换下一供应商
+				providers = append(providers, apipool.NewApipoolProvider("anysearch", provider.NewAnysearchSearch(nil, conf.Anysearch.NumResults, conf.BlackListHost), nil))
 			}
 		case "baidu":
 			if baiduPool != nil {
@@ -192,17 +220,29 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 	return ap
 }
 
-// BuildHybridMode 全引擎混合模式：Anysearch + 百度搜索 + 百度网页搜索 + Tavily + Exa + 豆包（有 Key 时）+ Bing + Google + DuckDuckGo。
-func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool *provider.KeyPool, baiduWeb, googleAd, ddg *adapter.EngineSearchAdapter, fallback *adapter.BingSearchAdapter) core.SearchInf {
+// BuildHybridMode 全引擎混合模式：Anysearch（有 Key 走轮转 / 无 Key 匿名档）+ 百度搜索 + 百度网页 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包（有 Key 时）+ Bing + Google + DuckDuckGo。
+func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool *provider.KeyPool, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	var engines []core.SearchInf
 	if anysearchPool != nil {
 		engines = append(engines, provider.NewAnysearchSearch(anysearchPool, conf.Anysearch.NumResults, conf.BlackListHost))
+	} else {
+		// 零 Key 匿名档（P0-2）：无 Key 时也以匿名档加入混合编排（受保守限流钳制）
+		engines = append(engines, provider.NewAnysearchSearch(nil, conf.Anysearch.NumResults, conf.BlackListHost))
 	}
 	if baiduPool != nil {
 		engines = append(engines, newBaiduSearchFromConf(baiduPool, conf))
 	}
-	if baiduWeb != nil {
-		engines = append(engines, baiduWeb)
+	if ads.BaiduWeb != nil {
+		engines = append(engines, ads.BaiduWeb)
+	}
+	if ads.So360 != nil {
+		engines = append(engines, ads.So360)
+	}
+	if ads.Wikipedia != nil {
+		engines = append(engines, ads.Wikipedia)
+	}
+	if ads.GNews != nil {
+		engines = append(engines, ads.GNews)
 	}
 	if tavilyPool != nil {
 		engines = append(engines, provider.NewTavilySearch(tavilyPool, conf.BlackListHost, tavilyOptions(conf)...))
@@ -224,11 +264,11 @@ func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, e
 	if fallback != nil {
 		engines = append(engines, fallback)
 	}
-	if googleAd != nil {
-		engines = append(engines, googleAd)
+	if ads.Google != nil {
+		engines = append(engines, ads.Google)
 	}
-	if ddg != nil {
-		engines = append(engines, ddg)
+	if ads.DDG != nil {
+		engines = append(engines, ads.DDG)
 	}
 	if len(engines) == 0 {
 		log.Error("hybrid 模式无可用搜索引擎")
@@ -300,6 +340,68 @@ func InitDuckDuckGoEngine(conf config.Config) *adapter.EngineSearchAdapter {
 	})
 	a := adapter.NewEngineSearchAdapter("duckduckgo", eng)
 	log.Info("DuckDuckGo 引擎已启用（代理: 自动检测）")
+	return a
+}
+
+// InitSo360Engine 初始化 360 搜索引擎（国内直连可用，零 Key）。
+func InitSo360Engine(conf config.Config) *adapter.EngineSearchAdapter {
+	if !conf.So360.Enabled {
+		return nil
+	}
+	blocked := bing.MergeBlocked(conf.BlackListHost, conf.So360.Blocked)
+	eng := so360.NewSo360(so360.So360Opts{
+		Enabled:    true,
+		Blocked:    blocked,
+		PerSec:     conf.GetRateLimitPerSec(),
+		PerMin:     conf.GetRateLimitPerMin(),
+		SafeSearch: conf.So360.SafeSearch,
+	})
+	a := adapter.NewEngineSearchAdapter("so360", eng)
+	log.Info("360 搜索引擎已启用（直连可用，零 Key）")
+	return a
+}
+
+// InitWikipediaEngine 初始化维基百科引擎（MediaWiki API，零 Key；国内出口需代理）。
+func InitWikipediaEngine(conf config.Config) *adapter.EngineSearchAdapter {
+	if !conf.Wikipedia.Enabled {
+		return nil
+	}
+	if conf.Proxy.ProxyResolver() == nil {
+		log.Info("Wikipedia 引擎跳过（需代理）")
+		return nil
+	}
+	eng := wikipedia.NewWikipedia(wikipedia.WikipediaOpts{
+		Enabled:      true,
+		Lang:         conf.Wikipedia.Lang,
+		NumResults:   conf.Wikipedia.NumResults,
+		PerSec:       conf.Wikipedia.PerSec,
+		PerMin:       conf.Wikipedia.PerMin,
+		ProxyResolve: conf.Proxy.ProxyResolver(),
+	})
+	a := adapter.NewEngineSearchAdapter("wikipedia", eng)
+	log.Info("Wikipedia 引擎已启用（代理: 自动检测）")
+	return a
+}
+
+// InitGoogleNewsEngine 初始化 Google News RSS 引擎（零 Key；国内出口需代理）。
+func InitGoogleNewsEngine(conf config.Config) *adapter.EngineSearchAdapter {
+	if !conf.GoogleNews.Enabled {
+		return nil
+	}
+	if conf.Proxy.ProxyResolver() == nil {
+		log.Info("Google News 引擎跳过（需代理）")
+		return nil
+	}
+	eng := googlenews.NewGoogleNews(googlenews.GoogleNewsOpts{
+		Enabled:      true,
+		Edition:      conf.GoogleNews.Edition,
+		NumResults:   conf.GoogleNews.NumResults,
+		PerSec:       conf.GoogleNews.PerSec,
+		PerMin:       conf.GoogleNews.PerMin,
+		ProxyResolve: conf.Proxy.ProxyResolver(),
+	})
+	a := adapter.NewEngineSearchAdapter("googlenews", eng)
+	log.Info("Google News 引擎已启用（代理: 自动检测；跳转链接自动回源发布方 URL）")
 	return a
 }
 
@@ -420,6 +522,10 @@ func applySmartSearchFilters(hs *hybrid.HybridSearchImpl, conf config.Config) {
 	if enhance && sc.MMR.Enabled {
 		log.Infof("MMR 多样性重排已启用（λ=%.2f）", sc.MMR.Lambda)
 	}
+	// off-topic 整桶守卫（P1-7 回查处置：配置省略 = shadow 只记录不丢弃，enforce 须显式开启）
+	guardMode := sc.OffTopicGuardMode()
+	hs.SetOffTopicGuard(guardMode)
+	log.Infof("off-topic 整桶守卫模式: %s", guardMode)
 	if len(sc.Engines) == 0 {
 		return
 	}

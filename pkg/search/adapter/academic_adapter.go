@@ -252,6 +252,7 @@ func toSearchResults(all []antirobot.Result) []core.SearchResult {
 			Url:         strings.TrimSpace(r.URL),
 			Content:     r.Content,
 			PublishDate: r.PublishedAt,
+			DateSource:  r.DateSource,
 			Type:        string(r.Type),
 			Authors:     r.Authors,
 			DOI:         r.DOI,
@@ -279,7 +280,8 @@ func (a *AcademicAdapter) MergeContent(query string, results []core.SearchResult
 				citedByStr = strconv.Itoa(val.CitedBy)
 			}
 			buf.WriteString(core.FormatPaperMD(i+1, val.Title, val.Url,
-				val.Authors, val.DOI, val.Journal, val.PublishDate,
+				val.Authors, val.DOI, val.Journal,
+				core.FormatDateSource(val.PublishDate, val.DateSource),
 				val.PDFURL, citedByStr, val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(i+1, val.Title, val.Url, val.Content))

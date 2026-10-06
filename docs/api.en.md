@@ -163,6 +163,15 @@ MCP clients use this endpoint for protocol handshake, tool listing, and tool inv
 | `cleanfetch` | Web content fetch, returns Markdown | `url` (one of `url`/`urls`), `urls` (optional batch, merged & deduped, up to 5) — requires `cleanfetch.enabled` |
 | `pdf_parser` | PDF parsing with MinerU AI enhancement (table/formula/multi-column recognition) | `path` (required, local path or remote URL), `pages` (optional page range, e.g. 1-10; a single range is capped at 1000 pages wide) — requires `pdf_parser.enabled`, optional `mineru_token`; when pages omitted, capped by `max_pages` (default 20). When requested pages exceed the per-task limit (default 600, tunable via `mineru_page_limit`) or MinerU rejects the source page count/URL, selected pages are cropped locally and uploaded (`mineru_page_batch_size` enables auto-batching with `mineru_page_budget` capping pages per call; batch progress is streamed via MCP progress notifications); the Standard API returns a ZIP URL with images, while Agent requests allow at most 20 pages |
 
+#### Response Behavior
+
+All four tools share a unified response contract (full details in [docs/search.en.md](search.en.md#response-behavior--reliability)):
+
+- The response ends with a structured failure list (engine / failure kind `timeout`·`rate_limit`·`challenge`·`off_topic`·`error` / short reason), so empty results are explainable; the list is exempt from any budget or dump trimming, and sparse results (≤3) carry filter diagnostics
+- Result dates carry a `date_source` provenance state; response headers include `retrieved_at` / `cache_age_seconds` and a fixed `usage_note`
+- When the rendered result exceeds `smartsearch.inline_max_chars` (default 32768), the full text is dumped to `fetchdata/search-*.md` and the response keeps the provenance header, counts and file path
+- The same endpoint mounts read-only Resources `search://capabilities` and `search://health` (no tool slots, no secrets; `mcp_resources` disables them)
+
 #### Client Config Examples
 
 **Claude CLI**

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+	"time"
 	"websearch/pkg/search/core"
 )
 
@@ -22,11 +23,11 @@ func TestStoreUpsertSameQuery(t *testing.T) {
 	c := newTestCache(t)
 
 	results1 := []core.SearchResult{{Title: "first", Url: "https://example.com/1"}}
-	if err := c.Store("golang", "web", false, results1, "summary-1"); err != nil {
+	if err := c.Store("golang", "web", false, results1, "summary-1", 0); err != nil {
 		t.Fatalf("第一次 Store 失败: %v", err)
 	}
 	results2 := []core.SearchResult{{Title: "second", Url: "https://example.com/2"}}
-	if err := c.Store("golang", "web", false, results2, "summary-2"); err != nil {
+	if err := c.Store("golang", "web", false, results2, "summary-2", 0); err != nil {
 		t.Fatalf("第二次 Store 失败: %v", err)
 	}
 
@@ -61,10 +62,10 @@ func TestStoreUpsertSameQuery(t *testing.T) {
 func TestStoreDifferentIntentSeparateRows(t *testing.T) {
 	c := newTestCache(t)
 
-	if err := c.Store("golang", "web", false, nil, ""); err != nil {
+	if err := c.Store("golang", "web", false, nil, "", 0); err != nil {
 		t.Fatalf("Store web 失败: %v", err)
 	}
-	if err := c.Store("golang", "academic", true, nil, ""); err != nil {
+	if err := c.Store("golang", "academic", true, nil, "", 0); err != nil {
 		t.Fatalf("Store academic 失败: %v", err)
 	}
 
@@ -74,6 +75,58 @@ func TestStoreDifferentIntentSeparateRows(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("不同 intent 应各自成行，实际 %d 行", count)
+	}
+}
+
+// TestLookupExpiresByTTL 超过 TTL 的记录应视为未命中并惰性删除；
+// 未过期记录正常命中；ttl<=0 落 DefaultTTL。
+func TestLookupExpiresByTTL(t *testing.T) {
+	c := newTestCache(t)
+
+	// 短 TTL 记录：写入后人工把 created_at 回拨，模拟跨过 TTL 的陈旧记录
+	if err := c.Store("stale", "web", false, nil, "", time.Second); err != nil {
+		t.Fatalf("Store stale 失败: %v", err)
+	}
+	if _, err := c.db.Exec(`UPDATE search_cache SET created_at = created_at - 10 WHERE query = 'stale'`); err != nil {
+		t.Fatalf("回拨 created_at 失败: %v", err)
+	}
+	if _, _, err := c.Lookup("stale", "web", false); err != nil {
+		t.Fatalf("Lookup 不应报错: %v", err)
+	}
+	var count int
+	if err := c.db.QueryRow(`SELECT COUNT(*) FROM search_cache WHERE query = 'stale'`).Scan(&count); err != nil {
+		t.Fatalf("统计失败: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("过期记录应被惰性删除，实际仍在库中 %d 行", count)
+	}
+
+	// 默认 TTL（ttl=0 → DefaultTTL）：刚写入的记录应正常命中
+	if err := c.Store("fresh", "web", false, nil, "", 0); err != nil {
+		t.Fatalf("Store fresh 失败: %v", err)
+	}
+	rec, hitType, err := c.Lookup("fresh", "web", false)
+	if err != nil || rec == nil || hitType == "miss" {
+		t.Fatalf("未过期记录应命中: rec=%v hitType=%s err=%v", rec, hitType, err)
+	}
+	if rec.TTLSeconds != int64(DefaultTTL/time.Second) {
+		t.Fatalf("ttl=0 应落 DefaultTTL=%d 秒，实际 %d", int64(DefaultTTL/time.Second), rec.TTLSeconds)
+	}
+}
+
+// TestTTLForFreshness freshness 分桶映射：day→1h、month→24h、其它→默认 6h。
+func TestTTLForFreshness(t *testing.T) {
+	cases := map[string]time.Duration{
+		"day":   time.Hour,
+		"week":  DefaultTTL,
+		"month": 24 * time.Hour,
+		"":      DefaultTTL,
+		"year":  DefaultTTL,
+	}
+	for in, want := range cases {
+		if got := TTLForFreshness(in); got != want {
+			t.Fatalf("TTLForFreshness(%q) = %v，期望 %v", in, got, want)
+		}
 	}
 }
 

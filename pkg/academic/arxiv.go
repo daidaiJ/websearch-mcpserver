@@ -67,10 +67,12 @@ func NewArxiv(opts antirobot.ArxivOpts, client *http.Client) antirobot.Engine {
 		log.Warnf("arxiv: per_min=%d 超过内置上限，钳制为 %d（官方 Tou 1 req/3s ≈ 20/min，取保守值）", perMin, arxivMaxPerMin)
 		perMin = arxivMaxPerMin
 	}
-	return &arxivEngine{
+	e := &arxivEngine{
 		client:  client,
 		limiter: antirobot.NewRateLimiter(perSec, perMin).WithMinInterval(arxivMinInterval),
 	}
+	e.adoptPersistedCooldown()
+	return e
 }
 
 func (e *arxivEngine) Name() string                    { return "arxiv" }
@@ -205,10 +207,12 @@ func (e *arxivEngine) cooldownDuration(retryAfter time.Duration) time.Duration {
 // enterCooldown 进入服务端限流冷却，时长由 cooldownDuration 计算。
 func (e *arxivEngine) enterCooldown(retryAfter time.Duration) {
 	cd := e.cooldownDuration(retryAfter)
+	until := time.Now().Add(cd)
 	e.mu.Lock()
 	e.cooldown = cd
-	e.cooldownUntil = time.Now().Add(cd)
+	e.cooldownUntil = until
 	e.mu.Unlock()
+	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, "HTTP 429/503 限流", until, cd)
 }
 
 // cooldownRemaining 返回冷却剩余时长，不在冷却期返回 0。
@@ -226,6 +230,22 @@ func (e *arxivEngine) recordSuccess() {
 	e.mu.Lock()
 	e.cooldown = 0
 	e.cooldownUntil = time.Time{}
+	e.mu.Unlock()
+	antirobot.ClearCooldown(e.Name())
+}
+
+// adoptPersistedCooldown 收养上一次进程落盘的冷却：未过期则继续避让至截止时间，
+// 已过期仅续接翻倍档位（升级记忆跨进程存活）。实现与 ddg 引擎一致（P1-5）。
+func (e *arxivEngine) adoptPersistedCooldown() {
+	until, cd, ok := antirobot.AdoptCooldown(e.Name())
+	if !ok {
+		return
+	}
+	e.mu.Lock()
+	e.cooldown = cd
+	if !until.IsZero() {
+		e.cooldownUntil = until
+	}
 	e.mu.Unlock()
 }
 
@@ -303,6 +323,7 @@ func parseArxivFeed(data []byte) (*antirobot.SearchResponse, error) {
 			PDFURL:      pdfURL,
 			Authors:     strings.Join(authors, ", "),
 			PublishedAt: entry.Published[:min(len(entry.Published), 10)],
+			DateSource:  antirobot.DateSourceStructured,
 			DOI:         entry.DOI,
 			Engine:      "arxiv",
 		})

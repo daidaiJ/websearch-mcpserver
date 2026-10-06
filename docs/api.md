@@ -163,6 +163,15 @@ MCP 客户端通过此端点完成协议握手、工具列表获取和工具调�
 | `cleanfetch` | 网页内容抓取，返回 Markdown | `url`（与 `urls` 至少一者）、`urls`（可选批量，合并去重最多 5 个） — 需配置 `cleanfetch.enabled` |
 | `pdf_parser` | PDF 解析，支持 MinerU AI 增强（表格/公式/多栏识别） | `path`（必填，本地路径或远程 URL）、`pages`（可选页码范围，如 1-10；单个区间宽度上限 1000 页） — 需配置 `pdf_parser.enabled`，可选 `mineru_token`；省略 pages 时受 `max_pages`（默认 20）约束。请求页码超出单任务上限（默认 600，`mineru_page_limit` 可调）或 MinerU 拒绝原件页数／URL 时，本地裁切所选页再上传（`mineru_page_batch_size` 可开启自动分批，`mineru_page_budget` 控制单次页数预算；分批进度经 MCP progress notification 实时推送）；精准 API 返回含图片 ZIP 地址，轻量 API 单次上限 20 页 |
 
+#### 响应行为
+
+四个工具共用统一响应契约（完整说明见 [docs/search.md](search.md#响应行为与可靠性)）：
+
+- 响应末尾附结构化失败清单（引擎 / 失败类型 `timeout`·`rate_limit`·`challenge`·`off_topic`·`error` / 短原因），空结果可归因，失败清单不受任何预算或落盘裁剪；结果稀疏（≤3 条）时附过滤诊断
+- 结果日期带 `date_source` 三态来源注记，响应头含 `retrieved_at` / `cache_age_seconds` 与固定 `usage_note`
+- 渲染结果超 `smartsearch.inline_max_chars`（默认 32768）时整体落盘 `fetchdata/search-*.md`，响应内保留溯源头、统计与文件路径
+- 同一端点挂载只读 Resource `search://capabilities` 与 `search://health`（不占工具槽位、不带密钥，`mcp_resources` 可关）
+
 #### 客户端配置示例
 
 **Claude CLI**
