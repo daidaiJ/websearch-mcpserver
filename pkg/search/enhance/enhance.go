@@ -153,9 +153,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 				if a.res.Title == "" && r.Title != "" {
 					a.res.Title = r.Title
 				}
-				if a.res.PublishDate == "" && r.PublishDate != "" {
-					a.res.PublishDate = r.PublishDate
-				}
+				core.PreferDate(&a.res, r)
 			}
 			// RRF: 排名 0 基，与 spec 及 RRFScore 一致（顶部结果得 1/K）
 			a.rrf += w * (1.0 / (rrfK + float64(rank)))

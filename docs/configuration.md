@@ -67,6 +67,8 @@ mode: engine
 port: 8338                  # MCP HTTP 端口（stdio CLI 忽略此字段）
 host: "127.0.0.1"           # 监听地址（默认 127.0.0.1，只绑本机；0.0.0.0 开放所有网卡，需配 auth_token）
 auth_token: ""              # 业务端点鉴权 token（空 = 不鉴权；环境变量 WEBSEARCH_TOKEN）
+mcp_resources: true         # MCP Resource 观测（默认 true）：search://capabilities 与 search://health，
+                            # 只读、不含密钥、不占工具槽位；false 关闭
 mcp_stateless: false        # MCP 无状态 HTTP 模式（默认 false = 会话式）：true 时每个 POST 独立处理，
                             # 免 initialize 握手与 Mcp-Session-Id 会话，便于反向代理/负载均衡水平扩展；
                             # GET SSE 长连返回 405。本服务工具均为请求-响应式，无状态模式下功能无损
@@ -400,6 +402,7 @@ log:
 |------|--------|------|
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
 | `mode` | engine | 无 Key 时自动回退 engine；`apipool` 为 API Key 池轮转模式，支持 round-robin / priority / weighted 策略 |
+| `mcp_resources` | true | MCP Resource 观测开关：`search://capabilities` 与 `search://health`，只读、不含密钥、不占工具槽位 |
 | `mcp_stateless` | false | MCP 无状态 HTTP 模式：每个 POST 独立处理、免会话握手，便于水平扩展；GET SSE 返回 405 |
 | `baidu.web_enabled` | false | 百度网页搜索引擎默认禁用（实测被 CAPTCHA 识别），出口 IP 干净时可显式开启 |
 | `network` | china | |

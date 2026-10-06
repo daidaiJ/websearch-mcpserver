@@ -2,6 +2,15 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased (Search Upgrade · Phase 2)
+
+> Branch `feat/search-upgrade`: second phase of the free-search-mcp / agent-search-mcp design-assessment follow-ups (P1-4 + P1-5 + P1-10).
+
+### Added
+- **Result date provenance** [stability/UX]: every result carries a three-state `date_source` — `structured` (engine API/structured field, trustworthy), `snippet` (parsed from snippet text, weak), `undated` (no date); responses now include a header with `retrieved_at` (original retrieval time on cache hits) and `cache_age_seconds` (cache hits only), plus a fixed `usage_note` ("snippets locate sources; verify dates, amounts and versions against the page itself"); cross-engine same-URL dedup prefers structured dates over snippet-parsed ones (`core.PreferDate`); legacy cache rows without the annotation fall back to the weak `snippet` interpretation; web results render a dated line annotated with its provenance
+- **Engine cooldown persistence** [stability]: `pkg/antirobot` gains a unified cooldown registry; DDG / arXiv rate-limit cooldowns persist on entry (`engine_health.json` next to the cache DB, temp+rename writes) so frequently cold-started single binaries stop repeatedly hitting dead engines — new processes adopt unexpired cooldowns and keep backing off; expired entries stay for a 24h remember window so the doubling escalation survives restarts; one success clears everything; the file is advisory (corruption/absence costs one probe)
+- **MCP Resource observability** [UX/cost]: two read-only resources — `search://capabilities` (capability matrix: registered tools, web engines, API providers with key counts only, feature flags) and `search://health` (engine cooldown/circuit state, process uptime) — no tool slot consumed, no schema tokens added to tool selection; content is secret-free by construction; enabled by default, add `mcp_resources: false` to disable
+
 ## Unreleased (Search Upgrade · Phase 1)
 
 > Branch `feat/search-upgrade`: first phase of the free-search-mcp / agent-search-mcp design-assessment follow-ups (P0-1 + P1-6/7/8).

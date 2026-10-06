@@ -124,7 +124,7 @@ func (b *BaiduSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
 	}
 	ret := make([]core.SearchResult, 0, len(rep.References))
 	for _, val := range rep.References {
-		ret = append(ret, core.SearchResult{Title: val.Title, Url: val.Url, Content: val.Content, PublishDate: val.Date, Engine: b.name})
+		ret = append(ret, core.SearchResult{Title: val.Title, Url: val.Url, Content: val.Content, PublishDate: val.Date, DateSource: core.DateSourceStructured, Engine: b.name})
 	}
 	return ret, nil
 }
@@ -136,7 +136,7 @@ func (b *BaiduSearchImpl) MergeContent(query string, results []core.SearchResult
 	buf := core.MDSearchHeader(query, len(results))
 	for i, val := range results {
 		if core.ShowMeta {
-			buf += core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), val.Content)
+			buf += core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content)
 		} else {
 			buf += core.FormatMD(i+1, val.Title, val.Url, val.Content)
 		}

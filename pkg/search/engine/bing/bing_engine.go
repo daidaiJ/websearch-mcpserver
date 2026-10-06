@@ -248,13 +248,15 @@ func (e *bingEngine) parseResults(htmlText string) []antirobot.Result {
 		content := antirobot.CollapseSpace(strings.TrimSpace(contentSel.Text()))
 
 		date := ""
+		dateSource := ""
 		if ds := sel.Find("span.news_dt, span.ftrP").First(); ds.Length() > 0 {
 			date = strings.TrimSpace(ds.Text())
+			dateSource = antirobot.DateSourceSnippet
 		}
 
 		results = append(results, antirobot.Result{
 			Type: antirobot.ResultWeb, Title: title, URL: href,
-			Content: content, PublishedAt: date, Engine: "bing",
+			Content: content, PublishedAt: date, DateSource: dateSource, Engine: "bing",
 		})
 	})
 	return results

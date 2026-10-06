@@ -279,18 +279,20 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 	// off-topic 整桶守卫：先于合并执行，整桶丢弃以 off_topic 类型进失败清单
 	ebuckets = offTopicGuard(query, ebuckets, &diag)
 
-	// 跨引擎合并去重
-	seen := make(map[string]struct{})
+	// 跨引擎合并去重；同 URL 二次出现时按日期采信规则补强（结构化来源优先，
+	// 见 core.PreferDate——date_source 注记随之透传）
+	seen := make(map[string]int)
 	for _, b := range ebuckets {
 		if h.enhance {
 			buckets = append(buckets, core.ScoreBucket{Name: b.name, Weight: h.engineMap[b.name].Weight, Results: b.results})
 		}
 		for _, r := range b.results {
 			normalizedURL := strings.TrimSpace(r.Url)
-			if _, exists := seen[normalizedURL]; exists {
+			if idx, exists := seen[normalizedURL]; exists {
+				core.PreferDate(&merged[idx], r)
 				continue
 			}
-			seen[normalizedURL] = struct{}{}
+			seen[normalizedURL] = len(merged)
 			merged = append(merged, r)
 		}
 	}
@@ -527,7 +529,7 @@ func (h *HybridSearchImpl) MergeContent(query string, results []core.SearchResul
 	buf.WriteString(core.MDSearchHeader(query, len(results)))
 	for i, val := range results {
 		if core.ShowMeta {
-			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), val.Content))
+			buf.WriteString(core.FormatMDScore(i+1, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(i+1, val.Title, val.Url, val.Content))
 		}

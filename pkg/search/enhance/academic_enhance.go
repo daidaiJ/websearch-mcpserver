@@ -151,9 +151,7 @@ func EnhanceAcademicResults(query string, buckets []core.ScoreBucket, threshold 
 			if a.res.Title == "" && r.Title != "" {
 				a.res.Title = r.Title
 			}
-			if a.res.PublishDate == "" && r.PublishDate != "" {
-				a.res.PublishDate = r.PublishDate
-			}
+			core.PreferDate(&a.res, r)
 			if r.CitedBy > a.res.CitedBy {
 				a.res.CitedBy = r.CitedBy
 			}

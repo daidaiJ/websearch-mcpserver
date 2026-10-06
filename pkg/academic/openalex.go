@@ -188,6 +188,7 @@ func openalexWorkToResult(w openalexWork) (antirobot.Result, bool) {
 		PDFURL:      openalexPDFURL(w),
 		Authors:     strings.Join(authors, ", "),
 		PublishedAt: w.PublicationDate,
+		DateSource:  antirobot.DateSourceStructured,
 		DOI:         doi,
 		Journal:     journal,
 		CitedBy:     w.CitedByCount,

@@ -178,6 +178,7 @@ func (e *crossrefEngine) parse(data []byte) (*antirobot.SearchResponse, error) {
 			Content:     abstract,
 			Authors:     strings.Join(authors, ", "),
 			PublishedAt: pubDate,
+			DateSource:  antirobot.DateSourceStructured,
 			DOI:         item.DOI,
 			Journal:     journal,
 			Score:       item.Score,

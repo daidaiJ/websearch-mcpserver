@@ -8,6 +8,7 @@ import (
 	"websearch/pkg/cache"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
+	searchcore "websearch/pkg/search/core"
 	"websearch/pkg/telemetry"
 )
 
@@ -59,6 +60,8 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 				log.Infof("学术缓存命中: query=%s", query)
 				ret, mergeErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results})
 				if mergeErr == nil {
+					// 缓存命中：retrieved_at 为原检索时间，附带 cache_age_seconds
+					ret = searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + ret
 					return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 				}
 			}
@@ -92,6 +95,7 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 		// TTL 按 freshness 分桶：day → 1h、week → 6h、month 及其它 → 24h/默认
 		_ = cacheInst.Store(cacheKey, "", true, res.Results, "", cache.TTLForFreshness(timeRange))
 	}
+	ret = searchcore.ProvenanceHeader(time.Now(), 0) + ret
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 }
 

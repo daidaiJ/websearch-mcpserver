@@ -252,6 +252,7 @@ func toSearchResults(all []antirobot.Result) []core.SearchResult {
 			Url:         strings.TrimSpace(r.URL),
 			Content:     r.Content,
 			PublishDate: r.PublishedAt,
+			DateSource:  r.DateSource,
 			Type:        string(r.Type),
 			Authors:     r.Authors,
 			DOI:         r.DOI,

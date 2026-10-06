@@ -31,6 +31,10 @@ func NewMCPServer(conf config.Config, opts *mcp.ServerOptions) *mcp.Server {
 	server.AddReceivingMiddleware(createLoggingMiddleware())
 	server.AddReceivingMiddleware(ClientAttributionMiddleware)
 	registerTools(server, conf)
+	// 只读观测 Resource（capabilities/health）：mcp_resources: false 时整体关闭
+	if conf.ResourcesEnabled() {
+		registerResources(server, conf)
+	}
 	return server
 }
 

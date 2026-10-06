@@ -59,6 +59,18 @@ const (
 	ResultPaper ResultType = "paper" // 学术论文
 )
 
+// ── 日期来源注记 ──
+
+// 日期来源注记（date_source）。core.SearchResult 同名透传：
+//   - structured：引擎 API / 结构化字段给出的日期（强，可直接采信）
+//   - snippet：从页面展示文本 / 摘要解析出的日期（弱，仅用于定位来源）
+//
+// 无日期以空 PublishDate 表达，"undated" 三态由 core.DateSourceState 规范化得出。
+const (
+	DateSourceStructured = "structured"
+	DateSourceSnippet    = "snippet"
+)
+
 // Result 统一搜索结果。
 type Result struct {
 	Type        ResultType `json:"type"`
@@ -68,6 +80,7 @@ type Result struct {
 	PDFURL      string     `json:"pdf_url,omitempty"`
 	Authors     string     `json:"authors,omitempty"`
 	PublishedAt string     `json:"published_at,omitempty"`
+	DateSource  string     `json:"date_source,omitempty"` // PublishDate 的来源注记（DateSourceStructured / DateSourceSnippet）
 	DOI         string     `json:"doi,omitempty"`
 	Journal     string     `json:"journal,omitempty"`
 	CitedBy     int        `json:"cited_by,omitempty"`

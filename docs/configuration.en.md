@@ -71,6 +71,8 @@ mcp_stateless: false        # Stateless MCP HTTP mode (default false = stateful)
                             # independently, no initialize handshake or Mcp-Session-Id session — easier
                             # horizontal scaling behind proxies/LBs; GET SSE returns 405. All tools are
                             # request-response, so stateless mode loses nothing
+mcp_resources: true         # MCP Resource observability (default true): search://capabilities and
+                            # search://health — read-only, secret-free, no tool slot; false to disable
 log_level: info             # debug / info / warn / error
 mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine
 network: china              # china (skip overseas engines) / international
@@ -402,6 +404,7 @@ log:
 |-------|---------|-------|
 | `port` | 8338 | stop/kill/status also use this port when no config |
 | `mode` | engine | Auto-degrades to engine when no keys; `apipool` = API Key pool rotation, supports round-robin / priority / weighted strategies |
+| `mcp_resources` | true | MCP Resource observability toggle: `search://capabilities` and `search://health`, read-only, secret-free, no tool slot |
 | `mcp_stateless` | false | Stateless MCP HTTP mode: each POST handled independently, no session handshake, easier horizontal scaling; GET SSE returns 405 |
 | `baidu.web_enabled` | false | Baidu web search engine disabled by default (CAPTCHA-blocked in testing); may be enabled explicitly with clean egress IPs |
 | `network` | china | |

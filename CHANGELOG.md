@@ -2,6 +2,15 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased（搜索服务升级 · 二期）
+
+> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第二期（P1-4 + P1-5 + P1-10）。
+
+### 新增
+- **结果来源注记【稳定/体验】**：每条结果带 `date_source` 三态——`structured`（引擎 API/结构化字段，可直接采信）/ `snippet`（摘要文本解析，弱）/ `undated`（无日期）；响应头带 `retrieved_at`（缓存命中为原检索时间）与 `cache_age_seconds`（仅缓存命中），并附固定 `usage_note`（"snippet 日期仅用于定位来源，日期、金额、版本等细节必须读原页核实"）；跨引擎同 URL 去重时弱日期可被强日期覆盖（`core.PreferDate`），旧缓存行缺注记时按弱口径 `snippet` 兜底，网页引擎结果渲染新增带注记的日期行
+- **引擎冷却状态落盘【稳定】**：`pkg/antirobot` 新增冷却统一注册表，DDG / arXiv 的限流冷却随进随落盘（与缓存库同目录的 `engine_health.json`，temp+rename 写入）——单二进制频繁冷启动不再反复撞死引擎：新进程构造引擎时收养未过期冷却继续避让；已过期条目保留 24h 记忆窗，连续限流的翻倍档位跨进程续接；一次成功即全部清除；文件为 advisory 语义（损坏/缺失只损失一次试探）
+- **MCP Resource 观测【体验/成本】**：新增 `search://capabilities`（能力矩阵：已注册工具、网页引擎、API 供应商仅 Key 数量、功能开关）与 `search://health`（引擎冷却/熔断状态、进程运行时长）两个只读 Resource——不占工具槽位、不增加工具选择时的 schema token；内容结构上不含任何密钥（密钥值永不回显）；默认启用，新增 `mcp_resources` 配置项可关闭（省略 = 启用）
+
 ## Unreleased（搜索服务升级 · 一期）
 
 > 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第一期（P0-1 + P1-6/7/8）。

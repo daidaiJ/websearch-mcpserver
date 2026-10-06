@@ -40,6 +40,7 @@ type Config struct {
 	Host               string            `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
 	AuthToken          string            `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
 	MCPStateless       bool              `mapstructure:"mcp_stateless"`        // MCP 无状态 HTTP 模式：每个 POST 独立处理，无需 initialize 握手与 Mcp-Session-Id 会话（对齐 MCP 2026-07-28 stateless-first 方向），便于水平扩展；代价是 GET SSE 长连与 sampling/elicitation 等服务端主动交互不可用（本项目未使用，见 mcp/server.go RegisterRouter）
+MCPResources       *bool             `mapstructure:"mcp_resources"`        // MCP Resource 观测开关（search://capabilities 与 search://health）：只读、结构上不含密钥、不占工具槽位；省略 = 启用，显式 false 关闭
 	UpstreamTimeoutSec int               `mapstructure:"upstream_timeout_sec"` // API 上游超时（秒），默认 30；显式 0 = 不设超时（有挂起风险）
 	LogLevel           string            `mapstructure:"log_level"`
 	Mode               string            `mapstructure:"mode"`
@@ -811,6 +812,15 @@ func (c Config) CacheEnabled() bool {
 	// 未显式设置时默认关闭（v3.5.0 起）：SQLite 缓存对轻量部署收益有限，
 	// 需要缓存时在配置中显式 enabled: true（storage_path 未配置时用默认路径）
 	return false
+}
+
+// ResourcesEnabled MCP Resource 观测是否启用：只读、无密钥、按需读取，
+// 未显式配置时默认开启；客户端不需要观测时显式 mcp_resources: false 关闭。
+func (c Config) ResourcesEnabled() bool {
+if c.MCPResources != nil {
+return *c.MCPResources
+}
+return true
 }
 
 // GetCacheStoragePath 返回缓存 SQLite 数据库路径。
