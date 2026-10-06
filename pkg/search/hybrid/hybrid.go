@@ -44,6 +44,7 @@ type HybridSearchImpl struct {
 	enhance            bool                    // 是否启用 Wigolo 本地评分增强
 	relevanceThreshold float64                 // 增强后的相关性阀值
 	mmr                config.MMRConfig        // MMR 多样性重排配置（Enabled=false 时不重排）
+	offTopicGuardMode  string                  // off-topic 守卫模式（config.OffTopicGuard*；零值 = enforce 保持直构行为，配置层缺省 shadow 经 mode/factory 注入）
 
 	diagMu   sync.Mutex            // 保护 lastDiag（并发搜索时诊断整体替换）
 	lastDiag core.SearchDiagnostics // 最近一次搜索的失败诊断（实现 core.DiagnosticsProvider）
@@ -90,6 +91,11 @@ func (h *HybridSearchImpl) SetEnhance(enabled bool, threshold float64) {
 // SetMMR 设置 MMR 多样性重排配置（仅在评分增强启用时生效）。
 func (h *HybridSearchImpl) SetMMR(mmr config.MMRConfig) {
 	h.mmr = mmr
+}
+
+// SetOffTopicGuard 设置 off-topic 整桶守卫模式（config.OffTopicGuard* 三态）。
+func (h *HybridSearchImpl) SetOffTopicGuard(mode string) {
+	h.offTopicGuardMode = mode
 }
 
 func (h *HybridSearchImpl) Name() string { return "hybrid" }
@@ -276,8 +282,9 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 		ebuckets = append(ebuckets, engineBucket{index: ir.index, name: engineName, results: unique})
 	}
 
-	// off-topic 整桶守卫：先于合并执行，整桶丢弃以 off_topic 类型进失败清单
-	ebuckets = offTopicGuard(query, ebuckets, &diag)
+	// off-topic 整桶守卫：先于合并执行，疑似整桶按守卫模式处置（enforce 丢弃 /
+	// shadow 只记录），以 off_topic 类型进失败清单
+	ebuckets = h.offTopicGuard(query, ebuckets, &diag)
 
 	// 跨引擎合并去重；同 URL 二次出现时按日期采信规则补强（结构化来源优先，
 	// 见 core.PreferDate——date_source 注记随之透传）
@@ -354,11 +361,21 @@ func storeDiagnosticsIf(h *HybridSearchImpl, diag *core.SearchDiagnostics) {
 }
 
 // offTopicGuard off-topic 整桶守卫：某引擎整桶几乎不 echo 查询"其余词"（排除首词）、
-// 且另一引擎证明这些词会被正常 echo 时，整桶丢弃——防 Bing 式"HTTP 200 诱饵页"
-// （返回关于查询第一个词的十个格式良好结果）整桶混入 RRF。逐条裁剪之外的第二道防线，
-// 丢弃记录以 off_topic 类型进失败清单（这是过滤不是墙，代理无效）。
-// 守卫至少保留一个桶：参照桶（回声率达标）自身不可能被判为 off-topic。
-func offTopicGuard(query string, buckets []engineBucket, diag *core.SearchDiagnostics) []engineBucket {
+// 且另一引擎证明这些词会被正常 echo 时判定为疑似"HTTP 200 诱饵页"
+// （返回关于查询第一个词的十个格式良好结果）。逐条裁剪之外的第二道防线，
+// 判定以 off_topic 类型进失败清单（这是过滤不是墙，代理无效）。
+// 三态（P1-7 回查处置）：enforce 整桶丢弃；shadow 只记录不丢弃（默认，阈值为
+// 未校准初值，误杀代价 > 漏放）；off 完全关闭。守卫至少保留一个桶：
+// 参照桶（回声率达标）自身不可能被判为 off-topic。
+func (h *HybridSearchImpl) offTopicGuard(query string, buckets []engineBucket, diag *core.SearchDiagnostics) []engineBucket {
+	mode := h.offTopicGuardMode
+	if mode == "" {
+		mode = config.OffTopicGuardEnforce // 直构零值维持原拦截行为；配置层缺省 shadow（config.OffTopicGuardMode）
+	}
+	if mode == config.OffTopicGuardOff {
+		return buckets
+	}
+
 	terms := queryTerms(query)
 	if len(terms) < minQueryTerms || len(buckets) < 2 {
 		return buckets
@@ -379,6 +396,13 @@ func offTopicGuard(query string, buckets []engineBucket, diag *core.SearchDiagno
 	kept := make([]engineBucket, 0, len(buckets))
 	for _, b := range buckets {
 		if len(b.results) >= offTopicMinBucket && echoRatio(b.results, other) <= offTopicMaxEchoRatio {
+			if mode == config.OffTopicGuardShadow {
+				diag.AddFailures(b.name, core.FailureOffTopic,
+					"shadow：整桶结果几乎不包含查询其余词，疑似不相关诱饵页；未丢弃（off_topic_guard=shadow）")
+				log.Warnf("hybrid: engine %s 整桶判为 off-topic（%d 条结果，回声率过低），shadow 模式保留", b.name, len(b.results))
+				kept = append(kept, b)
+				continue
+			}
 			diag.AddFailures(b.name, core.FailureOffTopic,
 				"整桶结果几乎不包含查询其余词，疑似不相关诱饵页，已整桶丢弃")
 			log.Warnf("hybrid: engine %s 整桶判为 off-topic（%d 条结果，回声率过低），已丢弃", b.name, len(b.results))

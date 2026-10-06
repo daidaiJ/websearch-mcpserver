@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -88,6 +89,86 @@ func TestAnysearch_SearchRaw_AuthHeader(t *testing.T) {
 	}
 	if gotAuth != "Bearer sk-test-1" {
 		t.Errorf("expected 'Bearer sk-test-1', got %q", gotAuth)
+	}
+}
+
+// TestAnysearch_Keyless_NoAuthHeader 零 Key 匿名档：keys 为 nil 时省略 Authorization
+// 头（上游以"无鉴权头"选择匿名 IP 限流档），结果正常解析。
+func TestAnysearch_Keyless_NoAuthHeader(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(anysearchOKResp))
+	}))
+	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
+
+	engine := NewAnysearchSearch(nil, 10, nil)
+	engine.endpoint = srv.URL
+	results, err := engine.SearchRaw("golang release")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotAuth != "" {
+		t.Errorf("匿名档不应携带 Authorization 头, got %q", gotAuth)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+}
+
+// TestAnysearch_Keyless_ErrorNotKeyError 匿名档失败不包装 KeyError（无 Key 可归责/失效），
+// 错误消息保留状态码供失败清单归类（429 → rate_limit）。
+func TestAnysearch_Keyless_ErrorNotKeyError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"code":-1,"message":"rate limited"}`))
+	}))
+	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
+
+	engine := NewAnysearchSearch(nil, 10, nil)
+	engine.endpoint = srv.URL
+	_, err := engine.SearchRaw("q")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var ke *KeyError
+	if errors.As(err, &ke) {
+		t.Fatalf("匿名档失败不应是 KeyError, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "429") {
+		t.Fatalf("错误消息应带状态码供归类: %v", err)
+	}
+}
+
+// TestAnysearch_Keyless_RateLimit 匿名档本端保守钳制：连续请求第二次应被限流拒绝，
+// 不发起网络请求。
+func TestAnysearch_Keyless_RateLimit(t *testing.T) {
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(anysearchOKResp))
+	}))
+	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
+
+	engine := NewAnysearchSearch(nil, 10, nil)
+	engine.endpoint = srv.URL
+	if _, err := engine.SearchRaw("first"); err != nil {
+		t.Fatalf("first request should pass: %v", err)
+	}
+	_, err := engine.SearchRaw("second")
+	if err == nil {
+		t.Fatal("second immediate request should be rate limited")
+	}
+	if !strings.Contains(err.Error(), "限流") {
+		t.Fatalf("限流错误应可归类 rate_limit: %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("限流请求不应发起网络调用, requests=%d", requests)
 	}
 }
 

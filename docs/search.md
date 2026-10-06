@@ -25,14 +25,14 @@
 
 | 模式 | 说明 | 需要 Key |
 |------|------|----------|
-| `engine` | 百度网页搜索 + Bing 并发（代理可用时自动加入 DuckDuckGo，启用时加入 Google） | **无需** |
+| `engine` | 百度网页搜索 + Bing + 360（启用时）并发（代理可用时自动加入 DuckDuckGo / Wikipedia / Google News，启用时加入 Google） | **无需** |
 | `baidu` | 百度千帆搜索（`enable_ai_search` 控制端点），失败自动回退百度网页搜索；无 SK 时直接用百度网页搜索 | `BAIDU_SK`（可选） |
 | `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；百度网页搜索兜底 | 各 Key 可选 |
 | `tavily` | Tavily Search API（[获取 Key](https://app.tavily.com/home)） | `TAVILY_SK` |
 | `exa` | Exa Web Search API（[获取 Key](https://dashboard.exa.ai/api-keys)） | `EXA_API_KEY` |
-| `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)） | `ANYSEARCH_API_KEY` |
+| `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)）；无 Key 时走匿名档（免鉴权，按出口 IP 限流） | `ANYSEARCH_API_KEY`（可选） |
 | `doubao` | 豆包联网搜索 Global / Custom（[获取 Key](https://console.volcengine.com/search-infinity/api-key)） | `DOUBAO_SEARCH_API_KEY` |
-| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + 豆包(有 Key 时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
+| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
 
 > 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
 
@@ -40,14 +40,14 @@
 
 | 模式 | 参与引擎 |
 |------|----------|
-| `engine` | 百度网页搜索 + Bing + Google（若启用）+ DuckDuckGo（若代理可用），并发 |
+| `engine` | 百度网页搜索 + Bing + 360（若启用）+ Google（若启用）+ DuckDuckGo / Wikipedia / Google News（若代理可用），并发 |
 | `baidu` | 百度千帆（`enable_ai_search` 控制端点）→ 失败回退百度网页搜索 |
 | `tavily` | Tavily；无 Key 时回退 Bing |
 | `exa` | Exa；无 Key 时回退 Bing |
-| `anysearch` | AnySearch；无 Key 时回退 Bing |
+| `anysearch` | AnySearch；有 Key 走 Key 池轮询，无 Key 走匿名档（免鉴权，按出口 IP 限流） |
 | `doubao` | 豆包联网搜索 Global/Custom（`doubao.version`）；无 Key 时回退 Bing |
 | `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao` 需显式写入 `apipool.engines`），百度网页搜索始终兜底 |
-| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + Tavily + Exa + 豆包(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
+| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
 
 ---
 

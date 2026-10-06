@@ -25,7 +25,7 @@ func NewMCPServer(conf config.Config, opts *mcp.ServerOptions) *mcp.Server {
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "websearch server",
-		Version: "1.0.0",
+		Version: serverVersion, // 与 search://capabilities 的版本同源（入口 main 注入，P1-10 回查对齐）
 	}, opts)
 
 	server.AddReceivingMiddleware(createLoggingMiddleware())

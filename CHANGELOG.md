@@ -2,6 +2,26 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased（搜索服务升级 · 三期）
+
+> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第三期（P0-2 零 Key 来源扩充 + 超限落盘 + P1-7 守卫处置 + 两处小修）。
+
+### 新增
+- **零 Key 来源扩充（P0-2）【体验/能力】**：四个候选逐个出口实测后注册——
+  - **360 搜索（so360）**：中文第二索引，国内直连可用无需代理（`so360.enabled`，默认关闭）；解析 `li.res-list` + `data-mdurl` 真实 URL，过滤 g-mohe 特型卡，验证码页按反爬拦截报错
+  - **AnySearch 匿名档**：`mode=anysearch` 无 Key 时自动走匿名档（省略鉴权头，上游按出口 IP 限流），apipool / hybrid 编排无 Key 也纳入；本端保守钳制 1/s·20/min，失败不冷却 Key 而是由编排层切换来源
+  - **Wikipedia 引擎**：MediaWiki API 参考型来源（`wikipedia.enabled`，需代理）；`wikipedia.lang` 选语言版本（默认 zh）
+  - **Google News RSS 引擎**：独立新闻索引带结构化发布日期（`google_news.enabled`，需代理）；`news.google.com` 跳转链接自动经 batchexecute RPC 回源发布方 URL（对齐上游 gnews.py 契约，实测可回源），`google_news.edition` 选新闻版本；freshness 映射 `when:` 操作符
+  - 每个来源均带真网集成测试（`WS_TEST_NETWORK` 门控）；Wikipedia / Google News 与 DDG 同策略：无可用代理解析时跳过注册
+- **搜索响应超限落盘【成本/稳定】**：新增 `smartsearch.inline_max_chars`（默认 32768，负数 = 禁用），渲染结果超限时**整体落盘临时文件**（零丢失，不截断）——完整结果写入 `cleanfetch.file_output_dir` 约定目录（默认 exe 同目录 `fetchdata/`）的 `search-*.md`，惰性清理超 7 天旧文件；响应内保留溯源头、统计（条数/字符数）、文件路径、读取提示与失败清单（失败清单永不因落盘裁剪）；实时搜索与缓存 query_only 命中路径共用。动机：堵 Tavily `raw_content` 默认开启的响应体积失控口（对齐 Exa `text_max_characters` 的先例，处置口径 = 落盘而非截断）
+
+### 变更
+- **off-topic 整桶守卫改为三态配置【稳定】**：新增 `smartsearch.off_topic_guard`——`shadow`（默认，照常计算回声率，疑似诱饵整桶只记失败清单与日志、**不丢弃结果**）/ `enforce`（一期行为：整桶丢弃并在失败清单透出，须显式开启）/ `off`（完全关闭）。回查结论：守卫三阈值（回声率 0.25 / 参照 0.75 / 最小桶 3）未实测校准即生效且无开关，误杀代价大于漏放——默认改为 shadow 消除误杀风险，shadow 记录为后续阈值校准积累真实证据
+
+### 修复
+- **学术结果日期来源注记**：`academicsearch` 的 `FormatPaperMD` 发表日期改用 `FormatDateSource` 渲染（与网页结果同口径带 `structured`/`snippet（弱）` 注记），Google Scholar 等 snippet 日期不再与结构化日期同样裸露呈现
+- **MCP 握手版本对齐**：initialize 握手的 `implementation.version` 改用注入的二进制版本（原硬编码 `1.0.0`），与 `search://capabilities` 的版本同源
+
 ## Unreleased（搜索服务升级 · 二期）
 
 > 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第二期（P1-4 + P1-5 + P1-10）。

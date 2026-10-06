@@ -40,6 +40,8 @@ func FormatMDScore(id int, title, url, engine, scoreStr, dateStr, context string
 	return s
 }
 
+// FormatPaperMD 格式化学术论文结果。pubDate 由 FormatDateSource 预渲染
+// （与 FormatMDScore 的 dateStr 同口径：带来源注记、无日期为空串隐藏该行）。
 func FormatPaperMD(id int, title, url, authors, doi, journal, pubDate, pdfURL, citedBy, content string) string {
 	s := fmt.Sprintf("## 结果 %d \n**标题**: %s  \n**url**: %s  \n", id, title, url)
 	if authors != "" {

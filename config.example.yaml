@@ -157,6 +157,40 @@ bing:
   blocked: [] # Bing 专用屏蔽域名（与 black_list_host 合并）
 
 # ==============================================
+# 360 搜索引擎（so.com，中文第二索引）
+# 无需 API Key、无需代理（国内直连可用，2026-10-06 出口实测），默认关闭
+# ==============================================
+so360:
+  enabled: false # 总开关（默认 false）
+  blocked: []    # 360 专用屏蔽域名（与 black_list_host 合并）
+  # per_sec: 3          # 每秒限流（默认 3）
+  # per_min: 60         # 每分钟限流（默认 60）
+  # safe_search: 0      # 安全搜索：0=关, 1/2=开（请求带 secure=1）
+
+# ==============================================
+# Wikipedia 搜索引擎（MediaWiki API，零 Key，参考型来源）
+# 需代理才能访问（国内直连超时，2026-10-06 出口实测）；代理启用时自动参与搜索
+# ==============================================
+wikipedia:
+  enabled: false    # 总开关（默认 false）
+  # lang: zh        # 语言版本（默认 zh）
+  # num_results: 10 # 单次结果数（默认 10，上限 50）
+  # per_sec: 1      # 每秒限流（默认 1，MediaWiki 礼仪取保守值）
+  # per_min: 30     # 每分钟限流（默认 30）
+
+# ==============================================
+# Google News RSS 搜索引擎（零 Key，独立新闻索引，带结构化发布日期）
+# 需代理才能访问（国内直连超时，2026-10-06 出口实测）；news.google.com 跳转链接
+# 自动经 batchexecute RPC 回源发布方 URL（同日实测可回源）
+# ==============================================
+google_news:
+  enabled: false    # 总开关（默认 false）
+  # edition: zh-CN  # 新闻版本（默认 zh-CN；zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR）
+  # num_results: 10 # 单次结果数（默认 10）
+  # per_sec: 1      # 每秒限流（默认 1）
+  # per_min: 30     # 每分钟限流（默认 30）
+
+# ==============================================
 # DuckDuckGo 搜索引擎（需代理才能访问）
 # 无需 API Key，默认开启；代理启用时自动参与搜索
 # ==============================================
@@ -300,11 +334,15 @@ log:
 #   show_meta: true       # 输出中是否显示引擎来源和相关性分数（默认 true）
 #   enhance: true         # 是否启用本地评分增强（RRF 融合 + 词汇对齐 + 域名品质 + 多层 Boost + 阀值过滤），默认 true
 #   relevance_threshold: 0.05  # 增强后相关性阀值，final_score < 该值的结果被过滤（Top-1/每引擎保底不受影响），默认 0.05
+#   inline_max_chars: 32768    # 渲染响应内联字符上限，超限整体落盘临时文件（fetchdata/ 下 search-*.md，保留 7 天），
+#                              # 响应内保留溯源头/统计/路径/读取提示/失败清单；0 = 默认 32768，负数 = 禁用落盘恒内联
+#   off_topic_guard: shadow    # off-topic 整桶守卫：shadow（默认，疑似诱饵整桶只记失败清单不丢弃）/
+#                              # enforce（整桶丢弃并透出失败清单）/ off（完全关闭）
 #   mmr:                       # MMR 多样性重排（打散同话题的高相似结果，如转载/镜像站）
 #     enabled: true            # 总开关（默认 true）
 #     lambda: 0.7              # 相关性-多样性权衡系数 [0,1]，越高越偏相关性，越低越偏多样性（默认 0.7）
 #     target_count: 0          # MMR 后目标条数，0 = 不额外截断（由 max_size 统一截断）
-#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, bing, google, duckduckgo, anysearch, doubao）
+#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao）
 #     tavily_api:
 #       min_score: 0.5    # Tavily API 最低相关性分数阈值（0 = 不过滤）
 #       max_size: 6       # Tavily API 单引擎最大结果数（默认 4）

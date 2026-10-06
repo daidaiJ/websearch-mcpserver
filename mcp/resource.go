@@ -98,6 +98,9 @@ func renderCapabilities(conf config.Config) string {
 
 	b.WriteString("\n## 网页引擎（零 Key，兜底 Bing 恒可用）\n\n")
 	fmt.Fprintf(&b, "- baidu_web: %v（默认关闭，实测被 CAPTCHA 识别）\n", conf.Baidu.WebEnabled)
+	fmt.Fprintf(&b, "- so360: %v（国内直连可用）\n", conf.So360.Enabled)
+	fmt.Fprintf(&b, "- wikipedia: %v（需代理）\n", conf.Wikipedia.Enabled)
+	fmt.Fprintf(&b, "- googlenews: %v（需代理，跳转链接回源发布方）\n", conf.GoogleNews.Enabled)
 	fmt.Fprintf(&b, "- google: %v（默认关闭，JS 挑战无法伪装绕过）\n", conf.Google.Enabled)
 	fmt.Fprintf(&b, "- duckduckgo: %v\n", conf.DuckDuckGo.Enabled)
 

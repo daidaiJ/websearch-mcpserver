@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
+	"time"
+	"websearch/pkg/antirobot"
 	"websearch/pkg/client"
 )
 
@@ -14,9 +15,13 @@ const anysearchAPIEndpoint = "https://api.anysearch.com/v1/search"
 // AnysearchSearchImpl 实现 core.SearchInf 接口，通过 AnySearch 搜索 API 搜索（https://www.anysearch.com/docs）。
 // 响应为统一 envelope：code=0 成功，code=-1 失败（可能携带 error_code）；
 // Key 无效/禁用/过期时网关返回 401/403，不会静默降级为匿名模式。
+// 零 Key 匿名档（P0-2）：keys 为 nil 时省略 Authorization 头——上游明确以
+// "无鉴权头"选择匿名 IP 限流档（上游 anysearch.py 注释；2026-10-06 本项目出口实测可用），
+// 此时请求受保守固定限流钳制，失败不包装 KeyError（无 Key 可归责/失效）。
 type AnysearchSearchImpl struct {
 	name           string
-	keys           *KeyPool
+	keys           *KeyPool              // nil = 匿名档
+	anonLimiter    *antirobot.RateLimiter // 仅匿名档启用（上游未公布 IP 档阈值，取保守固定值）
 	numResults     int
 	excludeDomains []string
 	endpoint       string // API 端点，默认 anysearchAPIEndpoint（测试可覆盖）
@@ -43,18 +48,23 @@ type anysearchSearchResp struct {
 }
 
 // NewAnysearchSearch 创建 AnySearch 搜索实例，支持 KeyPool 轮询。
+// keys 为 nil 时启用零 Key 匿名档（省略 Authorization 头 + 保守限流钳制）。
 // numResults <= 0 时使用默认 10。
 func NewAnysearchSearch(keys *KeyPool, numResults int, excludeDomains []string) *AnysearchSearchImpl {
 	if numResults <= 0 {
 		numResults = 10
 	}
-	return &AnysearchSearchImpl{
+	a := &AnysearchSearchImpl{
 		name:           "anysearch",
 		keys:           keys,
 		numResults:     numResults,
 		excludeDomains: excludeDomains,
 		endpoint:       anysearchAPIEndpoint,
 	}
+	if keys == nil {
+		a.anonLimiter = antirobot.NewRateLimiter(1, 20).WithMinInterval(time.Second)
+	}
+	return a
 }
 
 func (a *AnysearchSearchImpl) Name() string { return a.name }
@@ -73,20 +83,39 @@ func (a *AnysearchSearchImpl) SearchRaw(query string) ([]core.SearchResult, erro
 		MaxResults: a.numResults,
 	}
 	var resp anysearchSearchResp
-	key := a.keys.Next()
-	res, err := client.DefaultClient.R().
-		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
+	call := client.DefaultClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).
-		SetResult(&resp).
-		Post(a.endpoint)
+		SetResult(&resp)
+
+	// 认证头按 KeyPool 有无分流：有 Key 走轮转并包装 KeyError（精确冷却）；
+	// 匿名档省略 Authorization 头（带空 Bearer 会被上游拒绝），限流钳制前置
+	var key string
+	if a.keys != nil {
+		key = a.keys.Next()
+		call = call.SetHeader("Authorization", fmt.Sprintf("Bearer %s", key))
+	} else if !a.anonLimiter.Allow() {
+		perSec, perMin := a.anonLimiter.Limits()
+		return nil, fmt.Errorf("anysearch 匿名档触发本端限流（%d/s、%d/min 保守钳制，匿名档按出口 IP 限流）", perSec, perMin)
+	}
+
+	res, err := call.Post(a.endpoint)
 	if err != nil {
+		if a.keys == nil {
+			return nil, fmt.Errorf("anysearch 搜索 API 调用失败: %w", err)
+		}
 		return nil, &KeyError{Key: key, Err: fmt.Errorf("anysearch 搜索 API 调用失败: %w", err)}
 	}
 	if res.StatusCode() != 200 {
+		if a.keys == nil {
+			return nil, fmt.Errorf("anysearch 搜索 API 返回错误状态码: %d", res.StatusCode())
+		}
 		return nil, &KeyError{Key: key, Err: fmt.Errorf("anysearch 搜索 API 返回错误状态码: %d", res.StatusCode())}
 	}
 	if resp.Code != 0 {
+		if a.keys == nil {
+			return nil, fmt.Errorf("anysearch 搜索 API 返回错误: code=%d message=%s", resp.Code, resp.Message)
+		}
 		return nil, &KeyError{Key: key, Err: fmt.Errorf("anysearch 搜索 API 返回错误: code=%d message=%s", resp.Code, resp.Message)}
 	}
 	if len(resp.Data.Results) == 0 {

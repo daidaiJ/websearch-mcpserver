@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"websearch/pkg/config"
 	"websearch/pkg/search/core"
 )
 
@@ -129,6 +130,72 @@ func TestHybridSearch_OffTopicGuardKeepsBucketsWithoutReference(t *testing.T) {
 	diag := hs.LastDiagnostics()
 	if diag.HasFailures() {
 		t.Fatalf("无参照时不应产生 off_topic 失败: %+v", diag.Failures)
+	}
+}
+
+// TestHybridSearch_OffTopicGuardShadowKeepsBucket shadow 模式（默认）：疑似诱饵桶
+// 只记 off_topic 失败清单与日志，结果保留不丢弃。
+func TestHybridSearch_OffTopicGuardShadowKeepsBucket(t *testing.T) {
+	decoy := &mockEngine{name: "decoy", results: []core.SearchResult{
+		{Title: "golang tutorial", Url: "http://s1.com", Content: "learn golang basics", Engine: "decoy"},
+		{Title: "golang intro", Url: "http://s2.com", Content: "golang for beginners", Engine: "decoy"},
+		{Title: "golang guide", Url: "http://s3.com", Content: "golang quickstart", Engine: "decoy"},
+	}}
+	normal := &mockEngine{name: "bing", results: []core.SearchResult{
+		{Title: "golang release notes", Url: "http://sn1.com", Content: "golang release notes and download", Engine: "bing"},
+		{Title: "download golang", Url: "http://sn2.com", Content: "official release download page", Engine: "bing"},
+		{Title: "golang release history", Url: "http://sn3.com", Content: "all release notes archive", Engine: "bing"},
+	}}
+	hs := NewHybridSearch(decoy, normal)
+	hs.SetOffTopicGuard(config.OffTopicGuardShadow)
+	results, err := hs.SearchRaw("golang release notes download")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 6 {
+		t.Fatalf("shadow 模式应保留全部结果（含疑似诱饵桶），expected 6, got %d", len(results))
+	}
+	foundDecoy := false
+	for _, r := range results {
+		if r.Engine == "decoy" {
+			foundDecoy = true
+		}
+	}
+	if !foundDecoy {
+		t.Fatal("shadow 模式诱饵桶结果应保留")
+	}
+	f := hs.LastDiagnostics().Failures
+	if len(f) != 1 || f[0].Engine != "decoy" || f[0].Kind != core.FailureOffTopic {
+		t.Fatalf("shadow 应以 off_topic 类型记录疑似整桶，实际 %+v", f)
+	}
+	if !strings.Contains(f[0].Reason, "未丢弃") {
+		t.Fatalf("shadow 失败原因应标明未丢弃: %q", f[0].Reason)
+	}
+}
+
+// TestHybridSearch_OffTopicGuardOff off 模式完全关闭：不计算不记录。
+func TestHybridSearch_OffTopicGuardOff(t *testing.T) {
+	decoy := &mockEngine{name: "decoy", results: []core.SearchResult{
+		{Title: "golang tutorial", Url: "http://o1.com", Content: "learn golang basics", Engine: "decoy"},
+		{Title: "golang intro", Url: "http://o2.com", Content: "golang for beginners", Engine: "decoy"},
+		{Title: "golang guide", Url: "http://o3.com", Content: "golang quickstart", Engine: "decoy"},
+	}}
+	normal := &mockEngine{name: "bing", results: []core.SearchResult{
+		{Title: "golang release notes", Url: "http://on1.com", Content: "golang release notes and download", Engine: "bing"},
+		{Title: "download golang", Url: "http://on2.com", Content: "official release download page", Engine: "bing"},
+		{Title: "golang release history", Url: "http://on3.com", Content: "all release notes archive", Engine: "bing"},
+	}}
+	hs := NewHybridSearch(decoy, normal)
+	hs.SetOffTopicGuard(config.OffTopicGuardOff)
+	results, err := hs.SearchRaw("golang release notes download")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 6 {
+		t.Fatalf("off 模式应保留全部结果，expected 6, got %d", len(results))
+	}
+	if d := hs.LastDiagnostics(); d.HasFailures() {
+		t.Fatalf("off 模式不应产生 off_topic 记录: %+v", d.Failures)
 	}
 }
 

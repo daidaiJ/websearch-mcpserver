@@ -25,14 +25,14 @@
 
 | Mode | Description | Key Required |
 |------|-------------|--------------|
-| `engine` | Baidu web search + Bing concurrently (DuckDuckGo joins when a proxy is available, Google when enabled) | **None** |
+| `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
 | `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; Baidu web search as final fallback | All optional |
 | `tavily` | Tavily Search API ([get key](https://app.tavily.com/home)) | `TAVILY_SK` |
 | `exa` | Exa Web Search API ([get key](https://dashboard.exa.ai/api-keys)) | `EXA_API_KEY` |
-| `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)) | `ANYSEARCH_API_KEY` |
+| `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
-| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo + Google) | All optional |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo + Google) | All optional |
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
 
@@ -40,14 +40,14 @@
 
 | Mode | Engines |
 |------|---------|
-| `engine` | Baidu web + Bing + Google (if enabled) + DuckDuckGo (if proxy available), concurrent |
+| `engine` | Baidu web + Bing + so360 (if enabled) + Google (if enabled) + DuckDuckGo / Wikipedia / Google News (if proxy available), concurrent |
 | `baidu` | Baidu Qianfan (`enable_ai_search` controls endpoint) → falls back to Baidu web search |
 | `tavily` | Tavily; falls back to Bing when no key |
 | `exa` | Exa; falls back to Bing when no key |
-| `anysearch` | AnySearch; falls back to Bing when no key |
+| `anysearch` | AnySearch; key-pool rotation with keys, anonymous tier (no auth header, IP-rate-limited) when keyless |
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
 | `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` must be listed in `apipool.engines`), Baidu web search always last |
-| `hybrid` | Anysearch + Baidu AI + Baidu web + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
 
 ---
 

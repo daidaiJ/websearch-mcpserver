@@ -50,3 +50,6 @@ pkg/dashboard/web/*.html
 
 # 杀软锁系统 TEMP 的绕行构建目录
 .gtmp/
+
+# 会话交接记录（handoff skill 管理不入库）
+.handoff/

@@ -558,3 +558,30 @@ func TestDefault_AppliesDoubaoEnv(t *testing.T) {
 		t.Errorf("Doubao.APIKey from official env = %q, want official-test", conf.Doubao.APIKey)
 	}
 }
+
+func TestOffTopicGuardMode(t *testing.T) {
+	// 零值（省略）与非法值 = shadow（P1-7 回查处置：默认只记录不丢弃）
+	for _, in := range []string{"", "shadow", "Shadow", "wrong"} {
+		if got := (SmartSearchConfig{OffTopicGuard: in}).OffTopicGuardMode(); got != OffTopicGuardShadow {
+			t.Errorf("OffTopicGuardMode(%q) = %q, want shadow", in, got)
+		}
+	}
+	if got := (SmartSearchConfig{OffTopicGuard: OffTopicGuardEnforce}).OffTopicGuardMode(); got != OffTopicGuardEnforce {
+		t.Errorf("OffTopicGuardMode(enforce) = %q, want enforce", got)
+	}
+	if got := (SmartSearchConfig{OffTopicGuard: OffTopicGuardOff}).OffTopicGuardMode(); got != OffTopicGuardOff {
+		t.Errorf("OffTopicGuardMode(off) = %q, want off", got)
+	}
+}
+
+func TestInlineMaxCharsOrDefault(t *testing.T) {
+	if limit, enabled := (SmartSearchConfig{}).InlineMaxCharsOrDefault(); !enabled || limit != defaultInlineMaxChars {
+		t.Errorf("零值应取默认 %d，got limit=%d enabled=%v", defaultInlineMaxChars, limit, enabled)
+	}
+	if limit, enabled := (SmartSearchConfig{InlineMaxChars: 1024}).InlineMaxCharsOrDefault(); !enabled || limit != 1024 {
+		t.Errorf("正数应原样生效，got limit=%d enabled=%v", limit, enabled)
+	}
+	if _, enabled := (SmartSearchConfig{InlineMaxChars: -1}).InlineMaxCharsOrDefault(); enabled {
+		t.Error("负数应禁用落盘")
+	}
+}

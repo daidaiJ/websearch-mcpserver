@@ -2,6 +2,26 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased (Search Upgrade · Phase 3)
+
+> Branch `feat/search-upgrade`: third phase of the free-search-mcp / agent-search-mcp design-assessment follow-ups (P0-2 zero-key source expansion + oversize dump + P1-7 guard disposition + two fixes).
+
+### Added
+- **Zero-key source expansion (P0-2)** [UX/capability]: four candidates each verified from this project's egress before registration —
+  - **so360**: second Chinese web index, direct-connect reachable without proxy (`so360.enabled`, default off); parses `li.res-list` + `data-mdurl` real URLs, filters g-mohe promo cards, captcha pages report as anti-bot blocks
+  - **AnySearch anonymous tier**: `mode=anysearch` with no keys automatically uses the anonymous tier (no auth header, IP-rate-limited upstream); also joins apipool / hybrid orchestrations keyless; conservative local clamp 1/s·20/min, failures switch sources at the orchestration layer instead of cooling keys
+  - **Wikipedia engine**: MediaWiki API reference-type source (`wikipedia.enabled`, needs proxy); `wikipedia.lang` selects the edition (default zh)
+  - **Google News RSS engine**: independent news index with structured publish dates (`google_news.enabled`, needs proxy); `news.google.com` redirect links are resolved to publisher URLs via the batchexecute RPC (aligned with upstream gnews.py, verified working); `google_news.edition` selects the edition; freshness maps to `when:` operators
+  - Every source ships a real-network integration test gated by `WS_TEST_NETWORK`; Wikipedia / Google News follow the DDG pattern: skipped when no proxy resolver is available
+- **Oversize search response dumped to file** [cost/stability]: new `smartsearch.inline_max_chars` (default 32768, negative = disable); when the rendered result exceeds the limit it is **dumped wholesale to a temp file** (zero loss, no truncation) — the full result goes to `search-*.md` under the `cleanfetch.file_output_dir` convention directory (default `fetchdata/` next to the exe), stale files are lazily cleaned after 7 days; the response keeps the provenance header, stats (result count / chars), file path, read hint and the failure list (never trimmed by dumping); shared by the live path and cached query_only hits. Motivation: plug the response-size blowout hole of Tavily `raw_content` being on by default (following the Exa `text_max_characters` precedent; disposal = dump to file, not truncate)
+
+### Changed
+- **Off-topic bucket guard becomes a three-state config** [stability]: new `smartsearch.off_topic_guard` — `shadow` (default: echo ratios are computed as before, suspected decoy buckets are only recorded to the failure list and logs, **results kept**) / `enforce` (phase-1 behavior: whole bucket dropped and reported, requires explicit opt-in) / `off` (fully disabled). Review conclusion: the three thresholds (echo 0.25 / reference 0.75 / min bucket 3) went live uncalibrated with no escape hatch, and false kills cost more than misses — shadow-by-default removes the false-kill risk, and shadow records accumulate real evidence for later threshold calibration
+
+### Fixed
+- **Academic result date provenance**: `academicsearch`'s `FormatPaperMD` renders the publication date through `FormatDateSource` (same as web results: annotated `structured` / `snippet (weak)`), so snippet dates (e.g. Google Scholar) are no longer presented as if structured
+- **MCP handshake version alignment**: the initialize handshake's `implementation.version` now uses the injected binary version (was hardcoded `1.0.0`), consistent with `search://capabilities`
+
 ## Unreleased (Search Upgrade · Phase 2)
 
 > Branch `feat/search-upgrade`: second phase of the free-search-mcp / agent-search-mcp design-assessment follow-ups (P1-4 + P1-5 + P1-10).

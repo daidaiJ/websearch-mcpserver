@@ -31,11 +31,30 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	// ── 初始化百度网页搜索引擎（无需 API Key，SK 失败时回退） ──
 	baiduWebAdapter := mode.InitBaiduWebEngine(conf)
 
+	// ── 初始化 360 搜索引擎（无需 API Key，国内直连可用） ──
+	so360Adapter := mode.InitSo360Engine(conf)
+
+	// ── 初始化 Wikipedia 引擎（无需 API Key，需代理） ──
+	wikiAdapter := mode.InitWikipediaEngine(conf)
+
+	// ── 初始化 Google News 引擎（无需 API Key，需代理） ──
+	gnewsAdapter := mode.InitGoogleNewsEngine(conf)
+
 	// ── 初始化 Google 引擎（需代理，由 resolver 动态解析） ──
 	googleAdapter := mode.InitGoogleEngine(conf)
 
 	// ── 初始化 DuckDuckGo 引擎（需代理，由 resolver 动态解析） ──
 	ddgAdapter := mode.InitDuckDuckGoEngine(conf)
+
+	// engine/hybrid 模式的通用引擎适配器集合
+	ads := mode.EngineAdapters{
+		BaiduWeb:  baiduWebAdapter,
+		So360:     so360Adapter,
+		Wikipedia: wikiAdapter,
+		GNews:     gnewsAdapter,
+		Google:    googleAdapter,
+		DDG:       ddgAdapter,
+	}
 
 	// ── 构建 provider.KeyPool ──
 	baiduPool := newKeyPoolFromList(conf.Baidu.EffectiveSKList(), "baidu")
@@ -47,7 +66,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	// ── 按模式选择主引擎 ──
 	switch conf.GetMode() {
 	case config.ModeEngine:
-		g.Primary = mode.BuildEngineMode(conf, g.Fallback, baiduWebAdapter, googleAdapter, ddgAdapter)
+		g.Primary = mode.BuildEngineMode(conf, g.Fallback, ads)
 		log.Infof("搜索模式: engine（无需 API Key）")
 
 	case config.ModeTavily:
@@ -67,7 +86,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 		log.Infof("搜索模式: apipool（API Key 池轮转）")
 
 	case config.ModeHybrid:
-		g.Primary = mode.BuildHybridMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, baiduWebAdapter, googleAdapter, ddgAdapter, g.Fallback)
+		g.Primary = mode.BuildHybridMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, ads, g.Fallback)
 
 	default: // baidu → 百度千帆 web_search
 		g.Primary = mode.BuildBaiduMode(conf, baiduPool, baiduWebAdapter, g.Fallback)

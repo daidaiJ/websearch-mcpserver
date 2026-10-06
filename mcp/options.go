@@ -57,6 +57,8 @@ func applySearchEngine(conf config.Config) {
 	fallbackSearch = g.Fallback
 	academicSearcher = g.Academic
 	smartSearchConf = conf.SmartSearch
+	// smartsearch 超限落盘目录沿用 cleanfetch file_output_dir 约定（search_dump.go 未配置时回退 exe 同目录 fetchdata/）
+	searchDumpDir = conf.CleanFetch.FileOutputDir
 }
 
 func applySummarizer(conf config.Config) {
