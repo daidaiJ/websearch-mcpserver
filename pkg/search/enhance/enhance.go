@@ -38,7 +38,25 @@ func RRFScore(ranks map[string]int, K float64) float64 {
 	return score
 }
 
-// ConsensusBoost 多引擎共识加分（加性）。
+// engineFamilyMap 引擎家族映射：同一上游的引擎归同一 family，共识计票按 family
+// 去重，避免"百度网页引擎 + 百度千帆 API"命中同一 URL 时双计共识。映射表留扩展位，
+// 新增多引擎同上游场景时在此登记。
+var engineFamilyMap = map[string]string{
+	"baidu_api": "baidu", // 千帆 web_search 端点
+	"baidu_ai":  "baidu", // 千帆 AI Search 端点
+	"baidu_web": "baidu", // apipool 包装的百度网页引擎
+}
+
+// EngineFamily 返回引擎所属家族：有映射的归并到同一上游名，其余引擎名为自身 family。
+func EngineFamily(name string) string {
+	if f, ok := engineFamilyMap[name]; ok {
+		return f
+	}
+	return name
+}
+
+// ConsensusBoost 多引擎共识加分（加性）。numEngines 应传入去重后的 family 数
+// （见 EngineFamily），而非原始引擎数。
 func ConsensusBoost(numEngines int) float64 {
 	switch {
 	case numEngines <= 1:
@@ -93,6 +111,7 @@ type urlAgg struct {
 	rrf         float64
 	engines     map[string]struct{}
 	engineOrder []string
+	families    map[string]struct{} // 去重后的引擎 family（同上游引擎不双计共识）
 }
 
 // EnhanceResults 对多引擎按引擎排序的结果桶执行完整评分流水线，
@@ -123,7 +142,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 			}
 			a, ok := m[key]
 			if !ok {
-				a = &urlAgg{res: r, engines: make(map[string]struct{})}
+				a = &urlAgg{res: r, engines: make(map[string]struct{}), families: make(map[string]struct{})}
 				m[key] = a
 				order = append(order, key)
 			} else {
@@ -143,6 +162,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 			if _, dup := a.engines[b.Name]; !dup {
 				a.engines[b.Name] = struct{}{}
 				a.engineOrder = append(a.engineOrder, b.Name)
+				a.families[EngineFamily(b.Name)] = struct{}{}
 			}
 		}
 	}
@@ -155,7 +175,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 		rare := RareTermsFactor(query, a.res.Title, a.res.Content)
 
 		score := a.rrf * dq * (0.5 + 0.5*la) * rare
-		score += ConsensusBoost(len(a.engines))
+		score += ConsensusBoost(len(a.families)) // 按 family 计票：同上游引擎（如百度网页/千帆）不双计
 		score += AuthorityBoost(query, a.res.Url, rare)
 		score *= RecencyFactor(temporal, a.res.PublishDate)
 

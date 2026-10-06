@@ -2,6 +2,19 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased (Search Upgrade · Phase 1)
+
+> Branch `feat/search-upgrade`: first phase of the free-search-mcp / agent-search-mcp design-assessment follow-ups (P0-1 + P1-6/7/8).
+
+### Added
+- **Unified failure contract** [stability]: partial engine failures in smartsearch are no longer silent — a structured failure list (engine name / kind timeout·rate_limit·challenge·off_topic / short reason) is appended to responses, matching the academic search per-engine passthrough; rate-limited engines surface their remaining cooldown (gated/benched); when everything fails the error carries a per-engine classified summary, and a main-engine failure followed by a failed Bing fallback shows both reasons; empty results are always explainable
+- **Filter diagnostics** [stability]: when filtering leaves ≤3 results, the per-filter drop counts (dedup / min_score / engine_max_size / global_max_size / scoring pipeline) plus a relaxation hint are surfaced so agents can decide to loosen thresholds and re-search; the failure list is never cached and never trimmed by the (upcoming) evidence budget
+- **Off-topic whole-bucket guard** [stability]: the hybrid merge layer now drops an entire engine bucket when it barely echoes the query's non-leading terms while another engine proves those terms echo normally, recording an off_topic failure (Bing-style "HTTP 200 decoy pages" no longer pollute RRF); conservative pass-through when no reference bucket exists or the query is too short
+- **Freshness-aware cache TTL** [stability]: academic day → 1h, week → 6h, month → 24h; smartsearch lookback ≤1 month → 24h, otherwise the 6h default; also fixes a legacy issue where Lookup never checked expiry (the 6h limit was enforced only by background cleanup on last_hit_at, so records kept being hit never expired); expired records are lazily deleted and old databases migrate automatically (ttl_seconds column)
+
+### Fixed
+- **Consensus vote counting** [stability]: the Wigolo consensus boost now counts engine families — the Baidu web engine and the Baidu Qianfan API (baidu_api/baidu_ai/baidu_web) hitting the same URL no longer double-count consensus; the mapping table has room for future entries
+
 ## v3.6.1 — 2026-10-01
 
 > Credits: the core of this release comes from PR #17 by [@MattLYT](https://github.com/MattLYT) (Matt.Li) — MinerU oversized-PDF local cropping + image asset ZIP; his commit keeps its original authorship (`06e28e4`); later commits are extensions of his work (configurability / batching / budget / progress streaming).

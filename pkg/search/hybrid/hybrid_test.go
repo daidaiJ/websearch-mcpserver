@@ -387,7 +387,8 @@ func TestHybridSearch_EngineFailureLogged(t *testing.T) {
 	}
 }
 
-// TestHybridSearch_AllFail_ErrorSummarizesEngines 全失败时 error 拼接各引擎错误摘要。
+// TestHybridSearch_AllFail_ErrorSummarizesEngines 全失败时 error 拼接各引擎错误摘要
+// （统一契约格式：name(kind): 短原因）。
 func TestHybridSearch_AllFail_ErrorSummarizesEngines(t *testing.T) {
 	e1 := &mockEngine{name: "a", err: fmt.Errorf("fail1")}
 	e2 := &mockEngine{name: "b", err: fmt.Errorf("fail2")}
@@ -396,7 +397,7 @@ func TestHybridSearch_AllFail_ErrorSummarizesEngines(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when all engines fail")
 	}
-	if !strings.Contains(err.Error(), "a: fail1") || !strings.Contains(err.Error(), "b: fail2") {
+	if !strings.Contains(err.Error(), "a(error): fail1") || !strings.Contains(err.Error(), "b(error): fail2") {
 		t.Errorf("expected engine error summary, got: %v", err)
 	}
 }

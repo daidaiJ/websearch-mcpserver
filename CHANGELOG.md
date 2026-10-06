@@ -2,6 +2,19 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased（搜索服务升级 · 一期）
+
+> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第一期（P0-1 + P1-6/7/8）。
+
+### 新增
+- **失败透出统一契约【稳定】**：通用 smartsearch 部分引擎失败不再静默——响应末尾附结构化失败清单（引擎名 / 失败类型 timeout·rate_limit·challenge·off_topic / 短原因），与学术搜索逐引擎透传口径统一；限流冷却中的引擎带剩余冷却时间透出（gated/benched）；全部失败时错误信息带逐引擎分类摘要，主引擎失败 + Bing 回退也失败时两条原因都可见；空结果必须可解释
+- **过滤诊断 filter_diagnostics【稳定】**：过滤后结果稀疏（≤3 条）时透出各过滤器丢弃数（去重 / min_score / engine_max_size / global_max_size / 评分管线）与放宽提示，agent 可据此决定是否放宽阈值重搜；失败清单不写入缓存、不受后续证据预算裁剪
+- **off-topic 整桶守卫【稳定】**：hybrid 合并层新增诱饵页防线——某引擎整桶几乎不 echo 查询其余词、且另一引擎证明这些词会被正常 echo 时整桶丢弃，以 off_topic 类型进失败清单（Bing 式"HTTP 200 诱饵页"不再整桶混入 RRF）；无参照或短查询时保守放行
+- **缓存 TTL 按 freshness 分桶【稳定】**：学术搜索 day → 1h、week → 6h、month → 24h；smartsearch 时间窗 ≤1 个月 → 24h、其余默认 6h；顺带修复 Lookup 从不查过期的遗留问题（原 6h 仅靠后台清理按 last_hit_at 淘汰，持续被命中的陈旧记录永不过期），过期记录惰性删除，旧库自动迁移（ttl_seconds 列）无感升级
+
+### 修复
+- **共识计票口径修正【稳定】**：Wigolo 共识 Boost 改按引擎家族（family）计票——百度网页引擎与百度千帆 API（baidu_api/baidu_ai/baidu_web）同上游命中同一 URL 不再双计共识；映射表留扩展位
+
 ## v3.6.1 — 2026-10-01
 
 > 致谢：本版核心改动来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR #17（MinerU 超页 PDF 本地裁切 + 图片资源包），其提交保留原作者署名进入本版（`06e28e4`）；后续提交为基于其实现的扩展（可配置化 / 分批 / 预算 / 进度推送）。

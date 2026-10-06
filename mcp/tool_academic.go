@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"websearch/pkg/cache"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 	"websearch/pkg/telemetry"
@@ -87,8 +88,9 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 		return nil, nil, err
 	}
 	if cacheInst != nil {
-		// 逐引擎错误不写入缓存（Store 仍只存干净结果），命中路径展示的是上次结果
-		_ = cacheInst.Store(cacheKey, "", true, res.Results, "")
+		// 逐引擎错误不写入缓存（Store 仍只存干净结果），命中路径展示的是上次结果；
+		// TTL 按 freshness 分桶：day → 1h、week → 6h、month 及其它 → 24h/默认
+		_ = cacheInst.Store(cacheKey, "", true, res.Results, "", cache.TTLForFreshness(timeRange))
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 }
