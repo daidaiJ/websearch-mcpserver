@@ -22,6 +22,11 @@
 - **学术结果日期来源注记**：`academicsearch` 的 `FormatPaperMD` 发表日期改用 `FormatDateSource` 渲染（与网页结果同口径带 `structured`/`snippet（弱）` 注记），Google Scholar 等 snippet 日期不再与结构化日期同样裸露呈现
 - **MCP 握手版本对齐**：initialize 握手的 `implementation.version` 改用注入的二进制版本（原硬编码 `1.0.0`），与 `search://capabilities` 的版本同源
 
+### 文档
+- docs/search（中英）新增「响应行为与可靠性」：失败清单 / filter_diagnostics / off_topic_guard 三态 / date_source 注记与响应头 / 超限落盘 / freshness 缓存 TTL / 熔断落盘 / Resource 汇总；引擎对照表补 `so360` / `wikipedia` / `google_news`
+- docs/api（中英）MCP 端点补响应行为契约摘要；README（中英）核心特性表补「响应透明」行
+- 四个 MCP 工具描述补「适用边界」路由提示（smartsearch 与 academicsearch 分工、cleanfetch / pdf_parser 职责边界）
+
 ## Unreleased（搜索服务升级 · 二期）
 
 > 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第二期（P1-4 + P1-5 + P1-10）。

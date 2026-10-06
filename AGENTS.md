@@ -179,9 +179,9 @@ docker build -t websearch-mcpserver .
 
 ## 🔄 Handoff 摘要
 
-### search-upgrade — in-progress（一、二、三期已完成，待五期）
+### search-upgrade — in-progress（一至五期全部完成，待推送）
 
-- **当前状态：** 按五期拆分推进（用户确认）；**一期已提交 `6aa7ca8`**（P0-1 失败透出统一契约 + P1-6 共识按 family 计票 + P1-7 off-topic 整桶守卫 + P1-8 freshness 缓存 TTL）；**二期已提交 `f6da753`**（P1-4 date_source 三态注记 + P1-5 熔断落盘 + P1-10 Resource 化）；**三期已提交**（P0-2 零 Key 来源扩充：so360 直连可用 / anysearch 匿名档 / wikipedia+googlenews 需代理，逐个出口实测后注册且结论补能力边界表；超限落盘 `smartsearch.inline_max_chars`；P1-7 处置=三态 `off_topic_guard` 默认 shadow（用户拍板）；小修：学术日期 FormatDateSource 注记 + MCP 握手版本对齐；BuildEngineMode/BuildHybridMode 改用 EngineAdapters 命名结构体），build+test 全绿（仅 DDG 真网用例偶发 202 限流抖动），未推送；**四期已取消**；**下一步五期 = P0-3 插件市场分发 + 全量文档同步（含 P1-9 遗留的"Not for"路由边界 1-2 行、docs/search/api/README 补一至三期响应行为说明）**
+- **当前状态：** 按五期拆分推进（用户确认）；**一期已提交 `6aa7ca8`**（P0-1 失败透出统一契约 + P1-6 共识按 family 计票 + P1-7 off-topic 整桶守卫 + P1-8 freshness 缓存 TTL）；**二期已提交 `f6da753`**（P1-4 date_source 三态注记 + P1-5 熔断落盘 + P1-10 Resource 化）；**三期已提交 `9b16ef7`**（P0-2 零 Key 来源扩充：so360 直连可用 / anysearch 匿名档 / wikipedia+googlenews 需代理，逐个出口实测后注册且结论补能力边界表；超限落盘 `smartsearch.inline_max_chars`；P1-7 处置=三态 `off_topic_guard` 默认 shadow（用户拍板）；小修：学术日期 FormatDateSource 注记 + MCP 握手版本对齐；BuildEngineMode/BuildHybridMode 改用 EngineAdapters 命名结构体）；**四期已取消**；**五期已提交（P0-3 插件市场分发经评估后取消——2026-10-06 用户拍板"不折腾插件，等 agent 生态原生支持 mcpb/Registry"，调研结论留档 .handoff；五期落地 = 全量文档同步：docs/search 中英新增「响应行为与可靠性」+ 引擎对照补 so360/wikipedia/google_news + docs/api 响应契约摘要 + README 响应透明行 + 四个 MCP 工具描述补适用边界路由提示）**，未推送。提交已按期聚合（一至五期各一个提交），可直接推送/发版
 - **关键证据：** 计划全文 `docs/plans/2026-10-search-upgrade.md`；分支 `feat/search-upgrade`（基线 master@67ac2fb v3.6.1）；一期契约层在 `pkg/search/core/diagnostics.go`；`feat/file-search-everything` 尚未合并（领先 6 提交）
 - **纪律（用户 mid-turn 明示）：** 遵循项目既有设计风格与原则；提交前性能审查（避免负面性能影响的实现）；每期完成即交接
 - **详情指针：** [.handoff/search-upgrade.md](.handoff/search-upgrade.md)
@@ -190,6 +190,6 @@ docker build -t websearch-mcpserver .
 - [x] 候选零 Key 引擎在国内出口的实际可用性 —— 三期已实测（so360 直连✓ / anysearch 匿名档直连✓ / wikipedia+googlenews 代理✓，结论见能力边界表）
 - [x] P1-7 off-topic 守卫处置（2026-10-06 用户拍板：三态 `smartsearch.off_topic_guard`，默认 shadow 只记录不丢弃）；守卫阈值仍未校准，shadow 日志/失败清单为后续校准积累证据
 - [x] 超限落盘小项 + 学术日期注记 + 握手版本对齐 —— 三期已完成
+- [x] 五期：全量文档同步（docs/search/api/README 补一至三期响应行为说明 + 工具描述适用边界）—— 已完成；P0-3 插件市场分发经评估取消（结论见 .handoff）
 - [ ] 三期新引擎真实链路长期回归（验证码页出现频率、anysearch 匿名档限流阈值实测校准、googlenews 回源失败率）
 - [ ] 二期冷却落盘真网冷启动回归（重启后 ddg/arxiv 实际避让）；date_source 新旧行缓存往返实测
-- [ ] 五期：P0-3 插件市场分发 + 全量文档同步（docs/search/api/README 补一至三期响应行为说明）

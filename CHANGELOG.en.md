@@ -22,6 +22,11 @@
 - **Academic result date provenance**: `academicsearch`'s `FormatPaperMD` renders the publication date through `FormatDateSource` (same as web results: annotated `structured` / `snippet (weak)`), so snippet dates (e.g. Google Scholar) are no longer presented as if structured
 - **MCP handshake version alignment**: the initialize handshake's `implementation.version` now uses the injected binary version (was hardcoded `1.0.0`), consistent with `search://capabilities`
 
+### Docs
+- docs/search (EN/中文) gains a "Response Behavior & Reliability" section consolidating: failure list / filter_diagnostics / off_topic_guard three states / date_source provenance & response headers / oversize dump / freshness-aware cache TTL / persisted circuit breaking / Resources; the engine reference table adds `so360` / `wikipedia` / `google_news`
+- docs/api (EN/中文) MCP endpoint gains a response-behavior contract summary; README (EN/中文) key-features table gains a "Response transparency" row
+- All four MCP tool descriptions gain a scope-boundary routing hint (smartsearch ↔ academicsearch division of labor, cleanfetch / pdf_parser responsibilities)
+
 ## Unreleased (Search Upgrade · Phase 2)
 
 > Branch `feat/search-upgrade`: second phase of the free-search-mcp / agent-search-mcp design-assessment follow-ups (P1-4 + P1-5 + P1-10).

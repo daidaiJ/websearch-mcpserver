@@ -10,6 +10,7 @@
   - [通用搜索评分（Wigolo）](#通用搜索评分wigolo)
   - [MMR 多样性重排](#mmr-多样性重排)
   - [学术搜索评分](#学术搜索评分)
+- [响应行为与可靠性](#响应行为与可靠性)
 - [SmartSearch 高级配置](#smartsearch-高级配置)
 - [Apipool 配置](#apipool-配置)
 - [MCP 工具](#mcp-工具)
@@ -66,6 +67,9 @@
 | `anysearch` | AnySearch API（内置本地黑名单过滤） | ❌ | 否 |
 | `doubao` | 豆包联网搜索 Global/Custom API（内置本地黑名单过滤；Custom 回传 score） | ✅ | 否 |
 | `baidu_api` | 百度千帆搜索（`enable_ai_search` 控制端点） | ❌ | 否 |
+| `so360` | 360 搜索（HTML，中文第二索引；默认关闭，`so360.enabled` 开启） | ❌ | 否 |
+| `wikipedia` | Wikipedia MediaWiki API（参考型来源；默认关闭，`wikipedia.enabled` 开启，`lang` 选语言版本） | ❌ | 是（自动检测） |
+| `google_news` | Google News RSS（跳转链接回源发布方 URL，带结构化发布日期；默认关闭，`google_news.enabled` 开启，`edition` 选版本） | ❌ | 是（自动检测） |
 
 **学术搜索引擎**（无需 Key）：
 
@@ -122,6 +126,28 @@ smartsearch:
 - **新鲜度因子**（时间敏感查询时近 1 年 ×1.15）
 
 低分论文自动过滤（Top-1 + 每引擎保底）。配置项：`academic.enhance`（默认 true）、`academic.threshold`（默认 0.02），独立于 smartsearch。
+
+---
+
+## 响应行为与可靠性
+
+一至三期引入的响应行为，`smartsearch` 与 `academicsearch` 同口径（HTTP MCP 端点同样生效）：
+
+**失败清单（空结果可归因）**：主引擎失败不再静默回退，响应末尾附结构化失败清单——引擎名、失败类型（`timeout` / `rate_limit`（含剩余冷却秒数）/ `challenge` / `off_topic` / `error`）与短原因；被墙/熔断引擎带原因与预计恢复时间。失败清单不写入缓存、不受任何预算或落盘裁剪，与学术搜索逐引擎错误透传统一。
+
+**过滤诊断（filter_diagnostics）**：过滤后结果 ≤3 条时，附各过滤器（全局阈值 / MMR / per-engine score 等）的丢弃计数与放宽提示，用于区分"没搜到"与"被过滤"。
+
+**off-topic 整桶守卫（`smartsearch.off_topic_guard`）**：某引擎整桶与查询词几乎无词汇对齐（HTTP 200 诱饵页特征）时判 `off_topic` 进失败清单。三态：`shadow`（默认，只记录不丢桶，为阈值校准积累数据）/ `enforce`（真丢桶）/ `off`。
+
+**结果来源注记**：结果日期带 `date_source` 三态——`structured`（引擎 API 给出）/ `snippet`（摘要文本解析，弱）/ `undated`；学术结果同口径。响应头带 `retrieved_at`（检索时间，缓存命中时为原检索时间）与 `cache_age_seconds`（缓存年龄），并附固定 `usage_note`：snippet 日期仅用于定位来源，引用日期、金额、版本前请打开原页核对。
+
+**响应超限落盘**：渲染结果超 `smartsearch.inline_max_chars`（默认 32768，负数 = 禁用）时整体写入 `fetchdata/search-*.md`（惰性清理 7 天旧文件），响应内保留溯源头、条数/字符统计、文件路径与分段读取提示，零丢失；失败清单永远保留在响应内。实时与缓存命中路径共用。
+
+**freshness 感知缓存 TTL**：smartsearch `time_range` ≤1 月 → 24h，其余默认 6h；学术 `time_range` 分桶 day → 1h / week → 6h（默认）/ month → 24h。时效敏感查询不再命中陈旧缓存。
+
+**熔断状态落盘**：引擎冷却/限流统一注册表并落盘 `engine_health.json`（缓存库同目录，24h 记忆窗，advisory 语义），进程重启后自动采纳未过期冷却，避免反复撞死引擎。当前覆盖 DuckDuckGo / arXiv。
+
+**运行状态 Resource**：`search://capabilities`（版本 / 引擎清单 / 能力）与 `search://health`（引擎健康 / 熔断 / 缓存命中）以只读 MCP Resource 暴露，不占工具槽位、响应不带任何密钥；`mcp_resources: false` 整体关闭（默认开启）。
 
 ---
 
@@ -219,6 +245,8 @@ apipool:
 
 **LLM 摘要**：配置 `llm` 节后，`smartsearch` 支持 `intent` 参数并生成结构化摘要；摘要阶段通过 MCP progress notification 逐 token 流式推送生成过程，客户端断开自动取消，失败自动回退非流式摘要。
 
+**适用边界**：时效性事实、网页线索与文档检索；系统性文献综述、需要引用数据的学术问题请改用 `academicsearch`。
+
 ### `academicsearch` — 学术论文检索
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -240,6 +268,8 @@ apipool:
 
 结果按学术评分增强排序（默认开启）：RRF 融合排名 + 引用数 / 期刊权威 / PDF 全文 / 新鲜度信号，低分论文自动过滤（Top-1 + 每引擎保底）。配置项：`academic.enhance`（默认 true）、`academic.threshold`（默认 0.02）。
 
+**适用边界**：论文、预印本与 DOI 级学术检索；新闻、产品文档等通用网页信息请改用 `smartsearch`。
+
 ### `cleanfetch` — 网页内容抓取
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -250,6 +280,8 @@ apipool:
 需配置 `cleanfetch.enabled: true`。基于 go-webfetch，无需代理；内置 DNS rebinding 防护和 HEAD 预检防大文件（`max_fetch_size_mb` 控制阈值，默认 10MB；重定向逐跳复跑私网/metadata 校验，最多 5 跳）；失败时自动回退 Jina Reader（需配置 `jina.api_key`，代理自动检测）。
 
 批量模式（`urls`）下每条 URL 独立预检与抓取，单条失败不影响其它，结果按 URL 分节返回；只传 `url` 时输出与旧版一致。
+
+**适用边界**：抓取已知 URL 的正文；发现新来源请先用 `smartsearch`（本工具不做检索）。
 
 ### `pdf_parser` — PDF 解析
 
@@ -267,6 +299,8 @@ apipool:
 - `mineru_token`：远程 URL 精准解析 API（≤200MB/600页）；也可与 OCR 回退共用
 - 获取 Token：https://mineru.net/apiManage
 - 环境变量：`MINERU_TOKEN`
+
+**适用边界**：仅解析 PDF；网页正文抓取请用 `cleanfetch`。
 
 ---
 
