@@ -2,52 +2,38 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased（搜索服务升级 · 三期）
+## v3.6.2 — 2026-10-06（搜索服务升级）
 
-> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第三期（P0-2 零 Key 来源扩充 + 超限落盘 + P1-7 守卫处置 + 两处小修）。
+> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的五期落地——一期失败透出统一契约与评分口径修正（P0-1 + P1-6/7/8）；二期结果来源注记、熔断落盘与 Resource 化（P1-4/P1-5/P1-10）；三期零 Key 来源扩充、响应超限落盘与守卫三态处置（P0-2）；五期全量文档同步与工具描述路由边界。四期（证据预算）与 P0-3 插件市场分发经评估取消。
 
 ### 新增
-- **零 Key 来源扩充（P0-2）【体验/能力】**：四个候选逐个出口实测后注册——
+- **失败透出统一契约【稳定】**（一期 P0-1）：通用 smartsearch 部分引擎失败不再静默——响应末尾附结构化失败清单（引擎名 / 失败类型 timeout·rate_limit·challenge·off_topic / 短原因），与学术搜索逐引擎透传口径统一；限流冷却中的引擎带剩余冷却时间透出（gated/benched）；全部失败时错误信息带逐引擎分类摘要，主引擎失败 + Bing 回退也失败时两条原因都可见；空结果必须可解释
+- **过滤诊断 filter_diagnostics【稳定】**（一期）：过滤后结果稀疏（≤3 条）时透出各过滤器丢弃数（去重 / min_score / engine_max_size / global_max_size / 评分管线）与放宽提示，agent 可据此决定是否放宽阈值重搜；失败清单不写入缓存、不受后续证据预算裁剪
+- **off-topic 整桶守卫【稳定】**（一期 P1-7）：hybrid 合并层新增诱饵页防线——某引擎整桶几乎不 echo 查询其余词、且另一引擎证明这些词会被正常 echo 时整桶丢弃，以 off_topic 类型进失败清单（Bing 式"HTTP 200 诱饵页"不再整桶混入 RRF）；无参照或短查询时保守放行
+- **缓存 TTL 按 freshness 分桶【稳定】**（一期 P1-8）：学术搜索 day → 1h、week → 6h、month → 24h；smartsearch 时间窗 ≤1 个月 → 24h、其余默认 6h；顺带修复 Lookup 从不查过期的遗留问题（原 6h 仅靠后台清理按 last_hit_at 淘汰，持续被命中的陈旧记录永不过期），过期记录惰性删除，旧库自动迁移（ttl_seconds 列）无感升级
+- **结果来源注记【稳定/体验】**（二期 P1-4）：每条结果带 `date_source` 三态——`structured`（引擎 API/结构化字段，可直接采信）/ `snippet`（摘要文本解析，弱）/ `undated`（无日期）；响应头带 `retrieved_at`（缓存命中为原检索时间）与 `cache_age_seconds`（仅缓存命中），并附固定 `usage_note`（"snippet 日期仅用于定位来源，日期、金额、版本等细节必须读原页核实"）；跨引擎同 URL 去重时弱日期可被强日期覆盖（`core.PreferDate`），旧缓存行缺注记时按弱口径 `snippet` 兜底，网页引擎结果渲染新增带注记的日期行
+- **引擎冷却状态落盘【稳定】**（二期 P1-5）：`pkg/antirobot` 新增冷却统一注册表，DDG / arXiv 的限流冷却随进随落盘（与缓存库同目录的 `engine_health.json`，temp+rename 写入）——单二进制频繁冷启动不再反复撞死引擎：新进程构造引擎时收养未过期冷却继续避让；已过期条目保留 24h 记忆窗，连续限流的翻倍档位跨进程续接；一次成功即全部清除；文件为 advisory 语义（损坏/缺失只损失一次试探）
+- **MCP Resource 观测【体验/成本】**（二期 P1-10）：新增 `search://capabilities`（能力矩阵：已注册工具、网页引擎、API 供应商仅 Key 数量、功能开关）与 `search://health`（引擎冷却/熔断状态、进程运行时长）两个只读 Resource——不占工具槽位、不增加工具选择时的 schema token；内容结构上不含任何密钥（密钥值永不回显）；默认启用，新增 `mcp_resources` 配置项可关闭（省略 = 启用）
+- **零 Key 来源扩充（P0-2）【体验/能力】**（三期）：四个候选逐个出口实测后注册——
   - **360 搜索（so360）**：中文第二索引，国内直连可用无需代理（`so360.enabled`，默认关闭）；解析 `li.res-list` + `data-mdurl` 真实 URL，过滤 g-mohe 特型卡，验证码页按反爬拦截报错
   - **AnySearch 匿名档**：`mode=anysearch` 无 Key 时自动走匿名档（省略鉴权头，上游按出口 IP 限流），apipool / hybrid 编排无 Key 也纳入；本端保守钳制 1/s·20/min，失败不冷却 Key 而是由编排层切换来源
   - **Wikipedia 引擎**：MediaWiki API 参考型来源（`wikipedia.enabled`，需代理）；`wikipedia.lang` 选语言版本（默认 zh）
   - **Google News RSS 引擎**：独立新闻索引带结构化发布日期（`google_news.enabled`，需代理）；`news.google.com` 跳转链接自动经 batchexecute RPC 回源发布方 URL（对齐上游 gnews.py 契约，实测可回源），`google_news.edition` 选新闻版本；freshness 映射 `when:` 操作符
   - 每个来源均带真网集成测试（`WS_TEST_NETWORK` 门控）；Wikipedia / Google News 与 DDG 同策略：无可用代理解析时跳过注册
-- **搜索响应超限落盘【成本/稳定】**：新增 `smartsearch.inline_max_chars`（默认 32768，负数 = 禁用），渲染结果超限时**整体落盘临时文件**（零丢失，不截断）——完整结果写入 `cleanfetch.file_output_dir` 约定目录（默认 exe 同目录 `fetchdata/`）的 `search-*.md`，惰性清理超 7 天旧文件；响应内保留溯源头、统计（条数/字符数）、文件路径、读取提示与失败清单（失败清单永不因落盘裁剪）；实时搜索与缓存 query_only 命中路径共用。动机：堵 Tavily `raw_content` 默认开启的响应体积失控口（对齐 Exa `text_max_characters` 的先例，处置口径 = 落盘而非截断）
+- **搜索响应超限落盘【成本/稳定】**（三期）：新增 `smartsearch.inline_max_chars`（默认 32768，负数 = 禁用），渲染结果超限时**整体落盘临时文件**（零丢失，不截断）——完整结果写入 `cleanfetch.file_output_dir` 约定目录（默认 exe 同目录 `fetchdata/`）的 `search-*.md`，惰性清理超 7 天旧文件；响应内保留溯源头、统计（条数/字符数）、文件路径、读取提示与失败清单（失败清单永不因落盘裁剪）；实时搜索与缓存 query_only 命中路径共用。动机：堵 Tavily `raw_content` 默认开启的响应体积失控口（对齐 Exa `text_max_characters` 的先例，处置口径 = 落盘而非截断）
 
 ### 变更
-- **off-topic 整桶守卫改为三态配置【稳定】**：新增 `smartsearch.off_topic_guard`——`shadow`（默认，照常计算回声率，疑似诱饵整桶只记失败清单与日志、**不丢弃结果**）/ `enforce`（一期行为：整桶丢弃并在失败清单透出，须显式开启）/ `off`（完全关闭）。回查结论：守卫三阈值（回声率 0.25 / 参照 0.75 / 最小桶 3）未实测校准即生效且无开关，误杀代价大于漏放——默认改为 shadow 消除误杀风险，shadow 记录为后续阈值校准积累真实证据
+- **off-topic 整桶守卫改为三态配置【稳定】**（三期）：新增 `smartsearch.off_topic_guard`——`shadow`（默认，照常计算回声率，疑似诱饵整桶只记失败清单与日志、**不丢弃结果**）/ `enforce`（一期行为：整桶丢弃并在失败清单透出，须显式开启）/ `off`（完全关闭）。回查结论：守卫三阈值（回声率 0.25 / 参照 0.75 / 最小桶 3）未实测校准即生效且无开关，误杀代价大于漏放——默认改为 shadow 消除误杀风险，shadow 记录为后续阈值校准积累真实证据
 
 ### 修复
-- **学术结果日期来源注记**：`academicsearch` 的 `FormatPaperMD` 发表日期改用 `FormatDateSource` 渲染（与网页结果同口径带 `structured`/`snippet（弱）` 注记），Google Scholar 等 snippet 日期不再与结构化日期同样裸露呈现
-- **MCP 握手版本对齐**：initialize 握手的 `implementation.version` 改用注入的二进制版本（原硬编码 `1.0.0`），与 `search://capabilities` 的版本同源
+- **共识计票口径修正【稳定】**（一期 P1-6）：Wigolo 共识 Boost 改按引擎家族（family）计票——百度网页引擎与百度千帆 API（baidu_api/baidu_ai/baidu_web）同上游命中同一 URL 不再双计共识；映射表留扩展位
+- **学术结果日期来源注记**（三期）：`academicsearch` 的 `FormatPaperMD` 发表日期改用 `FormatDateSource` 渲染（与网页结果同口径带 `structured`/`snippet（弱）` 注记），Google Scholar 等 snippet 日期不再与结构化日期同样裸露呈现
+- **MCP 握手版本对齐**（三期）：initialize 握手的 `implementation.version` 改用注入的二进制版本（原硬编码 `1.0.0`），与 `search://capabilities` 的版本同源
 
-### 文档
+### 文档（五期）
 - docs/search（中英）新增「响应行为与可靠性」：失败清单 / filter_diagnostics / off_topic_guard 三态 / date_source 注记与响应头 / 超限落盘 / freshness 缓存 TTL / 熔断落盘 / Resource 汇总；引擎对照表补 `so360` / `wikipedia` / `google_news`
 - docs/api（中英）MCP 端点补响应行为契约摘要；README（中英）核心特性表补「响应透明」行
 - 四个 MCP 工具描述补「适用边界」路由提示（smartsearch 与 academicsearch 分工、cleanfetch / pdf_parser 职责边界）
-
-## Unreleased（搜索服务升级 · 二期）
-
-> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第二期（P1-4 + P1-5 + P1-10）。
-
-### 新增
-- **结果来源注记【稳定/体验】**：每条结果带 `date_source` 三态——`structured`（引擎 API/结构化字段，可直接采信）/ `snippet`（摘要文本解析，弱）/ `undated`（无日期）；响应头带 `retrieved_at`（缓存命中为原检索时间）与 `cache_age_seconds`（仅缓存命中），并附固定 `usage_note`（"snippet 日期仅用于定位来源，日期、金额、版本等细节必须读原页核实"）；跨引擎同 URL 去重时弱日期可被强日期覆盖（`core.PreferDate`），旧缓存行缺注记时按弱口径 `snippet` 兜底，网页引擎结果渲染新增带注记的日期行
-- **引擎冷却状态落盘【稳定】**：`pkg/antirobot` 新增冷却统一注册表，DDG / arXiv 的限流冷却随进随落盘（与缓存库同目录的 `engine_health.json`，temp+rename 写入）——单二进制频繁冷启动不再反复撞死引擎：新进程构造引擎时收养未过期冷却继续避让；已过期条目保留 24h 记忆窗，连续限流的翻倍档位跨进程续接；一次成功即全部清除；文件为 advisory 语义（损坏/缺失只损失一次试探）
-- **MCP Resource 观测【体验/成本】**：新增 `search://capabilities`（能力矩阵：已注册工具、网页引擎、API 供应商仅 Key 数量、功能开关）与 `search://health`（引擎冷却/熔断状态、进程运行时长）两个只读 Resource——不占工具槽位、不增加工具选择时的 schema token；内容结构上不含任何密钥（密钥值永不回显）；默认启用，新增 `mcp_resources` 配置项可关闭（省略 = 启用）
-
-## Unreleased（搜索服务升级 · 一期）
-
-> 分支 `feat/search-upgrade`：对标 free-search-mcp / agent-search-mcp 设计评估的落地第一期（P0-1 + P1-6/7/8）。
-
-### 新增
-- **失败透出统一契约【稳定】**：通用 smartsearch 部分引擎失败不再静默——响应末尾附结构化失败清单（引擎名 / 失败类型 timeout·rate_limit·challenge·off_topic / 短原因），与学术搜索逐引擎透传口径统一；限流冷却中的引擎带剩余冷却时间透出（gated/benched）；全部失败时错误信息带逐引擎分类摘要，主引擎失败 + Bing 回退也失败时两条原因都可见；空结果必须可解释
-- **过滤诊断 filter_diagnostics【稳定】**：过滤后结果稀疏（≤3 条）时透出各过滤器丢弃数（去重 / min_score / engine_max_size / global_max_size / 评分管线）与放宽提示，agent 可据此决定是否放宽阈值重搜；失败清单不写入缓存、不受后续证据预算裁剪
-- **off-topic 整桶守卫【稳定】**：hybrid 合并层新增诱饵页防线——某引擎整桶几乎不 echo 查询其余词、且另一引擎证明这些词会被正常 echo 时整桶丢弃，以 off_topic 类型进失败清单（Bing 式"HTTP 200 诱饵页"不再整桶混入 RRF）；无参照或短查询时保守放行
-- **缓存 TTL 按 freshness 分桶【稳定】**：学术搜索 day → 1h、week → 6h、month → 24h；smartsearch 时间窗 ≤1 个月 → 24h、其余默认 6h；顺带修复 Lookup 从不查过期的遗留问题（原 6h 仅靠后台清理按 last_hit_at 淘汰，持续被命中的陈旧记录永不过期），过期记录惰性删除，旧库自动迁移（ttl_seconds 列）无感升级
-
-### 修复
-- **共识计票口径修正【稳定】**：Wigolo 共识 Boost 改按引擎家族（family）计票——百度网页引擎与百度千帆 API（baidu_api/baidu_ai/baidu_web）同上游命中同一 URL 不再双计共识；映射表留扩展位
 
 ## v3.6.1 — 2026-10-01
 
