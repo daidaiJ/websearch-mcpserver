@@ -18,7 +18,7 @@
 ## Overall Architecture
 
 <p align="center">
-  <img src="images/architecture.png" alt="System architecture: client, protocol, orchestration, general/academic engines, supporting components" width="900">
+  <img src="images/architecture.png" alt="System architecture: client, protocol (5 tools and dashboard), orchestration, 8 general and 9 academic engines, supporting components" width="900">
 </p>
 
 **Key design decisions**:

@@ -411,3 +411,22 @@ log:
 #   storage_path: "./data/dashboard.db"
 #   retention_days: 30
 #   secrets_path: "./data/dashboard-secrets.json"
+
+# ── Everything 本地文件检索（file_search 工具） ──────────────────────────────
+# 基于 Windows 下 Everything (voidtools) 的 HTTP Server 索引做本地文件快速检索。
+# 仅 Windows 提供（Everything 为 Windows 软件）：任何 Linux 发行版不建议启用，
+# 除非 WSL 下显式配置 everything.url 指向 Windows 宿主。
+# 无 enabled 开关：首个 MCP 客户端接入时自动探测 everything.url（延迟探测，
+# 避免与 Everything 自启动的时序竞争），探测不过（Everything 未运行 /
+# HTTP Server 未启用 / 鉴权不通过）则 file_search 工具不暴露，不影响其它功能；
+# 非 Windows 且未显式配置 url 时根本不会探测。
+# everything:
+#   url: "http://127.0.0.1:4180"   # HTTP Server 地址（Everything 工具→选项→HTTP Server）
+#   username: ""                   # 服务端启用了鉴权时填写（Basic 认证）
+#   password: ""
+#   roots: []                      # 目录白名单（绝对路径）：非空时检索强制限定在白名单内
+#                                  # 例: ['D:\CODE\ai', 'D:\CODE\pro']
+#   max_results: 10                # 单页返回条数（默认 10，硬上限 20；更多结果用 page 翻页）
+#   timeout_sec: 5                 # 单次请求超时（秒）
+#   noise_dirs: ~                  # 噪声目录降权：nil(默认)=内置 node_modules/.git/target 等；空数组=关闭
+#   min_alignment: 0               # 词汇对齐阈值（0~1）：低于阈值的弱结果被丢弃防打爆上下文，0=只重排不过滤

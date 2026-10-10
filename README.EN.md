@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero-banner.png" alt="Multi-engine search fusion: Baidu, Bing, DuckDuckGo and academic sources merge locally into structured results" width="900">
+  <img src="docs/images/hero-banner.png" alt="Multi-engine search fusion: Baidu, Bing, DuckDuckGo, API engines and 9 academic sources merge locally into search results, papers, pages/PDFs and local files" width="900">
 </p>
 
 An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines plus 9 academic search engines. Search, scoring, and caching all happen locally. Use it as MCP tools in Claude Code, Qwen Code, or Cursor, or embed it as a Go module in your own service.
@@ -26,19 +26,19 @@ An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo
 
 ## Architecture at a glance
 
-Layered design: clients see four MCP tools; the engine group is assembled by `mode`; scoring, cache, proxy, and fetch all run in-process. Queries never pass through a third-party aggregator.
+Layered design: clients see five MCP tools; the engine group is assembled by `mode`; scoring, cache, proxy, and fetch all run in-process. Queries never pass through a third-party aggregator.
 
 <p align="center">
-  <img src="docs/images/architecture.png" alt="System architecture: client, protocol, orchestration, general/academic engines, supporting components" width="900">
+  <img src="docs/images/architecture.png" alt="System architecture: client, protocol (5 tools and dashboard), orchestration, 8 general and 9 academic engines, supporting components" width="900">
 </p>
 
 | Layer | Role |
 |-------|------|
 | **Client** | Claude Code / Qwen Code / Cursor / HTTP API / embed as a Go module |
-| **Protocol** | `/mcp` four tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console |
-| **Orchestration** | `factory` by mode · `hybrid` concurrent dedup/merge · RRF / boost / MMR scoring |
+| **Protocol** | `/mcp` five tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console |
+| **Orchestration** | `factory` / `mode` · `hybrid` / `apipool` · `enhance` (RRF / Boost / MMR) |
 | **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao; 9 academic sources in parallel |
-| **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary |
+| **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary, Everything |
 
 Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md](docs/architecture.en.md).
 
@@ -46,10 +46,10 @@ Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md
 
 ## A complete tool chain for LLMs
 
-Four tools cover the web workflow. Results feed into each other — one config enables the whole chain:
+Five tools cover the retrieval workflow. Results feed into each other — one config enables the whole chain:
 
 <p align="center">
-  <img src="docs/images/toolchain.png" alt="smartsearch → academicsearch → cleanfetch → pdf_parser toolchain" width="900">
+  <img src="docs/images/toolchain.png" alt="smartsearch → academicsearch → cleanfetch → pdf_parser toolchain, plus file_search for local files" width="900">
 </p>
 
 ---
@@ -67,6 +67,7 @@ Four tools cover the web workflow. Results feed into each other — one config e
 | PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR; remote MinerU returns the ZIP URL with images; when the source exceeds the per-task page limit (default 600), selected pages are cropped locally with qpdf, with configurable auto-batching and a per-call page budget |
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
+| Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
 | Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits (off by default) |
 | Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
 
@@ -77,7 +78,7 @@ Four tools cover the web workflow. Results feed into each other — one config e
 Results are not raw aggregation. After engines return, the server locally dedups, fusion-ranks, and re-ranks for diversity, then optionally summarizes:
 
 <p align="center">
-  <img src="docs/images/pipeline.png" alt="Query flows through factory, concurrent search, dedup, RRF, boost, threshold, MMR, then returns" width="900">
+  <img src="docs/images/pipeline.png" alt="Query flows through factory/mode, concurrent search, dedup, RRF, boost, threshold, MMR, then returns" width="900">
 </p>
 
 ---
@@ -103,6 +104,7 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 | Provider resilience | Single provider, no fallback | Engine aggregation | Multi-engine + auto-fallback |
 | LLM optimization | Raw results | Raw results | Local scoring + dedup + optional summary |
 | Academic search | No | No | 9 academic engines |
+| Local file search | `file_search` locates local files in milliseconds via the Everything index, with a directory whitelist against scope creep and lexical-alignment second-stage filtering to protect context (needs Everything HTTP Server) |
 | Fetch / PDF | Separate integration | No | Built-in cleanfetch / pdf_parser |
 | Data privacy | Third-party servers | Local | Local |
 
@@ -114,9 +116,9 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 
 **Scalable complexity** — One config file, with `mode` scaling from `engine` (zero config) to `hybrid` (all engines). Zero-config and power users each get what they need without paying for complexity.
 
-**Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, the 4 tools each have their own `enabled` switch, keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
+**Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, the 4 web tools each have their own `enabled` switch (`file_search` is probe-gated instead), keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
 
-**A complete tool chain for LLMs** — The 4 tools cover the full web workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser`, with results feeding into each other — one config enables the whole chain.
+**A complete tool chain for LLMs** — The 5 tools cover the full retrieval workflow: `smartsearch` → `academicsearch` → `cleanfetch` → `pdf_parser` → `file_search` (Windows + Everything, auto-exposed when the client-connection probe passes), with results feeding into each other — one config enables the whole chain.
 
 **Scenario-specific optimization** — Optimized for real usage scenarios: academic search (9 engines + citation / journal / PDF scoring), China networking (direct connect + system proxy auto-detection), scanned PDFs (MinerU OCR fallback), recency queries (`time_range`).
 
@@ -173,13 +175,13 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 
 > Full configuration reference (shortcut placement, brand about-block, every key and default) lives in [docs/dashboard.en.md](docs/dashboard.en.md).
 
-With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser to see four pages:
+With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser to see five pages:
 
 ![Control center overview](docs/images/dashboard-overview.jpg)
 
 | Page | What it shows |
 |------|---------------|
-| **Overview** | KPIs (calls / success / failure / avg latency), system status (including suspended count), running configuration, observation status of the four tools |
+| **Overview** | KPIs (successful calls with total and cache hits / failures / avg latency), system status (including suspended count), running configuration, observation status of the five tools, client usage grouping |
 | **Sources** | Per-source health, last 20 results, failure composition (e.g. `parse ×4`), success rate, avg / P95 latency, quotas, latest error and suspension countdown |
 | **Usage** | Tools and sources in separate dimensions; filter by level / status / tool / source / error kind; click a request id on a tool row to expand the source chain of that call |
 | **Settings** | Writes whitelisted config (mode, timeouts, thresholds, suspension durations, etc.) after backing up the current YAML; secrets are never echoed |

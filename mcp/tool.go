@@ -7,6 +7,7 @@ import (
 	"time"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/llm"
@@ -58,6 +59,11 @@ var (
 	jinaInst            *jina.Reader
 	webfetchInst        *webfetch.Fetcher
 	academicSearcher    search.AcademicSearcher
+	everythingInst       *everything.Client
+	everythingRoots      []string
+	everythingMaxResults int
+	everythingNoise      map[string]struct{}
+	everythingMinAlign   float64
 	smartSearchConf     config.SmartSearchConfig
 	cleanFetchMaxSizeMB int
 	pdfMaxPages         int
@@ -70,6 +76,12 @@ var (
 	// cleanfetch/pdf_parser 均未启用时惰性初始化 webfetch（F1）。
 	webfetchLazyCfg *config.Config
 	webfetchMu      sync.Mutex
+
+	// everythingLazyCfg 保存 Init 时的配置，供首个 MCP 客户端接入时
+	// 惰性探测 Everything HTTP Server——websearch 与 Everything 都是
+	// 自启动，启动期探测会因两者时序竞争导致 file_search 误判缺失。
+	everythingLazyCfg *config.EverythingConfig
+	everythingMu      sync.Mutex
 )
 
 // Init 初始化 MCP 服务组件，通过 Option 模式按需加载。

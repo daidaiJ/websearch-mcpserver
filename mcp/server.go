@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"websearch/pkg/config"
 	"websearch/pkg/log"
@@ -82,6 +83,21 @@ func registerTools(server *mcp.Server, conf config.Config) {
 		log.Info("Available tool: cleanfetch")
 	}
 
+	// ── 注册 file_search 工具（接入时探测通过才暴露，见 ensureEverything） ──
+	if ensureEverything() {
+		fileDesc := "本地文件快速检索工具，基于 Everything 索引毫秒级返回文件名与路径（只读，不读文件内容）。适合定位本地文件：源码、文档、PDF 等。query 支持 Everything 语法（通配符、ext:、dm:、size: 等）。"
+		if len(everythingRoots) > 0 {
+			fileDesc += fmt.Sprintf("检索范围限定在 %d 个白名单目录内，可用 folder 参数进一步指定其中一个目录。", len(everythingRoots))
+		}
+		fileDesc += "时间格式可用 time_format 参数自选：datetime（默认年月日时分秒）/ iso / filetime。"
+		fileDesc += "默认每页 10 条（max_results 可调，硬上限 20）；命中多时用 page 翻页，别把 max_results 调大。"
+		mcp.AddTool(server, &mcp.Tool{
+			Name:        "file_search",
+			Description: fileDesc,
+		}, FileSearch)
+		log.Info("Available tool: file_search")
+	}
+
 	// ── 注册 pdf_parser 工具（默认关闭） ──
 	if conf.PDFParser.Enabled && webfetchInst != nil {
 		pdfDesc := "PDF 解析工具，path 为本地文件路径、file:// 或远程 http(s) PDF URL（学术结果的 pdf_url 可直接传入）。优先用 PDF 库提取文本转为 Markdown；长文档可用 pages 指定页码（如 '1-10'），省略时默认只解析前 20 页（pdf_parser.max_pages）并提示截断；大文档自动存储到临时文件。"
@@ -103,9 +119,19 @@ func registerTools(server *mcp.Server, conf config.Config) {
 }
 
 func RegisterRouter(mux *http.ServeMux, conf config.Config) {
-	server := NewMCPServer(conf, nil)
+	// MCP Server 惰性创建：NewMCPServer 内的工具注册包含 Everything 探测
+	// （ensureEverything），推迟到首个客户端请求时执行，避免 websearch 与
+	// Everything 双自启动的时序竞争导致 file_search 在进程周期内缺失。
+	var (
+		once      sync.Once
+		mcpServer *mcp.Server
+	)
+	getServer := func() *mcp.Server {
+		once.Do(func() { mcpServer = NewMCPServer(conf, nil) })
+		return mcpServer
+	}
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
-		return server
+		return getServer()
 	}, &mcp.StreamableHTTPOptions{
 		SessionTimeout: 5 * time.Minute,
 		// 无状态模式：不校验 Mcp-Session-Id，每个请求用临时会话独立处理，

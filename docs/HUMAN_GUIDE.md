@@ -9,7 +9,7 @@
 - [我该读哪篇文档](#我该读哪篇文档)
 - [30 秒上手](#30-秒上手)
 - [怎么选搜索模式](#怎么选搜索模式)
-- [四个工具怎么配合](#四个工具怎么配合)
+- [五个工具怎么配合](#五个工具怎么配合)
 - [调优：先观测再动手](#调优先观测再动手)
 - [排障速查](#排障速查)
 - [安全与隐私默认值](#安全与隐私默认值)
@@ -56,9 +56,9 @@
 
 > 无 Key 时自动降级为 `engine`，不会报错罢工。各模式的引擎映射与切换链路见 [search.md](search.md#搜索模式)。
 
-## 四个工具怎么配合
+## 五个工具怎么配合
 
-接入后你的 LLM 客户端会拿到 4 个 MCP 工具，覆盖一条联网工作流：
+接入后你的 LLM 客户端会拿到 5 个 MCP 工具，覆盖一条检索工作流：
 
 | 工具 | 干什么 | 典型用法 |
 |------|--------|----------|
@@ -66,8 +66,9 @@
 | `academicsearch` | 9 大学术引擎并行检索 | 找论文；已有 DOI / arXiv id 直接作 `query` 精确查询 |
 | `cleanfetch` | 抓取网页正文 | 读某篇文章全文；`urls` 可批量（最多 5 个） |
 | `pdf_parser` | 解析 PDF（本地文本优先，扫描件回退 MinerU OCR；原件超页自动裁切分批） | 把 `academicsearch` 结果里的 `pdf_url` 直接传入读论文全文；超长文档用 `pages` 分次读 |
+| `file_search` | 基于 Everything 索引毫秒级定位本地文件（Windows 专属，需装 Everything） | "帮我找本地那份 XX 的 PDF"；目录白名单限定检索范围 |
 
-> 工具没在客户端里全部出现时，先检查注册条件（`bing.enabled` / `academic.enabled` / `cleanfetch.enabled` / `pdf_parser.enabled`），见 [search.md](search.md#mcp-工具)。
+> 工具没在客户端里全部出现时，先检查注册条件（`bing.enabled` / `academic.enabled` / `cleanfetch.enabled` / `pdf_parser.enabled`；`file_search` 为接入时探测门控，需 Everything 在运行并启用 HTTP Server），见 [search.md](search.md#mcp-工具)。
 
 ## 调优：先观测再动手
 

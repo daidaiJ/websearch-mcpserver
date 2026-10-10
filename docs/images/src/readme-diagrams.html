@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>websearch-mcpserver README diagrams</title>
+<style>
+  :root {
+    --bg: #07111c;
+    --card: #0b1826;
+    --row: #102132;
+    --row2: #0e1e2e;
+    --ink: #f4f7fb;
+    --muted: #8aa0b5;
+    --line: rgba(120, 170, 200, 0.28);
+    --cyan: #5eead4;
+    --cyan2: #22d3ee;
+    --orange: #fb923c;
+    --teal: #2dd4bf;
+    --purple: #c4b5fd;
+    --green: #4ade80;
+    --blue: #60a5fa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #050b12;
+    font-family: "Segoe UI", "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+  }
+  .board {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(1200px 520px at 18% -10%, rgba(34, 211, 238, 0.10), transparent 55%),
+      radial-gradient(900px 480px at 92% 110%, rgba(94, 234, 212, 0.08), transparent 50%),
+      var(--bg);
+  }
+  .board::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(30deg, rgba(94,234,212,0.022) 12%, transparent 12.5%, transparent 87%, rgba(94,234,212,0.022) 87.5%),
+      linear-gradient(150deg, rgba(34,211,238,0.018) 12%, transparent 12.5%, transparent 87%, rgba(34,211,238,0.018) 87.5%);
+    background-size: 56px 48px;
+    pointer-events: none;
+  }
+  .frame {
+    position: absolute;
+    inset: 28px;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(16,33,50,0.55), rgba(11,24,38,0.92));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    padding: 36px 40px 32px;
+    display: flex;
+    flex-direction: column;
+  }
+  h1 {
+    font-size: 42px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .sub {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1.5px solid var(--cyan);
+    color: var(--cyan);
+    border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 15px;
+    font-weight: 650;
+    background: rgba(94, 234, 212, 0.06);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 22px;
+    flex-shrink: 0;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(148, 175, 196, 0.38);
+    background: rgba(7, 17, 28, 0.55);
+    color: #e8eef5;
+    border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--cyan2);
+    box-shadow: 0 0 8px rgba(34,211,238,0.8);
+    flex-shrink: 0;
+  }
+
+  /* ── Hero ── */
+  #hero .frame { padding: 48px 48px 40px; }
+  .hero-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 430px 1fr;
+    gap: 20px;
+    align-items: center;
+  }
+  .hero-copy h1 { font-size: 38px; white-space: nowrap; letter-spacing: -0.04em; }
+  .hero-copy .sub { font-size: 19px; max-width: 380px; line-height: 1.4; margin: 14px 0 22px; }
+  .flow {
+    display: grid;
+    grid-template-columns: 168px 28px 196px 28px 210px;
+    align-items: center;
+    justify-content: end;
+  }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .node {
+    border: 1px solid rgba(148,175,196,0.35);
+    background: #102132;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .hub {
+    height: 168px;
+    border: 1px solid rgba(94,234,212,0.45);
+    background: linear-gradient(180deg, #143044, #0e2436);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    color: var(--cyan);
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 0 0 1px rgba(94,234,212,0.08), 0 12px 32px rgba(0,0,0,0.25);
+  }
+  .hub svg { opacity: 0.95; }
+  .out .node { justify-content: flex-start; }
+  .icon {
+    width: 18px; height: 18px; flex-shrink: 0;
+    stroke: var(--cyan2); fill: none; stroke-width: 1.8;
+  }
+  .wires {
+    height: 168px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wires svg { width: 28px; height: 168px; overflow: visible; }
+
+  /* ── Architecture ── */
+  .layers { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .layer-flow {
+    width: 148px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: -2px 0;
+  }
+  .layer-flow::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--cyan2);
+  }
+  .layer {
+    display: grid;
+    grid-template-columns: 148px 1fr;
+    gap: 16px;
+    align-items: center;
+    background: var(--row);
+    border: 1px solid rgba(120,170,200,0.16);
+    border-radius: 16px;
+    padding: 12px 18px;
+    min-height: 72px;
+  }
+  .layer-name {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: #c5d4e3;
+  }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .engines {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 10px;
+  }
+  .eng-box {
+    background: var(--row);
+    border: 1px solid rgba(120,170,200,0.16);
+    border-radius: 16px;
+    padding: 12px 16px 14px;
+    min-height: 132px;
+  }
+  .eng-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #c5d4e3;
+    margin-bottom: 10px;
+  }
+  .arrow-col {
+    width: 148px;
+    display: flex;
+    justify-content: center;
+    height: 14px;
+  }
+  .v-arrow { color: var(--cyan2); font-size: 16px; line-height: 14px; }
+
+  /* ── Toolchain ── */
+  .tools {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 28px 1fr 28px 1fr 28px 1fr 22px 0.95fr;
+    gap: 0;
+    align-items: center;
+    padding: 8px 0 4px;
+  }
+  .tool {
+    border-radius: 18px;
+    border: 1.5px solid;
+    background: rgba(10, 22, 34, 0.55);
+    padding: 26px 20px 22px;
+    display: flex;
+    flex-direction: column;
+    height: 360px;
+  }
+  .tool .n {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1.5px solid; display: flex; align-items: center; justify-content: center;
+    font-weight: 750; font-size: 16px; margin-bottom: 16px;
+  }
+  .tool h3 { font-size: 20px; font-weight: 750; margin-bottom: 10px; letter-spacing: -0.02em; }
+  .tool p { color: var(--muted); font-size: 14.5px; line-height: 1.45; font-weight: 500; }
+  .t1 { border-color: rgba(34,211,238,0.7); }
+  .t1 .n, .t1 h3 { color: var(--cyan2); border-color: var(--cyan2); }
+  .t2 { border-color: rgba(251,146,60,0.75); }
+  .t2 .n, .t2 h3 { color: var(--orange); border-color: var(--orange); }
+  .t3 { border-color: rgba(45,212,191,0.7); }
+  .t3 .n, .t3 h3 { color: var(--teal); border-color: var(--teal); }
+  .t4 { border-color: rgba(196,181,253,0.75); }
+  .t4 .n, .t4 h3 { color: var(--purple); border-color: var(--purple); }
+  .t5 { border-color: rgba(74,222,128,0.7); }
+  .t5 .n, .t5 h3 { color: var(--green); border-color: var(--green); }
+  .chain-sep {
+    border-left: 1px dashed rgba(148,175,196,0.4);
+    margin: 18px 8px;
+    justify-self: center;
+  }
+  .tool-flow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    color: #8aa3b8;
+    font-size: 22px;
+    padding-top: 78px;
+    height: 360px;
+  }
+
+  /* ── Pipeline ── */
+  .pipe {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: 1fr auto 1fr;
+    column-gap: 22px;
+    row-gap: 0;
+    align-items: center;
+    position: relative;
+  }
+  .pipe-row { display: contents; }
+  .step {
+    text-align: center;
+  }
+  .step-box {
+    border: 1.4px solid;
+    border-radius: 14px;
+    background: rgba(10,22,34,0.6);
+    padding: 14px 8px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-height: 86px;
+    justify-content: center;
+  }
+  .step h3 { font-size: 16px; font-weight: 750; }
+  .step .cap { margin-top: 8px; color: var(--muted); font-size: 13px; font-weight: 550; }
+  .step svg { width: 22px; height: 22px; }
+  .s-cyan { border-color: rgba(34,211,238,0.75); color: var(--cyan2); }
+  .s-blue { border-color: rgba(96,165,250,0.75); color: var(--blue); }
+  .s-teal { border-color: rgba(45,212,191,0.75); color: var(--teal); }
+  .s-orange { border-color: rgba(251,146,60,0.8); color: var(--orange); }
+  .s-purple { border-color: rgba(196,181,253,0.8); color: var(--purple); }
+  .arrow {
+    display: none;
+  }
+  .step { position: relative; }
+  .step .arr {
+    position: absolute;
+    right: -20px;
+    top: 36px;
+    color: #8aa3b8;
+    font-size: 18px;
+  }
+  .wrap {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 8.3% 1fr 8.3%;
+    grid-template-rows: 1fr 1fr;
+    height: 36px;
+  }
+  .wrap .down { border-right: 1.6px dashed #6b8499; }
+  .wrap .across-start { border-top: 1.6px dashed #6b8499; border-left: 1.6px dashed #6b8499; }
+  .wrap .across, .wrap .across-end { border-top: 1.6px dashed #6b8499; }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="board" id="hero">
+  <div class="frame">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>websearch-mcpserver</h1>
+        <p class="sub">Local multi-engine search for LLM agents</p>
+        <span class="badge">Zero API Key · Pure Go</span>
+      </div>
+      <div class="flow">
+        <div class="stack">
+          <div class="node"><span class="dot"></span>Baidu</div>
+          <div class="node"><span class="dot"></span>Bing</div>
+          <div class="node"><span class="dot"></span>DuckDuckGo</div>
+          <div class="node"><span class="dot"></span>API engines</div>
+          <div class="node"><span class="dot"></span>Academic · 9</div>
+        </div>
+        <div class="wires">
+          <svg viewBox="0 0 28 168">
+            <path d="M0 16 C18 16, 10 84, 28 84" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 50 C18 50, 10 84, 28 84" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 84 C16 84, 12 84, 28 84" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 118 C18 118, 10 84, 28 84" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 152 C18 152, 10 84, 28 84" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="hub">
+          <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+            <circle cx="21" cy="10" r="4" stroke="#5eead4" stroke-width="1.8"/>
+            <circle cx="8" cy="30" r="4" stroke="#5eead4" stroke-width="1.8"/>
+            <circle cx="34" cy="30" r="4" stroke="#5eead4" stroke-width="1.8"/>
+            <circle cx="21" cy="21" r="3.2" stroke="#22d3ee" stroke-width="1.8"/>
+            <path d="M21 14 L21 18 M18.2 23.2 L11 28 M23.8 23.2 L31 28" stroke="#5eead4" stroke-width="1.6"/>
+          </svg>
+          local orchestration
+        </div>
+        <div class="wires">
+          <svg viewBox="0 0 28 168">
+            <path d="M0 84 C12 84, 10 22, 28 22" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 84 C12 84, 10 62, 28 62" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 84 C12 84, 10 106, 28 106" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+            <path d="M0 84 C12 84, 10 146, 28 146" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="stack out">
+          <div class="node">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
+            Search results
+          </div>
+          <div class="node">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg>
+            Academic papers
+          </div>
+          <div class="node">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+            Pages · PDF
+          </div>
+          <div class="node">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="M4 10h16"/></svg>
+            Local files
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="board" id="architecture">
+  <div class="frame">
+    <div class="head">
+      <div>
+        <h1>System Architecture</h1>
+        <p class="sub">MCP clients → protocol → orchestration → engines → local support</p>
+      </div>
+      <span class="badge">Pure Go · no CGO</span>
+    </div>
+    <div class="layers">
+      <div class="layer">
+        <div class="layer-name">CLIENT</div>
+        <div class="pills">
+          <span class="pill">Claude Code</span>
+          <span class="pill">Qwen Code</span>
+          <span class="pill">Cursor</span>
+          <span class="pill">HTTP / Go Module</span>
+        </div>
+      </div>
+      <div class="layer-flow"></div>
+      <div class="layer">
+        <div class="layer-name">PROTOCOL</div>
+        <div class="pills">
+          <span class="pill">/mcp · 5 tools</span>
+          <span class="pill">/searxng/search</span>
+          <span class="pill">/__admin</span>
+          <span class="pill">/dashboard</span>
+        </div>
+      </div>
+      <div class="layer-flow"></div>
+      <div class="layer">
+        <div class="layer-name">ORCHESTRATION</div>
+        <div class="pills">
+          <span class="pill">factory · mode</span>
+          <span class="pill">hybrid · apipool</span>
+          <span class="pill">enhance · RRF / Boost / MMR</span>
+        </div>
+      </div>
+      <div class="layer-flow"></div>
+      <div class="engines">
+        <div class="eng-box">
+          <div class="eng-title">General engines · 8</div>
+          <div class="pills">
+            <span class="pill">Baidu</span>
+            <span class="pill">Qianfan</span>
+            <span class="pill">Bing</span>
+            <span class="pill">DuckDuckGo</span>
+            <span class="pill">Tavily</span>
+            <span class="pill">Exa</span>
+            <span class="pill">AnySearch</span>
+            <span class="pill">Doubao</span>
+          </div>
+        </div>
+        <div class="eng-box">
+          <div class="eng-title">Academic · 9</div>
+          <div class="pills">
+            <span class="pill">arXiv</span>
+            <span class="pill">Crossref</span>
+            <span class="pill">OpenAlex</span>
+            <span class="pill">PubMed</span>
+            <span class="pill">S2</span>
+            <span class="pill">Europe PMC</span>
+            <span class="pill">DBLP</span>
+            <span class="pill">DOAJ</span>
+            <span class="pill">Google Scholar</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer-flow"></div>
+      <div class="layer">
+        <div class="layer-name">SUPPORT</div>
+        <div class="pills">
+          <span class="pill">SQLite cache</span>
+          <span class="pill">system proxy</span>
+          <span class="pill">webfetch SSRF</span>
+          <span class="pill">MinerU OCR</span>
+          <span class="pill">LLM summary</span>
+          <span class="pill">Everything</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOLCHAIN -->
+<section class="board" id="toolchain">
+  <div class="frame">
+    <div class="head">
+      <div>
+        <h1>LLM Tool Chain</h1>
+        <p class="sub">smartsearch → academicsearch → cleanfetch → pdf_parser &nbsp;·&nbsp; file_search for local files</p>
+      </div>
+    </div>
+    <div class="tools">
+      <div class="tool t1">
+        <div class="n">1</div>
+        <h3>smartsearch</h3>
+        <p>multi-engine search<br>local scoring · MMR<br>zero API key</p>
+      </div>
+      <div class="tool-flow">→</div>
+      <div class="tool t2">
+        <div class="n">2</div>
+        <h3>academicsearch</h3>
+        <p>9 academic engines<br>citation · journal · PDF<br>DOI dedup</p>
+      </div>
+      <div class="tool-flow">→</div>
+      <div class="tool t3">
+        <div class="n">3</div>
+        <h3>cleanfetch</h3>
+        <p>enhanced web fetch<br>SSRF · TLS fingerprint<br>Jina fallback</p>
+      </div>
+      <div class="tool-flow">→</div>
+      <div class="tool t4">
+        <div class="n">4</div>
+        <h3>pdf_parser</h3>
+        <p>local text first<br>MinerU OCR / batch<br>tables · formulas</p>
+      </div>
+      <div class="chain-sep"></div>
+      <div class="tool t5">
+        <div class="n">5</div>
+        <h3>file_search</h3>
+        <p>Everything index<br>whitelist roots<br>lexical filter</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PIPELINE -->
+<section class="board" id="pipeline">
+  <div class="frame">
+    <div class="head">
+      <div>
+        <h1>Search &amp; Scoring Pipeline</h1>
+        <p class="sub">All local · no third-party aggregator</p>
+      </div>
+    </div>
+    <div class="pipe">
+      <div class="step">
+        <div class="step-box s-cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
+          <h3>Query</h3>
+        </div>
+        <div class="cap">MCP / HTTP</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10l8-6 8 6v10"/><path d="M10 20v-6h4v6"/></svg>
+          <h3>factory / mode</h3>
+        </div>
+        <div class="cap">engine · apipool · hybrid</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M5 12h14M5 17h10"/></svg>
+          <h3>concurrent search</h3>
+        </div>
+        <div class="cap">hybrid</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
+          <h3>dedup</h3>
+        </div>
+        <div class="cap">URL / DOI</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M8 8h8M7 16h10"/><circle cx="8" cy="8" r="2"/><circle cx="16" cy="16" r="2"/></svg>
+          <h3>RRF fusion</h3>
+        </div>
+        <div class="cap">cross-engine</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19l5-8 4 4 7-11"/><path d="M14 4h6v6"/></svg>
+          <h3>Boost</h3>
+        </div>
+        <div class="cap">lex · domain · recency</div>
+      </div>
+      <div class="wrap">
+        <div></div><div></div><div class="down"></div>
+        <div class="across-start"></div><div class="across"></div><div class="across-end"></div>
+      </div>
+      <div class="step">
+        <div class="step-box s-teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M5 12h10M5 17h7"/></svg>
+          <h3>threshold</h3>
+        </div>
+        <div class="cap">drop low scores</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><circle cx="12" cy="16" r="3"/></svg>
+          <h3>MMR diversity</h3>
+        </div>
+        <div class="cap">break mirrors</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.2 6.5H21l-5.4 4 2.1 6.5L12 16.8 6.3 20l2.1-6.5L3 9.5h6.8z"/></svg>
+          <h3>LLM summary</h3>
+        </div>
+        <div class="cap">optional stream</div>
+        <span class="arr">→</span>
+      </div>
+      <div class="step">
+        <div class="step-box s-cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7"/></svg>
+          <h3>LLM-ready results</h3>
+        </div>
+        <div class="cap">SQLite cache 6h</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

@@ -74,6 +74,24 @@ Once a result carries `pdf_url`, pass it straight to `pdf_parser` for the full t
 
 When the source exceeds MinerU's page limit or the source URL is rejected, selected pages are cropped locally and uploaded automatically (`mineru_page_batch_size` for batching, `mineru_page_budget` for a per-call quota), with per-batch progress streamed via MCP progress notifications; explicit page counts are capped by `max_pages` (default 20)
 
+### file_search
+
+Local file search (Windows + Everything HTTP Server; appears only after the probe at the first client connection succeeds).
+
+| Param | Req | Notes |
+|-------|-----|-------|
+| `query` | ✅ | Search text with Everything syntax (`*.go`, `ext:pdf report`, `dm:lastweek`, `size:>1mb`) |
+| `folder` | | Directory scope; must fall inside the `everything.roots` whitelist when one is configured |
+| `max_results` | | Results per page, default 10, hard cap 20 (raising it has no effect); use `page` for more |
+| `page` | | Page number, default 1; paging slices the post-filter set continuously — no duplicates, no skipped entries |
+| `sort` / `descending` | | `name` (default) / `date_modified` / `size` / `path`; recent edits = `date_modified` + `descending` |
+| `exclude` | | NOT terms, e.g. `["\\obj\\", "\\node_modules\\"]` |
+| `min_alignment` | | Lexical alignment threshold (0-1) overriding the server default; start at 0.3 when results overflow |
+| `match_case` / `whole_word` / `match_regex` / `match_diacritics` | | Everything native filter switches |
+| `time_format` | | `datetime` (default) / `iso` / `filetime` |
+
+Results come back one page at a time; the footer points to the next page number, a capped candidate pool, or filtered weak matches. When a query overflows, narrow it instead of raising `max_results`.
+
 ## Task → tool routing
 
 | Task | Use |

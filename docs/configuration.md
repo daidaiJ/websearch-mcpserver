@@ -280,6 +280,21 @@ pdf_parser:
   # mineru_page_batch_size: 0 # 本地裁切回退的自动分批大小：0=不分批（超上限即拒绝）；10-200=每批页数，串行提交
   # mineru_page_budget: 0    # 单次调用 MinerU 页数预算（0=等于 mineru_page_limit）；耗尽时返回已解析部分并提示续读
 
+# Everything 本地文件检索（file_search 工具，可选；仅 Windows + Everything HTTP Server）
+# 注意：任何 Linux 发行版不建议启用，除非 WSL 下显式配置 everything.url 指向 Windows 宿主；非 Windows 且未显式配置 url 时不会探测、工具不暴露。
+# 无 enabled 开关：首个 MCP 客户端接入时探测 everything.url（延迟探测，避免与
+# Everything 自启动的时序竞争），连通且鉴权通过才注册 file_search 工具，
+# 探测不过（Everything 未运行 / HTTP Server 未启用 / 鉴权失败）则不暴露，不影响其它功能。
+# everything:
+#   url: "http://127.0.0.1:4180"   # HTTP Server 地址（Everything 工具→选项→HTTP Server）
+#   username: ""                   # 服务端启用鉴权时的 Basic 用户名/密码
+#   password: ""
+#   roots: []                      # 目录白名单（绝对路径）：非空时检索强制限定在白名单内，防越界
+#   max_results: 10                # 单页返回条数（默认 10，硬上限 20；更多结果用 page 翻页）
+#   timeout_sec: 5                 # 单次请求超时（秒）
+#   noise_dirs: ~                  # 噪声目录降权：nil=内置默认（node_modules/.git/target 等）；空数组=关闭
+#   min_alignment: 0               # 词汇对齐阈值（0~1）：低于阈值的弱结果丢弃防打爆上下文，0=只重排不过滤
+
 # 搜索结果过滤与输出格式（可选）
 # smartsearch:
 #   max_size: 10          # 全局最大结果数（按 score 排序后截断），0 = 不限

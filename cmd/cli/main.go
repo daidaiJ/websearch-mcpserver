@@ -68,6 +68,7 @@ func runStdio(conf *config.Config) {
 		mcpserver.WithCache(*conf),
 		mcpserver.WithWebFetch(*conf),
 		mcpserver.WithJinaReader(*conf),
+		mcpserver.WithEverything(*conf),
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to init: %v\n", err)
 		os.Exit(1)
