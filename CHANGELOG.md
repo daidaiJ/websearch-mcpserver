@@ -2,12 +2,15 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.7.0 — 2026-10-10（本地文件检索）
+
+> 分支 `feat/file-search-everything`：新增第五个工具 `file_search`（Everything 索引的本地文件名/路径检索），配套 `skills/everything-http-server` 启用与加固指导。工具走探测门控（无 `enabled` 开关），检索侧带目录白名单、词汇对齐二次过滤、单页条数硬上限与翻页四道上下文闸门。
 
 ### 新增
 - **`file_search` 本地文件快速检索工具**：基于 Everything (voidtools) HTTP Server 索引的本地文件名/路径检索（毫秒级、只读），Windows 专属——任何 Linux 发行版不建议启用，除非 WSL 下显式配置 `everything.url` 指向 Windows 宿主。**无 enabled 开关**：首个 MCP 客户端接入时探测 `everything.url`（延迟探测，避免 websearch 与 Everything 双自启动的时序竞争导致工具缺失），连通且鉴权通过才注册工具，探测不过不暴露、不影响其它功能
-- **克制约束与二次过滤**（agent cost 优化）：`everything.roots` 目录白名单强制限定检索范围（不传 folder 也不给全盘口子，支持 Git Bash 路径风格）；3 倍超采候选（硬上限 600）后本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线），噪声目录（node_modules/.git/target 等）降权、`everything.min_alignment` 阈值丢弃弱匹配；每条结果一行紧凑输出
-- **参数灵活分层**：Everything 原生过滤透传（`match_case`/`whole_word`/`match_regex`/`match_diacritics`）、`sort`/`descending`/`max_results`、`exclude` NOT 排除项、`min_alignment` 调用级覆盖（配置作默认）、`time_format`（`datetime`/`iso`/`filetime`）
+- **克制约束与二次过滤**（agent cost 优化）：`everything.roots` 目录白名单强制限定检索范围（不传 folder 也不给全盘口子，支持 Git Bash 路径风格）；候选超采（单页条数的 3 倍，硬上限 600）后本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线），噪声目录（node_modules/.git/target 等）降权、`everything.min_alignment` 阈值丢弃弱匹配；每条结果一行紧凑输出
+- **单页条数硬上限与翻页**【成本】：单页返回条数默认 **10**（`everything.max_results` 改默认值），硬上限 **20**——agent 传的 `max_results` 与配置值超过 20 都收敛到 20，并在响应内显式说明（不静默）；新增 `page` 参数（默认 1，上限 100）。翻页按页码加深候选超采（`page × 单页条数 × 3`，硬上限 600）后，在二次过滤后的结果集上连续切片，页与页之间不重复、不跳条；候选池触顶时响应明说「无法再深翻」并提示收窄 query。尾部提示按翻页 / 过滤 / 触顶三类去向给出，命中过多先收窄 query 而不是调大条数
+- **参数灵活分层**：Everything 原生过滤透传（`match_case`/`whole_word`/`match_regex`/`match_diacritics`）、`sort`/`descending`/`max_results`/`page`、`exclude` NOT 排除项、`min_alignment` 调用级覆盖（配置作默认）、`time_format`（`datetime`/`iso`/`filetime`）
 - **`skills/everything-http-server`**：分版本启用指导（1.4 内建 vs 1.5a 插件）、ini 运行中覆盖陷阱、curl 验证、加固清单（loopback / Basic 鉴权 / 禁下载 / 白名单）与故障速查
 
 ## v3.6.2 — 2026-10-06（搜索服务升级）
