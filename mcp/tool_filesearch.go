@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"websearch/pkg/config"
 	"websearch/pkg/fetch/everything"
 	"websearch/pkg/telemetry"
 
@@ -25,7 +26,8 @@ type FileSearchParams struct {
 	MatchDiacritics bool `json:"match_diacritics,omitempty" jsonschema:"description,区分变音符号"`
 
 	// 返回控制
-	MaxResults int    `json:"max_results,omitempty" jsonschema:"description,返回条数上限（默认 50，上限 200）。建议按需调小以节省上下文"`
+	MaxResults int    `json:"max_results,omitempty" jsonschema:"description,单页返回条数（默认 10，硬上限 20）。按需调小以节省上下文；需要更多结果请用 page 翻页，调大本参数超过 20 会被收敛"`
+	Page       int    `json:"page,omitempty" jsonschema:"description,页码（默认 1，上限 100），每页条数由 max_results 决定。翻页在二次过滤后的结果集上按页连续切片，页与页之间不重复、不跳条"`
 	Sort       string `json:"sort,omitempty" jsonschema:"description,排序字段：name（默认）/ date_modified / size / path。找最近改动用 date_modified 配合 descending"`
 	Descending bool   `json:"descending,omitempty" jsonschema:"description,是否降序（配合 sort 使用）"`
 
@@ -39,8 +41,12 @@ type FileSearchParams struct {
 // fileSearchSorts 允许的 sort 取值（Everything 原生排序）。
 var fileSearchSorts = map[string]bool{"name": true, "path": true, "size": true, "date_modified": true}
 
-// fileSearchCandidateHardCap 二次过滤的候选池硬上限。
+// fileSearchCandidateHardCap 二次过滤的候选池硬上限（也决定最深可翻页数：
+// 候选池触顶后更深的页码拿不到新候选）。
 const fileSearchCandidateHardCap = 600
+
+// fileSearchMaxPage 页码输入上限（防御性收敛；实际可翻深度由候选池上限决定）。
+const fileSearchMaxPage = 100
 
 // FileSearch 基于 Everything 索引的本地文件快速检索（只读，仅返回路径与元数据）。
 // 服务端完成原生过滤（i/w/r/m），本地再做二次过滤：词汇对齐重排 + 噪声降权 +
@@ -72,12 +78,18 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		}
 		timeFmt = f
 	}
-	maxResults := everythingMaxResults
+	maxResults := config.ClampMaxResults(everythingMaxResults)
+	maxClamped := false
 	if params.MaxResults > 0 {
-		maxResults = params.MaxResults
-		if maxResults > 200 {
-			maxResults = 200
-		}
+		maxResults = config.ClampMaxResults(params.MaxResults)
+		maxClamped = params.MaxResults > maxResults
+	}
+	page, pageClamped := params.Page, false
+	if page < 1 {
+		page = 1
+	}
+	if page > fileSearchMaxPage {
+		page, pageClamped = fileSearchMaxPage, true
 	}
 
 	// match_regex 用 Everything 的 regex: 函数拼入查询（而非 r=1 全局标志）：
@@ -104,11 +116,9 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		}
 	}
 
-	// 候选超采（3x，硬上限 600）给二次过滤留出排序空间，最终只返回 maxResults 条
-	candidates := maxResults * 3
-	if candidates > fileSearchCandidateHardCap {
-		candidates = fileSearchCandidateHardCap
-	}
+	// 候选池按页码加深超采（单页上限的 3 倍，硬上限 600）：二次过滤会丢条，
+	// 只有越过整页候选才能保证本页取到过滤结果集里的连续切片。
+	candidates := fileSearchCandidates(page, maxResults)
 	res, err := everythingInst.Search(ctx, query, everything.SearchOptions{
 		Count:      candidates,
 		Sort:       sort,
@@ -127,11 +137,49 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		NoiseDirs: everythingNoise,
 		MinAlign:  minAlign,
 	})
-	if len(items) > maxResults {
-		items = items[:maxResults]
+	pageItems, pageInfo := fileSearchPageSlice(items, page, maxResults, candidates, res.Total)
+	pageInfo.MaxResultsClamped = maxClamped
+	pageInfo.PageClamped = pageClamped
+	pageInfo.Order = fileSearchOrderDesc(sort, params.Descending)
+	count = len(pageItems)
+	return textResult(formatFileSearchResult(query, pageInfo, pageItems, timeFmt)), nil, nil
+}
+
+// fileSearchCandidateOverFetch 候选超采倍数：给对齐重排与阈值过滤留出余量。
+const fileSearchCandidateOverFetch = 3
+
+// fileSearchCandidates 本次检索的候选池规模（随页码加深而增大，硬上限收敛）。
+func fileSearchCandidates(page, pageSize int) int {
+	n := page * pageSize * fileSearchCandidateOverFetch
+	if n > fileSearchCandidateHardCap {
+		n = fileSearchCandidateHardCap
 	}
-	count = len(items)
-	return textResult(formatFileSearchResult(query, int(res.Total), len(res.Items), items, timeFmt)), nil, nil
+	return n
+}
+
+// fileSearchPageSlice 在二次过滤后的结果集上取第 page 页（1-based 连续切片，
+// 页与页之间不重复也不跳条），并汇总渲染所需的分页信息。
+// more 的判据：本页之后过滤结果集仍有条目，或服务端命中总数超过本次候选池
+// 且候选池未触顶（触顶后加深页码拿不到新候选）。
+func fileSearchPageSlice(items []everything.Item, page, pageSize, candidates int, total int64) ([]everything.Item, fileSearchPage) {
+	if page < 1 {
+		page = 1
+	}
+	start := (page - 1) * pageSize
+	end := min(start+pageSize, len(items))
+	var pageItems []everything.Item
+	if start < len(items) {
+		pageItems = items[start:end]
+	}
+	info := fileSearchPage{
+		Page:      page,
+		PageSize:  pageSize,
+		Total:     total,
+		Candidate: candidates,
+		Capped:    candidates >= fileSearchCandidateHardCap,
+	}
+	info.More = len(items) > end || (int64(candidates) < total && !info.Capped)
+	return pageItems, info
 }
 
 // fileSearchTimeFormats agent 可选的时间显示格式。
@@ -158,14 +206,53 @@ var fileSearchTimeFormats = map[string]fileSearchTimeFormat{
 	},
 }
 
+// fileSearchOrderDesc 渲染排序口径：未显式指定 sort 时本地按对齐分重排，
+// 否则尊重服务端排序（含升降序），如实标注避免"按相关性"误标。
+func fileSearchOrderDesc(sort string, descending bool) string {
+	if sort == "" {
+		return "按相关性排序"
+	}
+	if descending {
+		return "按 " + sort + " 降序"
+	}
+	return "按 " + sort + " 升序"
+}
+
+// fileSearchPage 分页渲染上下文：本页元信息 + 命中总数与本次候选池规模。
+type fileSearchPage struct {
+	Page              int    // 当前页码（1-based）
+	PageSize          int    // 每页条数上限（生效的 max_results）
+	Total             int64  // Everything 命中总数
+	Candidate         int    // 本次候选池条数（超采规模，硬上限 600）
+	Order             string // 排序口径（未指定 sort 时为本地相关性重排）
+	MaxResultsClamped bool   // agent 传的 max_results 超过硬上限被收敛
+	PageClamped       bool   // agent 传的 page 超过上限被收敛
+	Capped            bool   // 候选池已达硬上限
+	More              bool   // 还有下一页
+}
+
 // formatFileSearchResult 将检索结果格式化为紧凑 Markdown（每条一行）。
-func formatFileSearchResult(query string, total, candidate int, items []everything.Item, fmtTime fileSearchTimeFormat) string {
+// 每页只渲染本页条目；尾部提示按需给出翻页下一页、候选池触顶与弱匹配过滤三类去向，
+// 参数被收敛时显式说明（不静默）。
+func formatFileSearchResult(query string, pg fileSearchPage, items []everything.Item, fmtTime fileSearchTimeFormat) string {
 	var sb strings.Builder
-	if total == 0 {
+	if pg.Total == 0 {
 		fmt.Fprintf(&sb, "没有匹配 `%s` 的文件。可放宽关键词、检查目录范围或改用 ext:/dm: 等语法。", query)
 		return sb.String()
 	}
-	fmt.Fprintf(&sb, "命中 %d 条，返回前 %d 条（按相关性排序）：\n\n", total, len(items))
+	if len(items) == 0 {
+		if pg.Capped && pg.Total > int64(pg.Candidate) {
+			fmt.Fprintf(&sb, "共命中 %d 条，第 %d 页没有结果：候选池已达上限 %d 条，更深的页码取不到新候选。请收窄 query 后重查。", pg.Total, pg.Page, fileSearchCandidateHardCap)
+		} else {
+			fmt.Fprintf(&sb, "共命中 %d 条，第 %d 页没有结果（已到末页）。可回到第 1 页或收窄 query。", pg.Total, pg.Page)
+		}
+		return sb.String()
+	}
+	order := pg.Order
+	if order == "" {
+		order = "按相关性排序"
+	}
+	fmt.Fprintf(&sb, "命中 %d 条，第 %d 页返回 %d 条（每页最多 %d 条，%s）：\n\n", pg.Total, pg.Page, len(items), pg.PageSize, order)
 	for _, it := range items {
 		// Everything 的 path 列不带尾分隔符，补上再拼文件名
 		fmt.Fprintf(&sb, "- `%s\\%s`", it.Path, it.Name)
@@ -180,10 +267,19 @@ func formatFileSearchResult(query string, total, candidate int, items []everythi
 		}
 		sb.WriteString("\n")
 	}
-	if total > candidate {
-		fmt.Fprintf(&sb, "\n命中过多，仅展示前 %d 条。请收窄 query（加 ext:/dm:/size: 或子目录）再查。", len(items))
-	} else if total > len(items) {
-		fmt.Fprintf(&sb, "\n低相关结果已过滤（候选 %d 条）。请收窄 query 或提高 max_results。", candidate)
+	if pg.MaxResultsClamped {
+		fmt.Fprintf(&sb, "\nmax_results 超过硬上限 %d，已按 %d 处理；需要更多结果请用 page 翻页。", config.EverythingMaxResultsHardCap, pg.PageSize)
+	}
+	if pg.PageClamped {
+		fmt.Fprintf(&sb, "\npage 超过上限 %d，已按第 %d 页处理。", fileSearchMaxPage, pg.Page)
+	}
+	switch {
+	case pg.More:
+		fmt.Fprintf(&sb, "\n还有更多结果，可用 page=%d 继续翻页（或收窄 query 减少翻页）。", pg.Page+1)
+	case pg.Capped && pg.Total > int64(pg.Candidate):
+		fmt.Fprintf(&sb, "\n候选池已达上限 %d 条，无法再深翻。请收窄 query（ext:/dm:/size: 或加子目录）后重查。", fileSearchCandidateHardCap)
+	case pg.Total > int64(len(items)):
+		fmt.Fprintf(&sb, "\n命中 %d 条、过滤后保留 %d 条（弱匹配与噪声目录已过滤）。可收窄 query 或降低 min_alignment。", pg.Total, len(items))
 	}
 	return sb.String()
 }

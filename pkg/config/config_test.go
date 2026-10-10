@@ -313,6 +313,30 @@ func TestMinerUPageScalingGetters(t *testing.T) {
 	}
 }
 
+// TestClampMaxResults 单页返回条数收敛：<=0 取默认 10，>20 收敛到硬上限 20。
+func TestClampMaxResults(t *testing.T) {
+	cases := []struct{ in, want int }{
+		{0, EverythingMaxResultsDefault},
+		{-5, EverythingMaxResultsDefault},
+		{1, 1},
+		{10, 10},
+		{EverythingMaxResultsHardCap, EverythingMaxResultsHardCap},
+		{21, EverythingMaxResultsHardCap},
+		{200, EverythingMaxResultsHardCap},
+	}
+	for _, c := range cases {
+		if got := ClampMaxResults(c.in); got != c.want {
+			t.Errorf("ClampMaxResults(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+	if EverythingMaxResultsDefault != 10 {
+		t.Errorf("默认单页条数 = %d, want 10", EverythingMaxResultsDefault)
+	}
+	if EverythingMaxResultsHardCap != 20 {
+		t.Errorf("硬上限 = %d, want 20", EverythingMaxResultsHardCap)
+	}
+}
+
 func TestExampleConfigIsYAML(t *testing.T) {
 	if len(ExampleConfig) == 0 {
 		t.Fatal("ExampleConfig is empty")

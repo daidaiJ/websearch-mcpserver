@@ -90,6 +90,7 @@ func registerTools(server *mcp.Server, conf config.Config) {
 			fileDesc += fmt.Sprintf("检索范围限定在 %d 个白名单目录内，可用 folder 参数进一步指定其中一个目录。", len(everythingRoots))
 		}
 		fileDesc += "时间格式可用 time_format 参数自选：datetime（默认年月日时分秒）/ iso / filetime。"
+		fileDesc += "默认每页 10 条（max_results 可调，硬上限 20）；命中多时用 page 翻页，别把 max_results 调大。"
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "file_search",
 			Description: fileDesc,

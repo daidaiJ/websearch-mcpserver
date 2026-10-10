@@ -311,7 +311,7 @@ type EverythingConfig struct {
 	Username   string   `mapstructure:"username"`    // Basic 鉴权用户名（服务端启用了鉴权时必填）
 	Password   string   `mapstructure:"password"`    // Basic 鉴权密码
 	Roots      []string `mapstructure:"roots"`        // 目录白名单（绝对路径）：非空时检索强制限定在白名单内，空 = 不限
-	MaxResults int      `mapstructure:"max_results"`  // 单次返回上限（默认 50，硬上限 200）
+	MaxResults int      `mapstructure:"max_results"`  // 单页返回上限（默认 10，硬上限 20）；更多结果用 file_search 的 page 翻页
 	TimeoutSec int      `mapstructure:"timeout_sec"`  // 单次请求超时（秒），默认 5
 	// NoiseDirs 噪声目录：命中片段的结果排序减半（不剔除）。nil = 内置默认
 	// （node_modules/.git/target 等）；显式空数组 = 关闭降权。
@@ -319,6 +319,26 @@ type EverythingConfig struct {
 	// MinAlignment 词汇对齐阈值（0~1，默认 0 = 只重排不过滤）：查询词与
 	// 文件名+路径的对齐率低于该值的结果被丢弃，防止弱匹配打爆上下文。
 	MinAlignment float64 `mapstructure:"min_alignment"`
+}
+
+// Everything 单页返回条数的默认值与硬上限：默认值可由 everything.max_results 调整，
+// 硬上限对配置与 agent 参数一视同仁（单次响应条数封顶，防止打爆上下文），
+// 需要更多结果时用 file_search 的 page 翻页而不是调大条数。
+const (
+	EverythingMaxResultsDefault = 10
+	EverythingMaxResultsHardCap = 20
+)
+
+// ClampMaxResults 把单页返回条数收敛到 [1, EverythingMaxResultsHardCap]：
+// <=0 取默认值，超过硬上限收敛到硬上限。
+func ClampMaxResults(n int) int {
+	if n <= 0 {
+		return EverythingMaxResultsDefault
+	}
+	if n > EverythingMaxResultsHardCap {
+		return EverythingMaxResultsHardCap
+	}
+	return n
 }
 
 // ── CleanFetch 配置 ──
@@ -1117,10 +1137,10 @@ func Load(configPath string) (*Config, error) {
 		conf.Everything.URL = "http://127.0.0.1:4180"
 	}
 	if conf.Everything.MaxResults <= 0 {
-		conf.Everything.MaxResults = 50
+		conf.Everything.MaxResults = EverythingMaxResultsDefault
 	}
-	if conf.Everything.MaxResults > 200 {
-		conf.Everything.MaxResults = 200
+	if conf.Everything.MaxResults > EverythingMaxResultsHardCap {
+		conf.Everything.MaxResults = EverythingMaxResultsHardCap
 	}
 	if conf.Everything.TimeoutSec <= 0 {
 		conf.Everything.TimeoutSec = 5
