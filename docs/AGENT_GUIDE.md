@@ -74,6 +74,24 @@ curl -s http://127.0.0.1:8338/__admin/health   # 期望 {"ref_count":N,"message"
 
 原件超页或 MinerU 拒绝源 URL 时自动本地裁切所选页再上传（可 `mineru_page_batch_size` 分批、`mineru_page_budget` 限单次额度），分批进度经 MCP progress notification 实时推送；单次显式页数受 `max_pages`（默认 20）约束
 
+### file_search
+
+本地文件检索（Windows + Everything HTTP Server，首个客户端接入时探测通过才出现）。
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `query` | ✅ | 检索词，Everything 语法（`*.go`、`ext:pdf report`、`dm:lastweek`、`size:>1mb`） |
+| `folder` | | 限定目录；配置 `everything.roots` 白名单时必须落在白名单内 |
+| `max_results` | | 单页返回条数，默认 10，硬上限 20（调大无效）；需要更多用 `page` |
+| `page` | | 页码，默认 1；翻页在二次过滤后的结果集上连续切片，页与页之间不重复不跳条 |
+| `sort` / `descending` | | `name`（默认）/ `date_modified` / `size` / `path`；找最近改动用 `date_modified` + `descending` |
+| `exclude` | | NOT 排除项，如 `["\\obj\\", "\\node_modules\\"]` |
+| `min_alignment` | | 词汇对齐阈值（0~1），覆盖服务端默认；结果过多时 0.3 起步 |
+| `match_case` / `whole_word` / `match_regex` / `match_diacritics` | | Everything 原生过滤开关 |
+| `time_format` | | `datetime`（默认）/ `iso` / `filetime` |
+
+结果按页返回，尾部会提示下一页页码、候选池触顶或弱匹配被过滤三类去向；命中过多先收窄 query，不要靠调大 `max_results`。
+
 ## 任务 → 工具选型
 
 | 任务 | 用什么 |

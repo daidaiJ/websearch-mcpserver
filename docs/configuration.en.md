@@ -371,7 +371,7 @@ pdf_parser:
 #   username: ""                   # Basic username/password when the server has auth enabled
 #   password: ""
 #   roots: []                      # Directory whitelist (absolute paths): when set, searches are forcibly scoped to it
-#   max_results: 50                # Max results per call (default 50, hard cap 200)
+#   max_results: 10                # Results per page (default 10, hard cap 20; use page for more)
 #   timeout_sec: 5                 # Per-request timeout in seconds
 #   noise_dirs: ~                  # Noise-directory demotion: nil = built-in defaults (node_modules/.git/target...); [] = disable
 #   min_alignment: 0               # Lexical alignment threshold (0-1): weak results below it are dropped; 0 = re-rank only

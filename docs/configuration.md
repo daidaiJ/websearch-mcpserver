@@ -290,7 +290,7 @@ pdf_parser:
 #   username: ""                   # 服务端启用鉴权时的 Basic 用户名/密码
 #   password: ""
 #   roots: []                      # 目录白名单（绝对路径）：非空时检索强制限定在白名单内，防越界
-#   max_results: 50                # 单次返回上限（默认 50，硬上限 200）
+#   max_results: 10                # 单页返回条数（默认 10，硬上限 20；更多结果用 page 翻页）
 #   timeout_sec: 5                 # 单次请求超时（秒）
 #   noise_dirs: ~                  # 噪声目录降权：nil=内置默认（node_modules/.git/target 等）；空数组=关闭
 #   min_alignment: 0               # 词汇对齐阈值（0~1）：低于阈值的弱结果丢弃防打爆上下文，0=只重排不过滤

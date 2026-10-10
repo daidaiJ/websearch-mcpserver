@@ -320,14 +320,15 @@ apipool:
 | `exclude` | []string | ❌ | 排除项，每条作为一个 Everything NOT 词（含空格自动加引号）：`["\obj\", "
 ode_modules\"]`；带首尾反斜杠匹配路径片段才不误伤文件名 |
 | `min_alignment` | number | ❌ | 词汇对齐阈值（0~1），覆盖服务端 `everything.min_alignment`；结果过多时建议 0.3 起步，0 = 只重排不过滤 |
-| `max_results` | int | ❌ | 返回条数上限（默认 50，硬上限 200），建议按需调小节省上下文 |
+| `max_results` | int | ❌ | 单页返回条数（默认 10，服务端 `everything.max_results` 可改默认值；硬上限 20，超过按 20 收敛并在响应内提示） |
+| `page` | int | ❌ | 页码（默认 1，上限 100），每页条数由 `max_results` 决定：翻页在二次过滤后的结果集上连续切片，页与页之间不重复不跳条 |
 | `sort` | string | ❌ | `name`（默认）/ `date_modified` / `size` / `path` |
 | `descending` | bool | ❌ | 降序（配合 `sort`） |
 | `time_format` | string | ❌ | `datetime`（默认 `2026-01-02 15:04:05`）/ `iso`（ISO 8601 UTC）/ `filetime`（原始 FILETIME） |
 
 **注册条件（自动探测，无 enabled 开关）**：首个 MCP 客户端接入时探测 `everything.url`（延迟探测，避免 websearch 与 Everything 双自启动的时序竞争导致工具缺失），连通且鉴权通过才注册该工具；Everything 未运行、HTTP Server 未启用或鉴权失败时静默不暴露，不影响其它工具。
 
-**克制约束**：配置 `everything.roots`（目录白名单）后所有检索强制限定在白名单内，白名单外目录直接报错，防越界。**二次过滤（agent cost 优化）**：服务端按 3 倍超采候选（硬上限 600），`sort` 未显式指定时本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线的分词与停用词；显式指定 `sort` 则尊重服务端排序，仅保留阈值过滤），命中 `node_modules`/`.git`/`target` 等噪声目录的结果排序减半（`everything.noise_dirs` 可覆盖），`everything.min_alignment` 阈值可丢弃弱匹配——每条结果一行，弱相关不进上下文。
+**克制约束**：配置 `everything.roots`（目录白名单）后所有检索强制限定在白名单内，白名单外目录直接报错，防越界。**二次过滤（agent cost 优化）**：服务端按 3 倍超采候选（硬上限 600），`sort` 未显式指定时本地按文件名/路径词汇对齐重排（复用 smartsearch 评分管线的分词与停用词；显式指定 `sort` 则尊重服务端排序，仅保留阈值过滤），命中 `node_modules`/`.git`/`target` 等噪声目录的结果排序减半（`everything.noise_dirs` 可覆盖），`everything.min_alignment` 阈值可丢弃弱匹配——每条结果一行，弱相关不进上下文。**分页保护上下文**：单页条数封顶 20（默认 10，`max_results` 可调小但调大不生效），需要更多结果用 `page` 翻页；翻页按页码加深候选超采（`page × 单页条数 × 3`，硬上限 600），在过滤后的结果集上连续切片；候选池触顶后响应会说明无法再深翻，提示收窄 query。
 
 ## 学术搜索建议
 

@@ -147,10 +147,10 @@ mcp/tool.go PDFParserHandler
 ```
 mcp/tool_filesearch.go FileSearch
       ├► everything.ScopeQuery（folder/roots 白名单校验，路径项保留原始大小写；match_regex 走 regex: 函数避免污染范围限定）
-      ├► everythingInst.Search（3x 超采候选，透传原生 i/w/m 过滤与 sort/ascending）
+      ├► everythingInst.Search（候选超采 page × 单页条数 × 3，硬上限 600，透传原生 i/w/m 过滤与 sort/ascending）
       └► everything.EnhanceItems（词汇对齐重排（name 1.0 / path 0.3，复用 enhance.LexicalAlignment）
             ├► 噪声目录降权（everything.noise_dirs，组件级匹配）
-            └► everything.min_alignment 阈值过滤 → 截断 max_results，逐条一行输出
+            └► everything.min_alignment 阈值过滤 → 过滤后按页切片（单页 ≤ 20 条，跨页不重复不跳条），逐条一行输出
 ```
 
 ## 5. 网络集成测试的门控（internal/testenv）
@@ -179,6 +179,8 @@ func TestBaiduSearch(t *testing.T) {
 
 另：`go test -short` 一律跳过网络集成测试（优先级高于 `WS_TEST_NETWORK=on`）。
 注意：非场景类错误（引擎逻辑缺陷、断言失败）**不会**被 HandleSearchError 吞掉，照常 Fatal。
+
+**例外：本机服务（Everything / file_search）不走 testenv**。Everything 是带 Basic 鉴权的本机服务，testenv 的连通性探测模型带不了凭据，且 `auto` 模式下探测通过即自动运行，会在任何装了 Everything 的开发机上打真实索引。`mcp/tool_filesearch_live_test.go` 改用显式环境变量开关（`WS_EVERYTHING_URL` 缺省即整包 Skip，另有 `WS_EVERYTHING_USER`/`PASS`/`ROOT`/`QUERY`），需要 URL 与凭据的真实链路测试按此模式扩展。
 
 ## 6. 改动落点速查（按调用链）
 
