@@ -67,6 +67,15 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
+
+      # Default-branch module cache is shared by all four targets. Do not cache
+      # GOCACHE here: compilation remains isolated for each GOOS/GOARCH job.
+      - name: Restore Go modules
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-mod-v1-${{ hashFiles('go.mod', 'go.sum') }}
 
       - name: Tidy modules
         run: go mod tidy
@@ -168,6 +177,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
+
+      - name: Install MCPB tool
+        run: go install github.com/daidaiJ/mcpb-tool-cli@3cdeb94c257c12388fea255e3d0a0151a225e269
 
       # MCPB 封包只发生在 -registry 流程：从 base release 拉服务端二进制，
       # 现场打包 .mcpb（base release 不承载 mcpb，两类产物分开）
@@ -182,7 +195,6 @@ jobs:
           gh release download "$BASE_TAG" \
             --pattern "websearch-mcpserver-*" --dir dist
 
-          go install github.com/daidaiJ/mcpb-tool-cli@latest
           # go install 产物在 GOPATH/bin（不在 runner PATH），且二进制名为 mcpb-tool-cli
           MCPB="$(go env GOPATH)/bin/mcpb-tool-cli"
           # MCP 跟 GitHub Release 四平台：linux/windows amd64 + darwin amd64/arm64。
@@ -232,7 +244,6 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"          # v3.1.1-registry
           BASE_TAG="${TAG%-registry}"             # v3.1.1
           VERSION="${BASE_TAG#v}"                 # 3.1.1
-          go install github.com/daidaiJ/mcpb-tool-cli@latest
           "$(go env GOPATH)/bin/mcpb-tool-cli" serverjson \
             --dir mcpb-assets \
             --name io.github.daidaiJ/websearch-mcpserver \

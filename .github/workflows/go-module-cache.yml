@@ -1,0 +1,61 @@
+# Populate only the default-branch module cache; tag workflows cannot share
+# caches saved under sibling tags. No build outputs are stored here.
+name: Go module cache
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - go.mod
+      - go.sum
+      - .github/workflows/go-module-cache.yml
+  # Actual restores keep the cache active within GitHub's 7-day idle window.
+  # A hit does not install Go or contact the module proxy.
+  schedule:
+    - cron: '23 4 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-module-cache-${{ github.event.repository.default_branch }}
+  cancel-in-progress: false
+
+jobs:
+  modules:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Keep both path and key identical to release.yml (cache version includes
+      # path/compression metadata). go.mod also includes the Go version.
+      - name: Restore Go modules
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-mod-v1-${{ hashFiles('go.mod', 'go.sum') }}
+
+      - name: Set up Go
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Download Go modules
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: |
+          go mod download
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Save Go modules
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ steps.modules.outputs.cache-primary-key }}
