@@ -7,6 +7,10 @@
 ### 修复
 - **日志 caller 指向 zerolog 内部**：`pkg/log` 的 `CallerWithSkipFrameCount` 由 1 改为 3（zerolog caller hook 自带 2 层内部帧 + 包级 helper 1 层），caller 字段恢复指向真实调用点，不再出现 `github.com/rs/zerolog@…/event.go:131`
 
+### CI
+- **发布流程去重与模块共享缓存**（[PR #22](https://github.com/daidaiJ/websearch-mcpserver/pull/22)，[@MattLYT](https://github.com/MattLYT)）：新增 `go-module-cache.yml` 在默认分支作用域维护纯模块缓存（push 触碰 go.mod/go.sum 时重建，周一/周四定时保温防 7 天闲置回收，支持手动触发）；release 四平台构建改 restore-only 还原模块（setup-go 关闭混合缓存，不再为每个标签保存只有同一标签可用的缓存）；`mcpb-tool-cli` 从 `@latest` 两次安装改为固定 commit `3cdeb94c` 单次安装（MCP Registry 发布链路供应链加固，版本可复现）；docker.yml 触发层排除 `-registry`/`-preview` 标签（job 级保护保留）。缓存未命中回退普通模块下载，发布矩阵（Release 四平台 / GHCR 两平台 / mcpb 跟 Release）不变
+- **release.yml 写权限收窄**（吸收后适配）：工作流级 `contents: write` 改为 `contents: read`，写权限下放至 release 与 publish-registry 两个 job，build job 仅保留读取
+
 ## v3.8.1 — 2026-10-15（正文交付与来源状态修复）
 
 > 分支 `feat/absorb-pr20`：吸收 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 [PR #20](https://github.com/daidaiJ/websearch-mcpserver/pull/20)，v3.8.0 的后续修复。原提交保留原作者署名（merge `1b12267`）；吸收后追加加固提交（竞态消除、进度通知攒批与读取热点优化）。
