@@ -35,8 +35,9 @@ on:
     tags:
       - 'v*'
 
+# 工作流级只读；写权限下放到需要的 job（release 创建 / registry 发布）
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -106,6 +107,8 @@ jobs:
     needs: build
     if: ${{ !endsWith(github.ref_name, '-registry') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 创建 Release 并上传二进制与校验和
     steps:
       - name: Checkout
         uses: actions/checkout@v4
