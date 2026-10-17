@@ -12,13 +12,14 @@ import (
 // ── FILETIME 转换 ────────────────────────────────────────────────────────────
 
 func TestFiletimeToTime(t *testing.T) {
-	// 134353169800707240 → 2026-10-01 16:29:40（本地时区实测值）
+	// 134353169800707240 → 2026-10-01T08:29:40.070724Z（FILETIME 按 UTC 锚定；本地表示随时区变化）
 	got, ok := filetimeToTime("134353169800707240")
 	if !ok {
 		t.Fatal("期望解析成功")
 	}
-	if got.Format("2006-01-02 15:04:05") != "2026-10-01 16:29:40" {
-		t.Errorf("FILETIME 转换错误: got %s", got.Format("2006-01-02 15:04:05"))
+	want := time.Date(2026, 10, 1, 8, 29, 40, 70_724_000, time.UTC)
+	if !got.Equal(want) {
+		t.Errorf("FILETIME 转换错误: got %s, want %s", got.Format(time.RFC3339Nano), want.Format(time.RFC3339Nano))
 	}
 	for _, bad := range []string{"", "abc", "0", "-123"} {
 		if _, ok := filetimeToTime(bad); ok {

@@ -19,10 +19,11 @@ func TestFormatFileSearchResultTimeFormats(t *testing.T) {
 	item := everything.Item{Name: "factory.go", Path: `d:\code\ai\websearch\pkg\search\`, Size: "17408", DateModified: "134353169800707240"}
 	items := []everything.Item{item}
 
-	// datetime：本地时区年月日时分秒（与实机转换一致）
+	// datetime：本地时区年月日时分秒；期望值由 UTC 锚定时刻按运行时区推导（CI runner 为 UTC）
+	wantLocal := time.Date(2026, 10, 1, 8, 29, 40, 70_724_000, time.UTC).Local().Format("2006-01-02 15:04:05")
 	datetime := fileSearchTimeFormats["datetime"](item)
-	if datetime != "2026-10-01 16:29:40" {
-		t.Errorf("datetime 格式错误: %q", datetime)
+	if datetime != wantLocal {
+		t.Errorf("datetime 格式错误: got %q, want %q", datetime, wantLocal)
 	}
 
 	// iso：ISO 8601 UTC
@@ -39,7 +40,7 @@ func TestFormatFileSearchResultTimeFormats(t *testing.T) {
 	}
 
 	out := formatFileSearchResult(`factory`, fileSearchPage{Page: 1, PageSize: 10, Total: 1, Candidate: 30}, items, fileSearchTimeFormats["datetime"])
-	for _, want := range []string{"factory.go", "d:\\code\\ai\\websearch\\pkg\\search\\", "17.0 KB", "2026-10-01 16:29:40"} {
+	for _, want := range []string{"factory.go", "d:\\code\\ai\\websearch\\pkg\\search\\", "17.0 KB", wantLocal} {
 		if !strings.Contains(out, want) {
 			t.Errorf("输出缺少 %q: %q", want, out)
 		}
