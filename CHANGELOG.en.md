@@ -7,6 +7,10 @@
 ### Fixed
 - **Log caller pointed into zerolog internals**: `pkg/log` `CallerWithSkipFrameCount` changed from 1 to 3 (zerolog's caller hook adds 2 internal frames plus the package-helper layer), so the caller field points at the real call site again instead of `github.com/rs/zerolog@…/event.go:131`
 
+### CI
+- **Release pipeline dedup and shared module cache** ([PR #22](https://github.com/daidaiJ/websearch-mcpserver/pull/22), [@MattLYT](https://github.com/MattLYT)): a new `go-module-cache.yml` maintains a module-only cache in the default-branch scope (rebuilt when go.mod/go.sum change, refreshed on a Mon/Thu schedule against GitHub's 7-day idle eviction, manually dispatchable); the four release build jobs switch to restore-only module restores (setup-go's mixed cache disabled, no more per-tag caches only the same tag could read); `mcpb-tool-cli` goes from two `@latest` installs to a single install pinned at commit `3cdeb94c` (supply-chain hardening for the MCP Registry publishing path, reproducible versions); docker.yml excludes `-registry`/`-preview` tags at trigger time (job-level guard retained). On a cache miss the release falls back to ordinary module downloads; the publishing matrices (Release four platforms / GHCR two platforms / MCPB follows Release) are unchanged
+- **release.yml write permissions narrowed** (post-absorb adaptation): workflow-level `contents: write` becomes `contents: read`, with write permissions moved down to the release and publish-registry jobs; the build job stays read-only
+
 ## v3.8.1 — 2026-10-15 (Result delivery and source state fixes)
 
 > Branch `feat/absorb-pr20`: absorbs [PR #20](https://github.com/daidaiJ/websearch-mcpserver/pull/20) by [@MattLYT](https://github.com/MattLYT) (Matt.Li), a follow-up to v3.8.0. The original commit keeps its authorship (merge `1b12267`); a follow-up hardening commit adds race elimination, progress batching and read-hotspot optimizations.

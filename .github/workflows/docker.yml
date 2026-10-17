@@ -13,6 +13,8 @@ on:
   push:
     tags:
       - 'v*'
+      - '!v*-registry'
+      - '!v*-preview*'
 
 permissions:
   contents: read
