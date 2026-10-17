@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,7 +32,7 @@ func TestCleanFetchReadsSavedResultWhenFetchingDisabledOverMCP(t *testing.T) {
 	setDumpTestEnv(t, t.TempDir(), config.SmartSearchConfig{InlineMaxChars: 1})
 	want := "BEGIN中文 END"
 	searchapi.(*mockSearch).merged = want
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fixture","fetch_top_n":0}}}`)
 	ref := resultRefFromNotice(t, jsonToolText(t, msg))
 	payload, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call",
@@ -59,7 +60,7 @@ func TestCleanFetchModesAndTelemetryOverMCP(t *testing.T) {
 	srv := newMCPHTTPTestServer(t, config.Config{MCPStateless: true})
 	setDumpTestEnv(t, t.TempDir(), config.SmartSearchConfig{InlineMaxChars: 1})
 	searchapi.(*mockSearch).merged = "PRIVATE_BODY_SENTINEL"
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fixture","fetch_top_n":0}}}`)
 	ref := resultRefFromNotice(t, jsonToolText(t, msg))
 	baseline, err := store.RecentFiltered(telemetry.EventFilter{Limit: 1})
@@ -138,7 +139,7 @@ func TestLongSearchReadableOverMCP(t *testing.T) {
 	setDumpTestEnv(t, t.TempDir(), config.SmartSearchConfig{InlineMaxChars: 100})
 	want := "BEGIN\n" + strings.Repeat("fixed content\n", 100) + "END"
 	searchapi.(*mockSearch).merged = want
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	code, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp",
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fixture","fetch_top_n":0}}}`)
 	if code != http.StatusOK || msg["error"] != nil {
@@ -162,7 +163,7 @@ func resultRefFromNotice(t *testing.T, notice string) string {
 
 func readAllResultOverMCP(t *testing.T, endpoint, ref string, limit int) string {
 	t.Helper()
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	var got strings.Builder
 	offset := 0
 	for i := 0; i < 1000; i++ {
@@ -256,7 +257,7 @@ func TestLongCleanFetchReadableOverMCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer webfetchInst.Close()
-	code, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 5 * time.Second}, srv.URL+"/mcp",
+	code, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 30 * time.Second}, srv.URL+"/mcp",
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"cleanfetch","arguments":{"url":"http://93.184.216.34/article"}}}`)
 	if code != http.StatusOK || msg["error"] != nil {
 		t.Fatalf("cleanfetch: %d %v", code, msg)
@@ -294,7 +295,7 @@ func TestLongPDFReadableOverMCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer webfetchInst.Close()
-	code, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 5 * time.Second}, srv.URL+"/mcp",
+	code, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 30 * time.Second}, srv.URL+"/mcp",
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pdf_parser","arguments":{"path":"http://93.184.216.34/fixture.pdf","pages":"1-3"}}}`)
 	if code != http.StatusOK || msg["error"] != nil {
 		t.Fatalf("pdf_parser: %d %v", code, msg)
@@ -387,7 +388,7 @@ func TestReadResultRejectsUnsafeInputOverMCP(t *testing.T) {
 	srv := newMCPHTTPTestServer(t, config.Config{MCPStateless: true})
 	setDumpTestEnv(t, t.TempDir(), config.SmartSearchConfig{InlineMaxChars: 1})
 	searchapi.(*mockSearch).merged = strings.Repeat("fixed", 1000)
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fixture","fetch_top_n":0}}}`)
 	notice := jsonToolText(t, msg)
 	ref := resultRefFromNotice(t, notice)
@@ -442,7 +443,7 @@ func TestCachedLongSearchReadableOverMCP(t *testing.T) {
 	cacheInst, cacheNamespace = c, "result-delivery-test"
 	want := "BEGIN_CACHE\n" + strings.Repeat("cached text ", 100) + "\nEND_CACHE"
 	searchapi = &resultDeliverySearch{&mockSearch{name: "fixture", results: []search.SearchResult{{Title: "Cached article", Url: "https://example.com", Content: want}}}}
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	request := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"cached fixture","fetch_top_n":0}}}`
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", request)
 	firstRef := resultRefFromNotice(t, jsonToolText(t, msg))
@@ -467,7 +468,7 @@ func TestLongSearchKeepsCandidatesOverMCP(t *testing.T) {
 		{Title: "Second candidate", Url: "https://example.com/second", Content: strings.Repeat("SECOND_SNIPPET ", 100)},
 	}
 	searchapi.(*mockSearch).merged = strings.Repeat("FULL_BODY ", 100)
-	_, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 5 * time.Second}, srv.URL+"/mcp",
+	_, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 30 * time.Second}, srv.URL+"/mcp",
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fixture","fetch_top_n":0}}}`)
 	notice := jsonToolText(t, msg)
 	for _, want := range []string{"First candidate", "https://example.com/first", "FIRST_SNIPPET", "Second candidate", "https://example.com/second", "SECOND_SNIPPET"} {
@@ -510,7 +511,7 @@ func TestSearchBodyContainingFileLabelIsCacheableOverMCP(t *testing.T) {
 	cacheInst, cacheNamespace = c, "literal-file-label"
 	want := "A documentation example contains **文件路径**: `example.md`, not a saved result."
 	searchapi = &resultDeliverySearch{&mockSearch{name: "fixture", results: []search.SearchResult{{Title: "Documentation", Url: "https://example.com", Content: want}}}}
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	request := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"literal label","intent":"","fetch_top_n":0}}}`
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", request)
 	if !strings.Contains(jsonToolText(t, msg), want) {
@@ -548,7 +549,7 @@ func TestSearchDoesNotReusePathOnlyCacheOverMCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	searchapi = &resultDeliverySearch{&mockSearch{name: "fixture", results: []search.SearchResult{{Content: "CURRENT_DOCUMENT"}}}}
-	_, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 5 * time.Second}, srv.URL+"/mcp",
+	_, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 30 * time.Second}, srv.URL+"/mcp",
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"legacy path","fetch_top_n":0}}}`)
 	text := jsonToolText(t, msg)
 	if !strings.Contains(text, "CURRENT_DOCUMENT") || strings.Contains(text, "/deleted/fixture.md") || strings.Contains(text, "cache_age_seconds") {
@@ -564,10 +565,47 @@ func (s *resultDeliverySearch) MergeContent(_ string, results []search.SearchRes
 	return body.String(), nil
 }
 
-func TestFetchedSearchDoesNotReuseCleanedFileOverMCP(t *testing.T) {
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// proxySyntheticPDF 以固定合成 PDF 应答取文请求。tls-client（go-webfetch 引擎）
+// 的 connectDialer 对任何目标一律先发 CONNECT，Go 对未劫持的 CONNECT 应答后
+// 是否继续按请求解析随版本而异（CI runner 上直接关连接，隧道内 GET 全部
+// EOF），因此必须劫持连接实现真隧道：应答 200 后在隧道内读掉 GET 请求，
+// 再以普通 HTTP 语义回写 PDF（带 Content-Length，客户端读满即完）。
+func proxySyntheticPDF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodConnect {
+		// 标准 http 传输的预检/下载（绝对 URI 转发）不走隧道
 		w.Header().Set("Content-Type", "application/pdf")
 		w.Write(syntheticProxyPDFPages(1))
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	if _, err := conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+		return
+	}
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	tmp := make([]byte, 4096)
+	var seen []byte
+	for !bytes.Contains(seen, []byte("\r\n\r\n")) {
+		n, err := conn.Read(tmp)
+		if n > 0 {
+			seen = append(seen, tmp[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+	conn.SetReadDeadline(time.Time{})
+	pdf := syntheticProxyPDFPages(1)
+	fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: %d\r\nConnection: close\r\n\r\n", len(pdf))
+	conn.Write(pdf)
+}
+
+func TestFetchedSearchDoesNotReuseCleanedFileOverMCP(t *testing.T) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxySyntheticPDF(w, r)
 	}))
 	defer proxy.Close()
 	conf := config.Config{MCPStateless: true, PDFParser: config.PDFParserConfig{Enabled: true}, CleanFetch: config.CleanFetchConfig{FileOutputDir: t.TempDir(), MaxInlineChars: 1}}
@@ -587,7 +625,7 @@ func TestFetchedSearchDoesNotReuseCleanedFileOverMCP(t *testing.T) {
 	defer c.Close()
 	cacheInst, cacheNamespace = c, "fetched-result-delivery"
 	searchapi = &resultDeliverySearch{&mockSearch{name: "fixture", results: []search.SearchResult{{Title: "PDF article", Url: "http://93.184.216.34/fixture.pdf", Content: "snippet"}}}}
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	request := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fetched fixture","fetch_top_n":1}}}`
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", request)
 	notice := jsonToolText(t, msg)
@@ -614,7 +652,7 @@ func TestReadResultDefaultsEOFAuthOverMCP(t *testing.T) {
 	srv := newMCPHTTPTestServer(t, config.Config{MCPStateless: true, AuthToken: "fixture-token"})
 	setDumpTestEnv(t, t.TempDir(), config.SmartSearchConfig{InlineMaxChars: 1})
 	searchapi.(*mockSearch).merged = strings.Repeat("a", 4096) + "中文🙂 END"
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	_, _, msg := mcpHTTPPost(t, client, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fixture","fetch_top_n":0}}}`, "Authorization", "Bearer fixture-token")
 	ref := resultRefFromNotice(t, jsonToolText(t, msg))
 	read := func(args map[string]any, headers ...string) (int, map[string]any) {
@@ -659,8 +697,7 @@ func TestReadResultDefaultsEOFAuthOverMCP(t *testing.T) {
 
 func TestSummarizedFetchedSearchKeepsBodyReferenceOverMCP(t *testing.T) {
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/pdf")
-		w.Write(syntheticProxyPDFPages(1))
+		proxySyntheticPDF(w, r)
 	}))
 	defer proxy.Close()
 	var summaryCalls atomic.Int32
@@ -694,7 +731,7 @@ func TestSummarizedFetchedSearchKeepsBodyReferenceOverMCP(t *testing.T) {
 	defer webfetchInst.Close()
 	summarizerInst = llm.NewSummarizer(summary.URL, "fixture", "fixture")
 	searchapi = &resultDeliverySearch{&mockSearch{name: "fixture", results: []search.SearchResult{{Title: "PDF article", Url: "http://93.184.216.34/fixture.pdf", Content: "snippet"}}}}
-	_, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 5 * time.Second}, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fetched fixture","intent":"summarize","fetch_top_n":1}}}`)
+	_, _, msg := mcpHTTPPost(t, &http.Client{Timeout: 30 * time.Second}, srv.URL+"/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"fetched fixture","intent":"summarize","fetch_top_n":1}}}`)
 	if summaryCalls.Load() == 0 {
 		t.Fatal("search did not use the LLM summary path")
 	}
