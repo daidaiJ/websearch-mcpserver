@@ -12,6 +12,7 @@
   - [Claude Code](#claude-code)
   - [Qwen Code](#qwen-code)
   - [Cursor / 其他客户端](#cursor--其他客户端)
+  - [可选：Parallel Search MCP](#可选parallel-search-mcp)
 - [stdio CLI 接入](#stdio-cli-接入)
 - [Agent 快速部署](#agent-快速部署)
 - [运维](#运维)
@@ -220,6 +221,51 @@ Skill 只从明确的当前工作区、项目名或已确认项目根目录获�
   }
 }
 ```
+
+### 可选：Parallel Search MCP
+
+本地网页引擎被拦截，或希望对照另一组来源时，可在 `websearch` 旁接入 [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)。它提供免费的网页搜索（Fast 模式）和网页抓取，无需账号或 API Key；匿名使用有速率限制。
+
+以下命令在 MCP 客户端的当前项目范围内将其注册为独立服务器。它不参与 websearch-mcpserver 的引擎融合、缓存或自动回退链，需要时明确选择对应服务器的工具。发送给 Parallel 的查询和 URL 由远程服务处理。
+
+**Claude Code**：
+
+```bash
+claude mcp add --scope project --transport http parallel-search https://search.parallel.ai/mcp \
+  --header "User-Agent: websearch-mcpserver"
+```
+
+**Qwen Code**：
+
+```bash
+qwen mcp add --scope project --transport http parallel-search https://search.parallel.ai/mcp \
+  --header "User-Agent: websearch-mcpserver"
+```
+
+也可将以下条目合并到 `~/.qwen/settings.json` 已有的 `mcpServers` 对象中（项目级配置为 `.qwen/settings.json`）：
+
+```json
+{
+  "mcpServers": {
+    "parallel-search": {
+      "httpUrl": "https://search.parallel.ai/mcp",
+      "headers": {
+        "User-Agent": "websearch-mcpserver"
+      }
+    }
+  }
+}
+```
+
+保留原有 `websearch` 条目及其本地鉴权头，不要将其中的 `Authorization` 头复制到 `parallel-search`。
+
+重启客户端后用 `/mcp` 检查：应同时列出 `websearch` 和 `parallel-search`。Parallel 提供 `web_search` 和 `web_fetch`；本地服务仍提供 `smartsearch`、`academicsearch`、`cleanfetch`、`pdf_parser` 和 `file_search`（启用时）。可以尝试：
+
+> 使用 parallel-search 的 web_search 查找当前 MCP 传输协议文档，再用它的 web_fetch 阅读官方规范，并附上来源 URL。
+
+本地引擎融合、学术检索、PDF 解析和本地文件搜索仍使用 `websearch`。注册 Parallel 不会让现有 Skill 或 web-researcher 扩展自动切换工具。Parallel 提示限流时，等待后重试，或选择本地工具。
+
+仅移除可选服务器时，执行 `claude mcp remove --scope project parallel-search` 或 `qwen mcp remove --scope project parallel-search`。若通过 JSON 添加到用户级配置，则从对应设置文件移除该条目。
 
 ---
 

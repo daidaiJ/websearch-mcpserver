@@ -12,6 +12,7 @@
   - [Claude Code](#claude-code)
   - [Qwen Code](#qwen-code)
   - [Cursor / Other Clients](#cursor--other-clients)
+  - [Optional Parallel Search MCP](#optional-parallel-search-mcp)
 - [stdio CLI](#stdio-cli)
 - [Agent Quick Deploy](#agent-quick-deploy)
 - [Operations](#operations)
@@ -220,6 +221,51 @@ Existing `X-WebSearch-Project` / `X-WebSearch-Client` headers remain available f
   }
 }
 ```
+
+### Optional Parallel Search MCP
+
+If a local web engine is blocked or you want another source for comparison, connect [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) alongside `websearch`. It offers free web search (Fast mode) and page fetching without an account or API key, with rate limits for anonymous use.
+
+The commands below add it as a separate server for the current project in your MCP client. It does not participate in websearch-mcpserver's engine fusion, cache or automatic fallback chain; choose the server's tools explicitly when needed. Queries and URLs sent to Parallel are processed by a remote service.
+
+**Claude Code**:
+
+```bash
+claude mcp add --scope project --transport http parallel-search https://search.parallel.ai/mcp \
+  --header "User-Agent: websearch-mcpserver"
+```
+
+**Qwen Code**:
+
+```bash
+qwen mcp add --scope project --transport http parallel-search https://search.parallel.ai/mcp \
+  --header "User-Agent: websearch-mcpserver"
+```
+
+Or merge this entry into the existing `mcpServers` object in `~/.qwen/settings.json` (project scope: `.qwen/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "parallel-search": {
+      "httpUrl": "https://search.parallel.ai/mcp",
+      "headers": {
+        "User-Agent": "websearch-mcpserver"
+      }
+    }
+  }
+}
+```
+
+Keep the existing `websearch` entry, including any local authentication headers. Do not copy its `Authorization` header to `parallel-search`.
+
+Restart your client and check `/mcp`: both `websearch` and `parallel-search` should be listed. Parallel exposes `web_search` and `web_fetch`; the local server keeps `smartsearch`, `academicsearch`, `cleanfetch`, `pdf_parser` and `file_search` (when enabled). Try:
+
+> Use parallel-search's web_search to find the current MCP transport documentation, then use its web_fetch to read the official specification. Include the source URL.
+
+Use `websearch` for local engine fusion, academic search, PDF parsing and local files. Registering Parallel does not make existing skills or the web-researcher extension switch tools automatically. If Parallel reports a rate limit, wait before retrying or select the local tools.
+
+To remove only the optional server, run `claude mcp remove --scope project parallel-search` or `qwen mcp remove --scope project parallel-search`. For a user-level JSON entry, remove the entry from that settings file instead.
 
 ---
 
