@@ -172,6 +172,10 @@ GET /__admin/api/calls defaults to at most 100 tool rows and accepts tool, provi
 
 Recognized DBLP Anubis challenge pages are recorded as human-verification failures for both tool and provider, not ordinary empty searches. When no usable results remain and engines have failed, their individual reasons are retained. Historical parse-failure events are unchanged. Detection does not bypass upstream verification or automatically change source switches or actual cooldowns.
 
+### External observability (Prometheus)
+
+`GET /metrics` is served by the main service (independent of the dashboard access boundary) and renders today's tool/provider request, success/failure, cache-hit counts and latency buckets in Prometheus text format, sourced from the same privacy-preserving telemetry store. With the dashboard disabled (`dashboard.enabled: false`) the endpoint returns 503. It is read-only, accepts GET/HEAD only, and exposes no raw queries, URLs or secrets; the contract lives in [docs/api.en.md](api.en.md#observability-endpoint).
+
 ## Source management and saving
 
 Settings offer `hybrid`, `engine`, `apipool` and a single-provider entry. The latter selects `baidu`, `tavily`, `exa`, `anysearch` or `doubao`, saving the original `mode` value without migrating existing configurations. Single-provider means provider preference, not removal of existing fallbacks. Mode and selected-provider information markers support hover, keyboard focus and click, based on the [v3.7.0 search-mode reference](https://github.com/daidaiJ/websearch-mcpserver/blob/v3.7.0/docs/search.md#搜索模式) with local source-switch constraints. API dispatch depends on its strategy and weights. Advanced academic network environment controls only the academic adapter region, not Doubao or all web-result geography. Desktop settings use independent content-height columns: common settings and appearance/maintenance on the left, credentials and quotas on the right, without equal-height panels. Narrow screens use one column.

@@ -48,9 +48,9 @@ const (
 	GoogleNews      = "googlenews"
 	Google          = "google"
 	DuckDuckGo      = "duckduckgo"
-	Web             = "web"          // 通用外网连通性
-	Ruanyifeng      = "ruanyifeng"   // ruanyifeng.com 博客
-	WmySkxz         = "wmyskxz"      // wmyskxz.cn
+	Web             = "web"        // 通用外网连通性
+	Ruanyifeng      = "ruanyifeng" // ruanyifeng.com 博客
+	WmySkxz         = "wmyskxz"    // wmyskxz.cn
 )
 
 var probeURLs = map[string]string{
@@ -198,6 +198,15 @@ func classify(err error) string {
 	} {
 		if strings.Contains(msg, s) {
 			return "blocked/出口 IP 被反爬拦截"
+		}
+	}
+
+	// 上游限流：服务端窗口限流属于场景类失败，auto 模式应跳过而非判回归
+	for _, s := range []string{
+		"429", "rate limit", "rate-limit", "too many requests", "HTTP 202",
+	} {
+		if strings.Contains(msg, s) {
+			return "rate_limited/上游限流"
 		}
 	}
 

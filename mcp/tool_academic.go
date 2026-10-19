@@ -77,7 +77,12 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 	}
 
 	log.Infof("学术搜索: query=%s, engines=%v, timeRange=%s, page=%d", query, engines, timeRange, page)
-	res, err := academicSearcher.SearchAcademicRaw(query, opts)
+	var res search.AcademicSearchResult
+	if ctxSearcher, ok := academicSearcher.(search.ContextAcademicSearcher); ok {
+		res, err = ctxSearcher.SearchAcademicRawContext(ctx, query, opts)
+	} else {
+		res, err = academicSearcher.SearchAcademicRaw(query, opts)
+	}
 	attempted := res.AttemptedEngines
 	attemptsKnown := attempted != nil
 	if !attemptsKnown {

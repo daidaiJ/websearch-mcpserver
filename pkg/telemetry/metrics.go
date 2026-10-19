@@ -54,6 +54,9 @@ func (s *Store) Metrics(buckets []float64) (MetricsSnapshot, error) {
 		if kind == "provider" {
 			target, name = sources, provider
 		}
+		if kind != "tool" && kind != "provider" {
+			continue // guard 等观测事件不参与请求计数
+		}
 		if name == "" {
 			continue
 		}

@@ -8,6 +8,7 @@
 - [HTTP API](#http-api)
   - [MCP 端点](#mcp-端点)
   - [SearXNG 兼容端点](#searxng-兼容端点)
+  - [观测端点](#观测端点)
   - [Admin 端点](#admin-端点)
 
 ---
@@ -175,6 +176,7 @@ MCP 客户端通过此端点完成协议握手、工具列表获取和工具调�
 四个工具共用统一响应契约（完整说明见 [docs/search.md](search.md#响应行为与可靠性)）：
 
 - 响应末尾附结构化失败清单（引擎 / 失败类型 `timeout`·`rate_limit`·`challenge`·`off_topic`·`error` / 短原因），空结果可归因，失败清单不受任何预算或落盘裁剪；结果稀疏（≤3 条）时附过滤诊断
+- 请求 context 全程下传各引擎：客户端断连即停止等待；`smartsearch.engine_timeout_sec`（默认 10s）为单引擎软超时，超时引擎按 `timeout` 进失败清单，其余引擎结果照常返回
 - 结果日期带 `date_source` 三态来源注记，响应头含 `retrieved_at` / `cache_age_seconds` 与固定 `usage_note`
 - 渲染结果超 `smartsearch.inline_max_chars`（默认 32768）时整体落盘 `fetchdata/search-*.md`，响应内保留溯源头、统计、候选标题/URL/来源/短摘录与 `result_ref`。网页/PDF 落盘同样提供引用；常规读取通过 MCP，无需客户端访问容器文件
 - 同一端点挂载只读 Resource `search://capabilities` 与 `search://health`（不占工具槽位、不带密钥，`mcp_resources` 可关）
@@ -253,6 +255,21 @@ search_tools:
       search_provider: searxng
       api_base: http://localhost:8338/searxng
 ```
+
+---
+
+### 观测端点
+
+| 属性 | 值 |
+|------|-----|
+| 路径 | `GET /metrics` |
+| Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
+
+Prometheus / OpenMetrics 文本格式的只读聚合：今日 MCP 工具调用（按工具名）与搜索供应商调用（按供应商名）的请求数、成功/失败数、缓存命中数、延迟分桶，数据全部来自遥测库的脱敏记录（查询只存哈希与关键词，不含 URL、原文或密钥），不做主动探测。
+
+- 需 `dashboard.enabled: true`（遥测库随控制中心启用）；未启用返回 503。
+- 端点只读，与写操作守卫无关；只接受 `GET` / `HEAD`。
+- 示例：`curl -s http://127.0.0.1:8338/metrics`
 
 ---
 

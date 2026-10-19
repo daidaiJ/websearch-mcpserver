@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"websearch/pkg/antirobot"
 )
@@ -36,9 +35,15 @@ func (a *EngineSearchAdapter) Search(query string) (string, error) {
 }
 
 func (a *EngineSearchAdapter) SearchRaw(query string) ([]core.SearchResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	return a.SearchRawContext(context.Background(), query)
+}
 
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 antirobot 编排层，
+// 客户端断连或请求死线到达即停止等待。
+func (a *EngineSearchAdapter) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	responses := a.searcher.Search(ctx, query, 1)
 
 	var all []antirobot.Result

@@ -31,7 +31,14 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no search engine available", http.StatusServiceUnavailable)
 		return
 	}
-	ret, err := defaultInf.SearchRaw(query)
+	ctx := r.Context()
+	var ret []search.SearchResult
+	var err error
+	if cs, ok := defaultInf.(search.ContextSearcher); ok {
+		ret, err = cs.SearchRawContext(ctx, query)
+	} else {
+		ret, err = defaultInf.SearchRaw(query)
+	}
 	if err != nil {
 		responseError(w, 5001, fmt.Sprintf("%s", err.Error()))
 		return

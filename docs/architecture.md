@@ -24,7 +24,7 @@
 **关键设计**：
 
 - **单一配置源** — HTTP daemon 与 stdio CLI 共用同一 YAML 配置（`pkg/config`），`mode` 决定搜索引擎组如何构建
-- **引擎即接口** — 所有引擎实现统一 `SearchInf` 接口，`pkg/search/factory.go` 按模式组装；`HybridSearchImpl` 负责多引擎并发编排
+- **引擎即接口** — 所有引擎实现统一 `SearchInf` 接口，`pkg/search/factory.go` 按模式组装；`HybridSearchImpl` 负责多引擎并发编排，请求 context 全程下传（可选 `ContextSearcher`/`ContextTimeRanger`），并为每个引擎设置软超时
 - **纯 Go 无 CGO** — SQLite 使用 `modernc.org/sqlite`，单二进制部署
 - **发布矩阵拆分** — GitHub Release：linux/windows amd64 + darwin amd64/arm64；GHCR：`linux/amd64,linux/arm64`；MCP Registry mcpb 走 `-registry` 后缀 tag 的独立 Release 页（server.json 下载链接指向该页，base Release 只放二进制）。先打普通 tag（`vX.Y.Z`）发 Release 并推镜像；发完后再单独打 `-registry` 后缀 tag 发 MCP Registry，不要和版本 tag 一起推。后补 tag 钉同一 commit。linux-arm64 用镜像，不要在 Release 里补 linux-arm64 二进制来「对齐」
 
@@ -66,7 +66,7 @@
 
 ## 缓存
 
-- SQLite WAL 模式，`cache.storage_path` 指定存储路径
+- SQLite WAL 模式（`busy_timeout` + `synchronous=NORMAL`，4 连接池：读与读不互斥，写冲突排队），`cache.storage_path` 指定存储路径
 - 6h 过期（基于最近命中时间），30min 定时清理
 - 学术 / 非学术结果按参数区分，防止混用
 - `cache.enabled` 显式开关：不设置时按 `storage_path` 是否非空判断（向后兼容）；显式 `false` 强制禁用；显式 `true` 强制启用

@@ -2,6 +2,8 @@ package provider
 
 import (
 	"websearch/pkg/search/core"
+
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -20,7 +22,7 @@ const anysearchAPIEndpoint = "https://api.anysearch.com/v1/search"
 // 此时请求受保守固定限流钳制，失败不包装 KeyError（无 Key 可归责/失效）。
 type AnysearchSearchImpl struct {
 	name           string
-	keys           *KeyPool              // nil = 匿名档
+	keys           *KeyPool               // nil = 匿名档
 	anonLimiter    *antirobot.RateLimiter // 仅匿名档启用（上游未公布 IP 档阈值，取保守固定值）
 	numResults     int
 	excludeDomains []string
@@ -78,12 +80,22 @@ func (a *AnysearchSearchImpl) Search(query string) (string, error) {
 }
 
 func (a *AnysearchSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	return a.search(context.Background(), query)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 HTTP 请求。
+func (a *AnysearchSearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return a.search(ctx, query)
+}
+
+func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	req := anysearchSearchReq{
 		Query:      query,
 		MaxResults: a.numResults,
 	}
 	var resp anysearchSearchResp
 	call := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).
 		SetResult(&resp)

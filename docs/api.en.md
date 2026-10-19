@@ -8,6 +8,7 @@
 - [HTTP API](#http-api)
   - [MCP Endpoint](#mcp-endpoint)
   - [SearXNG Compatible Endpoint](#searxng-compatible-endpoint)
+  - [Observability Endpoint](#observability-endpoint)
   - [Admin Endpoints](#admin-endpoints)
 
 ---
@@ -175,6 +176,7 @@ Local `pdf_parser.path` values must be visible to the service process. Docker ca
 All four tools share a unified response contract (full details in [docs/search.en.md](search.en.md#response-behavior--reliability)):
 
 - The response ends with a structured failure list (engine / failure kind `timeout`·`rate_limit`·`challenge`·`off_topic`·`error` / short reason), so empty results are explainable; the list is exempt from any budget or dump trimming, and sparse results (≤3) carry filter diagnostics
+- The request context flows through to every engine, so a client disconnect stops the wait; `smartsearch.engine_timeout_sec` (default 10s) is a per-engine soft timeout — a timed-out engine is reported as `timeout` in the failure list while other engines still return results
 - Result dates carry a `date_source` provenance state; response headers include `retrieved_at` / `cache_age_seconds` and a fixed `usage_note`
 - Oversize search results retain provenance, counts, candidate titles/URLs/sources/short excerpts and `result_ref`; saved webpage/PDF bodies also provide a reference. Use MCP to read the body without client access to container files
 - The same endpoint mounts read-only Resources `search://capabilities` and `search://health` (no tool slots, no secrets; `mcp_resources` disables them)
@@ -253,6 +255,21 @@ search_tools:
       search_provider: searxng
       api_base: http://localhost:8338/searxng
 ```
+
+---
+
+### Observability Endpoint
+
+| Property | Value |
+|------|-----|
+| Path | `GET /metrics` |
+| Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
+
+Read-only aggregates in Prometheus / OpenMetrics text format: today's MCP tool calls (by tool name) and search provider calls (by provider name) with request, success/failure, cache-hit counts and latency buckets. All data comes from the privacy-preserving telemetry store (queries are stored as hashes and keywords only; no URLs, raw text or secrets) and nothing is actively probed.
+
+- Requires `dashboard.enabled: true` (the telemetry store ships with the dashboard); otherwise 503.
+- Read-only and independent of the write guard; accepts `GET` / `HEAD` only.
+- Example: `curl -s http://127.0.0.1:8338/metrics`
 
 ---
 

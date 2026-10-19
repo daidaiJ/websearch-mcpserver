@@ -197,12 +197,12 @@ func DeduplicateResults(results []Result) []Result {
 	return out
 }
 
-// resultKey 结果去重键：DOI 优先，无 DOI 回退 URL（保持原有精确匹配语义）。
+// resultKey 结果去重键：DOI 优先，无 DOI 回退归一化 URL（scheme/追踪参数/尾斜杠不敏感）。
 func resultKey(r Result) string {
 	if doi := NormalizeDOI(r.DOI); doi != "" {
 		return "doi:" + doi
 	}
-	return "url:" + r.URL
+	return "url:" + NormalizeURL(r.URL)
 }
 
 // NormalizeDOI 归一化 DOI：小写、去 DOI 解析站前缀。

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"websearch/pkg/client"
 	"websearch/pkg/search/core"
@@ -97,6 +98,15 @@ func lookbackDaysToRecency(days int) string {
 }
 
 func (b *BaiduSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	return b.search(context.Background(), query)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 HTTP 请求。
+func (b *BaiduSearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return b.search(ctx, query)
+}
+
+func (b *BaiduSearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	req := baiduSearchReq{
 		Message:      []baiduSearchMsg{{Content: query, Role: "user"}},
 		SearchSource: "baidu_search_v2",
@@ -106,7 +116,7 @@ func (b *BaiduSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
 	}
 	rep := baidSearchReponse{}
 	key := b.keys.Next()
-	res, err := client.DefaultClient.R().SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
+	res, err := client.DefaultClient.R().SetContext(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
 	if err != nil {
 		return nil, &KeyError{Key: key, Err: fmt.Errorf("百度搜索api 调用失败，%w", err)}
 	}

@@ -136,6 +136,8 @@ smartsearch:
 
 **失败清单（空结果可归因）**：主引擎失败不再静默回退，响应末尾附结构化失败清单——引擎名、失败类型（`timeout` / `rate_limit`（含剩余冷却秒数）/ `challenge` / `off_topic` / `error`）与短原因；被墙/熔断引擎带原因与预计恢复时间。失败清单不写入缓存、不受任何预算或落盘裁剪，与学术搜索逐引擎错误透传统一。
 
+**请求取消与单引擎软超时**：MCP 请求的 context 全程下传搜索编排层与各引擎的 HTTP 请求，客户端断连或请求死线到达即停止等待，不再由后台慢引擎拖住整次调用。`smartsearch.engine_timeout_sec`（默认 10 秒）为单引擎软超时：超时引擎按 `timeout` 进失败清单，其余引擎结果照常返回；旧式引擎实现同样受此保护（放弃等待，不在请求路径上继续阻塞）。
+
 **过滤诊断（filter_diagnostics）**：过滤后结果 ≤3 条时，附各过滤器（全局阈值 / MMR / per-engine score 等）的丢弃计数与放宽提示，用于区分"没搜到"与"被过滤"。
 
 **off-topic 整桶守卫（`smartsearch.off_topic_guard`）**：某引擎整桶与查询词几乎无词汇对齐（HTTP 200 诱饵页特征）时判 `off_topic` 进失败清单。三态：`shadow`（默认，只记录不丢桶，为阈值校准积累数据）/ `enforce`（真丢桶）/ `off`。
@@ -152,6 +154,10 @@ smartsearch:
 
 **运行状态 Resource**：`search://capabilities`（版本 / 引擎清单 / 能力）与 `search://health`（引擎健康 / 熔断 / 缓存命中）以只读 MCP Resource 暴露，不占工具槽位、响应不带任何密钥；`mcp_resources: false` 整体关闭（默认开启）。
 
+**off-topic 校准回放**：`shadow` 模式下的守卫判定会以 `guard` 事件落入遥测库（只存模式、参照回声率与各引擎桶的「回声率/条数」，不含 URL 与原文）。`go run ./tools/guardreplay -db <dashboard.db>` 按 0.15/0.25/0.35/0.5 等候选阈值回放，输出「若 enforce 会丢弃哪些桶、影响多少查询」与样例，用于把阈值从初值校准到实测值；`-json` 输出机器可读结果。
+
+**Prometheus 观测**：`GET /metrics` 以标准文本格式暴露今日工具/供应商请求数、成功失败、缓存命中与延迟分桶（只读、脱敏，来自遥测库；需 `dashboard.enabled: true`）。详见 [docs/api.md](api.md#观测端点)。
+
 ---
 
 ## SmartSearch 高级配置
@@ -166,6 +172,9 @@ smartsearch:
   show_meta: true        # 输出中显示引擎来源和相关性分数（默认 true）
   enhance: true          # 本地评分增强（RRF 融合 + 词汇对齐 + 域名品质 + 多层 Boost + 阀值过滤），默认 true
   relevance_threshold: 0.05  # 增强后相关性阀值，低于此值过滤（Top-1 保护），默认 0.05
+  inline_max_chars: 32768    # 内联渲染上限；超限落盘（0=默认，负数=禁用落盘）
+  off_topic_guard: shadow    # off-topic 整桶守卫：shadow（默认只记录）/ enforce / off
+  engine_timeout_sec: 10     # 单引擎软超时（秒），超时引擎按 timeout 进失败清单；负数 = 只依赖请求死线
   mmr:                       # MMR 多样性重排（打散同主题高相似结果）
     enabled: true            # 总开关（默认 true）
     lambda: 0.7              # 相关性权重 [0,1]，越高越偏相关性，越低越偏多样性（默认 0.7）

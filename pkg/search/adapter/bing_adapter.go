@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/search/engine/bing"
@@ -38,7 +37,12 @@ func (a *BingSearchAdapter) Search(query string) (string, error) {
 }
 
 func (a *BingSearchAdapter) SearchRaw(query string) ([]core.SearchResult, error) {
-	return a.doSearch(query)
+	return a.doSearch(context.Background(), query)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 antirobot 编排层。
+func (a *BingSearchAdapter) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return a.doSearch(ctx, query)
 }
 
 func (a *BingSearchAdapter) Name() string { return "bing" }
@@ -65,10 +69,10 @@ func (a *BingSearchAdapter) Engines() []string {
 	return a.searcher.Engines()
 }
 
-func (a *BingSearchAdapter) doSearch(query string) ([]core.SearchResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
+func (a *BingSearchAdapter) doSearch(ctx context.Context, query string) ([]core.SearchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	responses := a.searcher.Search(ctx, query, 1)
 
 	var all []antirobot.Result

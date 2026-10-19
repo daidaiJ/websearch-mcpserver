@@ -214,6 +214,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	mcpserver.RegisterRouter(mux, conf)
 	searxng.RegisterRouter(mux, conf)
 	s.registerAdminHandlers(mux, conf, metrics)
+	s.registerMetricsHandler(mux, metrics)
 
 	// 启动缓存清理协程
 	var cleanup *cache.CleanupScheduler
@@ -317,5 +318,6 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 	mcpserver.RegisterRouter(mux, conf)
 	searxng.RegisterRouter(mux, conf)
 	s.registerAdminHandlers(mux, conf, nil)
+	s.registerMetricsHandler(mux, nil)
 	return mux
 }

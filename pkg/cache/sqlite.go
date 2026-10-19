@@ -58,12 +58,14 @@ func New(storagePath string) (*Cache, error) {
 		return nil, fmt.Errorf("创建缓存目录失败: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", storagePath)
+	// WAL 并发读写 + 连接池：读与读不互斥，写冲突由 busy_timeout 排队（对齐 telemetry store 先例）。
+	// PRAGMA 经 DSN 按连接生效：池内每个新连接打开时都会执行，journal_mode=WAL 持久在库文件头。
+	dsn := storagePath + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开 SQLite 失败: %w", err)
 	}
-	// SQLite WAL 模式 + 连接池配置，保证并发安全
-	db.SetMaxOpenConns(1) // SQLite 单写者模式，串行化写操作
+	db.SetMaxOpenConns(4) // WAL 支持多读单写；写事务本身由 SQLite 锁串行化
 
 	// 先建表（首次运行时表不存在）
 	_, err = db.Exec(`

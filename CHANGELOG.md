@@ -4,10 +4,22 @@
 
 ## Unreleased
 
+### 新增
+- **`GET /metrics` 观测端点**：Prometheus/OpenMetrics 文本格式的只读聚合（今日工具/供应商请求数、成功失败、缓存命中、延迟分桶），零新依赖手写渲染，数据来自脱敏遥测库、不含 URL/原文/密钥；需 `dashboard.enabled: true`，未启用返回 503
+- **off-topic 守卫校准回放**：`shadow` 判定落 `guard` 遥测事件（模式、参照回声率、各引擎桶回声率/条数），新增 `go run ./tools/guardreplay -db <dashboard.db>`，按 0.15/0.25/0.35/0.5 等候选阈值输出「若 enforce 会丢弃哪些桶、影响多少查询」与样例，`-json` 供机器消费
+
+### 变更
+- **测试场景分类补上游限流**：`internal/testenv` 把 429 / rate limit 归为场景类失败，DDG 限流测试与 CleanFetch 网络用例改走 `HandleSearchError`——环境限流或站点不可达时跳过，不再误报为回归
+
 ### 修复
+- **并发请求的失败诊断互相串扰**：编排层诊断改为随返回值传递（`core.DiagnosticsSearcher`），`SearchRaw` 旧签名保留单槽兜底；两请求并发时，失败请求只拿到自己的失败清单，成功请求不再被另一请求的引擎失败污染
+- **跨引擎 URL 去重漏合**：新增 `core.NormalizeURL`（scheme/host 小写、去 fragment、剥离 `utm_*`/`fbclid`/`gclid`/`ref`/`spm`、查询参数排序、非根路径去尾斜杠），单引擎内与跨引擎两处去重键及 `antirobot.DeduplicateResults` 共用；同一页面的 scheme/尾斜杠/追踪参数变体不再各占一个 `global_max_size` 名额（展示 URL 保持原样）
+- **SQLite 缓存读被写阻塞**：缓存库启用 WAL + `busy_timeout` + `synchronous=NORMAL`（DSN 按连接生效），连接池由 1 放宽到 4——读与读不再互斥，写冲突由 SQLite 锁排队；此前注释声明 WAL 但实际从未执行 PRAGMA
 - **日志 caller 指向 zerolog 内部**：`pkg/log` 的 `CallerWithSkipFrameCount` 由 1 改为 3（zerolog caller hook 自带 2 层内部帧 + 包级 helper 1 层），caller 字段恢复指向真实调用点，不再出现 `github.com/rs/zerolog@…/event.go:131`
 
 ### CI
+- **SSRF 预检模糊测试进 CI**：`mcp/security_fuzz_test.go` 覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`（种子含十进制/十六进制/八进制回环、IPv4-mapped IPv6、云元数据地址、非 http(s) 协议），`test` job 跑 10s 短窗口
+- **PR CI 增加竞态检测与静态检查**：`test` job 追加 `go test -race -short ./...`（hybrid/apipool/进度聚合是多 goroutine 热区，竞态在普通测试下不可见）；新增 golangci-lint job（v2.12.2，`.golangci.yml`，`--new-from-rev` 只拦新增代码，PR 对比 base、push 对比上一提交），历史存量问题分批还
 - **发布流程去重与模块共享缓存**（[PR #22](https://github.com/daidaiJ/websearch-mcpserver/pull/22)，[@MattLYT](https://github.com/MattLYT)）：新增 `go-module-cache.yml` 在默认分支作用域维护纯模块缓存（push 触碰 go.mod/go.sum 时重建，周一/周四定时保温防 7 天闲置回收，支持手动触发）；release 四平台构建改 restore-only 还原模块（setup-go 关闭混合缓存，不再为每个标签保存只有同一标签可用的缓存）；`mcpb-tool-cli` 从 `@latest` 两次安装改为固定 commit `3cdeb94c` 单次安装（MCP Registry 发布链路供应链加固，版本可复现）；docker.yml 触发层排除 `-registry`/`-preview` 标签（job 级保护保留）。缓存未命中回退普通模块下载，发布矩阵（Release 四平台 / GHCR 两平台 / mcpb 跟 Release）不变
 - **release.yml 写权限收窄**（吸收后适配）：工作流级 `contents: write` 改为 `contents: read`，写权限下放至 release 与 publish-registry 两个 job，build job 仅保留读取
 

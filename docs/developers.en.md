@@ -38,12 +38,12 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | Subpackage | Responsibility | Key interfaces/types |
 |------------|----------------|----------------------|
 | `search` (root) | **Composition root**: `SearchGroup` assembly + public type aliases (external code keeps using `search.SearchResult` etc.) | `NewFromConfig(conf) *SearchGroup`, `SearchGroup{Primary, Fallback, Academic}` |
-| `search/core` | Type-contract leaf: shared by all subpackages, **must not** import other search subpackages | `SearchInf`, `SearchResult`, `SearchTimeRanger`, `AcademicSearcher`, `ScoreBucket`, `FilterByScore/SortByScore`, `FormatMD` result formatters |
+| `search/core` | Type-contract leaf: shared by all subpackages, **must not** import other search subpackages | `SearchInf`, `SearchResult`, `SearchTimeRanger`, `ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`, `DiagnosticsSearcher`/`ContextDiagnosticsSearcher`, `AcademicSearcher`, `ScoreBucket`, `FilterByScore/SortByScore`, `NormalizeURL`, `FormatMD` result formatters |
 | `search/engine` | Low-level web engines (HTTP fetching + anti-bot params), implement `antirobot.Engine` | `Engine` + `Opts` of `baidu/bing/ddg/google` |
 | `search/provider` | API provider adapters (implement `SearchInf`) + key pool | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewBaiduAISearch/NewBaiduSeach`, `KeyPool` (per-provider SK rotation), `KeyError` |
 | `search/adapter` | Adapts "non-API" sources into `SearchInf` | `EngineSearchAdapter` (antirobot.Engine → SearchInf), `BingSearchAdapter`, `BaiduWithFallback`, `AcademicAdapter` |
 | `search/apipool` | Cross-provider rotation strategy (sibling of hybrid) | `ApipoolSearchImpl` (round-robin/priority/weighted), `ApipoolProvider` |
-| `search/hybrid` | Concurrent multi-engine strategy | `HybridSearchImpl` (concurrent calls, dedup & merge, per-engine `EngineFilter`, error logging) |
+| `search/hybrid` | Concurrent multi-engine strategy | `HybridSearchImpl` (concurrent calls, request-context propagation with per-engine soft timeout, dedup & merge, per-engine `EngineFilter`, failure diagnostics) |
 | `search/enhance` | Advanced scoring pipeline (works on `ScoreBucket`, engine-agnostic) | `EnhanceResults/EnhanceResultsMMR` (RRF/domain quality/lexical alignment/rare-terms/consensus boost/threshold), `ApplyMMR`, `EnhanceAcademicResults` (academic signals: citations/venue/PDF/recency) |
 | `search/mode` | Search-mode construction: assembles Primary per `config.mode` | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode`, `InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
 
@@ -172,6 +172,16 @@ The mode is selected by the `WS_TEST_NETWORK` environment variable (default `aut
 Also: `go test -short` always skips network integration tests (takes precedence over `WS_TEST_NETWORK=on`).
 Note: non-scenario errors (engine logic bugs, assertion failures) are **not** swallowed by
 HandleSearchError — they keep failing as usual.
+
+### Fuzz testing (SSRF guards)
+
+`mcp/security_fuzz_test.go` covers the three pure functions `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`, with seeds for decimal/hex/octal loopback, IPv4-mapped IPv6, cloud metadata addresses and non-http(s) schemes. Long local run:
+
+```bash
+go test -run=^$ -fuzz=FuzzValidateURLSecurity -fuzztime=30s ./mcp/
+```
+
+CI runs a 10s window inside the `test` job (the seed corpus always runs with plain `go test`). A new crasher is written to `mcp/testdata/fuzz/`; commit that directory together with the fix.
 
 ## 6. Where to Change What (by flow)
 

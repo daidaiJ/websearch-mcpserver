@@ -24,7 +24,7 @@
 **Key design decisions**:
 
 - **Single config source** — HTTP daemon and stdio CLI share the same YAML config (`pkg/config`); `mode` decides how the engine group is built
-- **Engines as interfaces** — all engines implement the unified `SearchInf` interface; `pkg/search/factory.go` assembles them by mode; `HybridSearchImpl` handles multi-engine concurrent orchestration
+- **Engines as interfaces** — all engines implement the unified `SearchInf` interface; `pkg/search/factory.go` assembles them by mode; `HybridSearchImpl` handles multi-engine concurrent orchestration with request-context propagation (optional `ContextSearcher`/`ContextTimeRanger`) and a per-engine soft timeout
 - **Pure Go, no CGO** — SQLite via `modernc.org/sqlite`, single-binary deployment
 - **Split release matrices** — GitHub Release: linux/windows amd64 + darwin amd64/arm64; GHCR: `linux/amd64,linux/arm64`; MCP Registry mcpb ships on its own `-registry`-suffix Release page (server.json download URLs point there; the base Release holds binaries only). First push a plain tag (`vX.Y.Z`) for the Release and GHCR image; after that is done, separately push a `-registry` suffix tag for the MCP Registry only. Do not push both at once. The follow-up tag stays on the same commit. Use the image for linux-arm64; do not add a GitHub `linux-arm64` binary to "align" the channels
 
@@ -66,7 +66,7 @@ When a proxy is available, overseas services (DuckDuckGo, Semantic Scholar, Goog
 
 ## Caching
 
-- SQLite WAL mode, storage path via `cache.storage_path`
+- SQLite WAL mode (`busy_timeout` + `synchronous=NORMAL`, 4-connection pool: readers do not serialize, write conflicts queue), storage path via `cache.storage_path`
 - 6h expiry (based on last hit), 30min scheduled cleanup
 - Academic / non-academic results are keyed separately to prevent mixing
 - `cache.enabled` explicit switch: unset → inferred from `storage_path` (backward compatible); explicit `false` → force disable; explicit `true` → force enable

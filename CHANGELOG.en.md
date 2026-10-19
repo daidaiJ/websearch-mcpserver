@@ -4,10 +4,22 @@
 
 ## Unreleased
 
+### Added
+- **`GET /metrics` observability endpoint**: read-only aggregates in Prometheus/OpenMetrics text format (today's tool/provider requests, successes/failures, cache hits, latency buckets), rendered by hand with no new dependencies, sourced from the privacy-preserving telemetry store (no URLs, raw text or secrets); requires `dashboard.enabled: true` and returns 503 otherwise
+- **Off-topic guard calibration replay**: `shadow` decisions now record a `guard` telemetry event (mode, reference echo ratio, per-engine bucket echo/count), and the new `go run ./tools/guardreplay -db <dashboard.db>` replays them at candidate thresholds such as 0.15/0.25/0.35/0.5, reporting which buckets enforce would drop and how many queries are affected, with samples; `-json` for machine consumption
+
+### Changed
+- **Upstream rate limiting classified as a scenario failure**: `internal/testenv` now maps 429 / rate limit to a scenario class, and the DDG rate-limit test plus the CleanFetch network case use `HandleSearchError` — environment throttling or an unreachable site skips instead of failing as a regression
+
 ### Fixed
+- **Failure diagnostics leaking across concurrent requests**: orchestration diagnostics now travel with the return value (`core.DiagnosticsSearcher`); the legacy `SearchRaw` signature keeps a single-slot fallback. With two requests in flight, the failing request sees only its own failure list and a successful request is no longer polluted by another request's engine failures
+- **Missed merges in cross-engine URL deduplication**: new `core.NormalizeURL` (lowercase scheme/host, drop fragment, strip `utm_*`/`fbclid`/`gclid`/`ref`/`spm`, sort query parameters, trim trailing slash on non-root paths) is shared by both dedup keys (within-engine and cross-engine) and `antirobot.DeduplicateResults`; scheme/trailing-slash/tracking-parameter variants of one page no longer each consume a `global_max_size` slot (display URLs stay untouched)
+- **SQLite cache reads blocked by writes**: the cache database now enables WAL + `busy_timeout` + `synchronous=NORMAL` (applied per connection via the DSN) and the pool grows from 1 to 4 connections — readers no longer serialize against each other and write conflicts queue on the SQLite lock; the previous comment claimed WAL while no PRAGMA was ever executed
 - **Log caller pointed into zerolog internals**: `pkg/log` `CallerWithSkipFrameCount` changed from 1 to 3 (zerolog's caller hook adds 2 internal frames plus the package-helper layer), so the caller field points at the real call site again instead of `github.com/rs/zerolog@…/event.go:131`
 
 ### CI
+- **SSRF guard fuzzing in CI**: `mcp/security_fuzz_test.go` covers `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast` (seeds include decimal/hex/octal loopback, IPv4-mapped IPv6, cloud metadata addresses and non-http(s) schemes); the `test` job runs a 10s window
+- **Race detection and static checks in PR CI**: the `test` job adds `go test -race -short ./...` (hybrid/apipool/progress aggregation are multi-goroutine hot spots where races stay invisible under ordinary tests); a new golangci-lint job (v2.12.2, `.golangci.yml`, `--new-from-rev` limited to new code — PR against the base, push against the previous commit) lets existing findings be paid down in batches
 - **Release pipeline dedup and shared module cache** ([PR #22](https://github.com/daidaiJ/websearch-mcpserver/pull/22), [@MattLYT](https://github.com/MattLYT)): a new `go-module-cache.yml` maintains a module-only cache in the default-branch scope (rebuilt when go.mod/go.sum change, refreshed on a Mon/Thu schedule against GitHub's 7-day idle eviction, manually dispatchable); the four release build jobs switch to restore-only module restores (setup-go's mixed cache disabled, no more per-tag caches only the same tag could read); `mcpb-tool-cli` goes from two `@latest` installs to a single install pinned at commit `3cdeb94c` (supply-chain hardening for the MCP Registry publishing path, reproducible versions); docker.yml excludes `-registry`/`-preview` tags at trigger time (job-level guard retained). On a cache miss the release falls back to ordinary module downloads; the publishing matrices (Release four platforms / GHCR two platforms / MCPB follows Release) are unchanged
 - **release.yml write permissions narrowed** (post-absorb adaptation): workflow-level `contents: write` becomes `contents: read`, with write permissions moved down to the release and publish-registry jobs; the build job stays read-only
 

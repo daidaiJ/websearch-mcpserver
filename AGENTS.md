@@ -180,23 +180,20 @@ docker build -t websearch-mcpserver .
 
 ## 🔄 Handoff 摘要
 
-### search-upgrade — done（v3.6.2 已发布，2026-10-06）
+> 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前状态、运维待办与待验证项。
 
-- **当前状态：** 按五期拆分推进（用户确认）；**一期已提交 `6aa7ca8`**（P0-1 失败透出统一契约 + P1-6 共识按 family 计票 + P1-7 off-topic 整桶守卫 + P1-8 freshness 缓存 TTL）；**二期已提交 `f6da753`**（P1-4 date_source 三态注记 + P1-5 熔断落盘 + P1-10 Resource 化）；**三期已提交 `9b16ef7`**（P0-2 零 Key 来源扩充：so360 直连可用 / anysearch 匿名档 / wikipedia+googlenews 需代理，逐个出口实测后注册且结论补能力边界表；超限落盘 `smartsearch.inline_max_chars`；P1-7 处置=三态 `off_topic_guard` 默认 shadow（用户拍板）；小修：学术日期 FormatDateSource 注记 + MCP 握手版本对齐；BuildEngineMode/BuildHybridMode 改用 EngineAdapters 命名结构体）；**四期已取消**；**五期已提交（P0-3 插件市场分发经评估后取消——2026-10-06 用户拍板"不折腾插件，等 agent 生态原生支持 mcpb/Registry"，调研结论留档 .handoff；五期落地 = 全量文档同步：docs/search 中英新增「响应行为与可靠性」+ 引擎对照补 so360/wikipedia/google_news + docs/api 响应契约摘要 + README 响应透明行 + 四个 MCP 工具描述补适用边界路由提示）**，已合入 master 并发 v3.6.2（提交按期聚合，一至五期各一个提交）
-- **关键证据：** 计划全文 `docs/plans/2026-10-search-upgrade.md`；一期契约层在 `pkg/search/core/diagnostics.go`
-- **纪律（用户 mid-turn 明示）：** 遵循项目既有设计风格与原则；提交前性能审查（避免负面性能影响的实现）；每期完成即交接
-- **详情指针：** [.handoff/search-upgrade.md](.handoff/search-upgrade.md)
+### 当前状态（2026-10-19）
 
-### file-search — done（v3.7.0 已发布，2026-10-10）
+- `master` 已推送 `da9c285`：优化路线图首批八项落地（R1 context 贯通 + per-engine 软超时、R2 诊断 per-request、R3 缓存并发读、Q1 URL 归一化、Q2 守卫校准回放、O1 `/metrics`、T1 SSRF fuzz、T3 CI race + lint）。全量 `go test ./...`、`go test -race -short ./...`、golangci-lint、actionlint 全绿。
+- 剩余优化项见 [docs/optimization-roadmap.md](docs/optimization-roadmap.md) 待办区：Q3 摘要 token 预算、E1 go-sdk v1.8 升级、T2 引擎解析测试补密度。
+- 待发布：批次 1+3 → `v3.8.x` 补丁版；R1（批次 2）→ `v3.9.0`。`-registry` tag 按发布矩阵在 base Release 就绪后另打。
 
-- **已发布：** `feat/file-search-everything` 合入 master（merge `4f33610`）→ `v3.7.0`（GitHub Release 四平台二进制 + GHCR `3.7.0`/`3.7`/`latest`）→ `v3.7.0-registry`（MCP Registry 已收录 `io.github.daidaiJ/websearch-mcpserver 3.7.0`，4 个 mcpb）
-- **本次改动：** `file_search` 单页返回默认 10、硬上限 20（`everything.max_results` 改默认值，超限收敛并在响应内说明），新增 `page` 分页（过滤后连续切片，候选池触顶有明确提示）；真机集成测试在 `mcp/tool_filesearch_live_test.go`（`WS_EVERYTHING_URL` 门控，未设置即整包跳过，不走 `internal/testenv`）
-- **待办：** 本机部署 `D:\Programs\websearch` 仍跑旧二进制，且 config.yaml 里显式的 `everything.max_results: 50` 会被新硬上限收敛成 20（要默认 10 需删该行或改 10）；registry 缺 `v3.6.1` / `v3.6.2`（历次没打 `-registry` tag），如需补发在自己的原 commit 上补 tag
+### 运维待办
 
-### 未验证事项
-- [x] 候选零 Key 引擎在国内出口的实际可用性 —— 三期已实测（so360 直连✓ / anysearch 匿名档直连✓ / wikipedia+googlenews 代理✓，结论见能力边界表）
-- [x] P1-7 off-topic 守卫处置（2026-10-06 用户拍板：三态 `smartsearch.off_topic_guard`，默认 shadow 只记录不丢弃）；守卫阈值仍未校准，shadow 日志/失败清单为后续校准积累证据
-- [x] 超限落盘小项 + 学术日期注记 + 握手版本对齐 —— 三期已完成
-- [x] 五期：全量文档同步（docs/search/api/README 补一至三期响应行为说明 + 工具描述适用边界）—— 已完成；P0-3 插件市场分发经评估取消（结论见 .handoff）
-- [ ] 三期新引擎真实链路长期回归（验证码页出现频率、anysearch 匿名档限流阈值实测校准、googlenews 回源失败率）
-- [ ] 二期冷却落盘真网冷启动回归（重启后 ddg/arxiv 实际避让）；date_source 新旧行缓存往返实测
+- 本机部署 `D:\Programs\websearch` 仍跑旧二进制；其 config.yaml 显式的 `everything.max_results: 50` 会被硬上限收敛为 20（要默认 10 需删该行或改 10）。
+- MCP Registry 缺 `v3.6.1` / `v3.6.2`（历次未打 `-registry` tag），如需补发在原 commit 上补 tag。
+
+### 待验证
+
+- 新引擎真实链路长期回归：验证码页出现频率、anysearch 匿名档限流阈值、googlenews 回源失败率。
+- 冷却落盘真网冷启动回归（重启后 ddg/arxiv 实际避让）；date_source 新旧缓存行往返实测。

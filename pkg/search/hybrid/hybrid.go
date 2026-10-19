@@ -4,6 +4,8 @@ import (
 	"websearch/pkg/search/core"
 	"websearch/pkg/search/enhance"
 
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -45,8 +47,9 @@ type HybridSearchImpl struct {
 	relevanceThreshold float64                 // 增强后的相关性阀值
 	mmr                config.MMRConfig        // MMR 多样性重排配置（Enabled=false 时不重排）
 	offTopicGuardMode  string                  // off-topic 守卫模式（config.OffTopicGuard*；零值 = enforce 保持直构行为，配置层缺省 shadow 经 mode/factory 注入）
+	engineTimeout      time.Duration           // per-engine 软超时，0 = 只依赖请求 ctx
 
-	diagMu   sync.Mutex            // 保护 lastDiag（并发搜索时诊断整体替换）
+	diagMu   sync.Mutex             // 保护 lastDiag（并发搜索时诊断整体替换）
 	lastDiag core.SearchDiagnostics // 最近一次搜索的失败诊断（实现 core.DiagnosticsProvider）
 }
 
@@ -98,6 +101,12 @@ func (h *HybridSearchImpl) SetOffTopicGuard(mode string) {
 	h.offTopicGuardMode = mode
 }
 
+// SetEngineTimeout 设置 per-engine 软超时：超时引擎按 timeout 类型进失败清单，
+// 其余引擎结果照常返回。0 = 只依赖请求级 ctx 的死线。
+func (h *HybridSearchImpl) SetEngineTimeout(d time.Duration) {
+	h.engineTimeout = d
+}
+
 func (h *HybridSearchImpl) Name() string { return "hybrid" }
 
 func (h *HybridSearchImpl) Search(query string) (string, error) {
@@ -109,22 +118,53 @@ func (h *HybridSearchImpl) Search(query string) (string, error) {
 }
 
 // SearchRawWithTimeRange 实现 core.SearchTimeRanger 接口，将时间范围传递给支持的子引擎。
+// 诊断走 per-request 返回值并顺带落单槽（DiagnosticsProvider 兜底）；
+// 并发请求请优先使用 SearchRawDiagnostics / SearchRawWithTimeRangeDiagnostics。
 func (h *HybridSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int) ([]core.SearchResult, error) {
-	var wg sync.WaitGroup
+	results, diag, err := h.SearchRawWithTimeRangeDiagnostics(query, lookbackDays)
+	h.storeDiagnostics(diag)
+	return results, err
+}
+
+// SearchRawWithTimeRangeDiagnostics 实现 core.DiagnosticsSearcher +
+// core.SearchTimeRanger 的 per-request 诊断口径。
+func (h *HybridSearchImpl) SearchRawWithTimeRangeDiagnostics(query string, lookbackDays int) ([]core.SearchResult, core.SearchDiagnostics, error) {
+	return h.SearchRawWithTimeRangeContextDiagnostics(context.Background(), query, lookbackDays)
+}
+
+// SearchRawDiagnostics 实现 core.DiagnosticsSearcher：失败清单与过滤统计随本次
+// 调用返回，多请求并发互不覆盖。
+func (h *HybridSearchImpl) SearchRawDiagnostics(query string) ([]core.SearchResult, core.SearchDiagnostics, error) {
+	return h.SearchRawContextDiagnostics(context.Background(), query)
+}
+
+// SearchRawContextDiagnostics 实现 core.ContextDiagnosticsSearcher：ctx 下传各引擎，
+// 客户端断连即停止等待；诊断随返回值传递，并发请求互不覆盖。
+func (h *HybridSearchImpl) SearchRawContextDiagnostics(ctx context.Context, query string) ([]core.SearchResult, core.SearchDiagnostics, error) {
+	return h.run(ctx, query, 0, false)
+}
+
+// SearchRawWithTimeRangeContextDiagnostics 实现 core.ContextDiagnosticsSearcher
+// 的时间范围变体。
+func (h *HybridSearchImpl) SearchRawWithTimeRangeContextDiagnostics(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, core.SearchDiagnostics, error) {
+	return h.run(ctx, query, lookbackDays, true)
+}
+
+// run 并发调用全部引擎并按请求 ctx / per-engine 软超时收集结果。
+// withTimeRange 为 true 时优先走引擎的时间范围入口。
+func (h *HybridSearchImpl) run(ctx context.Context, query string, lookbackDays int, withTimeRange bool) ([]core.SearchResult, core.SearchDiagnostics, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ch := make(chan indexedResult, len(h.engines))
+	var wg sync.WaitGroup
 
 	for i, engine := range h.engines {
 		wg.Add(1)
 		go func(idx int, e core.SearchInf) {
 			defer wg.Done()
 			started := time.Now()
-			var results []core.SearchResult
-			var err error
-			if timeRanger, ok := e.(core.SearchTimeRanger); ok {
-				results, err = timeRanger.SearchRawWithTimeRange(query, lookbackDays)
-			} else {
-				results, err = e.SearchRaw(query)
-			}
+			results, err := h.callEngine(ctx, e, query, lookbackDays, withTimeRange)
 			telemetry.Record(telemetry.Event{Kind: "provider", Provider: e.Name(), Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
 			ch <- indexedResult{index: idx, results: results, err: err}
 		}(i, engine)
@@ -135,24 +175,60 @@ func (h *HybridSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int
 	return h.mergeResults(query, ch)
 }
 
-func (h *HybridSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
-	var wg sync.WaitGroup
-	ch := make(chan indexedResult, len(h.engines))
+// errEngineTimeout 引擎未在软超时内返回（引擎自身仍在后台收尾）。
+var errEngineTimeout = errors.New("引擎响应超时")
 
-	for i, engine := range h.engines {
-		wg.Add(1)
-		go func(idx int, e core.SearchInf) {
-			defer wg.Done()
-			started := time.Now()
-			results, err := e.SearchRaw(query)
-			telemetry.Record(telemetry.Event{Kind: "provider", Provider: e.Name(), Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
-			ch <- indexedResult{index: idx, results: results, err: err}
-		}(i, engine)
+// callEngine 调用单个引擎：实现 ContextSearcher / ContextTimeRanger 的引擎直接
+// 接收 ctx；旧实现者由本函数兜底——软超时或请求取消时放弃等待，按 timeout 失败
+// 上报，不再阻塞整次请求。
+func (h *HybridSearchImpl) callEngine(ctx context.Context, e core.SearchInf, query string, lookbackDays int, withTimeRange bool) ([]core.SearchResult, error) {
+	callCtx := ctx
+	if h.engineTimeout > 0 {
+		var cancel context.CancelFunc
+		callCtx, cancel = context.WithTimeout(ctx, h.engineTimeout)
+		defer cancel()
 	}
 
-	wg.Wait()
-	close(ch)
-	return h.mergeResults(query, ch)
+	type outcome struct {
+		results []core.SearchResult
+		err     error
+	}
+	ch := make(chan outcome, 1)
+	go func() {
+		results, err := h.invokeEngine(callCtx, e, query, lookbackDays, withTimeRange)
+		ch <- outcome{results: results, err: err}
+	}()
+
+	select {
+	case o := <-ch:
+		return o.results, o.err
+	case <-callCtx.Done():
+		return nil, fmt.Errorf("%w: %w", errEngineTimeout, callCtx.Err())
+	}
+}
+
+// invokeEngine 选择引擎支持的最强入口（ctx + 时间范围 > ctx > 时间范围 > 旧接口）。
+func (h *HybridSearchImpl) invokeEngine(ctx context.Context, e core.SearchInf, query string, lookbackDays int, withTimeRange bool) ([]core.SearchResult, error) {
+	if withTimeRange {
+		if tr, ok := e.(core.ContextTimeRanger); ok {
+			return tr.SearchRawWithTimeRangeContext(ctx, query, lookbackDays)
+		}
+		if tr, ok := e.(core.SearchTimeRanger); ok {
+			return tr.SearchRawWithTimeRange(query, lookbackDays)
+		}
+	}
+	if cs, ok := e.(core.ContextSearcher); ok {
+		return cs.SearchRawContext(ctx, query)
+	}
+	return e.SearchRaw(query)
+}
+
+// SearchRaw 实现 core.SearchInf 接口。诊断走 per-request 返回值并顺带落单槽
+// （DiagnosticsProvider 兜底）；并发请求请优先使用 SearchRawDiagnostics。
+func (h *HybridSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	results, diag, err := h.SearchRawDiagnostics(query)
+	h.storeDiagnostics(diag)
+	return results, err
 }
 
 // LastDiagnostics 返回最近一次 SearchRaw / SearchRawWithTimeRange 的失败诊断，
@@ -171,8 +247,8 @@ func (h *HybridSearchImpl) storeDiagnostics(d core.SearchDiagnostics) {
 }
 
 // mergeResults 合并多引擎搜索结果：off-topic 整桶守卫、去重、过滤、截断，
-// 全程收集失败清单与过滤丢弃统计（core.SearchDiagnostics）。
-func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) ([]core.SearchResult, error) {
+// 全程收集失败清单与过滤丢弃统计（core.SearchDiagnostics），诊断随返回值传递。
+func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) ([]core.SearchResult, core.SearchDiagnostics, error) {
 	var merged []core.SearchResult
 	var buckets []core.ScoreBucket // 评分增强所需的 per-engine 排序桶
 	diag := core.SearchDiagnostics{}
@@ -199,9 +275,9 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 	}
 	if len(allResults) == 0 {
 		if len(errSummaries) > 0 {
-			return nil, fmt.Errorf("所有搜索引擎均失败: %s", strings.Join(errSummaries, "; "))
+			return nil, diag, fmt.Errorf("所有搜索引擎均失败: %s", strings.Join(errSummaries, "; "))
 		}
-		return nil, fmt.Errorf("所有搜索引擎均失败")
+		return nil, diag, fmt.Errorf("所有搜索引擎均失败")
 	}
 
 	// 按 index 排序保证结果顺序稳定
@@ -217,11 +293,11 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 		engineName := h.engineNames[ir.index]
 		ef := h.engineMap[engineName]
 
-		// 单引擎内 URL 去重
+		// 单引擎内 URL 去重（归一化键：同页变体只留一条）
 		engineSeen := make(map[string]struct{})
 		var unique []core.SearchResult
 		for _, r := range ir.results {
-			normalizedURL := strings.TrimSpace(r.Url)
+			normalizedURL := core.NormalizeURL(r.Url)
 			if _, dup := engineSeen[normalizedURL]; dup {
 				diag.AddFilterDrop(core.FilterDropDedup, 1)
 				continue
@@ -294,7 +370,7 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 			buckets = append(buckets, core.ScoreBucket{Name: b.name, Weight: h.engineMap[b.name].Weight, Results: b.results})
 		}
 		for _, r := range b.results {
-			normalizedURL := strings.TrimSpace(r.Url)
+			normalizedURL := core.NormalizeURL(r.Url)
 			if idx, exists := seen[normalizedURL]; exists {
 				core.PreferDate(&merged[idx], r)
 				continue
@@ -312,16 +388,14 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 		}
 		enhanced := enhance.EnhanceResultsMMR(query, buckets, h.relevanceThreshold, h.maxSize, h.mmr)
 		diag.AddFilterDrop(core.FilterDropEnhance, totalIn-len(enhanced))
-		storeDiagnosticsIf(h, &diag)
 		if len(enhanced) == 0 {
-			return nil, fmt.Errorf("所有搜索引擎均未返回有效结果")
+			return nil, diag, fmt.Errorf("所有搜索引擎均未返回有效结果")
 		}
-		return enhanced, nil
+		return enhanced, diag, nil
 	}
 
 	if len(merged) == 0 {
-		storeDiagnosticsIf(h, &diag)
-		return nil, fmt.Errorf("所有搜索引擎均未返回有效结果")
+		return nil, diag, fmt.Errorf("所有搜索引擎均未返回有效结果")
 	}
 
 	// 全局 maxsize 截断（按 score 排序后）
@@ -347,17 +421,7 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 		}
 	}
 
-	storeDiagnosticsIf(h, &diag)
-	return merged, nil
-}
-
-// storeDiagnosticsIf 仅当本次确有失败或过滤丢弃时落盘诊断（避免覆盖无关历史）。
-func storeDiagnosticsIf(h *HybridSearchImpl, diag *core.SearchDiagnostics) {
-	if diag.HasFailures() || len(diag.FilterDrops) > 0 {
-		h.storeDiagnostics(*diag)
-	} else {
-		h.storeDiagnostics(core.SearchDiagnostics{})
-	}
+	return merged, diag, nil
 }
 
 // offTopicGuard off-topic 整桶守卫：某引擎整桶几乎不 echo 查询"其余词"（排除首词）、
@@ -383,10 +447,13 @@ func (h *HybridSearchImpl) offTopicGuard(query string, buckets []engineBucket, d
 	other := terms[1:] // "其余词"：排除首词后的查询词项
 
 	hasReference := false
+	refEcho := 0.0
 	for _, b := range buckets {
-		if echoRatio(b.results, other) >= offTopicMinReference {
+		if r := echoRatio(b.results, other); r >= offTopicMinReference {
 			hasReference = true
-			break
+			if r > refEcho {
+				refEcho = r
+			}
 		}
 	}
 	if !hasReference {
@@ -394,8 +461,10 @@ func (h *HybridSearchImpl) offTopicGuard(query string, buckets []engineBucket, d
 	}
 
 	kept := make([]engineBucket, 0, len(buckets))
+	suspected := make([]engineBucket, 0, 1)
 	for _, b := range buckets {
 		if len(b.results) >= offTopicMinBucket && echoRatio(b.results, other) <= offTopicMaxEchoRatio {
+			suspected = append(suspected, b)
 			if mode == config.OffTopicGuardShadow {
 				diag.AddFailures(b.name, core.FailureOffTopic,
 					"shadow：整桶结果几乎不包含查询其余词，疑似不相关诱饵页；未丢弃（off_topic_guard=shadow）")
@@ -410,7 +479,37 @@ func (h *HybridSearchImpl) offTopicGuard(query string, buckets []engineBucket, d
 		}
 		kept = append(kept, b)
 	}
+	// 只落可疑或接近阈值的判定，避免每次正常搜索都写一条校准事件
+	if len(suspected) > 0 || minEchoRatio(buckets, other) <= offTopicWatchEcho {
+		recordGuardDecision(query, mode, refEcho, other, buckets, len(suspected))
+	}
 	return kept
+}
+
+// offTopicWatchEcho 校准回放的关注阈值：桶回声率低于此值即记录判定明细，
+// 供离线回放观察阈值附近的误杀风险（阈值本身见 offTopicMaxEchoRatio）。
+const offTopicWatchEcho = 0.5
+
+func minEchoRatio(buckets []engineBucket, other []string) float64 {
+	min := math.Inf(1)
+	for _, b := range buckets {
+		if r := echoRatio(b.results, other); r < min {
+			min = r
+		}
+	}
+	return min
+}
+
+// recordGuardDecision 落一条 guard 事件供离线校准回放（tools/guardreplay）：
+// Detail 只含模式、参照回声率与各引擎桶的「回声率/条数」，不含 URL 或原文；
+// 查询本身由 telemetry 层哈希与关键词化后再落库。
+func recordGuardDecision(query, mode string, refEcho float64, other []string, buckets []engineBucket, suspected int) {
+	var detail strings.Builder
+	fmt.Fprintf(&detail, "mode=%s ref=%.3f suspected=%d", mode, refEcho, suspected)
+	for _, b := range buckets {
+		fmt.Fprintf(&detail, " %s=%.3f/%d", b.name, echoRatio(b.results, other), len(b.results))
+	}
+	telemetry.Record(telemetry.Event{Kind: "guard", Tool: "smartsearch", Query: query, Success: true, Detail: detail.String()})
 }
 
 // queryTerms 查询分词：空白/标点切分；无分隔的 CJK 长查询退化为 2 字滑窗

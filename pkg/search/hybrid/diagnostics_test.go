@@ -3,12 +3,76 @@ package hybrid
 import (
 	"errors"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 	"websearch/pkg/config"
 	"websearch/pkg/search/core"
 )
 
 // ── 失败透出统一契约（core.DiagnosticsProvider） ──────────────────────────────
+
+// slowMockEngine 按查询决定是否失败，慢引擎延迟返回（并发覆盖测试用）。
+type slowMockEngine struct {
+	name    string
+	results []core.SearchResult
+	failOn  string // 查询含此子串时失败
+	delay   time.Duration
+}
+
+func (m *slowMockEngine) Name() string { return m.name }
+func (m *slowMockEngine) Search(query string) (string, error) {
+	return "", nil
+}
+func (m *slowMockEngine) SearchRaw(query string) ([]core.SearchResult, error) {
+	time.Sleep(m.delay)
+	if m.failOn != "" && strings.Contains(query, m.failOn) {
+		return nil, errors.New(m.name + ": HTTP 429 rate-limited")
+	}
+	return m.results, nil
+}
+func (m *slowMockEngine) MergeContent(query string, results []core.SearchResult) (string, error) {
+	return "", nil
+}
+
+// TestHybridSearch_DiagnosticsPerRequest 并发两请求时，per-request 诊断返回值
+// 各自独立：失败请求拿到自己的失败清单，成功请求不被另一请求的诊断污染。
+func TestHybridSearch_DiagnosticsPerRequest(t *testing.T) {
+	ok := &mockEngine{name: "bing", results: []core.SearchResult{
+		{Title: "r1", Url: "http://r1.com", Engine: "bing"},
+	}}
+	flaky := &slowMockEngine{name: "ddg",
+		results: []core.SearchResult{{Title: "r2", Url: "http://r2.com", Engine: "ddg"}},
+		failOn:  "slow",
+		delay:   50 * time.Millisecond,
+	}
+	hs := NewHybridSearch(ok, flaky)
+
+	collect := func(query string) core.SearchDiagnostics {
+		_, diag, err := hs.SearchRawDiagnostics(query)
+		if err != nil {
+			t.Errorf("SearchRawDiagnostics(%q): %v", query, err)
+		}
+		return diag
+	}
+
+	// 请求 A 命中 ddg 失败路径，请求 B 全成功；并发发起，B 先返回、A 后覆盖单槽
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var diagA, diagB core.SearchDiagnostics
+	wg.Add(2)
+	go func() { defer wg.Done(); <-start; diagA = collect("slow query") }()
+	go func() { defer wg.Done(); <-start; time.Sleep(10 * time.Millisecond); diagB = collect("golang release") }()
+	close(start)
+	wg.Wait()
+
+	if !diagA.HasFailures() || diagA.Failures[0].Engine != "ddg" {
+		t.Fatalf("请求 A 应拿到 ddg 失败清单，实际 %+v", diagA.Failures)
+	}
+	if diagB.HasFailures() || len(diagB.FilterDrops) > 0 {
+		t.Fatalf("请求 B 不应带任何诊断（另一请求的失败不得串入），实际 %+v / %+v", diagB.Failures, diagB.FilterDrops)
+	}
+}
 
 // TestHybridSearch_PartialFailureDiagnostics 部分引擎失败时，失败清单应带
 // 分类（rate_limit 等）与短原因透出，成功引擎结果正常返回。

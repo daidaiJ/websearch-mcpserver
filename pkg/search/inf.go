@@ -10,12 +10,15 @@ import (
 // 类型契约层已下沉到子包 core（供 provider/adapter/enhance/hybrid 子包与编排层共用，避免循环引用）。
 // 这里保留类型别名：外部包（mcp/cache/searxng）继续使用 search.XXX。
 type (
-	SearchResult          = core.SearchResult
-	SearchInf             = core.SearchInf
-	SearchTimeRanger      = core.SearchTimeRanger
-	AcademicSearchOptions = core.AcademicSearchOptions
-	AcademicSearcher      = core.AcademicSearcher
-	AcademicSearchResult  = core.AcademicSearchResult
+	SearchResult            = core.SearchResult
+	SearchInf               = core.SearchInf
+	SearchTimeRanger        = core.SearchTimeRanger
+	ContextSearcher         = core.ContextSearcher
+	ContextTimeRanger       = core.ContextTimeRanger
+	ContextAcademicSearcher = core.ContextAcademicSearcher
+	AcademicSearchOptions   = core.AcademicSearchOptions
+	AcademicSearcher        = core.AcademicSearcher
+	AcademicSearchResult    = core.AcademicSearchResult
 
 	// 编排层实现类型的别名（外部仅做类型断言/字段声明使用）。
 	HybridSearchImpl  = hybrid.HybridSearchImpl

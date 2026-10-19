@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -127,7 +128,23 @@ func (e *ExaSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int) (
 	return request.SearchRaw(query)
 }
 
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 HTTP 请求。
+func (e *ExaSearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return e.search(ctx, query)
+}
+
+// SearchRawWithTimeRangeContext 实现 core.ContextTimeRanger。
+func (e *ExaSearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
+	request := *e
+	request.lookbackDays = lookbackDays
+	return request.search(ctx, query)
+}
+
 func (e *ExaSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	return e.search(context.Background(), query)
+}
+
+func (e *ExaSearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	req := exaSearchReq{
 		Query:          query,
 		NumResults:     e.numResults,
@@ -144,6 +161,7 @@ func (e *ExaSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
 	var resp exaSearchResp
 	key := e.keys.Next()
 	res, err := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("x-api-key", key).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).

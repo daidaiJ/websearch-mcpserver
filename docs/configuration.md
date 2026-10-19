@@ -316,6 +316,8 @@ pdf_parser:
 #                              # 0 = 默认 32768，负数 = 禁用落盘恒内联
 #   off_topic_guard: shadow    # off-topic 整桶守卫：shadow（默认，疑似诱饵整桶只记失败清单与日志、不丢弃结果）/
 #                              # enforce（整桶丢弃并在失败清单透出）/ off（完全关闭）
+#   engine_timeout_sec: 10     # 单引擎软超时（秒）：超时引擎按 timeout 进失败清单，其余引擎结果照常返回；
+#                              # 0 = 默认 10s，负数 = 只依赖请求 ctx 死线
 #   mmr:                       # MMR 多样性重排（打散同话题高相似结果）
 #     enabled: true            # 总开关（默认 true）
 #     lambda: 0.7              # 相关性-多样性权衡系数 [0,1]，越高越偏相关性（默认 0.7）
@@ -556,6 +558,7 @@ dashboard:
 | `smartsearch.relevance_threshold` | 0.05 | 增强后相关性阀值 |
 | `smartsearch.inline_max_chars` | 32768 | 渲染响应内联字符上限；超限整体落盘临时文件（fetchdata/ 下 search-*.md，保留 7 天，响应内留路径与失败清单）。0 = 默认值，负数 = 禁用落盘 |
 | `smartsearch.off_topic_guard` | shadow | off-topic 整桶守卫模式：shadow 只记录不丢弃 / enforce 整桶丢弃并透出 / off 关闭 |
+| `smartsearch.engine_timeout_sec` | 10 | 单引擎软超时（秒）：超时引擎按 `timeout` 进失败清单，其余引擎结果照常返回；负数 = 只依赖请求 ctx 死线 |
 | `so360.enabled` | false | 360 搜索引擎（so.com，中文第二索引，零 Key、国内直连可用；2026-10-06 出口实测） |
 | `so360.blocked` | [] | 360 专用屏蔽域名（与 black_list_host 合并） |
 | `wikipedia.enabled` | false | Wikipedia 引擎（MediaWiki API，零 Key，参考型来源；需代理，2026-10-06 出口实测） |

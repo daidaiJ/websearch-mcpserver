@@ -540,6 +540,10 @@ func applySmartSearchFilters(hs *hybrid.HybridSearchImpl, conf config.Config) {
 	guardMode := sc.OffTopicGuardMode()
 	hs.SetOffTopicGuard(guardMode)
 	log.Infof("off-topic 整桶守卫模式: %s", guardMode)
+	// per-engine 软超时：慢引擎按 timeout 进失败清单，其余引擎结果照常返回
+	if d := sc.EngineTimeout(); d > 0 {
+		hs.SetEngineTimeout(d)
+	}
 	if len(sc.Engines) == 0 {
 		return
 	}

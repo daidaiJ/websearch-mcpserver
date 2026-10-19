@@ -1,6 +1,8 @@
 package adapter
 
 import (
+	"context"
+
 	"websearch/pkg/search/core"
 )
 
@@ -30,12 +32,28 @@ func (b *BaiduWithFallback) Search(query string) (string, error) {
 }
 
 func (b *BaiduWithFallback) SearchRaw(query string) ([]core.SearchResult, error) {
-	results, err := b.primary.SearchRaw(query)
+	return b.SearchRawContext(context.Background(), query)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 透传给主引擎与回退引擎。
+func (b *BaiduWithFallback) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	results, err := searchWithContext(ctx, b.primary, query)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err() // 请求已取消/超时，不再触发回退
+		}
 		// SK 调用失败，回退到百度网页搜索
-		return b.fallback.SearchRaw(query)
+		return searchWithContext(ctx, b.fallback, query)
 	}
 	return results, nil
+}
+
+// searchWithContext 对实现 core.ContextSearcher 的引擎走 ctx 入口，其余保持旧接口。
+func searchWithContext(ctx context.Context, engine core.SearchInf, query string) ([]core.SearchResult, error) {
+	if cs, ok := engine.(core.ContextSearcher); ok {
+		return cs.SearchRawContext(ctx, query)
+	}
+	return engine.SearchRaw(query)
 }
 
 func (b *BaiduWithFallback) MergeContent(query string, results []core.SearchResult) (string, error) {

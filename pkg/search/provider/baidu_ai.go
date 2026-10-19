@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"websearch/pkg/client"
@@ -100,15 +101,29 @@ func (b *BaiduAISearchImpl) Search(query string) (string, error) {
 
 // SearchRawWithTimeRange 实现 core.SearchTimeRanger 接口。
 func (b *BaiduAISearchImpl) SearchRawWithTimeRange(query string, lookbackDays int) ([]core.SearchResult, error) {
+	return b.SearchRawWithTimeRangeContext(context.Background(), query, lookbackDays)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 HTTP 请求。
+func (b *BaiduAISearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return b.search(ctx, query)
+}
+
+// SearchRawWithTimeRangeContext 实现 core.ContextTimeRanger。
+func (b *BaiduAISearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
 	request := *b
 	request.recency = ""
 	if lookbackDays > 0 {
 		request.recency = lookbackDaysToRecency(lookbackDays)
 	}
-	return request.SearchRaw(query)
+	return request.search(ctx, query)
 }
 
 func (b *BaiduAISearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	return b.search(context.Background(), query)
+}
+
+func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	req := baiduAIReq{
 		Messages:            []baiduAIReqMsg{{Content: query, Role: "user"}},
 		Model:               b.model,
@@ -125,6 +140,7 @@ func (b *BaiduAISearchImpl) SearchRaw(query string) ([]core.SearchResult, error)
 	var resp baiduAIResponse
 	key := b.keys.Next()
 	res, err := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("X-Appbuilder-Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetBody(req).
 		SetResult(&resp).

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -34,8 +35,23 @@ type SearchDiagnostics struct {
 
 // DiagnosticsProvider 编排层可实现的诊断查询接口。
 // mcp 工具层通过类型断言读取最近一次搜索的诊断（无则不透出）。
+// 单槽语义在并发请求下互相覆盖，仅作兜底；请求路径优先用 DiagnosticsSearcher。
 type DiagnosticsProvider interface {
 	LastDiagnostics() SearchDiagnostics
+}
+
+// DiagnosticsSearcher 编排层 per-request 诊断入口：诊断随返回值传递，
+// 并发请求互不干扰。实现者必须与 SearchRaw / SearchRawWithTimeRange 同口径。
+type DiagnosticsSearcher interface {
+	SearchRawDiagnostics(query string) ([]SearchResult, SearchDiagnostics, error)
+	SearchRawWithTimeRangeDiagnostics(query string, lookbackDays int) ([]SearchResult, SearchDiagnostics, error)
+}
+
+// ContextDiagnosticsSearcher 同时支持请求级 context 与 per-request 诊断的入口。
+// ctx 承载客户端断连取消与请求死线；诊断随返回值传递，并发请求互不干扰。
+type ContextDiagnosticsSearcher interface {
+	SearchRawContextDiagnostics(ctx context.Context, query string) ([]SearchResult, SearchDiagnostics, error)
+	SearchRawWithTimeRangeContextDiagnostics(ctx context.Context, query string, lookbackDays int) ([]SearchResult, SearchDiagnostics, error)
 }
 
 // AddFailures 追加引擎失败记录（engine 为空时忽略）。

@@ -77,7 +77,8 @@
 
 ```bash
 curl http://127.0.0.1:8338/__admin/api/providers   # 每个来源的状态机与失败构成
-curl http://127.0.0.1:8338/__admin/api/metrics     # Prometheus 文本指标
+curl http://127.0.0.1:8338/__admin/api/metrics     # Prometheus 文本指标（控制台访问边界内）
+curl http://127.0.0.1:8338/metrics                 # 同上，标准抓取端点（无需控制台口令，需 dashboard.enabled）
 ```
 
 **再动手**，常见诉求对应一个配置点：

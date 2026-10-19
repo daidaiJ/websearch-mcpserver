@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"websearch/internal/testenv"
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
@@ -69,6 +70,9 @@ func TestCleanFetch_WebFetchSuccess(t *testing.T) {
 
 	result, _, err := CleanFetch(ctx, nil, &CleanFetchParams{URL: "https://wmyskxz.cn/weekly/177/"})
 	if err != nil {
+		if testenv.HandleSearchError(t, err) {
+			return
+		}
 		t.Fatalf("CleanFetch failed: %v", err)
 	}
 	if result == nil || len(result.Content) == 0 {

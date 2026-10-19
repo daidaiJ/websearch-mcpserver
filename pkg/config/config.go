@@ -825,6 +825,7 @@ type SmartSearchConfig struct {
 	RelevanceThreshold float64                      `mapstructure:"relevance_threshold"` // 增强评分后的相关性阀值，低于此值丢弃（Top-1/每引擎保底），默认 0.05
 	InlineMaxChars     int                          `mapstructure:"inline_max_chars"`    // 渲染响应内联字符上限，超限整体落盘临时文件（0 = 默认 32768，负数 = 禁用落盘）
 	OffTopicGuard      string                       `mapstructure:"off_topic_guard"`     // off-topic 整桶守卫模式：shadow（默认，只记录不丢弃）/ enforce（拦截）/ off
+	EngineTimeoutSec   int                          `mapstructure:"engine_timeout_sec"`  // 单引擎软超时（秒），默认 10；负数 = 只依赖请求 ctx 死线
 	MMR                MMRConfig                    `mapstructure:"mmr"`                 // MMR 多样性重排配置
 	Engines            map[string]SmartSearchEngine `mapstructure:"engines"`             // 按引擎名配置
 }
@@ -846,6 +847,23 @@ func (c SmartSearchConfig) OffTopicGuardMode() string {
 		return OffTopicGuardOff
 	default:
 		return OffTopicGuardShadow
+	}
+}
+
+// defaultEngineTimeoutSec per-engine 软超时缺省值（秒）：
+// 与 antirobot.Searcher 的默认单引擎预算一致，慢引擎不再拖住整次请求。
+const defaultEngineTimeoutSec = 10
+
+// EngineTimeout 返回 per-engine 软超时：未配置（零值）取默认 10s，
+// 显式负数 = 关闭软超时（只依赖请求 ctx）。
+func (c SmartSearchConfig) EngineTimeout() time.Duration {
+	switch {
+	case c.EngineTimeoutSec < 0:
+		return 0
+	case c.EngineTimeoutSec == 0:
+		return defaultEngineTimeoutSec * time.Second
+	default:
+		return time.Duration(c.EngineTimeoutSec) * time.Second
 	}
 }
 

@@ -1,11 +1,11 @@
 package ddg
 
 import (
-	"websearch/internal/testenv"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+	"websearch/internal/testenv"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/proxy"
@@ -93,6 +93,10 @@ func TestDuckDuckGoRateLimit(t *testing.T) {
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 202") {
 			t.Logf("⚠️ DDG 服务端限流(HTTP 202)，跳过限流测试: %v", err)
+			return
+		}
+		// CAPTCHA / 代理不可用等环境类失败按 testenv 口径跳过（场景不可用时不误报）
+		if testenv.HandleSearchError(t, err) {
 			return
 		}
 		t.Fatalf("第一次搜索失败: %v", err)

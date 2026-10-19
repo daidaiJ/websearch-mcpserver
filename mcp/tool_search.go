@@ -107,19 +107,42 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 
 	// ---- 搜索 ----
 	var results []search.SearchResult
+	var diag searchcore.SearchDiagnostics
+	var haveDiag bool
 
-	// 优先使用支持时间范围的接口
-	if timeRanger, ok := searchapi.(search.SearchTimeRanger); ok {
-		results, err = timeRanger.SearchRawWithTimeRange(query, lookbackDays)
-	} else {
+	// 优先使用 per-request 诊断入口（并发请求互不覆盖），并下传请求 ctx；
+	// 其次 ctx 入口，最后回退旧接口
+	switch searcher := searchapi.(type) {
+	case searchcore.ContextDiagnosticsSearcher:
+		if _, ok := searchapi.(search.SearchTimeRanger); ok {
+			results, diag, err = searcher.SearchRawWithTimeRangeContextDiagnostics(ctx, query, lookbackDays)
+		} else {
+			results, diag, err = searcher.SearchRawContextDiagnostics(ctx, query)
+		}
+		haveDiag = true
+	case searchcore.DiagnosticsSearcher:
+		if _, ok := searchapi.(search.SearchTimeRanger); ok {
+			results, diag, err = searcher.SearchRawWithTimeRangeDiagnostics(query, lookbackDays)
+		} else {
+			results, diag, err = searcher.SearchRawDiagnostics(query)
+		}
+		haveDiag = true
+	case search.ContextTimeRanger:
+		results, err = searcher.SearchRawWithTimeRangeContext(ctx, query, lookbackDays)
+	case search.SearchTimeRanger:
+		results, err = searcher.SearchRawWithTimeRange(query, lookbackDays)
+	case search.ContextSearcher:
+		results, err = searcher.SearchRawContext(ctx, query)
+	default:
 		results, err = searchapi.SearchRaw(query)
 	}
 	if err != nil {
 		if fallbackSearch != nil && searchapi != fallbackSearch {
 			mainErr := err
 			log.Errf("主搜索引擎失败(%v)，回退到 Bing 引擎", err)
-			results, err = fallbackSearch.SearchRaw(query)
+			results, err = fallbackSearch.SearchRawContext(ctx, query)
 			engineName = "bing"
+			haveDiag = false // 回退改用单引擎，主编排的诊断不再归属本次响应
 			// 回退也失败时，错误信息带上主引擎失败原因，保证空结果可归因
 			if err != nil {
 				return nil, nil, fmt.Errorf("%v（主搜索引擎亦失败: %v）", err, mainErr)
@@ -138,7 +161,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	// 失败透出统一契约：空结果必须可解释（失败清单 + 过滤诊断），失败不受预算裁剪
 	if len(results) == 0 {
 		msg := "搜索未返回有效结果"
-		if d := searchDiagnostics(); d != nil {
+		if d := responseDiagnostics(diag, haveDiag); d != nil {
 			msg += d.FormatFailures() + d.FormatFilterDrops()
 		}
 		return nil, nil, fmt.Errorf("%s", msg)
@@ -146,7 +169,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 
 	results = enrichFetchedTopN(ctx, results, n)
 	resultCount = len(results)
-	return finishWebSearch(ctx, req, query, intent, cacheQuery, results, searchDiagnostics(), cacheTTLForMonths(timeRangeMonths), provenance{retrievedAt: time.Now()}, requestCache)
+	return finishWebSearch(ctx, req, query, intent, cacheQuery, results, responseDiagnostics(diag, haveDiag), cacheTTLForMonths(timeRangeMonths), provenance{retrievedAt: time.Now()}, requestCache)
 }
 
 // provenance 响应溯源头数据（P1-4 结果来源注记）：retrievedAt 为结果检索时间，
@@ -161,8 +184,21 @@ func cacheProvenance(createdAt time.Time) provenance {
 	return provenance{retrievedAt: createdAt, cacheAge: time.Since(createdAt)}
 }
 
+// responseDiagnostics 取本次响应的失败诊断：优先用 per-request 返回值（并发请求
+// 互不覆盖）；编排层未实现 DiagnosticsSearcher 时回退单槽读取。无内容时返回 nil。
+func responseDiagnostics(diag searchcore.SearchDiagnostics, fromRequest bool) *searchcore.SearchDiagnostics {
+	if !fromRequest {
+		return searchDiagnostics()
+	}
+	if diag.HasFailures() || len(diag.FilterDrops) > 0 {
+		return &diag
+	}
+	return nil
+}
+
 // searchDiagnostics 读取编排层最近一次搜索的失败诊断（非编排实现或无失败时返回 nil）。
 // 诊断不写入缓存：缓存命中路径不携带上次搜索的失败信息。
+// 单槽读取仅在编排层未实现 DiagnosticsSearcher 时作为兜底，并发下可能串请求。
 func searchDiagnostics() *searchcore.SearchDiagnostics {
 	if dp, ok := searchapi.(searchcore.DiagnosticsProvider); ok {
 		d := dp.LastDiagnostics()

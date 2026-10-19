@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -189,15 +190,29 @@ func (d *DoubaoSearchImpl) Search(query string) (string, error) {
 
 // SearchRawWithTimeRange 实现 core.SearchTimeRanger。Custom 把天数映射为官方枚举；Global 无时间过滤接口，忽略。
 func (d *DoubaoSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int) ([]core.SearchResult, error) {
+	return d.SearchRawWithTimeRangeContext(context.Background(), query, lookbackDays)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 HTTP 请求。
+func (d *DoubaoSearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return d.search(ctx, query)
+}
+
+// SearchRawWithTimeRangeContext 实现 core.ContextTimeRanger。
+func (d *DoubaoSearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
 	if d.version != doubaoVersionCustom {
-		return d.SearchRaw(query)
+		return d.search(ctx, query)
 	}
 	request := *d
 	request.timeRange = lookbackDaysToDoubaoRange(lookbackDays)
-	return request.SearchRaw(query)
+	return request.search(ctx, query)
 }
 
 func (d *DoubaoSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	return d.search(context.Background(), query)
+}
+
+func (d *DoubaoSearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	if d.keys == nil {
 		return nil, fmt.Errorf("doubao 搜索未配置 API Key")
 	}
@@ -209,12 +224,12 @@ func (d *DoubaoSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) 
 		return nil, fmt.Errorf("doubao 搜索 query 超过 100 个字符")
 	}
 	if d.version == doubaoVersionCustom {
-		return d.searchCustom(query)
+		return d.searchCustom(ctx, query)
 	}
-	return d.searchGlobal(query)
+	return d.searchGlobal(ctx, query)
 }
 
-func (d *DoubaoSearchImpl) searchGlobal(query string) ([]core.SearchResult, error) {
+func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]core.SearchResult, error) {
 	count := d.numResults
 	if count > 20 {
 		count = 20
@@ -248,6 +263,7 @@ func (d *DoubaoSearchImpl) searchGlobal(query string) ([]core.SearchResult, erro
 	key := d.keys.Next()
 	var resp doubaoGlobalSearchResponse
 	res, err := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("X-Traffic-Tag", doubaoTrafficTag).
@@ -293,7 +309,7 @@ func (d *DoubaoSearchImpl) searchGlobal(query string) ([]core.SearchResult, erro
 	return results, nil
 }
 
-func (d *DoubaoSearchImpl) searchCustom(query string) ([]core.SearchResult, error) {
+func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]core.SearchResult, error) {
 	req := doubaoCustomSearchRequest{
 		Query:      query,
 		SearchType: "web",
@@ -312,6 +328,7 @@ func (d *DoubaoSearchImpl) searchCustom(query string) ([]core.SearchResult, erro
 	key := d.keys.Next()
 	var resp doubaoCustomSearchResponse
 	res, err := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("X-Traffic-Tag", doubaoTrafficTag).

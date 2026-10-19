@@ -34,12 +34,12 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | 子包 | 职责 | 关键接口/类型 |
 |------|------|--------------|
 | `search`（根） | **组合根**：`SearchGroup` 装配 + 对外类型别名（外部一律用 `search.SearchResult` 等） | `NewFromConfig(conf) *SearchGroup`、`SearchGroup{Primary, Fallback, Academic}` |
-| `search/core` | 类型契约叶子层：所有子包共用，**禁止** import 其它 search 子包 | `SearchInf`、`SearchResult`、`SearchTimeRanger`、`AcademicSearcher`、`ScoreBucket`、`FilterByScore/SortByScore`、`FormatMD` 系列结果格式化 |
+| `search/core` | 类型契约叶子层：所有子包共用，**禁止** import 其它 search 子包 | `SearchInf`、`SearchResult`、`SearchTimeRanger`、`ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`、`DiagnosticsSearcher`/`ContextDiagnosticsSearcher`、`AcademicSearcher`、`ScoreBucket`、`FilterByScore/SortByScore`、`NormalizeURL`、`FormatMD` 系列结果格式化 |
 | `search/engine` | 底层网页引擎（HTTP 抓取 + 反检测参数），实现 `antirobot.Engine` | `baidu/bing/ddg/google` 各自的 `Engine` + `Opts` |
 | `search/provider` | API 供应商适配器（实现 `SearchInf`）+ Key 池 | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewBaiduAISearch/NewBaiduSeach`、`KeyPool`（单供应商 SK 轮转）、`KeyError` |
 | `search/adapter` | 把「非 API 供应商」适配成 `SearchInf` | `EngineSearchAdapter`（antirobot.Engine → SearchInf）、`BingSearchAdapter`、`BaiduWithFallback`、`AcademicAdapter`（学术 → SearchInf/AcademicSearcher） |
 | `search/apipool` | 跨供应商轮转策略（与 hybrid 同级实现） | `ApipoolSearchImpl`（round-robin/priority/weighted）、`ApipoolProvider` |
-| `search/hybrid` | 多引擎并发编排策略 | `HybridSearchImpl`（并发调用、去重合并、`EngineFilter` per-engine 过滤、错误日志） |
+| `search/hybrid` | 多引擎并发编排策略 | `HybridSearchImpl`（并发调用、请求 ctx 下传与 per-engine 软超时、去重合并、`EngineFilter` per-engine 过滤、失败诊断） |
 | `search/enhance` | 高阶评分功能（评分流水线只吃 `ScoreBucket`，与引擎无关） | `EnhanceResults/EnhanceResultsMMR`（RRF/域名品质/词汇对齐/稀有词/共识 Boost/阀值）、`ApplyMMR`、`EnhanceAcademicResults`（学术信号：引用数/期刊/PDF/新鲜度） |
 | `search/mode` | 搜索模式构建：按 `config.mode` 组装 Primary | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode`、`InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
 
@@ -185,6 +185,16 @@ func TestBaiduSearch(t *testing.T) {
 注意：非场景类错误（引擎逻辑缺陷、断言失败）**不会**被 HandleSearchError 吞掉，照常 Fatal。
 
 **例外：本机服务（Everything / file_search）不走 testenv**。Everything 是带 Basic 鉴权的本机服务，testenv 的连通性探测模型带不了凭据，且 `auto` 模式下探测通过即自动运行，会在任何装了 Everything 的开发机上打真实索引。`mcp/tool_filesearch_live_test.go` 改用显式环境变量开关（`WS_EVERYTHING_URL` 缺省即整包 Skip，另有 `WS_EVERYTHING_USER`/`PASS`/`ROOT`/`QUERY`），需要 URL 与凭据的真实链路测试按此模式扩展。
+
+### 模糊测试（SSRF 预检）
+
+`mcp/security_fuzz_test.go` 覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast` 三个纯函数，种子语料含十进制/十六进制/八进制回环、IPv4-mapped IPv6、云元数据地址与非 http(s) 协议。本地长跑：
+
+```bash
+go test -run=^$ -fuzz=FuzzValidateURLSecurity -fuzztime=30s ./mcp/
+```
+
+CI 在 `test` job 内跑 10s 短窗口（种子语料始终随 `go test` 执行）；发现新 crasher 时 Go 会写入 `mcp/testdata/fuzz/`，该目录需随修复一起提交。
 
 ## 6. 改动落点速查（按调用链）
 

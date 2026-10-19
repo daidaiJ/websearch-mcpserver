@@ -1,4 +1,4 @@
-# PR / push 级验证：构建、vet、短测与工作流 lint。
+# PR / push 级验证：构建、vet、短测、race 检测、静态检查与工作流 lint。
 # 网络集成测试由 -short 跳过（详见 AGENTS.md 测试约定）；
 # tag 发布走 release.yml / docker.yml / go-module-cache.yml，与本工作流互不影响。
 name: CI
@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   test:
-    name: Build / vet / test (short)
+    name: Build / vet / test (short, race)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +37,42 @@ jobs:
 
       - name: Test (short mode)
         run: go test -short ./...
+
+      # hybrid/apipool/进度聚合都是多 goroutine 热区，竞态在普通测试下不可见。
+      - name: Test (short mode, race detector)
+        run: go test -race -short ./...
+
+      # SSRF 预检是纯函数：种子语料常驻，PR 上跑短窗口模糊测试防回归。
+      - name: Fuzz SSRF guards (short window)
+        run: |
+          go test -run=^$ -fuzz=FuzzValidateURLSecurity -fuzztime=10s ./mcp/
+          go test -run=^$ -fuzz=FuzzIsPublicIP -fuzztime=10s ./mcp/
+          go test -run=^$ -fuzz=FuzzIsPrivateHostFast -fuzztime=10s ./mcp/
+
+  lint:
+    name: golangci-lint (new issues)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # --new-from-rev 需要基线提交在本地历史中。
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # 历史存量问题分批还，CI 先只拦新增代码：PR 对比 base，push 对比上一提交。
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          args: >-
+            --timeout=10m
+            --new-from-rev=${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'HEAD~1' }}
 
   actionlint:
     name: Lint workflows

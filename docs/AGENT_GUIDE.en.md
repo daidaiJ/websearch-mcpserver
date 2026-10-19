@@ -117,6 +117,7 @@ Results come back one page at a time; the footer points to the next page number,
 | `GET /__admin/health` | `{"ref_count":N,"message":"running"}`, remotely accessible |
 | `GET /__admin/status` | Refcount / PID etc., localhost only |
 | `GET /__admin/api/providers` · `/api/metrics` | Per-source state machine / Prometheus metrics (read-only) |
+| `GET /metrics` | Standard Prometheus scrape endpoint (read-only, privacy-preserving; requires `dashboard.enabled`, else 503) |
 | `POST /__admin/refcount` · `/shutdown` | Refcount / shutdown, localhost only |
 
 Results carry source engine and relevance score (`show_meta` controls this); cache expires after 6h; rate limits default 3/s, 60/min. Full API: [api.en.md](api.en.md).

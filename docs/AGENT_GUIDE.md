@@ -119,6 +119,7 @@ curl -s http://127.0.0.1:8338/__admin/health   # 期望 {"ref_count":N,"message"
 | `GET /__admin/health` | `{"ref_count":N,"message":"running"}`，远程可访问 |
 | `GET /__admin/status` | 引用计数 / PID 等，仅本机 |
 | `GET /__admin/api/providers` · `/api/metrics` | 来源状态机 / Prometheus 指标（只读） |
+| `GET /metrics` | 标准 Prometheus 抓取端点（只读脱敏，需 `dashboard.enabled`；未启用 503） |
 | `POST /__admin/refcount` · `/shutdown` | 引用计数 / 关停，仅本机 |
 
 结果附带来源引擎与相关性分数（`show_meta` 控制）；缓存 6h 过期；限流默认 3/s、60/min。完整 API 见 [api.md](api.md)。

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"websearch/pkg/client"
@@ -88,6 +89,18 @@ func (t *TavilySearchImpl) SearchRawWithTimeRange(query string, lookbackDays int
 	return request.SearchRaw(query)
 }
 
+// SearchRawContext 实现 core.ContextSearcher：ctx 下传 HTTP 请求。
+func (t *TavilySearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return t.search(ctx, query)
+}
+
+// SearchRawWithTimeRangeContext 实现 core.ContextTimeRanger。
+func (t *TavilySearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
+	request := *t
+	request.timeRange = lookbackDaysToTavilyRange(lookbackDays)
+	return request.search(ctx, query)
+}
+
 // lookbackDaysToTavilyRange 将天数转换为 Tavily API 的 time_range 值。
 func lookbackDaysToTavilyRange(days int) string {
 	switch {
@@ -105,6 +118,10 @@ func lookbackDaysToTavilyRange(days int) string {
 }
 
 func (t *TavilySearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
+	return t.search(context.Background(), query)
+}
+
+func (t *TavilySearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	req := tavilySearchReq{
 		Query:             query,
 		SearchDepth:       "basic",
@@ -116,6 +133,7 @@ func (t *TavilySearchImpl) SearchRaw(query string) ([]core.SearchResult, error) 
 	var resp tavilySearchResp
 	key := t.keys.Next()
 	res, err := client.DefaultClient.R().
+		SetContext(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).

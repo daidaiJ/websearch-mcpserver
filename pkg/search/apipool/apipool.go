@@ -1,6 +1,7 @@
 package apipool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -13,6 +14,14 @@ import (
 	"websearch/pkg/log"
 	"websearch/pkg/telemetry"
 )
+
+// searchWithContext 对实现 core.ContextSearcher 的引擎走 ctx 入口，其余保持旧接口。
+func searchWithContext(ctx context.Context, engine core.SearchInf, query string) ([]core.SearchResult, error) {
+	if cs, ok := engine.(core.ContextSearcher); ok {
+		return cs.SearchRawContext(ctx, query)
+	}
+	return engine.SearchRaw(query)
+}
 
 // ApipoolProvider 单个供应商：搜索引擎 + 对应的 KeyPool（免费引擎 pool 为 nil）。
 // name 为供应商配置名（baidu/tavily/exa/anysearch/doubao），weighted 策略权重匹配用；
@@ -76,11 +85,25 @@ func (a *ApipoolSearchImpl) Search(query string) (string, error) {
 }
 
 func (a *ApipoolSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int) ([]core.SearchResult, error) {
-	return a.searchRaw(query, lookbackDays)
+	return a.SearchRawWithTimeRangeContext(context.Background(), query, lookbackDays)
+}
+
+// SearchRawContext 实现 core.ContextSearcher：ctx 贯穿供应商轮转与同 pool SK 重试，
+// 请求取消后不再切换下一个供应商。
+func (a *ApipoolSearchImpl) SearchRawContext(ctx context.Context, query string) ([]core.SearchResult, error) {
+	return a.searchRaw(ctx, query, -1)
+}
+
+// SearchRawWithTimeRangeContext 实现 core.ContextTimeRanger。
+func (a *ApipoolSearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
+	return a.searchRaw(ctx, query, lookbackDays)
 }
 
 // lookbackDays = -1 is internal-only: preserve the provider's SearchRaw defaults.
-func (a *ApipoolSearchImpl) searchRaw(query string, lookbackDays int) ([]core.SearchResult, error) {
+func (a *ApipoolSearchImpl) searchRaw(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	n := len(a.providers)
 	if n == 0 {
 		return nil, fmt.Errorf("apipool: 无可用供应商")
@@ -90,8 +113,11 @@ func (a *ApipoolSearchImpl) searchRaw(query string, lookbackDays int) ([]core.Se
 
 	var lastErr error
 	for i := 0; i < n; i++ {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("apipool: 请求已取消: %w", err)
+		}
 		p := a.providers[(start+i)%n]
-		results, err := a.callProviderWithRetry(p, query, lookbackDays)
+		results, err := a.callProviderWithRetry(ctx, p, query, lookbackDays)
 		if err == nil {
 			return results, nil
 		}
@@ -163,20 +189,24 @@ func (a *ApipoolSearchImpl) effectiveWeight(p ApipoolProvider) int {
 }
 
 func (a *ApipoolSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) {
-	return a.searchRaw(query, -1)
+	return a.searchRaw(context.Background(), query, -1)
 }
 
 // callProviderWithRetry 调用单个供应商，自动重试同 pool 内的其他 SK。
 // 当前 key 失败 → 标记 invalid → 检查 pool 是否还有可用 key → 有则重试，无则返回错误。
-func (a *ApipoolSearchImpl) callProviderWithRetry(p ApipoolProvider, query string, lookbackDays int) ([]core.SearchResult, error) {
+// 请求 ctx 取消后立即停止重试。
+func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p ApipoolProvider, query string, lookbackDays int) ([]core.SearchResult, error) {
 	// 免费引擎无 pool，只调一次
 	if p.pool == nil {
-		return a.callSingle(p, query, lookbackDays)
+		return a.callSingle(ctx, p, query, lookbackDays)
 	}
 
 	var lastErr error
 	for {
-		results, err := a.callSingle(p, query, lookbackDays)
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("apipool: 请求已取消: %w", err)
+		}
+		results, err := a.callSingle(ctx, p, query, lookbackDays)
 		if err == nil {
 			return results, nil
 		}
@@ -196,19 +226,21 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(p ApipoolProvider, query strin
 	}
 }
 
-// callSingle 调用一次搜索引擎。
-func (a *ApipoolSearchImpl) callSingle(p ApipoolProvider, query string, lookbackDays int) ([]core.SearchResult, error) {
+// callSingle 调用一次搜索引擎（优先走引擎的 ctx 入口）。
+func (a *ApipoolSearchImpl) callSingle(ctx context.Context, p ApipoolProvider, query string, lookbackDays int) ([]core.SearchResult, error) {
 	started := time.Now()
 	var results []core.SearchResult
 	var err error
 	if lookbackDays >= 0 {
-		if tr, ok := p.engine.(core.SearchTimeRanger); ok {
+		if tr, ok := p.engine.(core.ContextTimeRanger); ok {
+			results, err = tr.SearchRawWithTimeRangeContext(ctx, query, lookbackDays)
+		} else if tr, ok := p.engine.(core.SearchTimeRanger); ok {
 			results, err = tr.SearchRawWithTimeRange(query, lookbackDays)
 		} else {
-			results, err = p.engine.SearchRaw(query)
+			results, err = searchWithContext(ctx, p.engine, query)
 		}
 	} else {
-		results, err = p.engine.SearchRaw(query)
+		results, err = searchWithContext(ctx, p.engine, query)
 	}
 	name := p.name
 	if name == "" {

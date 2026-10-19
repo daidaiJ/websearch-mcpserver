@@ -1,0 +1,41 @@
+# golangci-lint 配置：起步只拦新增代码的历史噪音由 CI 的 --new-from-rev 处理。
+# 配置项按 golangci-lint v2 schema（本仓库 CI 使用 v2.x）。
+version: "2"
+
+run:
+  timeout: 10m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+    - unconvert
+  disable:
+    - wrapcheck
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (io.Closer).Close
+  exclusions:
+    rules:
+      # 测试文件允许忽略清理型错误（Close/Remove 等），与既有测试风格一致。
+      - path: _test\.go
+        linters:
+          - errcheck
+      # 生成物与内嵌前端资源不参与静态检查。
+      - path: pkg/dashboard/web/
+        linters:
+          - staticcheck
+          - unused
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    paths:
+      - pkg/dashboard/web/

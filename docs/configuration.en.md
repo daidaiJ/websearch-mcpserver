@@ -305,6 +305,9 @@ pdf_parser:
 #                              # negative = disable dumping (always inline)
 #   off_topic_guard: shadow    # Off-topic bucket guard: shadow (default, suspected decoy buckets are only logged to the
 #                              # failure list, results kept) / enforce (whole bucket dropped and reported) / off
+#   engine_timeout_sec: 10     # Per-engine soft timeout (seconds): a timed-out engine is reported as timeout in the
+#                              # failure list while other engines still return results. 0 = default 10s, negative = rely
+#                              # on the request ctx deadline only
 #   mmr:                       # MMR diversity re-ranking (breaks up same-topic similar results)
 #     enabled: true            # Master switch (default true)
 #     lambda: 0.7              # Relevance-diversity tradeoff [0,1], higher = more relevance (default 0.7)
@@ -560,6 +563,7 @@ dashboard:
 | `smartsearch.relevance_threshold` | 0.05 | Relevance threshold after enhancement |
 | `smartsearch.inline_max_chars` | 32768 | Inline char limit for the rendered response; over the limit the whole result is dumped to a temp file (search-*.md under fetchdata/, kept 7 days; the response keeps path and failure list). 0 = default, negative = disable dumping |
 | `smartsearch.off_topic_guard` | shadow | Off-topic bucket guard mode: shadow logs without dropping / enforce drops the whole bucket and reports / off disables |
+| `smartsearch.engine_timeout_sec` | 10 | Per-engine soft timeout (seconds): a timed-out engine is reported as `timeout` in the failure list while other engines still return results; negative = rely on the request ctx deadline only |
 | `so360.enabled` | false | 360 search engine (so.com, second Chinese index, keyless, direct-connect reachable from CN; verified 2026-10-06) |
 | `so360.blocked` | [] | 360-specific blocked domains (merged with black_list_host) |
 | `wikipedia.enabled` | false | Wikipedia engine (MediaWiki API, keyless, reference-type source; needs proxy, verified 2026-10-06) |

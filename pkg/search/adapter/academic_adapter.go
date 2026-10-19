@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"websearch/pkg/academic"
 	"websearch/pkg/antirobot"
@@ -98,6 +97,12 @@ func NewAcademicAdapter(conf AcademicConfig) *AcademicAdapter {
 // 单个引擎失败不影响整体：失败引擎记入 core.AcademicSearchResult.EngineErrors，
 // 调用方据此提示结果可能不完整。
 func (a *AcademicAdapter) SearchAcademicRaw(query string, opts ...core.AcademicSearchOptions) (core.AcademicSearchResult, error) {
+	return a.SearchAcademicRawContext(context.Background(), query, opts...)
+}
+
+// SearchAcademicRawContext 实现 core.ContextAcademicSearcher：ctx 下传全部学术引擎，
+// 客户端断连即停止等待。
+func (a *AcademicAdapter) SearchAcademicRawContext(ctx context.Context, query string, opts ...core.AcademicSearchOptions) (core.AcademicSearchResult, error) {
 	var opt core.AcademicSearchOptions
 	if len(opts) > 0 {
 		opt = opts[0]
@@ -105,9 +110,9 @@ func (a *AcademicAdapter) SearchAcademicRaw(query string, opts ...core.AcademicS
 	if opt.Page <= 0 {
 		opt.Page = 1
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	// 按引擎名过滤
 	searcher := a.searcher

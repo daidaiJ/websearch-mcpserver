@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -52,6 +53,23 @@ type SearchInf interface {
 // 正天数的筛选精度取决于引擎支持的时间枚举或日期字段。
 type SearchTimeRanger interface {
 	SearchRawWithTimeRange(query string, lookbackDays int) ([]SearchResult, error)
+}
+
+// ContextSearcher 支持请求级 context 的搜索引擎可实现此可选接口。
+// ctx 承载客户端断连取消与请求死线；实现者应把 ctx 传到下游 HTTP 请求。
+// 编排层对未实现此接口的引擎保留旧调用方式并兜底放弃等待。
+type ContextSearcher interface {
+	SearchRawContext(ctx context.Context, query string) ([]SearchResult, error)
+}
+
+// ContextTimeRanger 同时支持时间范围与请求级 context 的可选接口。
+type ContextTimeRanger interface {
+	SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]SearchResult, error)
+}
+
+// ContextAcademicSearcher 支持请求级 context 的学术搜索可选接口。
+type ContextAcademicSearcher interface {
+	SearchAcademicRawContext(ctx context.Context, query string, opts ...AcademicSearchOptions) (AcademicSearchResult, error)
 }
 
 // AcademicSearchOptions 学术搜索可选参数。

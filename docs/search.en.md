@@ -136,6 +136,8 @@ Response behaviors introduced in phases 1-3, shared by `smartsearch` and `academ
 
 **Failure list (empty results are explainable)**: main-engine failures no longer fall back silently — the response ends with a structured failure list carrying engine name, failure kind (`timeout` / `rate_limit` (with remaining cooldown seconds) / `challenge` / `off_topic` / `error`) and a short reason; gated/benched engines include the cause and expected recovery time. The failure list is never written to cache and is exempt from any budget or dump trimming, aligned with the academic search per-engine error reporting.
 
+**Request cancellation and per-engine soft timeout**: the MCP request context flows through the search orchestration into every engine's HTTP request, so a client disconnect or request deadline stops the wait instead of letting a background slow engine hold the call. `smartsearch.engine_timeout_sec` (default 10s) is a per-engine soft timeout: a timed-out engine is reported as `timeout` in the failure list while other engines still return results. Legacy engine implementations get the same protection — the orchestrator stops waiting and keeps the request path unblocked.
+
 **Filter diagnostics (filter_diagnostics)**: when filtered results are ≤3, the response lists each filter's drop counts (global threshold / MMR / per-engine score, etc.) with relaxation hints, separating "nothing found" from "filtered away".
 
 **Off-topic whole-bucket guard (`smartsearch.off_topic_guard`)**: when a whole engine bucket shows almost no lexical echo of the query (the HTTP-200 decoy-page signature), it is reported as `off_topic` in the failure list. Three states: `shadow` (default — record only, keep the bucket, accumulating calibration data) / `enforce` (actually drop) / `off`.
@@ -152,6 +154,10 @@ Response behaviors introduced in phases 1-3, shared by `smartsearch` and `academ
 
 **Status Resources**: `search://capabilities` (version / engine list / capabilities) and `search://health` (engine health / circuit breaking / cache hits) are exposed as read-only MCP Resources — no tool slots consumed, no secrets in responses; `mcp_resources: false` disables them entirely (enabled by default).
 
+**Off-topic calibration replay**: guard decisions in `shadow` mode are recorded as `guard` telemetry events (mode, reference echo ratio, and each engine bucket's echo ratio/count — no URLs or page text). `go run ./tools/guardreplay -db <dashboard.db>` replays them against candidate thresholds such as 0.15/0.25/0.35/0.5 and reports which buckets enforce would drop, how many queries are affected, and samples; `-json` emits machine-readable output.
+
+**Prometheus observability**: `GET /metrics` exposes today's tool/provider request, success/failure, cache-hit counts and latency buckets in standard text format (read-only, privacy-preserving, sourced from the telemetry store; requires `dashboard.enabled: true`). See [docs/api.en.md](api.en.md#observability-endpoint).
+
 ---
 
 ## SmartSearch Advanced Config
@@ -166,6 +172,9 @@ smartsearch:
   show_meta: true        # Show engine source and relevance score in output (default true)
   enhance: true          # Local scoring enhancement (RRF fusion + lexical alignment + domain quality + boosts + threshold), default true
   relevance_threshold: 0.05  # Relevance threshold after enhancement; below this is filtered (Top-1 protected), default 0.05
+  inline_max_chars: 32768    # Inline render limit; over the limit the result is dumped to a file (0=default, negative=disable)
+  off_topic_guard: shadow    # Off-topic bucket guard: shadow (default, record only) / enforce / off
+  engine_timeout_sec: 10     # Per-engine soft timeout (seconds); a timed-out engine is reported as timeout; negative = request deadline only
   mmr:                       # MMR diversity re-ranking (breaks up same-topic similar results)
     enabled: true            # Master switch (default true)
     lambda: 0.7              # Relevance weight [0,1]; higher = more relevance, lower = more diversity (default 0.7)
