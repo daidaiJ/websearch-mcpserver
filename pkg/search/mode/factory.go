@@ -3,6 +3,8 @@
 package mode
 
 import (
+	"strings"
+
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
 	"websearch/pkg/log"
@@ -18,6 +20,7 @@ import (
 	"websearch/pkg/search/engine/wikipedia"
 	"websearch/pkg/search/hybrid"
 	"websearch/pkg/search/provider"
+	"websearch/pkg/search/provider/mcphub"
 )
 
 // ── 各模式构建函数 ────────────────────────────────────────────────────────────
@@ -67,6 +70,33 @@ func BuildEngineMode(conf config.Config, fallback *adapter.BingSearchAdapter, ad
 	hs := hybrid.NewHybridSearch(engines...)
 	applySmartSearchFilters(hs, conf)
 	return hs
+}
+
+// BuildMCPHubMode 零 Key 托管 MCP 级联模式：按配置顺序轮转
+// Parallel / AnySearch / Exa / Firecrawl，失败冷却后自动切下一个；
+// 可把本地网页引擎加入轮转池分摊匿名限流，全部失败后走 fallback_engines，
+// 最终由 smartsearch 统一回退 Bing。
+func BuildMCPHubMode(conf config.Config, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
+	engines := map[string]core.SearchInf{
+		"baidu_web":  ads.BaiduWeb,
+		"so360":      ads.So360,
+		"wikipedia":  ads.Wikipedia,
+		"googlenews": ads.GNews,
+		"google":     ads.Google,
+		"duckduckgo": ads.DDG,
+	}
+	if fallback != nil {
+		engines["bing"] = fallback
+	}
+	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), engines)
+	if err != nil {
+		log.Errf("mode=mcphub 初始化失败: %v", err)
+		return nil
+	}
+	fallbacks := hub.FallbackNames()
+	log.Infof("搜索模式: mcphub（轮转: %s；降级: %s；最终回退: Bing）",
+		strings.Join(hub.RotationNames(), " → "), strings.Join(fallbacks, " → "))
+	return hub
 }
 
 // BuildBaiduMode 百度千帆搜索（enable_ai_search 控制端点，失败自动回退百度网页搜索）。

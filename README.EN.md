@@ -123,7 +123,7 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 
 ## Search Modes at a Glance
 
-The single `mode` field decides the engine group: `engine` works with zero keys (Baidu web + Bing in parallel; 360 / DuckDuckGo / Wikipedia / Google News join automatically per config and proxy availability); `baidu` / `tavily` / `exa` / `anysearch` / `doubao` are single-provider modes (they participate only with a key, with auto-fallback on failure); `apipool` rotates a key pool (round-robin / priority / weighted, Baidu web as the final fallback); `hybrid` runs all engines concurrently. Missing keys auto-degrade to `engine`.
+The single `mode` field decides the engine group: **use `mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation); **use `apipool` when API keys are available** (multi-provider key rotation with automatic failover and Baidu web fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired; `baidu` / `tavily` / `exa` / `anysearch` / `doubao` are single-provider modes (they participate only with a key, with auto-fallback on failure); `hybrid` runs all engines concurrently. `mcphub` also supports `rotation_engines` to share load with local engines and automatically enables/skips proxy-required upstreams. Missing keys auto-degrade to `engine`.
 
 Participating engines per mode, key-signup links, `sk_list` multi-key rotation, and per-engine rate limits: [docs/search.en.md](docs/search.en.md).
 

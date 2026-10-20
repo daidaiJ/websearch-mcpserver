@@ -37,11 +37,12 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `search/core` | 类型契约叶子层：所有子包共用，**禁止** import 其它 search 子包 | `SearchInf`、`SearchResult`、`SearchTimeRanger`、`ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`、`DiagnosticsSearcher`/`ContextDiagnosticsSearcher`、`AcademicSearcher`、`ScoreBucket`、`FilterByScore/SortByScore`、`NormalizeURL`、`FormatMD` 系列结果格式化 |
 | `search/engine` | 底层网页引擎（HTTP 抓取 + 反检测参数），实现 `antirobot.Engine` | `baidu/bing/ddg/google` 各自的 `Engine` + `Opts` |
 | `search/provider` | API 供应商适配器（实现 `SearchInf`）+ Key 池 | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewBaiduAISearch/NewBaiduSeach`、`KeyPool`（单供应商 SK 轮转）、`KeyError` |
+| `search/provider/mcphub` | 托管 MCP 级联 hub（实现 `SearchInf` + `Fetch`） | `New`、presets（parallel/anysearch/exa/firecrawl）、MCP Streamable HTTP 客户端、`priority`/`round-robin`、搜索/抓取独立冷却、结果解析 |
 | `search/adapter` | 把「非 API 供应商」适配成 `SearchInf` | `EngineSearchAdapter`（antirobot.Engine → SearchInf）、`BingSearchAdapter`、`BaiduWithFallback`、`AcademicAdapter`（学术 → SearchInf/AcademicSearcher） |
 | `search/apipool` | 跨供应商轮转策略（与 hybrid 同级实现） | `ApipoolSearchImpl`（round-robin/priority/weighted）、`ApipoolProvider` |
 | `search/hybrid` | 多引擎并发编排策略 | `HybridSearchImpl`（并发调用、请求 ctx 下传与 per-engine 软超时、去重合并、`EngineFilter` per-engine 过滤、失败诊断） |
 | `search/enhance` | 高阶评分功能（评分流水线只吃 `ScoreBucket`，与引擎无关） | `EnhanceResults/EnhanceResultsMMR`（RRF/域名品质/词汇对齐/稀有词/共识 Boost/阀值）、`ApplyMMR`、`EnhanceAcademicResults`（学术信号：引用数/期刊/PDF/新鲜度） |
-| `search/mode` | 搜索模式构建：按 `config.mode` 组装 Primary | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode`、`InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
+| `search/mode` | 搜索模式构建：按 `config.mode` 组装 Primary | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode/BuildMCPHubMode`、`InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
 
 ### 其它领域包
 
@@ -66,6 +67,7 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 |----------|------------|
 | 新增底层网页引擎（如搜狗） | `pkg/search/engine/` 新包（实现 `antirobot.Engine`）→ `pkg/search/adapter` 加适配 → `pkg/search/mode` 注册进各模式 → `pkg/config` 加开关 |
 | 新增 API 供应商（如 Serper） | `pkg/search/provider/` 新适配器（实现 `SearchInf`，用 `KeyPool`）→ `pkg/search/mode` 注册（单引擎模式 + apipool/hybrid 可选）→ `pkg/config` + 文档 |
+| 新增托管 MCP server / 调整级联顺序 | `pkg/search/provider/mcphub/hub.go` 的 presets 与 `config.MCPHubConfig.GetServers`；抓取顺序在 `mcp/tool_cleanfetch.go` 的 `fetchPageWithFallback` |
 | 调整搜索模式组合逻辑 / 兜底顺序 | `pkg/search/mode/factory.go`；模式开关在根包 `factory.go` 的 switch |
 | 改多引擎去重/合并/per-engine 过滤 | `pkg/search/hybrid/hybrid.go` |
 | 改 apipool 轮转策略、SK 失效标记 | `pkg/search/apipool/apipool.go`（Key 池原语在 `provider/keypool.go`） |

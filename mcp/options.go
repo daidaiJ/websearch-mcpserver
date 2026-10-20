@@ -16,6 +16,7 @@ import (
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
+	"websearch/pkg/search/provider/mcphub"
 )
 
 // ServerOption 服务器组件初始化选项。
@@ -45,6 +46,11 @@ func WithJinaReader(conf config.Config) ServerOption {
 // 未启用时保留配置，供 fetch_top_n 惰性初始化。
 func WithWebFetch(conf config.Config) ServerOption {
 	return func() { applyWebFetch(conf) }
+}
+
+// WithMCPHubFetch 在 mcp_hub.fetch_mode 非 off 时初始化托管 MCP 抓取增强。
+func WithMCPHubFetch(conf config.Config) ServerOption {
+	return func() { applyMCPHubFetch(conf) }
 }
 
 // WithEverything 保存 Everything HTTP Server 配置；探测延迟到首个 MCP
@@ -155,6 +161,27 @@ func applyWebFetch(conf config.Config) {
 		return
 	}
 	ensureWebFetch()
+}
+
+// applyMCPHubFetch 初始化 cleanfetch 的托管 MCP 增强层。
+// 默认 off，不改变既有抓取顺序；失败时仅记录并退回本地 webfetch/Jina。
+func applyMCPHubFetch(conf config.Config) {
+	mcpHubFetchMode = conf.MCPHub.GetFetchMode()
+	if mcpHubFetchMode == config.MCPHubFetchOff {
+		return
+	}
+	if !conf.CleanFetch.Enabled {
+		log.Info("cleanfetch.enabled=false，MCP 抓取增强不生效")
+		return
+	}
+	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), nil)
+	if err != nil {
+		log.Errf("MCP 抓取增强未启用: %v", err)
+		mcpHubFetchMode = config.MCPHubFetchOff
+		return
+	}
+	mcpHubFetchInst = hub
+	log.Infof("MCP 抓取增强已启用（fetch_mode=%s，server 顺序: %v）", mcpHubFetchMode, hub.RotationNames())
 }
 
 // ensureWebFetch 确保 webfetch 可用：cleanfetch/pdf_parser 已启用时在 Init 阶段

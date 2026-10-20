@@ -41,11 +41,12 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | `search/core` | Type-contract leaf: shared by all subpackages, **must not** import other search subpackages | `SearchInf`, `SearchResult`, `SearchTimeRanger`, `ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`, `DiagnosticsSearcher`/`ContextDiagnosticsSearcher`, `AcademicSearcher`, `ScoreBucket`, `FilterByScore/SortByScore`, `NormalizeURL`, `FormatMD` result formatters |
 | `search/engine` | Low-level web engines (HTTP fetching + anti-bot params), implement `antirobot.Engine` | `Engine` + `Opts` of `baidu/bing/ddg/google` |
 | `search/provider` | API provider adapters (implement `SearchInf`) + key pool | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewBaiduAISearch/NewBaiduSeach`, `KeyPool` (per-provider SK rotation), `KeyError` |
+| `search/provider/mcphub` | Hosted-MCP cascade hub (implements `SearchInf` + `Fetch`) | `New`, presets (parallel/anysearch/exa/firecrawl), MCP Streamable HTTP client, `priority`/`round-robin`, engine backends in rotation/fallback, independent search/fetch cooldowns |
 | `search/adapter` | Adapts "non-API" sources into `SearchInf` | `EngineSearchAdapter` (antirobot.Engine → SearchInf), `BingSearchAdapter`, `BaiduWithFallback`, `AcademicAdapter` |
 | `search/apipool` | Cross-provider rotation strategy (sibling of hybrid) | `ApipoolSearchImpl` (round-robin/priority/weighted), `ApipoolProvider` |
 | `search/hybrid` | Concurrent multi-engine strategy | `HybridSearchImpl` (concurrent calls, request-context propagation with per-engine soft timeout, dedup & merge, per-engine `EngineFilter`, failure diagnostics) |
 | `search/enhance` | Advanced scoring pipeline (works on `ScoreBucket`, engine-agnostic) | `EnhanceResults/EnhanceResultsMMR` (RRF/domain quality/lexical alignment/rare-terms/consensus boost/threshold), `ApplyMMR`, `EnhanceAcademicResults` (academic signals: citations/venue/PDF/recency) |
-| `search/mode` | Search-mode construction: assembles Primary per `config.mode` | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode`, `InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
+| `search/mode` | Search-mode construction: assembles Primary per `config.mode` | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode/BuildMCPHubMode`, `InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
 
 ### Other domain packages
 
@@ -70,6 +71,7 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 |------|------------------|
 | Add a low-level web engine (e.g. Sogou) | New package under `pkg/search/engine/` (implement `antirobot.Engine`) → adapter in `pkg/search/adapter` → register in modes (`pkg/search/mode`) → config switch in `pkg/config` |
 | Add an API provider (e.g. Serper) | New adapter in `pkg/search/provider/` (implement `SearchInf`, use `KeyPool`) → register in `pkg/search/mode` (single-engine mode + optionally apipool/hybrid) → `pkg/config` + docs |
+| Add a hosted MCP server / adjust cascade order | presets and `config.MCPHubConfig.GetServers` in `pkg/search/provider/mcphub/hub.go`; fetch order lives in `fetchPageWithFallback` in `mcp/tool_cleanfetch.go` |
 | Adjust mode composition / fallback order | `pkg/search/mode/factory.go`; the mode switch lives in root `factory.go` |
 | Change multi-engine dedup/merge/per-engine filtering | `pkg/search/hybrid/hybrid.go` |
 | Change apipool rotation strategy / key invalidation | `pkg/search/apipool/apipool.go` (key-pool primitive in `provider/keypool.go`) |

@@ -42,6 +42,7 @@ log_level: info
 #   - doubao     : 优先豆包 Global/Custom；失败可回退已启用 Bing
 #   - hybrid     : 已开启且满足凭证/代理条件的 API 与网页源并发混合
 #   - engine     : 已开启且满足代理条件的网页源并行，无需 API Key
+#   - mcphub     : 零 Key 托管 MCP 级联（parallel → anysearch → exa → firecrawl），支持可选 Key
 mode: engine
 
 # API 源开关独立于模式与密钥：省略 enabled = true；false 只停止使用该源，不删除 Key。
@@ -392,6 +393,27 @@ log:
 #       min_score: 0      # Custom 回传 score；Global 不回传
 #       max_size: 4
 #       weight: 1.0
+
+# ==============================================
+# 零 Key 托管 MCP 级联 hub（可选）
+# mode=mcphub 时作为搜索引擎；fetch_mode 非 off 时增强 cleanfetch 抓取
+# ==============================================
+# mcp_hub:
+#   enabled: true
+#   strategy: priority        # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
+#   timeout_sec: 20
+#   fetch_timeout_sec: 45
+#   cooldown_sec: 60
+#   max_results: 10
+#   max_fetch_chars: 200000
+#   fetch_mode: off           # off（默认）/ fallback / prefer
+#   rotation_engines: []      # 加入主轮转池的本地引擎（MCP 之后轮转），如 [so360]
+#   fallback_engines: [bing, so360]  # 主轮转失败后的降级链；[] = 不降级，最终仍回退 Bing
+#   servers:                  # 省略 = parallel → anysearch → exa → firecrawl
+#     - name: parallel
+#     - name: anysearch
+#     - name: exa             # 默认需代理；requires_proxy: false 可强制直连
+#     - name: firecrawl       # 默认需代理；requires_proxy: false 可强制直连
 
 # ==============================================
 # Apipool 模式配置（可选，mode=apipool 时生效）

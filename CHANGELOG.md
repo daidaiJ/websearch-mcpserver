@@ -5,6 +5,7 @@
 ## Unreleased
 
 ### 新增
+- **零 Key 托管 MCP 级联模式 `mcphub`**：内置 Parallel / AnySearch / Exa / Firecrawl 四个 preset（请求参数与响应解析随 preset 固定），按 `priority` / `round-robin` 轮转，失败冷却后级联切换；每个上游可选 `api_key`/`sk_list`，`exa`/`firecrawl` 默认按代理可用性自动启用/跳过；`rotation_engines` 可把本地引擎加入主轮转分摊限流，`fallback_engines` 默认 `bing → so360`，全部失败仍由 smartsearch 回退 Bing。cleanfetch 另有 `fetch_mode: off/fallback/prefer` 可选复用同一批 MCP 抓取，PDF、SSRF/HEAD 预检与本地 webfetch/Jina 降级保持不变
 - **`GET /metrics` 观测端点**：Prometheus/OpenMetrics 文本格式的只读聚合（今日工具/供应商请求数、成功失败、缓存命中、延迟分桶），零新依赖手写渲染，数据来自脱敏遥测库、不含 URL/原文/密钥；需 `dashboard.enabled: true`，未启用返回 503
 - **off-topic 守卫校准回放**：`shadow` 判定落 `guard` 遥测事件（模式、参照回声率、各引擎桶回声率/条数），新增 `go run ./tools/guardreplay -db <dashboard.db>`，按 0.15/0.25/0.35/0.5 等候选阈值输出「若 enforce 会丢弃哪些桶、影响多少查询」与样例，`-json` 供机器消费
 

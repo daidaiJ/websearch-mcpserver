@@ -5,6 +5,7 @@
 ## Unreleased
 
 ### Added
+- **Keyless hosted-MCP cascade mode `mcphub`**: four fixed presets (Parallel / AnySearch / Exa / Firecrawl) with preset-specific request arguments and response parsers; rotates with `priority` / `round-robin`, cools down failed upstreams and cascades to the next. Each upstream accepts optional `api_key`/`sk_list`; `exa`/`firecrawl` are enabled/skipped automatically based on proxy availability. `rotation_engines` can add local engines to the main rotation to spread rate limits, while `fallback_engines` defaults to `bing → so360` and the existing smartsearch Bing fallback remains last. cleanfetch can optionally reuse the same MCP pool via `fetch_mode: off/fallback/prefer`; PDF handling, SSRF/HEAD preflight and local webfetch/Jina degradation are preserved
 - **`GET /metrics` observability endpoint**: read-only aggregates in Prometheus/OpenMetrics text format (today's tool/provider requests, successes/failures, cache hits, latency buckets), rendered by hand with no new dependencies, sourced from the privacy-preserving telemetry store (no URLs, raw text or secrets); requires `dashboard.enabled: true` and returns 503 otherwise
 - **Off-topic guard calibration replay**: `shadow` decisions now record a `guard` telemetry event (mode, reference echo ratio, per-engine bucket echo/count), and the new `go run ./tools/guardreplay -db <dashboard.db>` replays them at candidate thresholds such as 0.15/0.25/0.35/0.5, reporting which buckets enforce would drop and how many queries are affected, with samples; `-json` for machine consumption
 

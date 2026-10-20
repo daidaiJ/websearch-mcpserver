@@ -15,6 +15,19 @@ func TestInitBaiduWebEngine_DisabledByDefault(t *testing.T) {
 	}
 }
 
+// TestBuildMCPHubMode 验证 mcphub 模式能装配内置 preset，并为未知 server 返回 nil。
+func TestBuildMCPHubMode(t *testing.T) {
+	conf := config.Default()
+	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "parallel"}}
+	if got := BuildMCPHubMode(*conf, EngineAdapters{}, nil); got == nil {
+		t.Fatal("mcphub should build with the parallel preset")
+	}
+	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "custom"}}
+	if got := BuildMCPHubMode(*conf, EngineAdapters{}, nil); got != nil {
+		t.Fatal("unknown MCP presets must not be accepted")
+	}
+}
+
 func TestInitBaiduWebEngine_ExplicitEnable(t *testing.T) {
 	conf := config.Config{Baidu: config.BaiduConfig{WebEnabled: true}}
 	if a := InitBaiduWebEngine(conf); a == nil {

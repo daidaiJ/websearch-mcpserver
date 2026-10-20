@@ -32,6 +32,7 @@ const (
 	ModeDoubao    = "doubao" // 火山引擎豆包联网搜索（Global / Custom，由 doubao.version 选择）
 	ModeHybrid    = "hybrid"
 	ModeEngine    = "engine" // 纯引擎模式，无需 API Key
+	ModeMCPHub    = "mcphub" // 零 Key 托管 MCP 级联 hub（parallel → anysearch → exa → firecrawl）
 )
 
 // ── 顶层配置 ──
@@ -70,6 +71,7 @@ type Config struct {
 	Proxy              ProxyConfig       `mapstructure:"proxy"`
 	SmartSearch        SmartSearchConfig `mapstructure:"smartsearch"`
 	Apipool            ApipoolConfig     `mapstructure:"apipool"`
+	MCPHub             MCPHubConfig      `mapstructure:"mcp_hub"`
 	Dashboard          DashboardConfig   `mapstructure:"dashboard"`
 }
 
@@ -1014,6 +1016,8 @@ func (c Config) GetMode() string {
 		return ModeHybrid
 	case ModeEngine:
 		return ModeEngine
+	case ModeMCPHub:
+		return ModeMCPHub
 	case ModeBaidu, "":
 		return ModeBaidu
 	default:
@@ -1024,7 +1028,7 @@ func (c Config) GetMode() string {
 // NeedsAPIKey 当前模式是否需要 API Key。
 func (c Config) NeedsAPIKey() bool {
 	switch c.GetMode() {
-	case ModeEngine:
+	case ModeEngine, ModeMCPHub:
 		return false
 	default:
 		return true
@@ -1241,6 +1245,7 @@ func Load(configPath string) (*Config, error) {
 	applyKnownEnv(&conf)
 	applyDashboardOverlay(&conf)
 	applyDashboardSecrets(&conf)
+	conf.MCPHub.NormalizeMCPHub()
 
 	return &conf, nil
 }
@@ -1286,6 +1291,7 @@ func Default() *Config {
 		},
 	}
 	applyKnownEnv(conf)
+	conf.MCPHub.NormalizeMCPHub()
 	return conf
 }
 
