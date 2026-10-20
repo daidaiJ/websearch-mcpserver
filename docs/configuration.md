@@ -384,7 +384,7 @@ pdf_parser:
 #   strategy: weighted    # round-robin（默认）: 跨请求轮转起始供应商
 #                         # priority: 始终从第一个供应商开始
 #                         # weighted: 按权重加权随机选起始供应商（见 weights）
-#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，网页引擎兜底始终在末尾）
 #                         # 豆包不在默认列表；有 Key 时请显式加入
 #     - anysearch
 #     - baidu
@@ -418,7 +418,7 @@ log:
 | `baidu` | 已启用且有 Key 的千帆 API，可回退至独立启用的百度网页源；无可用主源时使用已启用 Bing |
 | `tavily` / `exa` / `doubao` | 对应已启用且有 Key 的 API；不可用时使用已启用 Bing |
 | `anysearch` | 已启用的 AnySearch，有 Key 用 Key 池，否则匿名；关闭后仅可回退至已启用 Bing |
-| `apipool` | 按 `apipool.engines` 顺序过滤禁用/不可用 API，再执行轮转与失败切换；百度网页源单独启用后作为末尾兜底；全部为空时可使用已启用 Bing |
+| `apipool` | 按 `apipool.engines` 顺序过滤禁用/不可用 API，再执行轮转与失败切换；已启用的网页引擎作为末尾兜底；全部为空时可使用已启用 Bing |
 | `hybrid` | 并发组合已启用、可用的 API 与网页源；禁用源不参与，包括匿名 AnySearch |
 | `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP；单个 server 失败冷却后切换，全部失败回退已启用 Bing；每个 server 的 `api_key`/`sk_list` 可选 |
 
@@ -530,7 +530,7 @@ dashboard:
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |
 | `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 / `weighted` 加权随机 |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，百度网页搜索兜底始终在末尾；`doubao` 不在默认列表，有 Key 时显式加入 |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao` 不在默认列表，有 Key 时显式加入 |
 | `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分
 | `doubao.version` | global | Global / Custom；两版并发走 hybrid，适配器内不提供 both |
 | `doubao.num_results` | 10 | Global 最大 20；Custom 最大 50 |

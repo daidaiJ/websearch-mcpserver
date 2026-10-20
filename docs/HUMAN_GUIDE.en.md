@@ -53,7 +53,7 @@ Client registration JSON, Docker, systemd/launchd daemons and other deployment o
 | Local web engines only, no MCP | `engine` | Baidu web + Bing concurrent, zero-config (DuckDuckGo joins automatically when a proxy is available) |
 | Only a Baidu Qianfan key | `baidu` | Qianfan search falls back to Baidu web search on failure |
 | One overseas provider key | `tavily` / `exa` / `anysearch` / `doubao` | Single-provider mode; falls back to Bing without a key |
-| Several keys, want quota-saving failover | `apipool` | One provider per request, auto-switch on failure, Baidu as final fallback |
+| Several keys, want quota-saving failover | `apipool` | One provider per request, auto-switch on failure, web-engine fallback |
 | Many keys, want maximum coverage | `hybrid` | All engines concurrent; multi-engine consensus feeds the scoring |
 
 > Single-provider modes auto-degrade to `engine` instead of erroring out; `mcphub` itself needs no keys. Engine mapping and fallback chains per mode: [search.en.md](search.en.md#search-modes).

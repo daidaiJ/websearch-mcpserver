@@ -423,7 +423,7 @@ log:
 #                         #   round-robin（默认）: 跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback
 #                         #   priority: 始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 引擎兜底
 #                         #   weighted: 按权重加权随机选起始供应商，突发请求天然分散（权重见 weights）
-#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，网页引擎兜底始终在末尾）
 #                         # 豆包不在默认列表；有 Key 时请显式加入 - doubao
 #     - anysearch
 #     - baidu

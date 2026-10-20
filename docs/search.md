@@ -29,7 +29,7 @@
 |------|------|----------|
 | `engine` | 百度网页搜索 + Bing + 360（启用时）并发（代理可用时自动加入 DuckDuckGo / Wikipedia / Google News，启用时加入 Google） | **无需** |
 | `baidu` | 百度千帆搜索（`enable_ai_search` 控制端点），失败自动回退百度网页搜索；无 SK 时直接用百度网页搜索 | `BAIDU_SK`（可选） |
-| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；百度网页搜索兜底 | 各 Key 可选 |
+| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；网页引擎兜底 | 各 Key 可选 |
 | `tavily` | Tavily Search API（[获取 Key](https://app.tavily.com/home)） | `TAVILY_SK` |
 | `exa` | Exa Web Search API（[获取 Key](https://dashboard.exa.ai/api-keys)） | `EXA_API_KEY` |
 | `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)）；无 Key 时走匿名档（免鉴权，按出口 IP 限流） | `ANYSEARCH_API_KEY`（可选） |
@@ -39,7 +39,7 @@
 
 > 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
 >
-> **推荐选型**：**零 Key 场景用 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 场景用 `apipool`**（多供应商 Key 池轮转，失败自动切换，百度网页兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景。
+> **推荐选型**：**零 Key 场景用 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 场景用 `apipool`**（多供应商 Key 池轮转，失败自动切换，网页引擎兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景。
 
 **各模式引擎映射**（来自 `pkg/search/factory.go`）：
 
@@ -51,7 +51,7 @@
 | `exa` | Exa；无 Key 时回退 Bing |
 | `anysearch` | AnySearch；有 Key 走 Key 池轮询，无 Key 走匿名档（免鉴权，按出口 IP 限流） |
 | `doubao` | 豆包联网搜索 Global/Custom（`doubao.version`）；无 Key 时回退 Bing |
-| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao` 需显式写入 `apipool.engines`），百度网页搜索始终兜底 |
+| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
 | `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
 | `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP（默认 parallel → anysearch → exa → firecrawl），一次请求命中一个；失败冷却后切换，全部失败回退 Bing |
 
@@ -235,12 +235,12 @@ apipool:
 
 **策略说明**：
 - **`round-robin`**（默认）：跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback 到下一个
-- **`priority`**：始终从列表第一个供应商开始，用完所有 SK → 切换下一个供应商 → 百度网页搜索兜底
-- **`weighted`**：按权重加权随机选起始供应商，突发请求天然分散到多家供应商。供应商有效权重 = **配置权重 × 当前可用 SK 数**（SK 失效冷却后权重自动下降，自愈）；权重表未收录的供应商按 1 计；显式 `0` 表示不参与加权起始选择（仍保留在失败切换链路）；全部权重为 0 时退化为 round-robin。百度网页搜索兜底引擎无 Key 池，固定权重 1
+- **`priority`**：始终从列表第一个供应商开始，用完所有 SK → 切换下一个供应商 → 网页引擎兜底
+- **`weighted`**：按权重加权随机选起始供应商，突发请求天然分散到多家供应商。供应商有效权重 = **配置权重 × 当前可用 SK 数**（SK 失效冷却后权重自动下降，自愈）；权重表未收录的供应商按 1 计；显式 `0` 表示不参与加权起始选择（仍保留在失败切换链路）；全部权重为 0 时退化为 round-robin。网页引擎兜底无 Key 池，固定权重 1
 
 **权重默认值**（可被 `apipool.weights` 覆盖）：`anysearch=30000`、`baidu=1500`、`tavily=1200`、`exa=1200`、`doubao=500`（对齐免费档每月积分）
 
-**工作流程**：选供应商 → `pool.Next()` 取 key → 调 API → 成功返回 / 失败标记 key 冷却 30 分钟 → 同供应商下一个 SK 重试 → 全部耗尽切下一个供应商 → 全部失败用百度网页搜索兜底
+**工作流程**：选供应商 → `pool.Next()` 取 key → 调 API → 成功返回 / 失败标记 key 冷却 30 分钟 → 同供应商下一个 SK 重试 → 全部耗尽切下一个供应商 → 全部失败用网页引擎兜底
 
 ---
 

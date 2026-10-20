@@ -374,7 +374,7 @@ pdf_parser:
 #   strategy: weighted    # round-robin (default): rotate starting provider across requests
 #                         # priority: always start from first provider
 #                         # weighted: weighted-random starting provider (see weights)
-#   engines:              # Provider priority order (default [anysearch, baidu, tavily, exa], Baidu web search fallback always last)
+#   engines:              # Provider priority order (default [anysearch, baidu, tavily, exa], web-engine fallback always last)
 #                         # Doubao is not in the default list; add it explicitly when you have a key
 #     - anysearch
 #     - baidu
@@ -425,7 +425,7 @@ Source switches permit or deny a source; `mode` selects among permitted sources:
 | `baidu` | Enabled, keyed Qianfan API, optionally falling back to independently enabled Baidu web; enabled Bing if no primary source is usable |
 | `tavily` / `exa` / `doubao` | The enabled, keyed API; enabled Bing when that source is unavailable |
 | `anysearch` | Enabled AnySearch with key rotation or the anonymous tier; disabled AnySearch can only fall back to enabled Bing |
-| `apipool` | Filter disabled/unusable APIs from `apipool.engines`, then rotate and fail over; independently enabled Baidu web is last; enabled Bing can be used if the pool is empty |
+| `apipool` | Filter disabled/unusable APIs from `apipool.engines`, then rotate and fail over; enabled web engines serve as the final fallback; enabled Bing can be used if the pool is empty |
 | `hybrid` | Combine enabled, usable APIs and web sources concurrently; disabled sources, including anonymous AnySearch, are excluded |
 | `mcphub` | Cascade hosted MCP servers in `mcp_hub.servers` order; a failed server cools down and the hub switches to the next, falling back to enabled Bing when all fail; per-server `api_key`/`sk_list` are optional |
 
@@ -535,7 +535,7 @@ dashboard:
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
 | `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order / `weighted` weighted-random |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, Baidu web search fallback always last; `doubao` is not in the default list — add it explicitly when you have a key |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao` is not in the default list — add it explicitly when you have a key |
 | `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits |
 | `doubao.version` | global | Global / Custom; concurrent both goes through hybrid, not inside the adapter |
 | `doubao.num_results` | 10 | Global max 20; Custom max 50 |

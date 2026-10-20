@@ -29,7 +29,7 @@
 |------|-------------|--------------|
 | `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
-| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; Baidu web search as final fallback | All optional |
+| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; web-engine fallback | All optional |
 | `tavily` | Tavily Search API ([get key](https://app.tavily.com/home)) | `TAVILY_SK` |
 | `exa` | Exa Web Search API ([get key](https://dashboard.exa.ai/api-keys)) | `EXA_API_KEY` |
 | `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
@@ -39,7 +39,7 @@
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
 >
-> **Recommended**: use **`mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation) and **`apipool` when API keys are available** (multi-provider key rotation with automatic failover and Baidu web fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired.
+> **Recommended**: use **`mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation) and **`apipool` when API keys are available** (multi-provider key rotation with automatic failover and web-engine fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired.
 
 **Mode → engine mapping** (from `pkg/search/factory.go`):
 
@@ -235,12 +235,12 @@ apipool:
 
 **Strategy details**:
 - **`round-robin`** (default): rotates the starting provider across requests; within a single request, exhausts all available SKs in the current provider before falling back to the next
-- **`priority`**: always starts from the first provider; exhausts all SKs → switches to next provider → Baidu web search as final fallback
-- **`weighted`**: weighted-random selection of the starting provider, which naturally spreads request bursts across providers. A provider's effective weight = **configured weight × currently available SK count** (auto-shrinks when SKs cool down, self-healing); providers absent from the weight table count as 1; an explicit `0` excludes a provider from weighted starting selection (it stays in the failure-switch chain); when all weights are 0 it degrades to round-robin. The Baidu web search fallback engine has no key pool and a fixed weight of 1
+- **`priority`**: always starts from the first provider; exhausts all SKs → switches to next provider → web-engine fallback
+- **`weighted`**: weighted-random selection of the starting provider, which naturally spreads request bursts across providers. A provider's effective weight = **configured weight × currently available SK count** (auto-shrinks when SKs cool down, self-healing); providers absent from the weight table count as 1; an explicit `0` excludes a provider from weighted starting selection (it stays in the failure-switch chain); when all weights are 0 it degrades to round-robin. The web-engine fallback has no key pool and a fixed weight of 1
 
 **Default weights** (overridable via `apipool.weights`): `anysearch=30000`, `baidu=1500`, `tavily=1200`, `exa=1200`, `doubao=500` (free-tier monthly credits)
 
-**Workflow**: select provider → `pool.Next()` → call API → success / mark key cooldown 30 min → retry next SK in same provider → all exhausted → next provider → all failed → Baidu web search fallback
+**Workflow**: select provider → `pool.Next()` → call API → success / mark key cooldown 30 min → retry next SK in same provider → all exhausted → next provider → all failed → web-engine fallback
 
 ---
 
