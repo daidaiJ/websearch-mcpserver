@@ -18,7 +18,7 @@
   <img src="docs/images/hero-banner.png" alt="Multi-engine search fusion: Baidu, Bing, DuckDuckGo, API engines and 9 academic sources merge locally into search results, papers, pages/PDFs and local files" width="900">
 </p>
 
-An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines plus 9 academic search engines. Search, scoring, and caching all happen locally. Use it as MCP tools in Claude Code, Qwen Code, or Cursor, or embed it as a Go module in your own service.
+An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines, four zero-key hosted MCP upstreams (Parallel / AnySearch / Exa / Firecrawl), and 9 academic search engines. Search, scoring, and caching all happen locally. Use it as MCP tools in Claude Code, Qwen Code, or Cursor, or embed it as a Go module in your own service.
 
 **Free, China-friendly, LLM-ready.** Works with zero keys; keys are used only when you provide them.
 
@@ -35,9 +35,9 @@ Layered design: clients see up to five MCP tools; the engine group is assembled 
 | Layer | Role |
 |-------|------|
 | **Client** | Claude Code / Qwen Code / Cursor / HTTP API / embed as a Go module |
-| **Protocol** | `/mcp` up to five tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console |
-| **Orchestration** | `factory` / `mode` · `hybrid` / `apipool` · `enhance` (RRF / Boost / MMR) |
-| **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao; 9 academic sources in parallel |
+| **Protocol** | `/mcp` up to five tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console · `/metrics` Prometheus observability |
+| **Orchestration** | `factory` / `mode` · `hybrid` / `apipool` / `mcphub` · `enhance` (RRF / Boost / MMR) |
+| **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao + 4 hosted MCP upstreams; 9 academic sources in parallel |
 | **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary, Everything |
 
 Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md](docs/architecture.en.md).
@@ -58,17 +58,17 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 
 | Capability | Description |
 |------------|-------------|
-| Zero-key search | `engine` mode runs Baidu web search + Bing concurrently, no API keys required |
-| Multi-engine fusion | Multiple search modes, 8 general engines + 9 academic engines, auto-fallback on primary failure |
+| Zero-key search | Recommended `mcphub`: hosted-MCP cascade over Parallel / AnySearch / Exa / Firecrawl with cooldown failover, no API keys required; `engine` mode uses local Baidu web + Bing instead |
+| Multi-engine fusion | Multiple search modes, 8 general engines + 4 hosted MCP upstreams + 9 academic engines, auto-fallback on primary failure |
 | Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up mirrors / reposts |
 | Response transparency | Failure lists, date and retrieval provenance; request cancellation propagates through every engine with a per-engine soft timeout; oversize search results retain candidate previews and a `result_ref` for complete body delivery through the `cleanfetch` saved-result mode |
 | Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |
-| Web fetching | `cleanfetch` with built-in SSRF / DNS-rebinding protection and oversized-file pre-check; fallback to Jina Reader |
+| Web fetching | `cleanfetch` with built-in SSRF / DNS-rebinding protection and oversized-file pre-check; fallback to Jina Reader; optional `fetch_mode` reuses hosted MCP fetching |
 | PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR; remote MinerU returns the ZIP URL with images; when the source exceeds the per-task page limit (default 600), selected pages are cropped locally with qpdf, with configurable auto-batching and a per-call page budget ; bounded MinerU waiting with state and task references for resuming existing jobs |
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
-| Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits (off by default) |
+| Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits, plus Prometheus-format `GET /metrics` (off by default) |
 | Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
 
 ---
@@ -107,6 +107,8 @@ autostart.vbs
 ```
 
 > "Zero config" = the first start writes a preset `config.yaml` identical to `config.example.yaml`; edit that file for port/keys/mode. The daemon listens on `127.0.0.1` by default; when opening the network (`host: 0.0.0.0`), configure `auth_token` to protect business endpoints.
+>
+> To use the zero-key hosted-MCP cascade, set `mode: mcphub` in that file (`mcp_hub.enabled` defaults to on).
 
 Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in [docs/installation.md](docs/installation.md)):
 
@@ -127,6 +129,21 @@ The single `mode` field decides the engine group: **use `mcphub` for zero-key de
 
 Participating engines per mode, key-signup links, `sk_list` multi-key rotation, and per-engine rate limits: [docs/search.en.md](docs/search.en.md).
 
+The four built-in `mcphub` presets:
+
+| Preset | Proxy by default | Notes |
+|--------|------------------|-------|
+| `parallel` | No | Directly reachable, lowest latency |
+| `anysearch` | No | China-friendly direct access, stable Chinese results |
+| `exa` | Yes | Lower anonymous rate limit |
+| `firecrawl` | Yes | Anonymous quota allocated per egress IP |
+
+- Default cascade is `parallel → anysearch → exa → firecrawl`; one upstream serves each request. A failure cools that upstream down for 60s before switching. This is routing and failover; results from multiple upstreams are not merged.
+- When the whole pool fails, the server degrades through `fallback_engines` (default `bing → so360`), and `smartsearch` still falls back to Bing last.
+- Each upstream accepts optional `api_key` / `sk_list`; empty means anonymous. `exa` / `firecrawl` join the rotation only when a proxy is detected and return automatically once it is available.
+- `rotation_engines` can add local engines (such as `so360`) to the main rotation to spread anonymous rate limits.
+- `fetch_mode: off / fallback / prefer` lets `cleanfetch` reuse the same MCP pool; PDFs still use local parsing and SSRF / HEAD preflight is never skipped.
+
 ---
 
 ## Local Control Center (optional, off by default)
@@ -135,7 +152,7 @@ With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a loc
 
 ![Control center overview](docs/images/dashboard-overview.jpg)
 
-To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; loopback-only reads by default, writes require `admin_password`.
+To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; loopback-only reads by default, writes require `admin_password`. `GET /metrics` additionally exposes read-only, sanitized aggregates in Prometheus/OpenMetrics text; it requires `dashboard.enabled: true` and returns 503 otherwise.
 
 > Page details, every config key, shortcut placement, the security model and call attribution: [docs/dashboard.en.md](docs/dashboard.en.md).
 

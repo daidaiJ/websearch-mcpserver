@@ -2,7 +2,7 @@
 
 English | [中文](AGENT_GUIDE.md)
 
-MCP search server in Go: up to 5 tools (`smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`), zero API key needed (`engine` mode), HTTP daemon or stdio. Full human-readable version: [HUMAN_GUIDE.en.md](HUMAN_GUIDE.en.md).
+MCP search server in Go: up to 5 tools (`smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`), zero API key needed (`mcphub` hosted-MCP cascade / local `engine`), HTTP daemon or stdio. Full human-readable version: [HUMAN_GUIDE.en.md](HUMAN_GUIDE.en.md).
 
 > **Anti-patterns**: ① Do not `cleanfetch` a search results page to "search" — that is `smartsearch`'s job; ② If you already hold a DOI / arXiv id, do not re-search by title — pass the id directly as `academicsearch`'s `query` for exact lookup; ③ Do not pass a web page URL to `pdf_parser` — pages go through `cleanfetch`.
 
@@ -16,6 +16,7 @@ curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/lates
 
 # 2. Skip writing config: first start without -c auto-generates a preset config.yaml (runs with zero keys)
 #    With an explicit -c path nothing is auto-generated; a missing file is an error
+#    For the zero-key hosted-MCP cascade: set mode: mcphub in config.yaml (mcp_hub.enabled defaults to on)
 
 # 3. Start (HTTP daemon, default 127.0.0.1:8338)
 ./websearch-mcpserver start        # stop / kill / status / version are sibling subcommands

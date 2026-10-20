@@ -39,10 +39,11 @@ The system has built-in automatic fallback at multiple levels, so no single comp
 | Provider key | `sk_list` multi-key rotation within a provider (duplicate keys deduplicated automatically); failed keys cool down for 30 min then auto-recover |
 | Provider | `apipool` mode: current provider's SKs exhausted → switch to next provider (selection strategy round-robin / priority / weighted; weighted = weighted random by configured weight × available SK count) |
 | Primary engine | Primary engine failure → auto-fallback to Bing |
+| Hosted MCP | `mcphub` mode: current server fails → cooldown (60s by default) → next server; when the whole rotation fails → `fallback_engines` (default Bing → 360) → smartsearch falls back to Bing |
 | Baidu | Baidu SK failure → fallback to Baidu web search |
-| Mode | Auto-degrades to `engine` mode when keys are missing |
+| Mode | Single-provider modes auto-degrade to `engine` when keys are missing |
 | LLM summary | Streaming summary failure → non-streaming summary → raw results |
-| Web fetch | go-webfetch failure → Jina Reader |
+| Web fetch | go-webfetch failure → Jina Reader; with `mcp_hub.fetch_mode` other than off, fallback/prefer pairs it with hosted MCP fetching |
 | Cache | Cache lookup error → skip cache and search directly |
 
 ---

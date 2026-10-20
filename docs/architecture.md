@@ -39,10 +39,11 @@
 | 供应商 Key | 同供应商 `sk_list` 多 Key 轮询（重复 Key 自动去重），Key 失效标记 30 分钟冷却后自动恢复 |
 | 供应商 | `apipool` 模式：当前供应商所有 SK 耗尽 → 切换下一个供应商（选择策略 round-robin / priority / weighted，weighted 按配置权重 × 可用 SK 数加权随机） |
 | 主引擎 | 主引擎失败 → 自动回退 Bing |
+| 托管 MCP | `mcphub` 模式：当前 server 失败 → 冷却（默认 60s）→ 下一个；轮转池全部失败 → `fallback_engines`（默认 Bing → 360）→ smartsearch 回退 Bing |
 | 百度 | 百度 SK 失败 → 回退百度网页搜索 |
-| 模式 | 无 Key 时自动降级为 `engine` 模式 |
+| 模式 | 单供应商模式无 Key 时自动降级为 `engine` 模式 |
 | LLM 摘要 | 流式摘要失败 → 回退非流式摘要 → 回退原始结果 |
-| 网页抓取 | go-webfetch 失败 → 回退 Jina Reader |
+| 网页抓取 | go-webfetch 失败 → 回退 Jina Reader；`mcp_hub.fetch_mode` 非 off 时按 fallback / prefer 与托管 MCP 互备 |
 | 缓存 | 缓存查询异常 → 跳过缓存直接搜索 |
 
 ---

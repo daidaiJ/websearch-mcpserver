@@ -311,7 +311,7 @@ chmod +x /usr/local/bin/websearch-mcpserver
 mkdir -p ~/.config/websearch
 cat > ~/.config/websearch/config.yaml << 'EOF'
 port: 8338
-mode: engine
+mode: engine          # use mcphub for the zero-key hosted-MCP cascade
 EOF
 
 # 3. Start and register (see "Register MCP Client" above)

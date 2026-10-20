@@ -310,7 +310,7 @@ chmod +x /usr/local/bin/websearch-mcpserver
 mkdir -p ~/.config/websearch
 cat > ~/.config/websearch/config.yaml << 'EOF'
 port: 8338
-mode: engine
+mode: engine          # 零 Key 托管 MCP 级联改用 mcphub
 EOF
 
 # 3. 启动并注册（见上方「注册 MCP 客户端」）
