@@ -139,10 +139,10 @@ autostart.vbs
 | `firecrawl` | 是 | 匿名额度按出口 IP 分配 |
 
 - 级联顺序默认 `parallel → anysearch → exa → firecrawl`，单次请求命中一个；失败冷却 60s 后切换，这是路由与降级，多家的结果不会合并返回。
-- 全部失败后按 `fallback_engines`（默认 `bing → so360`）降级，最终仍由 `smartsearch` 回退 Bing。
-- 每个上游可配 `api_key` / `sk_list`，留空走匿名档；`exa` / `firecrawl` 仅在检测到代理时参与轮转，代理恢复后自动回归。
+- 全部失败后按 `fallback_engines`（默认 `bing → so360`，未启用的引擎自动跳过，so360 默认关闭）降级，最终仍由 `smartsearch` 回退 Bing。
+- 每个上游可配 `api_key` / `sk_list`，留空走匿名档；鉴权失败自动换下一把 Key，连接/超时则冷却该 server 并级联；`exa` / `firecrawl` 仅在检测到代理时参与轮转，代理恢复后自动回归。
 - `rotation_engines` 可把本地引擎（如 `so360`）加入主轮转，分摊匿名限流。
-- `fetch_mode: off / fallback / prefer` 让 `cleanfetch` 复用同一批 MCP 抓取；PDF 仍走本地解析，SSRF / HEAD 预检不跳过。
+- `fetch_mode: off / fallback / prefer` 让 `cleanfetch` 复用同一批 MCP 抓取（`mode=mcphub` 时共用搜索 Hub 的冷却与 Key 池）；PDF 仍走本地解析，SSRF / HEAD 预检不跳过。
 
 ---
 

@@ -256,12 +256,12 @@ apipool:
 | `firecrawl` | `https://mcp.firecrawl.dev/v2/mcp` | ✅（按 IP 每日限额） | ✅ | `firecrawl_search` / `firecrawl_scrape` | https://www.firecrawl.dev/app/api-keys |
 
 - **代理自适应伸缩**：`exa`、`firecrawl` 预设 `requires_proxy: true`，未检测到代理时自动跳过（保留在轮转表中，后续代理可用即恢复，无需重启）；`parallel`、`anysearch` 默认直连。每个 server 可用 `requires_proxy: true/false` 覆盖预设。`proxy.enabled: false` 会关闭自动检测，等价于所有需代理上游跳过。
-- **Key 可选**：每个 server 的 `api_key` 或 `sk_list` 为空时走匿名 keyless；配置后自动带鉴权头并支持多 Key 轮转。Key 只写入本地配置，不会出现在日志或响应中。
+- **Key 可选**：每个 server 的 `api_key` 或 `sk_list` 为空时走匿名 keyless；配置后自动带鉴权头并支持多 Key 轮转。鉴权失败（401/403/unauthorized/forbidden/invalid api key）只标记该 Key 无效（30 分钟）并换下一把，Key 池耗尽后才冷却该 server；连接/超时等其它错误直接冷却该 server 并级联，其余 Key 保持可用。Key 只写入本地配置，不会出现在日志或响应中。
 - **2026-10-20 国内直连实测**（安徽联通）：四个端点均可直连；AnySearch 中文结果最稳定，Parallel 延迟最低，Exa 突发约 7 次后触发匿名限流（约 60s 恢复），Firecrawl 匿名额度按出口 IP 分配。需代理标记按“国内网络友好度”默认给出，可按实际出口覆盖。
 - **策略**：`priority`（默认，稳定优先）每次从第一个可用 server 开始；`round-robin` 跨请求轮转起始 server。
 - **本地引擎负载轮转**：`rotation_engines` 可把 `so360` / `bing` / `baidu_web` 等本地引擎追加到主轮转池（顺序在 MCP server 之后）。例如 `[so360]` 让约 1/5 的请求走 360，降低 MCP 匿名限流概率；想提高引擎占比就减少 `servers` 数量（只留 parallel + so360 即约 50/50）。
-- **降级链**：主轮转池（MCP → `rotation_engines`）全部失败后，按 `fallback_engines` 顺序降级；默认 `[bing, so360]`（未启用的自动跳过），显式 `[]` 表示不做本地降级。`fallback_engines` 也失败后，仍由 `smartsearch` 统一回退 Bing，与项目其它模式一致。
-- **冷却**：连接/限流/鉴权错误冷却对应后端；站点级“不支持抓取”只跳过当前 URL，不连坐整个 server。全部冷却时直接返回错误，由上层回退 Bing，避免无谓重试。
+- **降级链**：主轮转池（MCP → `rotation_engines`）全部失败后，按 `fallback_engines` 顺序降级；默认 `[bing, so360]`（未启用的自动跳过；so360 默认关闭，默认安装通常只经 Bing 降级），显式 `[]` 表示不做本地降级。`fallback_engines` 也失败后，仍由 `smartsearch` 统一回退 Bing，与项目其它模式一致。
+- **冷却**：连接/限流错误冷却对应后端；鉴权错误先在该 server 内换下一把 Key，Key 池耗尽后才冷却并级联。站点级“不支持抓取”只跳过当前 URL，不连坐整个 server。全部冷却时直接返回错误，由上层回退 Bing，避免无谓重试。
 - **仅内置 preset**：`servers[].name` 只接受 `parallel` / `anysearch` / `exa` / `firecrawl`。请求参数与响应解析随 preset 固定；新增上游必须在 `pkg/search/provider/mcphub` 内补 preset、参数构造和解析器，不能靠配置拼接（不同 MCP 的请求/响应结构并不统一）。
 - **时间范围**：`smartsearch.time_range` 在 `mcphub` 下不发送（四家 MCP 的时间参数不统一）；需要时间过滤时用 `engine`/`apipool` 的原生引擎或直接读原页。
 
@@ -299,7 +299,7 @@ mcp_hub:
 - **PDF 不走 MCP**：URL 以 `.pdf` 结尾时始终走本地 PDF/MinerU 链路，避免丢失分页与 OCR 能力。
 - **预检不跳过**：MCP 抓取前仍执行 `validateURLSecurity`（私网/DNS rebinding）与 `headCheck`（大小上限）。
 - **输出上限**：单个网页最多返回 `mcp_hub.max_fetch_chars` 字符，超出截断并注明原长度。
-- **独立冷却**：搜索与抓取的冷却状态分开记录；抓取站点级错误不会让该 server 的搜索一起冷却。
+- **独立冷却**：搜索与抓取的冷却状态分开记录；抓取站点级错误不会让该 server 的搜索一起冷却。`mode=mcphub` 且 `fetch_mode` 非 off 时，cleanfetch 复用搜索 Hub，Key 池与冷却表共用。
 - **抓取需要 `cleanfetch.enabled=true`**；`fetch_mode` 仅增强 URL 抓取，不影响 `result_ref` 读取。
 
 ---

@@ -361,7 +361,7 @@ pdf_parser:
 #       weight: 1.0
 
 # MCP Hub 零 Key 级联（可选，mode=mcphub 时作为搜索引擎）
-# fetch_mode 非 off 时，cleanfetch 也按同一批 server 抓取（需 cleanfetch.enabled=true）
+# fetch_mode 非 off 时，cleanfetch 也按同一批 server 抓取（需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
@@ -372,8 +372,9 @@ pdf_parser:
 #   max_fetch_chars: 200000 # 单页正文最大字符数，超出截断
 #   fetch_mode: off         # off（默认）/ fallback / prefer
 #   rotation_engines: []    # 加入主轮转池的本地引擎（MCP 之后轮转），如 [so360]；分摊 MCP 限流
-#   fallback_engines: [bing, so360]  # 主轮转失败后的降级链；[] = 不降级，最终仍回退 Bing
+#   fallback_engines: [bing, so360]  # 主轮转失败后的降级链（未启用自动跳过）；[] = 不降级，最终仍回退 Bing
 #   servers:                # 省略 = parallel → anysearch → exa → firecrawl
+#                           # 未配置 api_key/sk_list 走匿名档；鉴权失败换下一把 Key，连接/超时冷却并级联
 #     - name: parallel      # 可选 Key: https://platform.parallel.ai/
 #     - name: anysearch     # 可选 Key: https://www.anysearch.com/console/api-keys
 #     - name: exa           # 默认需代理；可选 Key: https://dashboard.exa.ai/api-keys
@@ -420,7 +421,7 @@ log:
 | `anysearch` | 已启用的 AnySearch，有 Key 用 Key 池，否则匿名；关闭后仅可回退至已启用 Bing |
 | `apipool` | 按 `apipool.engines` 顺序过滤禁用/不可用 API，再执行轮转与失败切换；已启用的网页引擎作为末尾兜底；全部为空时可使用已启用 Bing |
 | `hybrid` | 并发组合已启用、可用的 API 与网页源；禁用源不参与，包括匿名 AnySearch |
-| `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP；单个 server 失败冷却后切换，全部失败回退已启用 Bing；每个 server 的 `api_key`/`sk_list` 可选 |
+| `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP；单个 server 失败冷却后切换，全部失败按 `fallback_engines` 降级（未启用引擎自动跳过）并最终回退已启用 Bing；每个 server 的 `api_key`/`sk_list` 可选，鉴权失败换下一把 Key |
 
 > **推荐**：零 Key 部署用 `mcphub`（托管 MCP 级联 + 本地引擎/Bing 降级）；有 API Key 时用 `apipool`（多供应商 Key 池轮转）。`mcphub` 的 `rotation_engines` 可把本地引擎加入轮转分摊限流；`exa`/`firecrawl` 默认按代理可用性自动启用/跳过。
 

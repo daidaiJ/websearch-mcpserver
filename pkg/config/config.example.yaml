@@ -396,7 +396,7 @@ log:
 
 # ==============================================
 # 零 Key 托管 MCP 级联 hub（可选）
-# mode=mcphub 时作为搜索引擎；fetch_mode 非 off 时增强 cleanfetch 抓取
+# mode=mcphub 时作为搜索引擎；fetch_mode 非 off 时增强 cleanfetch（mcphub 模式下复用搜索 hub 的冷却与 Key 池）
 # ==============================================
 # mcp_hub:
 #   enabled: true
@@ -408,8 +408,9 @@ log:
 #   max_fetch_chars: 200000
 #   fetch_mode: off           # off（默认）/ fallback / prefer
 #   rotation_engines: []      # 加入主轮转池的本地引擎（MCP 之后轮转），如 [so360]
-#   fallback_engines: [bing, so360]  # 主轮转失败后的降级链；[] = 不降级，最终仍回退 Bing
+#   fallback_engines: [bing, so360]  # 主轮转失败后的降级链（未启用自动跳过，so360 默认关闭）；[] = 不降级，最终仍回退 Bing
 #   servers:                  # 省略 = parallel → anysearch → exa → firecrawl
+#                             # 未配置 api_key/sk_list 走匿名档；鉴权失败换下一把 Key，连接/超时冷却并级联
 #     - name: parallel
 #     - name: anysearch
 #     - name: exa             # 默认需代理；requires_proxy: false 可强制直连

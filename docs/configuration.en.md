@@ -351,7 +351,7 @@ pdf_parser:
 #       weight: 1.0
 
 # Keyless MCP Hub cascade (optional; search engine when mode=mcphub)
-# When fetch_mode is not off, cleanfetch also uses the same servers (requires cleanfetch.enabled=true)
+# When fetch_mode is not off, cleanfetch also uses the same servers (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority (default, stability first) / round-robin
@@ -362,8 +362,9 @@ pdf_parser:
 #   max_fetch_chars: 200000 # truncate a single page beyond this many characters
 #   fetch_mode: off         # off (default) / fallback / prefer
 #   rotation_engines: []    # local engines in the main rotation (after MCP), e.g. [so360]
-#   fallback_engines: [bing, so360]  # after rotation; [] disables local fallback (Bing still applies)
+#   fallback_engines: [bing, so360]  # after rotation (unavailable engines are skipped); [] disables local fallback (Bing still applies)
 #   servers:                # omit for parallel → anysearch → exa → firecrawl
+#                           # empty api_key/sk_list uses the anonymous tier; auth failures try the next key, connection/timeout cools down and cascades
 #     - name: parallel      # optional key: https://platform.parallel.ai/
 #     - name: anysearch     # optional key: https://www.anysearch.com/console/api-keys
 #     - name: exa           # proxy by default; optional key: https://dashboard.exa.ai/api-keys
@@ -427,7 +428,7 @@ Source switches permit or deny a source; `mode` selects among permitted sources:
 | `anysearch` | Enabled AnySearch with key rotation or the anonymous tier; disabled AnySearch can only fall back to enabled Bing |
 | `apipool` | Filter disabled/unusable APIs from `apipool.engines`, then rotate and fail over; enabled web engines serve as the final fallback; enabled Bing can be used if the pool is empty |
 | `hybrid` | Combine enabled, usable APIs and web sources concurrently; disabled sources, including anonymous AnySearch, are excluded |
-| `mcphub` | Cascade hosted MCP servers in `mcp_hub.servers` order; a failed server cools down and the hub switches to the next, falling back to enabled Bing when all fail; per-server `api_key`/`sk_list` are optional |
+| `mcphub` | Cascade hosted MCP servers in `mcp_hub.servers` order; a failed server cools down and the hub switches to the next, degrading through `fallback_engines` (unavailable engines are skipped) and finally enabled Bing when all fail; per-server `api_key`/`sk_list` are optional, with auth failures rotating to the next key |
 
 > **Recommended**: use `mcphub` for zero-key deployments (hosted-MCP cascade with local-engine/Bing degradation) and `apipool` when API keys are available (multi-provider key rotation). `mcphub.rotation_engines` can share load with local engines, and `exa`/`firecrawl` are enabled/skipped automatically based on proxy availability.
 

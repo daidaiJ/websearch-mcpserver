@@ -139,10 +139,10 @@ The four built-in `mcphub` presets:
 | `firecrawl` | Yes | Anonymous quota allocated per egress IP |
 
 - Default cascade is `parallel → anysearch → exa → firecrawl`; one upstream serves each request. A failure cools that upstream down for 60s before switching. This is routing and failover; results from multiple upstreams are not merged.
-- When the whole pool fails, the server degrades through `fallback_engines` (default `bing → so360`), and `smartsearch` still falls back to Bing last.
-- Each upstream accepts optional `api_key` / `sk_list`; empty means anonymous. `exa` / `firecrawl` join the rotation only when a proxy is detected and return automatically once it is available.
+- When the whole pool fails, the server degrades through `fallback_engines` (default `bing → so360`; unavailable engines are skipped, and so360 is off by default), and `smartsearch` still falls back to Bing last.
+- Each upstream accepts optional `api_key` / `sk_list`; empty means anonymous. An auth failure rotates to the next key, while connection/timeout errors cool down that server and cascade. `exa` / `firecrawl` join the rotation only when a proxy is detected and return automatically once it is available.
 - `rotation_engines` can add local engines (such as `so360`) to the main rotation to spread anonymous rate limits.
-- `fetch_mode: off / fallback / prefer` lets `cleanfetch` reuse the same MCP pool; PDFs still use local parsing and SSRF / HEAD preflight is never skipped.
+- `fetch_mode: off / fallback / prefer` lets `cleanfetch` reuse the same MCP pool (with `mode=mcphub` it shares the search hub's cooldowns and key pool); PDFs still use local parsing and SSRF / HEAD preflight is never skipped.
 
 ---
 
