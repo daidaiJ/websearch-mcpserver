@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"websearch/pkg/config"
+	"websearch/pkg/search/provider/mcphub"
 )
 
 // TestInitBaiduWebEngine_DisabledByDefault 失效引擎默认禁用：
@@ -25,6 +26,26 @@ func TestBuildMCPHubMode(t *testing.T) {
 	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "custom"}}
 	if got := BuildMCPHubMode(*conf, EngineAdapters{}, nil); got != nil {
 		t.Fatal("unknown MCP presets must not be accepted")
+	}
+}
+
+func TestBuildMCPHubModeSkipsMissingFallbackEngines(t *testing.T) {
+	conf := config.Default()
+	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "parallel"}}
+	got := BuildMCPHubMode(*conf, EngineAdapters{}, nil)
+	hub, ok := got.(*mcphub.Hub)
+	if !ok {
+		t.Fatalf("expected *mcphub.Hub, got %T", got)
+	}
+	for _, name := range hub.FallbackNames() {
+		if name == "so360" {
+			t.Fatalf("disabled so360 must not be registered: fallback=%v rotation=%v", hub.FallbackNames(), hub.RotationNames())
+		}
+	}
+	for _, name := range hub.RotationNames() {
+		if name == "so360" {
+			t.Fatalf("disabled so360 must not be registered: rotation=%v", hub.RotationNames())
+		}
 	}
 }
 

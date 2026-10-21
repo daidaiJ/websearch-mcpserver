@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -134,15 +135,8 @@ func (s *server) Available() bool {
 }
 
 func (s *server) Search(ctx context.Context, query string, max int) ([]core.SearchResult, error) {
-	key := ""
-	if s.keys != nil {
-		key = s.keys.Next()
-	}
-	res, err := s.caller.Call(ctx, s, s.searchTool, s.searchArgs(query, max), s.timeout, key)
+	res, err := s.callWithKeys(ctx, s.searchTool, s.searchArgs(query, max), s.timeout)
 	if err != nil {
-		if key != "" && s.keys != nil && isAuthError(err) {
-			s.keys.MarkInvalid(key)
-		}
 		return nil, err
 	}
 	results, err := parseSearch(s.name, res, max)
@@ -156,15 +150,8 @@ func (s *server) Search(ctx context.Context, query string, max int) ([]core.Sear
 }
 
 func (s *server) Fetch(ctx context.Context, rawURL string, maxChars int) (string, error) {
-	key := ""
-	if s.keys != nil {
-		key = s.keys.Next()
-	}
-	res, err := s.caller.Call(ctx, s, s.fetchTool, s.fetchArgs(rawURL), s.fetchTimeout, key)
+	res, err := s.callWithKeys(ctx, s.fetchTool, s.fetchArgs(rawURL), s.fetchTimeout)
 	if err != nil {
-		if key != "" && s.keys != nil && isAuthError(err) {
-			s.keys.MarkInvalid(key)
-		}
 		return "", err
 	}
 	text, err := parseFetch(s.name, res)
@@ -181,6 +168,34 @@ func (s *server) Fetch(ctx context.Context, rawURL string, maxChars int) (string
 		}
 	}
 	return text, nil
+}
+
+// callWithKeys 单 server 内按 Key 重试：仅鉴权失败换 Key，超时/连接错误仍交由级联处理。
+func (s *server) callWithKeys(ctx context.Context, tool string, args map[string]any, timeout time.Duration) (toolResult, error) {
+	if s.keys == nil {
+		return s.caller.Call(ctx, s, tool, args, timeout, "")
+	}
+	var lastErr error
+	for range s.keys.Len() {
+		if err := ctx.Err(); err != nil {
+			return toolResult{}, err
+		}
+		key := s.keys.Next()
+		res, err := s.caller.Call(ctx, s, tool, args, timeout, key)
+		if err == nil {
+			return res, nil
+		}
+		if !isAuthError(err) {
+			return toolResult{}, err
+		}
+		s.keys.MarkInvalid(key)
+		lastErr = err
+		if s.keys.Available() == 0 {
+			return toolResult{}, lastErr
+		}
+		log.Infof("mcp_hub: %s 当前 Key 鉴权失败，尝试下一个 Key", s.name)
+	}
+	return toolResult{}, lastErr
 }
 
 func (s *server) searchArgs(query string, max int) map[string]any {
@@ -352,7 +367,7 @@ func buildEngineStates(names []string, engines map[string]core.SearchInf, seen m
 			continue
 		}
 		eng, ok := engines[name]
-		if !ok || eng == nil {
+		if !ok || eng == nil || isNilSearchInf(eng) {
 			log.Infof("mcp_hub: engine %q 不可用（未启用或缺少代理条件），跳过", name)
 			continue
 		}
@@ -360,6 +375,17 @@ func buildEngineStates(names []string, engines map[string]core.SearchInf, seen m
 		out = append(out, &backendState{backend: &engineBackend{name: name, engine: eng}})
 	}
 	return out
+}
+
+// isNilSearchInf 识别接口内的 typed-nil（如未启用的 *EngineSearchAdapter）。
+func isNilSearchInf(eng core.SearchInf) bool {
+	v := reflect.ValueOf(eng)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 func buildServer(sc config.MCPHubServerConfig) (*server, error) {

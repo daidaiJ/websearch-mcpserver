@@ -174,6 +174,11 @@ func applyMCPHubFetch(conf config.Config) {
 		log.Info("cleanfetch.enabled=false，MCP 抓取增强不生效")
 		return
 	}
+	if hub, ok := searchapi.(*mcphub.Hub); ok {
+		mcpHubFetchInst = hub
+		log.Infof("MCP 抓取增强复用搜索 hub（fetch_mode=%s）", mcpHubFetchMode)
+		return
+	}
 	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), nil)
 	if err != nil {
 		log.Errf("MCP 抓取增强未启用: %v", err)

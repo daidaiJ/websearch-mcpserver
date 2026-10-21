@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"websearch/pkg/config"
+	"websearch/pkg/search/provider/mcphub"
 )
 
 type fakeHubFetcher struct {
@@ -58,6 +59,30 @@ func TestFetchPageWithFallback(t *testing.T) {
 				t.Fatalf("hub calls = %d, want %d", tc.hub.calls, tc.wantCalls)
 			}
 		})
+	}
+}
+
+func TestApplyMCPHubFetchReusesSearchHub(t *testing.T) {
+	conf := config.Default()
+	conf.CleanFetch.Enabled = true
+	conf.MCPHub.FetchMode = config.MCPHubFetchPrefer
+	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "parallel"}}
+
+	hub, err := mcphub.New(conf.MCPHub, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldSearch, oldInst, oldMode := searchapi, mcpHubFetchInst, mcpHubFetchMode
+	t.Cleanup(func() {
+		searchapi, mcpHubFetchInst, mcpHubFetchMode = oldSearch, oldInst, oldMode
+	})
+	searchapi = hub
+	mcpHubFetchInst = nil
+	applyMCPHubFetch(*conf)
+
+	if mcpHubFetchInst != hub {
+		t.Fatalf("fetch hub = %p, want search hub %p", mcpHubFetchInst, hub)
 	}
 }
 

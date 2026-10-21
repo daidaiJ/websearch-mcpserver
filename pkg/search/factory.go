@@ -90,7 +90,9 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 
 	case config.ModeMCPHub:
 		g.Primary = mode.BuildMCPHubMode(conf, ads, g.Fallback)
-		log.Infof("搜索模式: mcphub（无需 API Key，托管 MCP 级联）")
+		if g.Primary != nil {
+			log.Infof("搜索模式: mcphub（无需 API Key，托管 MCP 级联）")
+		}
 
 	default: // baidu → 百度千帆 web_search
 		g.Primary = mode.BuildBaiduMode(conf, baiduPool, baiduWebAdapter, g.Fallback)

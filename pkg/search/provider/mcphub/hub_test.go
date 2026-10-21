@@ -24,12 +24,16 @@ type fakeCaller struct {
 	calls   []fakeCall
 	results map[string]toolResult
 	errs    map[string]error
+	keyErrs map[string]error
 }
 
 func (f *fakeCaller) Call(_ context.Context, s *server, tool string, _ map[string]any, _ time.Duration, key string) (toolResult, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, fakeCall{server: s.name, tool: tool, key: key})
 	f.mu.Unlock()
+	if err := f.keyErrs[key]; err != nil {
+		return toolResult{}, err
+	}
 	if err := f.errs[s.name+"/"+tool]; err != nil {
 		return toolResult{}, err
 	}
@@ -189,6 +193,104 @@ func TestHubUsesConfiguredKey(t *testing.T) {
 	calls := fake.snapshot()
 	if len(calls) != 1 || calls[0].key != "test-key" {
 		t.Fatalf("calls = %+v", calls)
+	}
+}
+
+func TestHubRetriesNextKeyOnAuthError(t *testing.T) {
+	cfg := testConfig("parallel")
+	cfg.Servers[0].SKList = []string{"bad-key", "good-key"}
+	fake := &fakeCaller{
+		keyErrs: map[string]error{"bad-key": errors.New("401 unauthorized")},
+		results: map[string]toolResult{
+			"parallel": parallelToolResult("https://example.com", "P"),
+		},
+	}
+	h, err := newHub(cfg, nil, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.SearchRaw("q"); err != nil {
+		t.Fatal(err)
+	}
+	calls := fake.snapshot()
+	if len(calls) != 2 || calls[0].key != "bad-key" || calls[1].key != "good-key" {
+		t.Fatalf("calls = %+v", calls)
+	}
+	if _, err := h.SearchRaw("q"); err != nil {
+		t.Fatal(err)
+	}
+	calls = fake.snapshot()
+	if len(calls) != 3 || calls[2].key != "good-key" {
+		t.Fatalf("server must stay available after intra-server retry: calls = %+v", calls)
+	}
+	if h.rotation[0].cooled(false, time.Now()) {
+		t.Fatal("successful retry must not cool the whole server")
+	}
+}
+
+func TestHubConnectionErrorDoesNotRetryKeys(t *testing.T) {
+	cfg := testConfig("parallel", "exa")
+	cfg.Servers[0].SKList = []string{"k1", "k2"}
+	fake := &fakeCaller{
+		errs: map[string]error{"parallel": errors.New("connection refused")},
+		results: map[string]toolResult{
+			"exa": exaResult("Exa", "https://example.com/exa"),
+		},
+	}
+	h, err := newHub(cfg, testProxy, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := h.SearchRaw("q")
+	if err != nil || len(got) != 1 || got[0].Engine != "exa_mcp" {
+		t.Fatalf("results=%+v err=%v", got, err)
+	}
+	calls := fake.snapshot()
+	if len(calls) != 2 || calls[0].server != "parallel" || calls[1].server != "exa" {
+		t.Fatalf("calls = %+v", calls)
+	}
+	if !h.rotation[0].cooled(false, time.Now()) {
+		t.Fatal("connection errors must still cool the failed server")
+	}
+}
+
+func TestIsAuthError(t *testing.T) {
+	tests := []struct {
+		msg  string
+		want bool
+	}{
+		{"401 Unauthorized", true},
+		{"unauthorized", true},
+		{"invalid api key", true},
+		{"api key has no remaining quota", false},
+	}
+	for _, tc := range tests {
+		if got := isAuthError(errors.New(tc.msg)); got != tc.want {
+			t.Fatalf("isAuthError(%q) = %v, want %v", tc.msg, got, tc.want)
+		}
+	}
+	if isAuthError(nil) {
+		t.Fatal("nil error is not an auth error")
+	}
+}
+
+func TestHubSkipsTypedNilFallbackEngine(t *testing.T) {
+	fake := &fakeCaller{errs: map[string]error{"parallel": errors.New("connection refused")}}
+	cfg := testConfig("parallel")
+	cfg.FallbackEngines = []string{"so360"}
+	var nilEng *fakeEngine
+	h, err := newHub(cfg, nil, fake, map[string]core.SearchInf{"so360": nilEng})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.SearchRaw("q"); err == nil {
+		t.Fatal("expected all backends to fail")
+	}
+	if calls := fake.snapshot(); len(calls) != 1 {
+		t.Fatalf("typed-nil engine must be skipped: calls = %+v", calls)
+	}
+	if names := h.FallbackNames(); len(names) != 0 {
+		t.Fatalf("FallbackNames = %v, want empty", names)
 	}
 }
 

@@ -129,5 +129,5 @@ func isAuthError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "401") || strings.Contains(msg, "403") ||
 		strings.Contains(msg, "unauthorized") || strings.Contains(msg, "forbidden") ||
-		strings.Contains(msg, "invalid api key") || strings.Contains(msg, "api key")
+		strings.Contains(msg, "invalid api key")
 }

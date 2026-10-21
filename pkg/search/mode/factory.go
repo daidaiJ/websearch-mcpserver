@@ -77,13 +77,24 @@ func BuildEngineMode(conf config.Config, fallback *adapter.BingSearchAdapter, ad
 // 可把本地网页引擎加入轮转池分摊匿名限流，全部失败后走 fallback_engines，
 // 最终由 smartsearch 统一回退 Bing。
 func BuildMCPHubMode(conf config.Config, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
-	engines := map[string]core.SearchInf{
-		"baidu_web":  ads.BaiduWeb,
-		"so360":      ads.So360,
-		"wikipedia":  ads.Wikipedia,
-		"googlenews": ads.GNews,
-		"google":     ads.Google,
-		"duckduckgo": ads.DDG,
+	engines := make(map[string]core.SearchInf, 7)
+	if ads.BaiduWeb != nil {
+		engines["baidu_web"] = ads.BaiduWeb
+	}
+	if ads.So360 != nil {
+		engines["so360"] = ads.So360
+	}
+	if ads.Wikipedia != nil {
+		engines["wikipedia"] = ads.Wikipedia
+	}
+	if ads.GNews != nil {
+		engines["googlenews"] = ads.GNews
+	}
+	if ads.Google != nil {
+		engines["google"] = ads.Google
+	}
+	if ads.DDG != nil {
+		engines["duckduckgo"] = ads.DDG
 	}
 	if fallback != nil {
 		engines["bing"] = fallback
