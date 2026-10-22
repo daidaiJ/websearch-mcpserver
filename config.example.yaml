@@ -42,6 +42,7 @@ log_level: info
 #   - doubao     : 优先豆包 Global/Custom；失败可回退已启用 Bing
 #   - hybrid     : 已开启且满足凭证/代理条件的 API 与网页源并发混合
 #   - engine     : 已开启且满足代理条件的网页源并行，无需 API Key
+#   - mcphub     : 零 Key 托管 MCP 级联（parallel → anysearch → exa → firecrawl），支持可选 Key
 mode: engine
 
 # API 源开关独立于模式与密钥：省略 enabled = true；false 只停止使用该源，不删除 Key。
@@ -396,6 +397,30 @@ log:
 #       weight: 1.0
 
 # ==============================================
+# 零 Key 托管 MCP 级联 hub（可选）
+# mode=mcphub 时作为搜索引擎；fetch_mode 非 off 时增强 cleanfetch（mcphub 模式下复用搜索 hub 的冷却与 Key 池）
+# ==============================================
+# mcp_hub:
+#   enabled: true
+#   strategy: priority        # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
+#   timeout_sec: 20           # 单次搜索超时
+#   fetch_timeout_sec: 45     # 单次网页抓取超时
+#   cooldown_sec: 60          # 失败冷却；期间跳过该 server，全部冷却时直接回退 Bing
+#   max_results: 10           # 单次搜索结果上限
+#   max_fetch_chars: 200000   # 单个网页正文最多返回字符数
+#   fetch_mode: off           # off（默认）/ fallback（本地失败后走 MCP）/ prefer（优先 MCP，失败降级本地）
+#   rotation_engines: []      # 加入主轮转池的本地引擎（MCP 之后轮转），如 [so360] / [so360, bing]
+#                             # 用于分摊 MCP 匿名限流；提高引擎占比可减少 servers 数量
+#   fallback_engines: [bing, so360]  # 主轮转全部失败后的降级链（未启用自动跳过，so360 默认关闭）
+#                             # 显式 [] = 不做本地降级；最终仍由 smartsearch 回退 Bing
+#   servers:                  # 省略 = parallel → anysearch → exa → firecrawl（均支持 keyless）
+#                             # 未配置 api_key/sk_list 走匿名档；鉴权失败换下一把 Key，连接/超时冷却并级联
+#     - name: parallel        # 未配置 api_key/sk_list 时走匿名 keyless 档
+#     - name: anysearch       # 国内直连友好；匿名档按出口 IP 限流
+#     - name: exa             # 默认需代理；requires_proxy: false 可强制直连
+#     - name: firecrawl       # 默认需代理；requires_proxy: false 可强制直连
+
+# ==============================================
 # Apipool 模式配置（可选，mode=apipool 时生效）
 # ==============================================
 # apipool:
@@ -403,7 +428,7 @@ log:
 #                         #   round-robin（默认）: 跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback
 #                         #   priority: 始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 引擎兜底
 #                         #   weighted: 按权重加权随机选起始供应商，突发请求天然分散（权重见 weights）
-#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，网页引擎兜底始终在末尾）
 #                         # 豆包不在默认列表；有 Key 时请显式加入 - doubao
 #     - anysearch
 #     - baidu

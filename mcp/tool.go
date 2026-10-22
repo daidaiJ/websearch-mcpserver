@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -60,6 +61,11 @@ type CleanFetchParams struct {
 // maxBatchFetchURLs 单次批量抓取的 URL 上限。
 const maxBatchFetchURLs = 5
 
+// mcpHubFetcher 托管 MCP 抓取能力（mcphub.Hub 实现），便于 cleanfetch 单测注入。
+type mcpHubFetcher interface {
+	Fetch(ctx context.Context, rawURL string) (string, error)
+}
+
 var (
 	searchapi            search.SearchInf
 	searchGroup          *search.SearchGroup
@@ -68,6 +74,8 @@ var (
 	cacheInst            *cache.Cache
 	jinaInst             *jina.Reader
 	webfetchInst         *webfetch.Fetcher
+	mcpHubFetchInst      mcpHubFetcher
+	mcpHubFetchMode      string
 	academicSearcher     search.AcademicSearcher
 	everythingInst       *everything.Client
 	everythingRoots      []string

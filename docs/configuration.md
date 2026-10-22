@@ -74,7 +74,7 @@ mcp_stateless: false        # MCP 无状态 HTTP 模式（默认 false = 会话�
                             # 免 initialize 握手与 Mcp-Session-Id 会话，便于反向代理/负载均衡水平扩展；
                             # GET SSE 长连返回 405。本服务工具均为请求-响应式，无状态模式下功能无损
 log_level: info             # debug / info / warn / error
-mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine
+mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine / mcphub
 network: china              # 学术适配区域 china / international；不切换网页来源或豆包站点范围
 
 # 全局限流（对所有搜索引擎统一生效）
@@ -360,12 +360,32 @@ pdf_parser:
 #       max_size: 4
 #       weight: 1.0
 
+# MCP Hub 零 Key 级联（可选，mode=mcphub 时作为搜索引擎）
+# fetch_mode 非 off 时，cleanfetch 也按同一批 server 抓取（需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
+# mcp_hub:
+#   enabled: true
+#   strategy: priority      # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
+#   timeout_sec: 20         # 单次搜索超时
+#   fetch_timeout_sec: 45   # 单次抓取超时
+#   cooldown_sec: 60        # 失败冷却，期间跳过该 server
+#   max_results: 10
+#   max_fetch_chars: 200000 # 单页正文最大字符数，超出截断
+#   fetch_mode: off         # off（默认）/ fallback / prefer
+#   rotation_engines: []    # 加入主轮转池的本地引擎（MCP 之后轮转），如 [so360]；分摊 MCP 限流
+#   fallback_engines: [bing, so360]  # 主轮转失败后的降级链（未启用自动跳过）；[] = 不降级，最终仍回退 Bing
+#   servers:                # 省略 = parallel → anysearch → exa → firecrawl
+#                           # 未配置 api_key/sk_list 走匿名档；鉴权失败换下一把 Key，连接/超时冷却并级联
+#     - name: parallel      # 可选 Key: https://platform.parallel.ai/
+#     - name: anysearch     # 可选 Key: https://www.anysearch.com/console/api-keys
+#     - name: exa           # 默认需代理；可选 Key: https://dashboard.exa.ai/api-keys
+#     - name: firecrawl     # 默认需代理；可选 Key: https://www.firecrawl.dev/app/api-keys
+
 # Apipool 模式配置（可选，mode=apipool 时生效）
 # apipool:
 #   strategy: weighted    # round-robin（默认）: 跨请求轮转起始供应商
 #                         # priority: 始终从第一个供应商开始
 #                         # weighted: 按权重加权随机选起始供应商（见 weights）
-#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，百度网页搜索兜底始终在末尾）
+#   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，网页引擎兜底始终在末尾）
 #                         # 豆包不在默认列表；有 Key 时请显式加入
 #     - anysearch
 #     - baidu
@@ -399,8 +419,11 @@ log:
 | `baidu` | 已启用且有 Key 的千帆 API，可回退至独立启用的百度网页源；无可用主源时使用已启用 Bing |
 | `tavily` / `exa` / `doubao` | 对应已启用且有 Key 的 API；不可用时使用已启用 Bing |
 | `anysearch` | 已启用的 AnySearch，有 Key 用 Key 池，否则匿名；关闭后仅可回退至已启用 Bing |
-| `apipool` | 按 `apipool.engines` 顺序过滤禁用/不可用 API，再执行轮转与失败切换；百度网页源单独启用后作为末尾兜底；全部为空时可使用已启用 Bing |
+| `apipool` | 按 `apipool.engines` 顺序过滤禁用/不可用 API，再执行轮转与失败切换；已启用的网页引擎作为末尾兜底；全部为空时可使用已启用 Bing |
 | `hybrid` | 并发组合已启用、可用的 API 与网页源；禁用源不参与，包括匿名 AnySearch |
+| `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP；单个 server 失败冷却后切换，全部失败按 `fallback_engines` 降级（未启用引擎自动跳过）并最终回退已启用 Bing；每个 server 的 `api_key`/`sk_list` 可选，鉴权失败换下一把 Key |
+
+> **推荐**：零 Key 部署用 `mcphub`（托管 MCP 级联 + 本地引擎/Bing 降级）；有 API Key 时用 `apipool`（多供应商 Key 池轮转）。`mcphub` 的 `rotation_engines` 可把本地引擎加入轮转分摊限流；`exa`/`firecrawl` 默认按代理可用性自动启用/跳过。
 
 `bing.enabled` 只控制 Bing 源及其回退，不是 `smartsearch` 的工具总开关。关闭 Bing 后，当前模式仍有其他可用路由时 `smartsearch` 继续可用；模式没有任何可用主源或回退时才不注册工具。
 
@@ -508,7 +531,7 @@ dashboard:
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |
 | `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 / `weighted` 加权随机 |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，百度网页搜索兜底始终在末尾；`doubao` 不在默认列表，有 Key 时显式加入 |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao` 不在默认列表，有 Key 时显式加入 |
 | `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分
 | `doubao.version` | global | Global / Custom；两版并发走 hybrid，适配器内不提供 both |
 | `doubao.num_results` | 10 | Global 最大 20；Custom 最大 50 |

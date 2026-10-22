@@ -18,7 +18,7 @@
   <img src="docs/images/hero-banner.png" alt="多引擎搜索融合示意：百度 / Bing / DuckDuckGo / API 引擎 / 9 大学术源汇入本地编排，输出搜索结果、论文、网页 PDF 与本地文件" width="900">
 </p>
 
-用 Go 编写的 MCP 搜索服务。内置百度网页、Bing、DuckDuckGo 等通用引擎和 9 个学术引擎，搜索、评分、缓存全部在本地完成。可作为 MCP 工具接入 Claude Code、Qwen Code、Cursor，也可作为 Go 模块嵌入自有服务。
+用 Go 编写的 MCP 搜索服务。内置百度网页、Bing、DuckDuckGo 等通用引擎、Parallel / AnySearch / Exa / Firecrawl 四个零 Key 托管 MCP 上游和 9 个学术引擎，搜索、评分、缓存全部在本地完成。可作为 MCP 工具接入 Claude Code、Qwen Code、Cursor，也可作为 Go 模块嵌入自有服务。
 
 **免费、国内可用、结果可直接给 LLM 消费。** 无 Key 也能搜；有 Key 才用 Key。
 
@@ -35,9 +35,9 @@
 | 层 | 做什么 |
 |----|--------|
 | **接入** | Claude Code / Qwen Code / Cursor / HTTP API / 嵌入 Go 模块 |
-| **协议** | `/mcp` 最多五个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 |
-| **编排** | `factory` / `mode` 组装 · `hybrid` / `apipool` · `enhance`（RRF / Boost / MMR） |
-| **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包；学术 9 源并行 |
+| **协议** | `/mcp` 最多五个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 · `/metrics` Prometheus 观测 |
+| **编排** | `factory` / `mode` 组装 · `hybrid` / `apipool` / `mcphub` · `enhance`（RRF / Boost / MMR） |
+| **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包 + 4 个托管 MCP 上游；学术 9 源并行 |
 | **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要、Everything |
 
 更完整的回退链、代理检测与嵌入方式见 [docs/architecture.md](docs/architecture.md)。
@@ -58,17 +58,17 @@
 
 | 能力 | 说明 |
 |------|------|
-| 零 Key 搜索 | `engine` 模式内置百度网页搜索 + Bing 并发，无需任何 API Key |
-| 多引擎融合 | 多种搜索模式、8 个通用引擎 + 9 个学术引擎，主引擎失败自动回退 |
+| 零 Key 搜索 | 推荐 `mcphub`：Parallel / AnySearch / Exa / Firecrawl 托管 MCP 级联，失败冷却后切换，无需 API Key；`engine` 模式则走百度网页 + Bing 等本地引擎 |
+| 多引擎融合 | 多种搜索模式、8 个通用引擎 + 4 个托管 MCP 上游 + 9 个学术引擎，主引擎失败自动回退 |
 | 相关性评分 | RRF 融合排名 + 词汇对齐 / 域名品质 / 共识 / 权威 / 时效加分，低分自动裁剪；MMR 打散转载 / 镜像 |
 | 响应透明 | 失败清单、日期与检索溯源；请求取消贯穿各引擎并带单引擎软超时；超限搜索保留候选预览，完整结果落盘后提供 `result_ref`，通过 `cleanfetch` 的引用读取模式分段读取 |
 | 学术搜索 | 9 大学术引擎并行，按引用数 / 期刊权威 / PDF 可用性 / 新鲜度评分；DOI 跨引擎去重 |
-| 网页抓取 | `cleanfetch` 内置 SSRF / DNS rebinding 防护与超大文件预检，失败回退 Jina Reader |
+| 网页抓取 | `cleanfetch` 内置 SSRF / DNS rebinding 防护与超大文件预检，失败回退 Jina Reader；可选 `fetch_mode` 复用托管 MCP 抓取 |
 | PDF 解析 | 本地 PDF 文本优先提取，扫描件可回退 MinerU OCR；远程 MinerU 返回含图片 ZIP 地址；原文件超出单任务上限（默认 600 页）时本地 qpdf 裁切所选页，可配置自动分批与单次页数预算后分批上传；MinerU 等待可调，超时保留状态与任务引用，可续查原任务 |
 | LLM 摘要 | 可选接入 OpenAI 兼容 API 生成结构化摘要，支持流式推送 |
 | 系统代理 | Clash 等开启系统代理后，海外引擎 / Jina Reader 自动走代理 |
 | 本地文件检索 | `file_search` 基于 Everything 索引毫秒级定位本地文件，目录白名单防越界，词汇对齐二次过滤防上下文爆炸（需 Everything HTTP Server） |
-| 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改（默认关闭） |
+| 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改，以及 Prometheus 格式的 `GET /metrics`（默认关闭） |
 | 轻量部署 | 单二进制、无 CGO、引用计数进程管理，可嵌入 Go 模块 |
 
 ---
@@ -107,6 +107,8 @@ autostart.vbs
 ```
 
 > 「零配置」= 首次启动自动生成与 `config.example.yaml` 相同的预设 `config.yaml`，改端口 / Key / 模式都改这一份文件。默认只监听 `127.0.0.1`；开放网卡（`host: 0.0.0.0`）时建议配置 `auth_token` 保护业务端点。
+>
+> 想用零 Key 托管 MCP 级联，把该文件的 `mode` 改为 `mcphub` 即可（`mcp_hub.enabled` 默认为开）。
 
 或通过 MCP Hooks 实现会话自动启停（Qwen Code 示例，完整说明见 [docs/installation.md](docs/installation.md)）：
 
@@ -123,9 +125,24 @@ autostart.vbs
 
 ## 搜索模式速览
 
-`mode` 一个字段决定引擎组合：`engine` 零 Key 可用（百度网页 + Bing 并发，按配置与代理条件自动加入 360 / DuckDuckGo / Wikipedia / Google News）；`baidu` / `tavily` / `exa` / `anysearch` / `doubao` 单供应商直连（有 Key 才参与，主引擎失败自动回退）；`apipool` Key 池轮转（round-robin / priority / weighted，百度网页兜底）；`hybrid` 全引擎并发。无 Key 时自动降级为 `engine`。
+`mode` 一个字段决定引擎组合：**零 Key 推荐 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 推荐 `apipool`**（多供应商 Key 池轮转，失败自动切换，网页引擎兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景；`baidu` / `tavily` / `exa` / `anysearch` / `doubao` 为单供应商直连（有 Key 才参与，主引擎失败自动回退）；`hybrid` 全引擎并发；`mcphub` 支持 `rotation_engines` 把本地引擎加入轮转、按代理可用性自动启用/跳过需代理上游。无 Key 时单供应商模式自动降级为 `engine`。
 
 各模式的参与引擎、获取 Key 入口、`sk_list` 多 Key 轮询与逐引擎限流口径见 [docs/search.md](docs/search.md)。
+
+`mcphub` 的四个内置 preset：
+
+| preset | 默认需代理 | 特点 |
+|--------|-----------|------|
+| `parallel` | 否 | 直连可用，延迟最低 |
+| `anysearch` | 否 | 国内直连友好，中文结果稳定 |
+| `exa` | 是 | 匿名限流较低 |
+| `firecrawl` | 是 | 匿名额度按出口 IP 分配 |
+
+- 级联顺序默认 `parallel → anysearch → exa → firecrawl`，单次请求命中一个；失败冷却 60s 后切换，这是路由与降级，多家的结果不会合并返回。
+- 全部失败后按 `fallback_engines`（默认 `bing → so360`，未启用的引擎自动跳过，so360 默认关闭）降级，最终仍由 `smartsearch` 回退 Bing。
+- 每个上游可配 `api_key` / `sk_list`，留空走匿名档；鉴权失败自动换下一把 Key，连接/超时则冷却该 server 并级联；`exa` / `firecrawl` 仅在检测到代理时参与轮转，代理恢复后自动回归。
+- `rotation_engines` 可把本地引擎（如 `so360`）加入主轮转，分摊匿名限流。
+- `fetch_mode: off / fallback / prefer` 让 `cleanfetch` 复用同一批 MCP 抓取（`mode=mcphub` 时共用搜索 Hub 的冷却与 Key 池）；PDF 仍走本地解析，SSRF / HEAD 预检不跳过。
 
 ---
 
@@ -135,7 +152,7 @@ autostart.vbs
 
 ![控制中心总览](docs/images/dashboard-overview.jpg)
 
-启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅本机 loopback 可读，写操作需 `admin_password`。
+启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅本机 loopback 可读，写操作需 `admin_password`。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读、只含脱敏聚合），需 `dashboard.enabled: true`，未启用返回 503。
 
 > 页面明细、全部配置键、快捷方式落位、安全模型与调用归属见 [docs/dashboard.md](docs/dashboard.md)。
 

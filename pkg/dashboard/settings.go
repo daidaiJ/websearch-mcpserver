@@ -89,7 +89,7 @@ func validateSetting(path string, value any) error {
 	switch path {
 	case "mode":
 		v, ok := value.(string)
-		if !ok || !slices.Contains([]string{"hybrid", "engine", "apipool", "baidu", "tavily", "exa", "anysearch", "doubao"}, v) {
+		if !ok || !slices.Contains([]string{"hybrid", "engine", "apipool", "mcphub", "baidu", "tavily", "exa", "anysearch", "doubao"}, v) {
 			return fmt.Errorf("invalid mode")
 		}
 	case "network":

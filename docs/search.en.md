@@ -29,14 +29,17 @@
 |------|-------------|--------------|
 | `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
-| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; Baidu web search as final fallback | All optional |
+| `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; web-engine fallback | All optional |
 | `tavily` | Tavily Search API ([get key](https://app.tavily.com/home)) | `TAVILY_SK` |
 | `exa` | Exa Web Search API ([get key](https://dashboard.exa.ai/api-keys)) | `EXA_API_KEY` |
 | `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
 | `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo + Google) | All optional |
+| `mcphub` | Keyless hosted-MCP cascade: parallel → anysearch → exa → firecrawl, cool down and switch on failure; optional per-server key | **None** (optional key) |
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
+>
+> **Recommended**: use **`mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation) and **`apipool` when API keys are available** (multi-provider key rotation with automatic failover and web-engine fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired.
 
 **Mode → engine mapping** (from `pkg/search/factory.go`):
 
@@ -50,6 +53,7 @@
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
 | `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` must be listed in `apipool.engines`), Baidu web search always last |
 | `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
+| `mcphub` | Cascades hosted MCP servers in `mcp_hub.servers` order (default parallel → anysearch → exa → firecrawl), one per request; cools down and switches on failure, falls back to Bing when all fail |
 
 ---
 
@@ -231,12 +235,72 @@ apipool:
 
 **Strategy details**:
 - **`round-robin`** (default): rotates the starting provider across requests; within a single request, exhausts all available SKs in the current provider before falling back to the next
-- **`priority`**: always starts from the first provider; exhausts all SKs → switches to next provider → Baidu web search as final fallback
-- **`weighted`**: weighted-random selection of the starting provider, which naturally spreads request bursts across providers. A provider's effective weight = **configured weight × currently available SK count** (auto-shrinks when SKs cool down, self-healing); providers absent from the weight table count as 1; an explicit `0` excludes a provider from weighted starting selection (it stays in the failure-switch chain); when all weights are 0 it degrades to round-robin. The Baidu web search fallback engine has no key pool and a fixed weight of 1
+- **`priority`**: always starts from the first provider; exhausts all SKs → switches to next provider → web-engine fallback
+- **`weighted`**: weighted-random selection of the starting provider, which naturally spreads request bursts across providers. A provider's effective weight = **configured weight × currently available SK count** (auto-shrinks when SKs cool down, self-healing); providers absent from the weight table count as 1; an explicit `0` excludes a provider from weighted starting selection (it stays in the failure-switch chain); when all weights are 0 it degrades to round-robin. The web-engine fallback has no key pool and a fixed weight of 1
 
 **Default weights** (overridable via `apipool.weights`): `anysearch=30000`, `baidu=1500`, `tavily=1200`, `exa=1200`, `doubao=500` (free-tier monthly credits)
 
-**Workflow**: select provider → `pool.Next()` → call API → success / mark key cooldown 30 min → retry next SK in same provider → all exhausted → next provider → all failed → Baidu web search fallback
+**Workflow**: select provider → `pool.Next()` → call API → success / mark key cooldown 30 min → retry next SK in same provider → all exhausted → next provider → all failed → web-engine fallback
+
+---
+
+## Keyless MCP Hub Cascade
+
+`mode: mcphub` needs no API key: it calls hosted MCP servers in `mcp_hub.servers` order, one per request. A failed server cools down (60s by default) and the hub cascades to the next. After the whole rotation pool fails, the hub degrades through `fallback_engines` and finally the existing `smartsearch` Bing fallback (`bing.enabled=true`). This is routing/failover, not result merging across providers.
+
+| Server | MCP endpoint | Keyless | Proxy by default | Search / fetch tool | Optional key |
+|--------|--------------|---------|------------------|---------------------|--------------|
+| `parallel` | `https://search.parallel.ai/mcp` | ✅ | ❌ (direct works) | `web_search` / `web_fetch` | https://platform.parallel.ai/ |
+| `anysearch` | `https://api.anysearch.com/mcp` | ✅ (IP-rate-limited) | ❌ (China-friendly direct) | `search` / `extract` | https://www.anysearch.com/console/api-keys |
+| `exa` | `https://mcp.exa.ai/mcp` | ✅ (low anonymous limit) | ✅ | `web_search_exa` / `web_fetch_exa` | https://dashboard.exa.ai/api-keys |
+| `firecrawl` | `https://mcp.firecrawl.dev/v2/mcp` | ✅ (per-IP daily cap) | ✅ | `firecrawl_search` / `firecrawl_scrape` | https://www.firecrawl.dev/app/api-keys |
+
+- **Adaptive proxy scaling**: `exa` and `firecrawl` default to `requires_proxy: true` and are skipped when no proxy is detected; they stay in the rotation table and resume automatically once a proxy becomes available (no restart). `parallel` and `anysearch` connect directly. Override per server with `requires_proxy: true/false`. `proxy.enabled: false` disables auto-detection, which effectively skips all proxy-required upstreams.
+- **Keys are optional**: leave `api_key`/`sk_list` empty for the anonymous keyless tier; when configured, the hub sends the provider-specific auth header and rotates multiple keys. An auth failure (401/403/unauthorized/forbidden/invalid api key) marks only that key invalid for 30 minutes and tries the next; the server cools down and cascades only after the key pool is exhausted. Connection/timeout errors cool down that server and cascade, leaving the remaining keys available. Keys stay in local config and never appear in logs or responses.
+- **Mainland China direct-connect check (2026-10-20, Anhui Unicom)**: all four endpoints were reachable without a proxy; AnySearch returned the most consistent Chinese-language results, Parallel had the lowest latency, Exa hit its anonymous limit after roughly 7 rapid calls (recovered in ~60s), and Firecrawl's keyless allowance is per egress IP. The proxy flags reflect China-friendliness by default and can be overridden for your own egress.
+- **Strategy**: `priority` (default, stability first) always starts from the first healthy server; `round-robin` rotates the starting server across requests.
+- **Local-engine load rotation**: `rotation_engines` appends local engines (`so360`, `bing`, `baidu_web`, …) to the main rotation pool after the MCP servers. For example `[so360]` sends roughly 1/5 of requests to so360, reducing MCP anonymous-limit pressure; reduce the `servers` list (e.g. parallel + so360) to give engines a larger share.
+- **Degradation chain**: after the whole rotation pool (MCP → `rotation_engines`) fails, the hub tries `fallback_engines` in order; default `[bing, so360]` (unavailable engines are skipped — so360 is off by default, so a default install usually degrades through Bing only), explicit `[]` disables local degradation. If those fail too, the existing `smartsearch` fallback still switches to Bing, matching the other modes.
+- **Cooldown**: connection/rate-limit errors cool down that backend; auth errors first try the next key within that server and cool down/cascade only when the key pool is exhausted. A site-level "unsupported page" only skips the current URL. When every backend is cooling down the hub fails fast so the caller can fall back to Bing.
+- **Built-in presets only**: `servers[].name` accepts `parallel` / `anysearch` / `exa` / `firecrawl`. Request arguments and response parsing are tied to each preset; adding a new upstream requires a new preset, argument builder, and parser in `pkg/search/provider/mcphub` (MCP request/response schemas are not interchangeable).
+- **Time range**: `smartsearch.time_range` is not sent in `mcphub` mode (the four MCP APIs use different time parameters); use `engine`/`apipool` native engines or read the source page when time filtering matters.
+
+```yaml
+mode: mcphub
+mcp_hub:
+  enabled: true
+  strategy: priority        # priority (default) / round-robin
+  timeout_sec: 20
+  fetch_timeout_sec: 45
+  cooldown_sec: 60
+  max_results: 10
+  max_fetch_chars: 200000
+  fetch_mode: off           # off (default) / fallback / prefer
+  rotation_engines: []      # local engines in the main rotation, e.g. [so360]
+  fallback_engines: [bing, so360]  # after rotation; [] disables local fallback (Bing still applies)
+  servers:                  # omit for the default four
+    - name: parallel
+    - name: anysearch
+    - name: exa
+    - name: firecrawl
+```
+
+### `mcp_hub.fetch_mode` — route cleanfetch through hosted MCP too
+
+| Value | Behavior |
+|-------|----------|
+| `off` (default) | Keep the existing cleanfetch path: webfetch → Jina Reader |
+| `fallback` | Run webfetch → Jina first; only if both fail, try the MCP cascade |
+| `prefer` | Try the MCP cascade first; on failure degrade to webfetch → Jina |
+
+Degradation and safety:
+
+- **Both layers fail** → aggregate error keeps both causes for diagnosis.
+- **PDF stays local**: URLs ending in `.pdf` always use the local PDF/MinerU pipeline, preserving page ranges and OCR.
+- **Preflight still runs**: `validateURLSecurity` (private IP/DNS rebinding) and `headCheck` (size cap) execute before any MCP fetch.
+- **Output cap**: at most `mcp_hub.max_fetch_chars` characters per page; truncation reports the original length.
+- **Separate cooldowns**: search and fetch track failures independently, so a site-level fetch error does not cool down search. When `mode=mcphub` and `fetch_mode` is not off, cleanfetch reuses the search hub, sharing its key pool and cooldown tables.
+- **Requires `cleanfetch.enabled=true`**; `fetch_mode` only affects URL fetching, not `result_ref` reads.
 
 ---
 

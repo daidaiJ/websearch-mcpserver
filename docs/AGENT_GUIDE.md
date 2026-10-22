@@ -2,7 +2,7 @@
 
 [English](AGENT_GUIDE.en.md) | [中文](AGENT_GUIDE.md)
 
-Go 编写的 MCP 搜索服务：最多 5 个工具（`smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`），零 API Key 可用（`engine` 模式），HTTP daemon 或 stdio 两种接入。给人类看的完整版见 [HUMAN_GUIDE.md](HUMAN_GUIDE.md)。
+Go 编写的 MCP 搜索服务：最多 5 个工具（`smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`），零 API Key 可用（`mcphub` 托管 MCP 级联 / `engine` 本地引擎），HTTP daemon 或 stdio 两种接入。给人类看的完整版见 [HUMAN_GUIDE.md](HUMAN_GUIDE.md)。
 
 > **反模式警告**：① 不要用 `cleanfetch` 抓搜索结果页来"搜索"——那是 `smartsearch` 的事；② 已持有 DOI / arXiv id 时不要拿标题再搜——直接把 id 作为 `academicsearch` 的 `query` 走精确查询；③ 不要给 `pdf_parser` 传网页 URL——网页用 `cleanfetch`。
 
@@ -16,6 +16,7 @@ curl -sL https://api.github.com/repos/daidaiJ/websearch-mcpserver/releases/lates
 
 # 2. 跳过写配置：首次 start 未指定 -c 时自动生成预设 config.yaml（零 Key 即可运行）
 #    显式 -c 指定路径时不会自动生成，文件缺失会报错
+#    想走零 Key 托管 MCP 级联：config.yaml 设 mode: mcphub（mcp_hub.enabled 默认开）
 
 # 3. 启动（HTTP daemon，默认 127.0.0.1:8338）
 ./websearch-mcpserver start        # stop / kill / status / version 同级子命令

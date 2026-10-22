@@ -31,9 +31,9 @@ So I started in 2026-04 with a single Baidu Qianfan engine and evolved it into a
 
 **Local-first, private by default** — Search, scoring, and caching all happen locally; queries go only to the search engines themselves, with no third-party aggregation service in between. Data never leaves your machine — the most fundamental difference from vendor MCP services that route data through third-party servers.
 
-**Zero cost to start, pay only for what you use** — Free engines (Baidu web + Bing) work with zero keys; local heuristic scoring burns no AI tokens; SQLite caching avoids repeated requests. Keys are used only when you provide them — you never pay for capabilities you don't use.
+**Zero cost to start, pay only for what you use** — Free engines (Baidu web + Bing) and zero-key hosted MCP (Parallel / AnySearch / Exa / Firecrawl cascade) work without keys; local heuristic scoring burns no AI tokens; SQLite caching avoids repeated requests. Keys are used only when you provide them — you never pay for capabilities you don't use.
 
-**Scalable complexity** — One config file, with `mode` scaling from `engine` (zero config) to `hybrid` (all engines). Zero-config and power users each get what they need without paying for complexity.
+**Scalable complexity** — One config file, with `mode` scaling from `mcphub` / `engine` (zero keys) to `hybrid` (all engines). Zero-config and power users each get what they need without paying for complexity.
 
 **Decoupled and composable** — Engines, modes, and tools are not coupled: `mode` decides the engine group, network capabilities follow their config switches (`cleanfetch` is always registered and its switch only gates URL fetching; `file_search` is probe-gated), keys are optional (`sk_list` multi-key rotation). Everything is config-driven (per-engine filtering, scoring thresholds, MMR, blocked sites, rate limits) — all tunable, nothing hardcoded.
 

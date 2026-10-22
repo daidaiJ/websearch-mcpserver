@@ -75,7 +75,7 @@ mcp_stateless: false        # Stateless MCP HTTP mode (default false = stateful)
 mcp_resources: true         # MCP Resource observability (default true): search://capabilities and
                             # search://health — read-only, secret-free, no tool slot; false to disable
 log_level: info             # debug / info / warn / error
-mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine
+mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine / mcphub
 network: china              # Academic adapter region; not web-source selection or Doubao site scope
 
 # Global rate limit (applies to all search engines)
@@ -350,12 +350,32 @@ pdf_parser:
 #       max_size: 4
 #       weight: 1.0
 
+# Keyless MCP Hub cascade (optional; search engine when mode=mcphub)
+# When fetch_mode is not off, cleanfetch also uses the same servers (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
+# mcp_hub:
+#   enabled: true
+#   strategy: priority      # priority (default, stability first) / round-robin
+#   timeout_sec: 20
+#   fetch_timeout_sec: 45
+#   cooldown_sec: 60        # skip a failed server for this long
+#   max_results: 10
+#   max_fetch_chars: 200000 # truncate a single page beyond this many characters
+#   fetch_mode: off         # off (default) / fallback / prefer
+#   rotation_engines: []    # local engines in the main rotation (after MCP), e.g. [so360]
+#   fallback_engines: [bing, so360]  # after rotation (unavailable engines are skipped); [] disables local fallback (Bing still applies)
+#   servers:                # omit for parallel → anysearch → exa → firecrawl
+#                           # empty api_key/sk_list uses the anonymous tier; auth failures try the next key, connection/timeout cools down and cascades
+#     - name: parallel      # optional key: https://platform.parallel.ai/
+#     - name: anysearch     # optional key: https://www.anysearch.com/console/api-keys
+#     - name: exa           # proxy by default; optional key: https://dashboard.exa.ai/api-keys
+#     - name: firecrawl     # proxy by default; optional key: https://www.firecrawl.dev/app/api-keys
+
 # Apipool mode config (optional, effective when mode=apipool)
 # apipool:
 #   strategy: weighted    # round-robin (default): rotate starting provider across requests
 #                         # priority: always start from first provider
 #                         # weighted: weighted-random starting provider (see weights)
-#   engines:              # Provider priority order (default [anysearch, baidu, tavily, exa], Baidu web search fallback always last)
+#   engines:              # Provider priority order (default [anysearch, baidu, tavily, exa], web-engine fallback always last)
 #                         # Doubao is not in the default list; add it explicitly when you have a key
 #     - anysearch
 #     - baidu
@@ -406,8 +426,11 @@ Source switches permit or deny a source; `mode` selects among permitted sources:
 | `baidu` | Enabled, keyed Qianfan API, optionally falling back to independently enabled Baidu web; enabled Bing if no primary source is usable |
 | `tavily` / `exa` / `doubao` | The enabled, keyed API; enabled Bing when that source is unavailable |
 | `anysearch` | Enabled AnySearch with key rotation or the anonymous tier; disabled AnySearch can only fall back to enabled Bing |
-| `apipool` | Filter disabled/unusable APIs from `apipool.engines`, then rotate and fail over; independently enabled Baidu web is last; enabled Bing can be used if the pool is empty |
+| `apipool` | Filter disabled/unusable APIs from `apipool.engines`, then rotate and fail over; enabled web engines serve as the final fallback; enabled Bing can be used if the pool is empty |
 | `hybrid` | Combine enabled, usable APIs and web sources concurrently; disabled sources, including anonymous AnySearch, are excluded |
+| `mcphub` | Cascade hosted MCP servers in `mcp_hub.servers` order; a failed server cools down and the hub switches to the next, degrading through `fallback_engines` (unavailable engines are skipped) and finally enabled Bing when all fail; per-server `api_key`/`sk_list` are optional, with auth failures rotating to the next key |
+
+> **Recommended**: use `mcphub` for zero-key deployments (hosted-MCP cascade with local-engine/Bing degradation) and `apipool` when API keys are available (multi-provider key rotation). `mcphub.rotation_engines` can share load with local engines, and `exa`/`firecrawl` are enabled/skipped automatically based on proxy availability.
 
 `bing.enabled` controls only the Bing source and its fallback, not the `smartsearch` tool itself. With Bing disabled, another usable route in the configured mode keeps `smartsearch` available. The tool is not registered only when that mode has no usable primary or fallback.
 
@@ -513,7 +536,7 @@ dashboard:
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
 | `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order / `weighted` weighted-random |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, Baidu web search fallback always last; `doubao` is not in the default list — add it explicitly when you have a key |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao` is not in the default list — add it explicitly when you have a key |
 | `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits |
 | `doubao.version` | global | Global / Custom; concurrent both goes through hybrid, not inside the adapter |
 | `doubao.num_results` | 10 | Global max 20; Custom max 50 |

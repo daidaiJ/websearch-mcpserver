@@ -67,6 +67,7 @@ func runStdio(conf *config.Config) {
 		mcpserver.WithSummarizer(*conf),
 		mcpserver.WithCache(*conf),
 		mcpserver.WithWebFetch(*conf),
+		mcpserver.WithMCPHubFetch(*conf),
 		mcpserver.WithJinaReader(*conf),
 		mcpserver.WithEverything(*conf),
 	); err != nil {

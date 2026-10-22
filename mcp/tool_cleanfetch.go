@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
+	"websearch/pkg/config"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/log"
@@ -146,23 +148,81 @@ func mergeFetchURLs(url string, urls []string) []string {
 	return out
 }
 
-// fetchCleanPage 抓取单个 URL：SSRF 预检 + HEAD 预检 + webfetch（Jina 兜底），
-// 返回格式化后的 Markdown 文本。
+// fetchCleanPage 抓取单个 URL：SSRF/HEAD 预检后按 mcp_hub.fetch_mode
+// 选择 MCP 托管抓取与本地 webfetch/Jina 的顺序，任一层失败自动降级。
 func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
+	if err := validateURLSecurity(rawURL); err != nil {
+		return "", err
+	}
+	if err := headCheck(ctx, rawURL); err != nil {
+		return "", err
+	}
+	local := func(ctx context.Context, u string) (string, error) {
+		return fetchLocalPage(ctx, u)
+	}
+	// MCP 抓取面向 HTML/文本；PDF 继续走本地解析与 MinerU 链路。
+	if isPDFURL(rawURL) {
+		return local(ctx, rawURL)
+	}
+	return fetchPageWithFallback(ctx, rawURL, mcpHubFetchMode, mcpHubFetchInst, local)
+}
+
+// fetchPageWithFallback 按 off/prefer/fallback 编排 MCP 与本地抓取。
+// 两条链路都失败时同时保留两侧错误，便于归因。
+func fetchPageWithFallback(ctx context.Context, rawURL, mode string, hub mcpHubFetcher,
+	local func(context.Context, string) (string, error)) (string, error) {
+	if hub == nil || mode == "" || mode == config.MCPHubFetchOff {
+		return local(ctx, rawURL)
+	}
+	switch mode {
+	case config.MCPHubFetchPrefer:
+		text, err := hub.Fetch(ctx, rawURL)
+		if err == nil {
+			return text, nil
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		log.Infof("MCP 托管抓取失败(%v)，降级到本地 webfetch/Jina", err)
+		text, localErr := local(ctx, rawURL)
+		if localErr == nil {
+			return text, nil
+		}
+		return "", fmt.Errorf("MCP 托管抓取失败: %w；本地抓取失败: %w", err, localErr)
+	case config.MCPHubFetchFallback:
+		text, localErr := local(ctx, rawURL)
+		if localErr == nil {
+			return text, nil
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		log.Infof("本地抓取失败(%v)，尝试 MCP 托管抓取", localErr)
+		text, hubErr := hub.Fetch(ctx, rawURL)
+		if hubErr == nil {
+			return text, nil
+		}
+		return "", fmt.Errorf("本地抓取失败: %w；MCP 托管抓取失败: %w", localErr, hubErr)
+	default:
+		return local(ctx, rawURL)
+	}
+}
+
+func isPDFURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(strings.ToLower(u.Path), ".pdf")
+}
+
+// fetchLocalPage 现有本地链路：webfetch（无需代理）→ Jina Reader（需代理）。
+func fetchLocalPage(ctx context.Context, rawURL string) (string, error) {
 	started := time.Now()
 	recordProvider := func(event telemetry.Event) {
 		event.Kind = "provider"
 		event.Query = rawURL
 		telemetry.RecordEventContext(ctx, event)
-	}
-	// ── 安全预检：DNS rebinding 防护 ──
-	if err := validateURLSecurity(rawURL); err != nil {
-		return "", err
-	}
-
-	// ── HEAD 预检：检测文件大小和类型 ──
-	if err := headCheck(ctx, rawURL); err != nil {
-		return "", err
 	}
 
 	// ── 第一层：go-webfetch（无需代理）──

@@ -29,14 +29,17 @@
 |------|------|----------|
 | `engine` | 百度网页搜索 + Bing + 360（启用时）并发（代理可用时自动加入 DuckDuckGo / Wikipedia / Google News，启用时加入 Google） | **无需** |
 | `baidu` | 百度千帆搜索（`enable_ai_search` 控制端点），失败自动回退百度网页搜索；无 SK 时直接用百度网页搜索 | `BAIDU_SK`（可选） |
-| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；百度网页搜索兜底 | 各 Key 可选 |
+| `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；网页引擎兜底 | 各 Key 可选 |
 | `tavily` | Tavily Search API（[获取 Key](https://app.tavily.com/home)） | `TAVILY_SK` |
 | `exa` | Exa Web Search API（[获取 Key](https://dashboard.exa.ai/api-keys)） | `EXA_API_KEY` |
 | `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)）；无 Key 时走匿名档（免鉴权，按出口 IP 限流） | `ANYSEARCH_API_KEY`（可选） |
 | `doubao` | 豆包联网搜索 Global / Custom（[获取 Key](https://console.volcengine.com/search-infinity/api-key)） | `DOUBAO_SEARCH_API_KEY` |
 | `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
+| `mcphub` | 零 Key 托管 MCP 级联：parallel → anysearch → exa → firecrawl，失败冷却后切下一个；单 server 可选 Key | **无需**（可选 Key） |
 
 > 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
+>
+> **推荐选型**：**零 Key 场景用 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 场景用 `apipool`**（多供应商 Key 池轮转，失败自动切换，网页引擎兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景。
 
 **各模式引擎映射**（来自 `pkg/search/factory.go`）：
 
@@ -48,8 +51,9 @@
 | `exa` | Exa；无 Key 时回退 Bing |
 | `anysearch` | AnySearch；有 Key 走 Key 池轮询，无 Key 走匿名档（免鉴权，按出口 IP 限流） |
 | `doubao` | 豆包联网搜索 Global/Custom（`doubao.version`）；无 Key 时回退 Bing |
-| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao` 需显式写入 `apipool.engines`），百度网页搜索始终兜底 |
+| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
 | `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
+| `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP（默认 parallel → anysearch → exa → firecrawl），一次请求命中一个；失败冷却后切换，全部失败回退 Bing |
 
 ---
 
@@ -231,12 +235,72 @@ apipool:
 
 **策略说明**：
 - **`round-robin`**（默认）：跨请求轮转起始供应商，每次请求内先用完当前供应商所有可用 SK 再 fallback 到下一个
-- **`priority`**：始终从列表第一个供应商开始，用完所有 SK → 切换下一个供应商 → 百度网页搜索兜底
-- **`weighted`**：按权重加权随机选起始供应商，突发请求天然分散到多家供应商。供应商有效权重 = **配置权重 × 当前可用 SK 数**（SK 失效冷却后权重自动下降，自愈）；权重表未收录的供应商按 1 计；显式 `0` 表示不参与加权起始选择（仍保留在失败切换链路）；全部权重为 0 时退化为 round-robin。百度网页搜索兜底引擎无 Key 池，固定权重 1
+- **`priority`**：始终从列表第一个供应商开始，用完所有 SK → 切换下一个供应商 → 网页引擎兜底
+- **`weighted`**：按权重加权随机选起始供应商，突发请求天然分散到多家供应商。供应商有效权重 = **配置权重 × 当前可用 SK 数**（SK 失效冷却后权重自动下降，自愈）；权重表未收录的供应商按 1 计；显式 `0` 表示不参与加权起始选择（仍保留在失败切换链路）；全部权重为 0 时退化为 round-robin。网页引擎兜底无 Key 池，固定权重 1
 
 **权重默认值**（可被 `apipool.weights` 覆盖）：`anysearch=30000`、`baidu=1500`、`tavily=1200`、`exa=1200`、`doubao=500`（对齐免费档每月积分）
 
-**工作流程**：选供应商 → `pool.Next()` 取 key → 调 API → 成功返回 / 失败标记 key 冷却 30 分钟 → 同供应商下一个 SK 重试 → 全部耗尽切下一个供应商 → 全部失败用百度网页搜索兜底
+**工作流程**：选供应商 → `pool.Next()` 取 key → 调 API → 成功返回 / 失败标记 key 冷却 30 分钟 → 同供应商下一个 SK 重试 → 全部耗尽切下一个供应商 → 全部失败用网页引擎兜底
+
+---
+
+## MCP Hub 零 Key 级联
+
+`mode: mcphub` 不要求 API Key：按 `mcp_hub.servers` 顺序调用托管 MCP server，单次请求命中一个；失败后该 server 进入冷却（默认 60s），自动级联到下一个。轮转池全部失败后按 `fallback_engines` 降级，最终由 `smartsearch` 回退 Bing（`bing.enabled=true` 时）。这是**路由/降级**，不会把多家结果合并后一起返回。
+
+| server | MCP 端点 | Keyless | 默认需代理 | 搜索 / 抓取工具 | Key 获取（可选） |
+|--------|----------|---------|-----------|-----------------|------------------|
+| `parallel` | `https://search.parallel.ai/mcp` | ✅ | ❌（直连实测可用） | `web_search` / `web_fetch` | https://platform.parallel.ai/ |
+| `anysearch` | `https://api.anysearch.com/mcp` | ✅（按出口 IP 限流） | ❌（国内直连友好） | `search` / `extract` | https://www.anysearch.com/console/api-keys |
+| `exa` | `https://mcp.exa.ai/mcp` | ✅（低限流） | ✅ | `web_search_exa` / `web_fetch_exa` | https://dashboard.exa.ai/api-keys |
+| `firecrawl` | `https://mcp.firecrawl.dev/v2/mcp` | ✅（按 IP 每日限额） | ✅ | `firecrawl_search` / `firecrawl_scrape` | https://www.firecrawl.dev/app/api-keys |
+
+- **代理自适应伸缩**：`exa`、`firecrawl` 预设 `requires_proxy: true`，未检测到代理时自动跳过（保留在轮转表中，后续代理可用即恢复，无需重启）；`parallel`、`anysearch` 默认直连。每个 server 可用 `requires_proxy: true/false` 覆盖预设。`proxy.enabled: false` 会关闭自动检测，等价于所有需代理上游跳过。
+- **Key 可选**：每个 server 的 `api_key` 或 `sk_list` 为空时走匿名 keyless；配置后自动带鉴权头并支持多 Key 轮转。鉴权失败（401/403/unauthorized/forbidden/invalid api key）只标记该 Key 无效（30 分钟）并换下一把，Key 池耗尽后才冷却该 server；连接/超时等其它错误直接冷却该 server 并级联，其余 Key 保持可用。Key 只写入本地配置，不会出现在日志或响应中。
+- **2026-10-20 国内直连实测**（安徽联通）：四个端点均可直连；AnySearch 中文结果最稳定，Parallel 延迟最低，Exa 突发约 7 次后触发匿名限流（约 60s 恢复），Firecrawl 匿名额度按出口 IP 分配。需代理标记按“国内网络友好度”默认给出，可按实际出口覆盖。
+- **策略**：`priority`（默认，稳定优先）每次从第一个可用 server 开始；`round-robin` 跨请求轮转起始 server。
+- **本地引擎负载轮转**：`rotation_engines` 可把 `so360` / `bing` / `baidu_web` 等本地引擎追加到主轮转池（顺序在 MCP server 之后）。例如 `[so360]` 让约 1/5 的请求走 360，降低 MCP 匿名限流概率；想提高引擎占比就减少 `servers` 数量（只留 parallel + so360 即约 50/50）。
+- **降级链**：主轮转池（MCP → `rotation_engines`）全部失败后，按 `fallback_engines` 顺序降级；默认 `[bing, so360]`（未启用的自动跳过；so360 默认关闭，默认安装通常只经 Bing 降级），显式 `[]` 表示不做本地降级。`fallback_engines` 也失败后，仍由 `smartsearch` 统一回退 Bing，与项目其它模式一致。
+- **冷却**：连接/限流错误冷却对应后端；鉴权错误先在该 server 内换下一把 Key，Key 池耗尽后才冷却并级联。站点级“不支持抓取”只跳过当前 URL，不连坐整个 server。全部冷却时直接返回错误，由上层回退 Bing，避免无谓重试。
+- **仅内置 preset**：`servers[].name` 只接受 `parallel` / `anysearch` / `exa` / `firecrawl`。请求参数与响应解析随 preset 固定；新增上游必须在 `pkg/search/provider/mcphub` 内补 preset、参数构造和解析器，不能靠配置拼接（不同 MCP 的请求/响应结构并不统一）。
+- **时间范围**：`smartsearch.time_range` 在 `mcphub` 下不发送（四家 MCP 的时间参数不统一）；需要时间过滤时用 `engine`/`apipool` 的原生引擎或直接读原页。
+
+```yaml
+mode: mcphub
+mcp_hub:
+  enabled: true
+  strategy: priority        # priority（默认）/ round-robin
+  timeout_sec: 20           # 单次搜索超时
+  fetch_timeout_sec: 45     # 单次抓取超时
+  cooldown_sec: 60          # 失败冷却
+  max_results: 10
+  max_fetch_chars: 200000
+  fetch_mode: off           # off（默认）/ fallback / prefer
+  rotation_engines: []      # 加入主轮转池的本地引擎，如 [so360]；MCP 之后轮转
+  fallback_engines: [bing, so360]  # 主轮转失败后的降级；[] = 不降级，最终仍回退 Bing
+  servers:                  # 省略即默认四家
+    - name: parallel
+    - name: anysearch
+    - name: exa
+    - name: firecrawl
+```
+
+### `mcp_hub.fetch_mode` — 让 cleanfetch 也走托管 MCP
+
+| 值 | 行为 |
+|----|------|
+| `off`（默认） | 保持原有 cleanfetch：webfetch → Jina Reader；不使用 MCP |
+| `fallback` | 先走 webfetch → Jina；两者都失败后，再按级联顺序尝试 MCP 抓取 |
+| `prefer` | 先按级联顺序尝试 MCP 抓取；失败后降级到 webfetch → Jina |
+
+降级与安全约束：
+
+- **两层都失败**时返回聚合错误（MCP 与本地错误同时保留），便于定位。
+- **PDF 不走 MCP**：URL 以 `.pdf` 结尾时始终走本地 PDF/MinerU 链路，避免丢失分页与 OCR 能力。
+- **预检不跳过**：MCP 抓取前仍执行 `validateURLSecurity`（私网/DNS rebinding）与 `headCheck`（大小上限）。
+- **输出上限**：单个网页最多返回 `mcp_hub.max_fetch_chars` 字符，超出截断并注明原长度。
+- **独立冷却**：搜索与抓取的冷却状态分开记录；抓取站点级错误不会让该 server 的搜索一起冷却。`mode=mcphub` 且 `fetch_mode` 非 off 时，cleanfetch 复用搜索 Hub，Key 池与冷却表共用。
+- **抓取需要 `cleanfetch.enabled=true`**；`fetch_mode` 仅增强 URL 抓取，不影响 `result_ref` 读取。
 
 ---
 

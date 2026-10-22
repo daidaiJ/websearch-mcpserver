@@ -5,6 +5,7 @@
 ## Unreleased
 
 ### 新增
+- **零 Key 托管 MCP 级联模式 `mcphub`**：内置 Parallel / AnySearch / Exa / Firecrawl 四个 preset（请求参数与响应解析随 preset 固定），按 `priority` / `round-robin` 轮转，失败冷却后级联切换；每个上游可选 `api_key`/`sk_list`，`exa`/`firecrawl` 默认按代理可用性自动启用/跳过；`rotation_engines` 可把本地引擎加入主轮转分摊限流，`fallback_engines` 默认 `bing → so360`，全部失败仍由 smartsearch 回退 Bing。cleanfetch 另有 `fetch_mode: off/fallback/prefer` 可选复用同一批 MCP 抓取，PDF、SSRF/HEAD 预检与本地 webfetch/Jina 降级保持不变
 - **`GET /metrics` 观测端点**：Prometheus/OpenMetrics 文本格式的只读聚合（今日工具/供应商请求数、成功失败、缓存命中、延迟分桶），零新依赖手写渲染，数据来自脱敏遥测库、不含 URL/原文/密钥；需 `dashboard.enabled: true`，未启用返回 503
 - **off-topic 守卫校准回放**：`shadow` 判定落 `guard` 遥测事件（模式、参照回声率、各引擎桶回声率/条数），新增 `go run ./tools/guardreplay -db <dashboard.db>`，按 0.15/0.25/0.35/0.5 等候选阈值输出「若 enforce 会丢弃哪些桶、影响多少查询」与样例，`-json` 供机器消费
 
@@ -12,6 +13,9 @@
 - **测试场景分类补上游限流**：`internal/testenv` 把 429 / rate limit 归为场景类失败，DDG 限流测试与 CleanFetch 网络用例改走 `HandleSearchError`——环境限流或站点不可达时跳过，不再误报为回归
 
 ### 修复
+- **mcphub 未启用降级引擎 panic**：`fallback_engines` 默认含 `so360`，而 `so360.enabled` 默认关闭；装配时跳过未启用/不可用的本地引擎，搜索不再因空适配器 panic
+- **mcphub 单个 Key 鉴权失败连坐整个 server**：配置 `sk_list` 时，401/403/unauthorized/forbidden/invalid api key 只标记该 Key 无效（30 分钟）并换下一把，Key 池耗尽后才冷却；连接/超时错误直接冷却该 server 并级联，保留其余 Key
+- **mcphub 搜索与 cleanfetch 各建一套 Hub**：`mode=mcphub` 且 `fetch_mode` 非 off 时，cleanfetch 复用搜索 Hub，冷却表与 Key 池共用；搜索/抓取仍分槽冷却
 - **并发请求的失败诊断互相串扰**：编排层诊断改为随返回值传递（`core.DiagnosticsSearcher`），`SearchRaw` 旧签名保留单槽兜底；两请求并发时，失败请求只拿到自己的失败清单，成功请求不再被另一请求的引擎失败污染
 - **跨引擎 URL 去重漏合**：新增 `core.NormalizeURL`（scheme/host 小写、去 fragment、剥离 `utm_*`/`fbclid`/`gclid`/`ref`/`spm`、查询参数排序、非根路径去尾斜杠），单引擎内与跨引擎两处去重键及 `antirobot.DeduplicateResults` 共用；同一页面的 scheme/尾斜杠/追踪参数变体不再各占一个 `global_max_size` 名额（展示 URL 保持原样）
 - **SQLite 缓存读被写阻塞**：缓存库启用 WAL + `busy_timeout` + `synchronous=NORMAL`（DSN 按连接生效），连接池由 1 放宽到 4——读与读不再互斥，写冲突由 SQLite 锁排队；此前注释声明 WAL 但实际从未执行 PRAGMA
