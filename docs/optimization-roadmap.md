@@ -1,6 +1,6 @@
 # 后续优化增强方向（Todo 专题）
 
-> 2026-10-19 调研产出的路线图。首批八项已于同日落地并推送（`cfb8bb8` / `7de924a` / `5f3f61a` / `da9c285`），本文件收敛为**剩余事项清单**；已完成项的落地要点见文末归档表，详细实现见对应提交与 CHANGELOG。
+> 2026-10-19 调研产出的路线图。首批八项已于同日落地并推送（`b780769`），本文件收敛为**剩余事项清单**；已完成项的落地要点见文末归档表，详细实现见对应提交与 CHANGELOG。
 >
 > 总评：项目已过功能建设期，投入方向为四条线——搜索链路的 context 化与并发正确性、结果去重与守卫校准的质量收尾、MCP 协议新代际跟进、可观测性与测试护栏。零 Key + 反检测 + agent 成本控制是既有差异化定位，继续深耕而非扩面。
 
@@ -28,14 +28,14 @@
 
 | 项 | 落地要点 | 提交 |
 |---|---|---|
-| **R1** context 贯通 | 可选 `ContextSearcher` / `ContextTimeRanger` / `ContextAcademicSearcher` / `ContextDiagnosticsSearcher`，`SearchInf` 原签名不变；新配置 `smartsearch.engine_timeout_sec`（默认 10s，负数=只依赖请求死线） | `7de924a` |
-| **R2** 诊断 per-request | `core.DiagnosticsSearcher` 值传递，单槽降为兜底；并发请求不再互相覆盖失败清单 | `cfb8bb8` |
-| **R3** 缓存并发读 | DSN 级 WAL / `busy_timeout` / `synchronous=NORMAL`，连接池 1→4；原实现只注释声明 WAL、从未执行 PRAGMA | `cfb8bb8` |
-| **Q1** URL 归一化 | `antirobot.NormalizeURL`（core 转发）：scheme/host 小写、去 fragment、剥追踪参数、参数排序、去尾斜杠；接入两处 hybrid 去重键与 `DeduplicateResults` | `cfb8bb8` |
-| **Q2** 守卫校准 | `guard` 遥测事件（脱敏）+ `go run ./tools/guardreplay -db <dashboard.db>` 阈值回放 | `5f3f61a` |
-| **O1** metrics 端点 | `GET /metrics` 零依赖手写 Prometheus 文本；只读脱敏，遥测未启用返回 503 | `5f3f61a` |
-| **T1** SSRF fuzz | 三个 Fuzz 目标覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`，CI 跑 10s 短窗口 | `5f3f61a` |
-| **T3** CI 护栏 | `go test -race -short` 步骤 + golangci-lint v2 job（`--new-from-rev` 只拦新增代码） | `cfb8bb8` |
+| **R1** context 贯通 | 可选 `ContextSearcher` / `ContextTimeRanger` / `ContextAcademicSearcher` / `ContextDiagnosticsSearcher`，`SearchInf` 原签名不变；新配置 `smartsearch.engine_timeout_sec`（默认 10s，负数=只依赖请求死线） | `b780769` |
+| **R2** 诊断 per-request | `core.DiagnosticsSearcher` 值传递，单槽降为兜底；并发请求不再互相覆盖失败清单 | `b780769` |
+| **R3** 缓存并发读 | DSN 级 WAL / `busy_timeout` / `synchronous=NORMAL`，连接池 1→4；原实现只注释声明 WAL、从未执行 PRAGMA | `b780769` |
+| **Q1** URL 归一化 | `antirobot.NormalizeURL`（core 转发）：scheme/host 小写、去 fragment、剥追踪参数、参数排序、去尾斜杠；接入两处 hybrid 去重键与 `DeduplicateResults` | `b780769` |
+| **Q2** 守卫校准 | `guard` 遥测事件（脱敏）+ `go run ./tools/guardreplay -db <dashboard.db>` 阈值回放 | `b780769` |
+| **O1** metrics 端点 | `GET /metrics` 零依赖手写 Prometheus 文本；只读脱敏，遥测未启用返回 503 | `b780769` |
+| **T1** SSRF fuzz | 三个 Fuzz 目标覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`，CI 跑 10s 短窗口 | `b780769` |
+| **T3** CI 护栏 | `go test -race -short` 步骤 + golangci-lint v2 job（`--new-from-rev` 只拦新增代码） | `b780769` |
 
 > 验证：`go build ./...`、`go vet ./...`、`go test ./...`（含网络集成）、`go test -race -short ./...`、golangci-lint（新增代码 0 issues）、actionlint 全绿；`/metrics` 已用真实二进制实机验证。
 

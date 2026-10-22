@@ -184,7 +184,7 @@ docker build -t websearch-mcpserver .
 
 ### 当前状态（2026-10-19）
 
-- `master` 已推送 `da9c285`：优化路线图首批八项落地（R1 context 贯通 + per-engine 软超时、R2 诊断 per-request、R3 缓存并发读、Q1 URL 归一化、Q2 守卫校准回放、O1 `/metrics`、T1 SSRF fuzz、T3 CI race + lint）。全量 `go test ./...`、`go test -race -short ./...`、golangci-lint、actionlint 全绿。
+- `master` 已推送 `b780769`：优化路线图首批八项落地（R1 context 贯通 + per-engine 软超时、R2 诊断 per-request、R3 缓存并发读、Q1 URL 归一化、Q2 守卫校准回放、O1 `/metrics`、T1 SSRF fuzz、T3 CI race + lint）。全量 `go test ./...`、`go test -race -short ./...`、golangci-lint、actionlint 全绿。
 - 剩余优化项见 [docs/optimization-roadmap.md](docs/optimization-roadmap.md) 待办区：Q3 摘要 token 预算、E1 go-sdk v1.8 升级、T2 引擎解析测试补密度。
 - 待发布：批次 1+3 → `v3.8.x` 补丁版；R1（批次 2）→ `v3.9.0`。`-registry` tag 按发布矩阵在 base Release 就绪后另打。
 
