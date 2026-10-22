@@ -2,7 +2,9 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.9.0 — 2026-10-22（零 Key MCP 级联与观测护栏）
+
+> 本版包含路线图首批八项落地（`b780769`）、`feat/parallel-mcp` 分支合入的零 Key 托管 MCP 级联模式，以及吸收 [@MattLYT](https://github.com/MattLYT) 的 [PR #26](https://github.com/daidaiJ/websearch-mcpserver/pull/26)（Wikipedia 检索操作符剥离，merge `0d94295`）。
 
 ### 新增
 - **零 Key 托管 MCP 级联模式 `mcphub`**：内置 Parallel / AnySearch / Exa / Firecrawl 四个 preset（请求参数与响应解析随 preset 固定），按 `priority` / `round-robin` 轮转，失败冷却后级联切换；每个上游可选 `api_key`/`sk_list`，`exa`/`firecrawl` 默认按代理可用性自动启用/跳过；`rotation_engines` 可把本地引擎加入主轮转分摊限流，`fallback_engines` 默认 `bing → so360`，全部失败仍由 smartsearch 回退 Bing。cleanfetch 另有 `fetch_mode: off/fallback/prefer` 可选复用同一批 MCP 抓取，PDF、SSRF/HEAD 预检与本地 webfetch/Jina 降级保持不变

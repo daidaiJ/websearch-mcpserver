@@ -2,7 +2,9 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.9.0 — 2026-10-22 (Keyless MCP cascade and observability guardrails)
+
+> This release bundles the first roadmap batch (`b780769`), the keyless hosted-MCP cascade mode merged from the `feat/parallel-mcp` branch, and the absorbed [PR #26](https://github.com/daidaiJ/websearch-mcpserver/pull/26) by [@MattLYT](https://github.com/MattLYT) (Wikipedia search-operator stripping, merge `0d94295`).
 
 ### Added
 - **Keyless hosted-MCP cascade mode `mcphub`**: four fixed presets (Parallel / AnySearch / Exa / Firecrawl) with preset-specific request arguments and response parsers; rotates with `priority` / `round-robin`, cools down failed upstreams and cascades to the next. Each upstream accepts optional `api_key`/`sk_list`; `exa`/`firecrawl` are enabled/skipped automatically based on proxy availability. `rotation_engines` can add local engines to the main rotation to spread rate limits, while `fallback_engines` defaults to `bing → so360` and the existing smartsearch Bing fallback remains last. cleanfetch can optionally reuse the same MCP pool via `fetch_mode: off/fallback/prefer`; PDF handling, SSRF/HEAD preflight and local webfetch/Jina degradation are preserved
