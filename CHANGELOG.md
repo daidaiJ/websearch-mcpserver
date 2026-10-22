@@ -16,6 +16,7 @@
 - **跨引擎 URL 去重漏合**：新增 `core.NormalizeURL`（scheme/host 小写、去 fragment、剥离 `utm_*`/`fbclid`/`gclid`/`ref`/`spm`、查询参数排序、非根路径去尾斜杠），单引擎内与跨引擎两处去重键及 `antirobot.DeduplicateResults` 共用；同一页面的 scheme/尾斜杠/追踪参数变体不再各占一个 `global_max_size` 名额（展示 URL 保持原样）
 - **SQLite 缓存读被写阻塞**：缓存库启用 WAL + `busy_timeout` + `synchronous=NORMAL`（DSN 按连接生效），连接池由 1 放宽到 4——读与读不再互斥，写冲突由 SQLite 锁排队；此前注释声明 WAL 但实际从未执行 PRAGMA
 - **日志 caller 指向 zerolog 内部**：`pkg/log` 的 `CallerWithSkipFrameCount` 由 1 改为 3（zerolog caller hook 自带 2 层内部帧 + 包级 helper 1 层），caller 字段恢复指向真实调用点，不再出现 `github.com/rs/zerolog@…/event.go:131`
+- **Wikipedia 引擎对带操作符的查询恒零命中**：MediaWiki `list=search` 不支持 `site:` / `lang:` / `after:` / `before:`，而上游检索语法会把它们拼进 query，MediaWiki 当成普通词面处理，整条查询返回 0 条。引擎现在检索前先剥离这些操作符（清洗后为空则回退原查询），`site:go.dev/ref/spec Go language specification interface types` 由 0 条恢复为正常命中。新增 `sanitizeWikiQuery` 及单测。（[PR #26](https://github.com/daidaiJ/websearch-mcpserver/pull/26)，[@MattLYT](https://github.com/MattLYT)）
 
 ### CI
 - **SSRF 预检模糊测试进 CI**：`mcp/security_fuzz_test.go` 覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`（种子含十进制/十六进制/八进制回环、IPv4-mapped IPv6、云元数据地址、非 http(s) 协议），`test` job 跑 10s 短窗口

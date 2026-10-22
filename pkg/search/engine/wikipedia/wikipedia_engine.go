@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -91,6 +92,12 @@ func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.Tim
 		return &antirobot.SearchResponse{Engine: "wikipedia", Results: []antirobot.Result{}}, nil
 	}
 
+	// MediaWiki list=search 不支持 site:/lang:/after:/before: 等网页搜索操作符，
+	// 调用方的检索语法会把这些操作符拼进 query，原样传入会被当成普通词面导致零命中。
+	// 这里只剥离操作符 token，不含操作符的查询原样透传。
+	rawQuery := query
+	query = sanitizeWikiQuery(query)
+
 	u := e.buildURL(query, page)
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
@@ -135,7 +142,11 @@ func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.Tim
 		})
 	}
 	if len(results) == 0 {
-		log.Debugf("wikipedia: %q 无结果", query)
+		if query != rawQuery {
+			log.Debugf("wikipedia: %q 无结果（已剥离检索操作符，实际检索串 %q）", rawQuery, query)
+		} else {
+			log.Debugf("wikipedia: %q 无结果", query)
+		}
 	}
 	return &antirobot.SearchResponse{Engine: "wikipedia", Results: results}, nil
 }
@@ -188,4 +199,63 @@ func htmlUnescape(s string) string {
 		"&nbsp;", " ", "&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", `"`, "&#39;", "'",
 	)
 	return r.Replace(s)
+}
+
+// wikiUnsupportedOperator 匹配以网页搜索操作符开头的 token：
+// site: / -site: / lang: / after: / before:（大小写不敏感，允许空值如裸 site:）。
+// 这些操作符由调用方的检索语法带入，MediaWiki list=search 不认识，会被当成普通词面，
+// 导致整条查询零命中。
+var wikiUnsupportedOperator = regexp.MustCompile(`(?i)^-?(site|lang|after|before):`)
+
+// splitWikiTokens 按空白切分查询，但双引号短语整体作为一个 token（短语内部不拆）。
+func splitWikiTokens(query string) []string {
+	tokens := make([]string, 0, 8)
+	var cur strings.Builder
+	inQuote := false
+	for _, r := range query {
+		switch {
+		case r == '"':
+			inQuote = !inQuote
+			cur.WriteRune(r)
+		case !inQuote && (r == ' ' || r == '\t' || r == '\n' || r == '\r'):
+			if cur.Len() > 0 {
+				tokens = append(tokens, cur.String())
+				cur.Reset()
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		tokens = append(tokens, cur.String())
+	}
+	return tokens
+}
+
+// sanitizeWikiQuery 剥离 MediaWiki 不支持的网页搜索操作符 token，保留自然语言词与
+// 双引号短语。不含操作符的查询原样返回（不改写任何空白）；清洗后为空时回退原查询，
+// 避免纯操作符查询退化成空检索。
+func sanitizeWikiQuery(query string) string {
+	tokens := splitWikiTokens(query)
+	kept := make([]string, 0, len(tokens))
+	removed := false
+	for _, tok := range tokens {
+		if strings.HasPrefix(tok, `"`) { // 双引号短语整体保留，不拆短语内部
+			kept = append(kept, tok)
+			continue
+		}
+		if wikiUnsupportedOperator.MatchString(tok) {
+			removed = true
+			continue
+		}
+		kept = append(kept, tok)
+	}
+	if !removed {
+		return query
+	}
+	cleaned := strings.Join(kept, " ")
+	if cleaned == "" {
+		return query
+	}
+	return cleaned
 }

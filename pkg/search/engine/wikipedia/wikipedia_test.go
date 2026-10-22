@@ -131,3 +131,57 @@ func TestWikipedia_SearchIntegration(t *testing.T) {
 	}
 	t.Logf("wikipedia 真网返回 %d 条结果，首条: %s %s", len(resp.Results), resp.Results[0].Title, resp.Results[0].URL)
 }
+
+// TestSanitizeWikiQuery 仅剥离 MediaWiki 不支持的操作符 token，自然语言词与短语原样保留。
+func TestSanitizeWikiQuery(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"strip site operator", "site:go.dev/ref/spec Go language specification interface types", "Go language specification interface types"},
+		{"strip negated site", "deepseek -site:example.com model", "deepseek model"},
+		{"strip lang after before", "DeepSeek lang:zh after:2025-01-01 before:2026", "DeepSeek"},
+		{"case insensitive", "Site:Go.dev Go spec", "Go spec"},
+		{"quoted phrase outside operator", `"air conditioner" site:eur-lex.europa.eu 206/2012`, `"air conditioner" 206/2012`},
+		{"operator inside quoted phrase untouched", `"site:go.dev phrase" deepseek`, `"site:go.dev phrase" deepseek`},
+		{"spaced operator", "site: go.dev deepseek", "go.dev deepseek"},
+		{"bare operator removed", "deepseek site:", "deepseek"},
+		{"no operator irregular whitespace unchanged", "deepseek\tmodel  spec  ", "deepseek\tmodel  spec  "},
+		{"quoted phrase whitespace intact", `"air  conditioner" efficiency`, `"air  conditioner" efficiency`},
+		{"only operators falls back", "site:go.dev", "site:go.dev"},
+		{"empty unchanged", "", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := sanitizeWikiQuery(c.in); got != c.want {
+				t.Errorf("sanitizeWikiQuery(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// TestWikipedia_SanitizesOperatorQuery 上游检索语法带入的 site: 不应出现在 srsearch 里。
+func TestWikipedia_SanitizesOperatorQuery(t *testing.T) {
+	var srsearch string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srsearch = r.URL.Query().Get("srsearch")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"query":{"search":[]}}`))
+	}))
+	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
+	orig := wikipediaEndpoint
+	wikipediaEndpoint = srv.URL + "/w/api.php"
+	t.Cleanup(func() { wikipediaEndpoint = orig })
+
+	e := NewWikipedia(WikipediaOpts{Enabled: true, Lang: "en"})
+	if _, err := e.Search("site:go.dev/ref/spec Go language specification interface types", 1, antirobot.TimeRangeNone); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(srsearch, "site:") {
+		t.Errorf("srsearch 不应携带 MediaWiki 不支持的 site: 操作符: %q", srsearch)
+	}
+	if srsearch != "Go language specification interface types" {
+		t.Errorf("srsearch 应为剥离操作符后的词面: %q", srsearch)
+	}
+}
