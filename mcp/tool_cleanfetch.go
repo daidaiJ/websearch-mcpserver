@@ -188,7 +188,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, hub mcpHubF
 		if localErr == nil {
 			return text, nil
 		}
-		return "", fmt.Errorf("MCP 托管抓取失败: %v；本地抓取失败: %w", err, localErr)
+		return "", fmt.Errorf("MCP 托管抓取失败: %w；本地抓取失败: %w", err, localErr)
 	case config.MCPHubFetchFallback:
 		text, localErr := local(ctx, rawURL)
 		if localErr == nil {
@@ -202,7 +202,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, hub mcpHubF
 		if hubErr == nil {
 			return text, nil
 		}
-		return "", fmt.Errorf("本地抓取失败: %v；MCP 托管抓取失败: %w", localErr, hubErr)
+		return "", fmt.Errorf("本地抓取失败: %w；MCP 托管抓取失败: %w", localErr, hubErr)
 	default:
 		return local(ctx, rawURL)
 	}

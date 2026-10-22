@@ -65,7 +65,7 @@ func (c *mcpCaller) Call(ctx context.Context, s *server, tool string, args map[s
 	if err != nil {
 		return toolResult{}, fmt.Errorf("%s: MCP 连接失败: %w", s.name, err)
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
