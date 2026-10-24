@@ -323,6 +323,18 @@ mcp_hub:
 
 **适用边界**：时效性事实、网页线索与文档检索；系统性文献综述、需要引用数据的学术问题请改用 `academicsearch`。
 
+### `search_history` — 本地搜索历史（默认关闭）
+
+`search_history.enabled: true` 启用后注册。FTS5 全文检索本服务自己记录的搜索历史：每次 `smartsearch` 成功后自动写入 query + 结果快照（标题/URL/截断摘要，最多 20 条/次），让模型复用已查结果而不必重抓。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `query` | string | ❌ | 历史检索关键词（FTS5 匹配查询与结果标题/摘要）；省略或空 = 返回最近历史（按时间倒序） |
+| `limit` | int | ❌ | 返回条数上限（默认 10，硬上限 50） |
+| `offset` | int | ❌ | 翻页偏移量（默认 0） |
+
+数据只落本地 SQLite（`search_history.storage_path`，默认 exe 同目录 `history/search-history.db`），不出网、不含密钥；保留期 `search_history.retention_days` 默认 30 天，过期每小时清理。正文快照是截断摘要，完整正文请对对应 URL 用 `cleanfetch` 重取。
+
 ### `academicsearch` — 学术论文检索
 
 | 参数 | 类型 | 必填 | 说明 |

@@ -252,6 +252,14 @@ cache:
   # storage_path: ""         # 未配置时默认 exe 同目录 cache/websearch-cache.db
   cleanup_interval: 30      # 清理间隔（分钟），最大 360
 
+# 搜索历史（默认关闭；FTS5 全文检索「自己查过的东西」）
+# 启用后每次 smartsearch 成功自动写入 query + 结果快照（标题/URL/截断摘要，最多 20 条/次），
+# 并注册 search_history MCP 工具；数据只落本地 SQLite、不出网，不含密钥。
+# search_history:
+#   enabled: true             # 显式 true 启用；关闭时不建库、不注册工具
+#   storage_path: ""          # 未配置时默认 exe 同目录 history/search-history.db
+#   retention_days: 30        # 保留天数，默认 30；过期行每小时自动清理
+
 # 本机控制中心（默认关闭；仅被动记录真实调用，不主动探测，不保存完整查询或 URL）
 # 推荐用独立配置文件 dashboard.yaml 管理（主配置同目录，样例见 dashboard.example.yaml）：
 # 按字段覆盖这里的 dashboard: 块；删除该文件并重启 = 完整回退。

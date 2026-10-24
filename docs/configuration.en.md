@@ -255,6 +255,15 @@ cache:
   # storage_path: ""         # Unset → exe sibling dir cache/websearch-cache.db
   cleanup_interval: 30      # Cleanup interval (minutes), max 360
 
+# Search history (disabled by default; FTS5 full-text over "what you already searched")
+# When enabled, every successful smartsearch writes the query + result snapshot
+# (title/URL/truncated snippet, up to 20 per search) and registers the search_history MCP tool;
+# data stays in local SQLite, never leaves the machine, and never contains keys.
+# search_history:
+#   enabled: true             # explicit true to enable; when off no DB is created and the tool is not registered
+#   storage_path: ""          # Unset → exe sibling dir history/search-history.db
+#   retention_days: 30        # retention days, default 30; expired rows are cleaned hourly
+
 # Local control center (off by default; passive real-call telemetry only, no active probes,
 # raw queries/URLs are never stored). Prefer a separate dashboard.yaml next to the main config
 # (see dashboard.example.yaml): it overrides the dashboard: block field-by-field, and deleting

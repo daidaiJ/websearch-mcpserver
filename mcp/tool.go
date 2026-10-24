@@ -11,6 +11,7 @@ import (
 	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/history"
 	"websearch/pkg/llm"
 	"websearch/pkg/search"
 	"websearch/pkg/telemetry"
@@ -79,6 +80,7 @@ var (
 	// providerFetchers 供应商自带 fetch API 的远端抓取链（TinyFish/Keenable 等），
 	// 排在 mcphub 托管 MCP 之前：优先消耗供应商按 URL 计数的免费 fetch 额度。
 	providerFetchers     []mcpHubFetcher
+	historyInst          *history.Store
 	academicSearcher     search.AcademicSearcher
 	everythingInst       *everything.Client
 	everythingRoots      []string

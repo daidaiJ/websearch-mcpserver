@@ -323,6 +323,18 @@ Results include engine source and relevance score by default (for engines that s
 
 **Scope boundary**: current facts, web leads and documentation lookups; for systematic literature reviews or academic questions needing citation data, use `academicsearch`.
 
+### `search_history` — Local Search History (disabled by default)
+
+Registered when `search_history.enabled: true`. FTS5 full-text search over the history this server itself recorded: every successful `smartsearch` writes the query + a result snapshot (title/URL/truncated snippet, up to 20 per search), letting the model reuse already-fetched results instead of re-searching.
+
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `query` | string | ❌ | History lookup keywords (FTS5 matches queries and result titles/snippets); omit or empty = most recent history (newest first) |
+| `limit` | int | ❌ | Max entries returned (default 10, hard cap 50) |
+| `offset` | int | ❌ | Pagination offset (default 0) |
+
+Data stays in local SQLite (`search_history.storage_path`, default `history/search-history.db` next to the exe), never leaves the machine and never contains keys; retention defaults to 30 days (`search_history.retention_days`), expired rows are cleaned hourly. Snapshots are truncated snippets — use `cleanfetch` on the URL for full content.
+
 ### `academicsearch` — Academic Paper Search
 
 | Parameter | Type | Required | Description |

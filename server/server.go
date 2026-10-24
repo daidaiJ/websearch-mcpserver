@@ -207,6 +207,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 		mcpserver.WithMCPHubFetch(conf),
 		mcpserver.WithJinaReader(conf),
 		mcpserver.WithEverything(conf),
+		mcpserver.WithSearchHistory(conf),
 	); err != nil {
 		return err
 	}
@@ -312,6 +313,7 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 		mcpserver.WithMCPHubFetch(conf),
 		mcpserver.WithJinaReader(conf),
 		mcpserver.WithEverything(conf),
+		mcpserver.WithSearchHistory(conf),
 	); err != nil {
 		panic(err)
 	}

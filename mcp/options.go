@@ -13,6 +13,7 @@ import (
 	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/history"
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
@@ -52,6 +53,30 @@ func WithWebFetch(conf config.Config) ServerOption {
 // WithMCPHubFetch 在 mcp_hub.fetch_mode 非 off 时初始化托管 MCP 抓取增强。
 func WithMCPHubFetch(conf config.Config) ServerOption {
 	return func() { applyMCPHubFetch(conf) }
+}
+
+// WithSearchHistory 在 search_history.enabled=true 时初始化本地搜索历史（FTS5）。
+// 默认关闭：不建库、不注册工具。
+func WithSearchHistory(conf config.Config) ServerOption {
+	return func() { applySearchHistory(conf) }
+}
+
+func applySearchHistory(conf config.Config) {
+	if !conf.SearchHistoryEnabled() {
+		log.Info("search_history 默认关闭；需要时配置 search_history.enabled: true")
+		return
+	}
+	retentionDays := conf.SearchHistory.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = history.DefaultRetentionDays
+	}
+	h, err := history.New(conf.GetSearchHistoryStoragePath(), retentionDays)
+	if err != nil {
+		log.Errf("搜索历史初始化失败，search_history 不启用: %v", err)
+		return
+	}
+	historyInst = h
+	log.Infof("搜索历史已启用（%s，保留 %d 天）", conf.GetSearchHistoryStoragePath(), retentionDays)
 }
 
 // WithEverything 保存 Everything HTTP Server 配置；探测延迟到首个 MCP
