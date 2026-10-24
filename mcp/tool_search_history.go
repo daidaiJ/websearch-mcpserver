@@ -21,6 +21,8 @@ type SearchHistoryParams struct {
 
 // SearchHistoryHandler 检索本服务自己记录的搜索历史（FTS5 全文 + 最近列表），
 // 让模型复用已查过的结果而不必重抓。只读本地库，不出网。
+//
+// 试验性（idea）：实用性尚未确认，默认关闭仅供体验；真机使用确认有价值后再转正式工具。
 func SearchHistoryHandler(_ context.Context, _ *mcp.CallToolRequest, params *SearchHistoryParams) (*mcp.CallToolResult, any, error) {
 	if historyInst == nil {
 		return nil, nil, fmt.Errorf("search_history 未启用（search_history.enabled 默认关闭）")
