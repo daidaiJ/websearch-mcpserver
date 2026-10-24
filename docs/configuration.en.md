@@ -503,7 +503,7 @@ dashboard:
 
 ### Quota management
 
-- Local usage = real successful calls from telemetry (per provider, per period); providers are never probed. Tavily official usage takes priority when the official endpoint is available.
+- Local usage = real successful calls from telemetry (per provider, per period); providers without official endpoints are never probed. Tavily / TinyFish official usage takes priority when the official endpoint is available (TinyFish reads today's call counts from the official `/usage` endpoints; free tier 12,000 searches/day and 1,000 fetch URLs/day).
 - Providers without a configured `quotas.limits` entry default to **1000 calls/period**; `reset` supports monthly / weekly / daily / none (manual only).
 - WebUI "Settings → Quota management" offers manual reset (recount from now) and usage adjustment (real records untouched); both use the same source-allowlist and admin-password rules.
 

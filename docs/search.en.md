@@ -323,7 +323,9 @@ Results include engine source and relevance score by default (for engines that s
 
 **Scope boundary**: current facts, web leads and documentation lookups; for systematic literature reviews or academic questions needing citation data, use `academicsearch`.
 
-### `search_history` — Local Search History (disabled by default)
+### `search_history` — Local Search History (experimental, disabled by default)
+
+> **Experimental (idea)**: utility not yet confirmed — off by default for evaluation; it becomes a formal tool once real-world use proves its value.
 
 Registered when `search_history.enabled: true`. FTS5 full-text search over the history this server itself recorded: every successful `smartsearch` writes the query + a result snapshot (title/URL/truncated snippet, up to 20 per search), letting the model reuse already-fetched results instead of re-searching.
 
