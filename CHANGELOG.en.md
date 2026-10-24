@@ -2,6 +2,20 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased (v3.10.0 staging)
+
+> Survey-absorb batch (roadmap N series): provider expansion, reliability guardrails and the experimental `search_history`, merged into master from the `feat/provider-eco-absorb` branch. Commit map: `bb30253` (LLM deadline), `a7045b3` (provider expansion + remote fetch chain), `45104d7` (output contract tests), `7cf198e` (search_history), `bf9053d` (dashboard source panel and settings), `067fcf5` (TinyFish official usage), plus follow-up roadmap / docs commits.
+
+### Added
+- **TinyFish / Keenable Search+Fetch providers**: dual-capability API providers join the apipool / hybrid provider pools and the source switches (`tinyfish.enabled` / `keenable.enabled`); their fetch capability plugs into the cleanfetch remote-fetch chain (governed by the existing `mcp_hub.fetch_mode` key — zero breakage). TinyFish is key-only (free tier: 12,000 searches/day and 1,000 fetch URLs/day, reset at 00:00 UTC; direct connection from mainland networks verified without a proxy). Keenable falls back to its public keyless endpoint automatically (`X-Keenable-Title` app header, IP-based rate limiting) but does **not** join hybrid by default (quality under observation) — it needs an explicit `enabled: true` or an `apipool.engines` entry to opt in
+- **Dashboard source panel and settings page kept in sync**: the source panel gains TinyFish / Keenable entries (active state, participation conditions, alias roll-up); the settings page exposes both new switches and extends the `apipool.engines` allowlist; with no Keenable key the missing switch defaults to false so saving any setting cannot silently opt the public tier into the config
+- **TinyFish official usage queries**: the console quota panel now reads TinyFish's official `/usage` endpoints (api.search / api.fetch, X-API-Key; `total` is returned honoring the `start_after` filter), so today's (since 00:00 UTC) search/fetch call counts need no pagination aggregation; free-tier caps come from the official docs (12,000 searches/day, 1,000 fetch URLs/day). Search totals survive a fetch-query failure, and the whole official query falls back to local counts on error
+- **Experimental `search_history` tool (off by default)**: after each successful smartsearch the query and result digest are stored in a local SQLite database (FTS5); the `search_history` MCP tool full-text searches "what was already searched", with data never leaving the machine and a default 30-day retention. `search_history.enabled` zero value = no database, no tool registration. **Experimental (idea)**: utility not yet confirmed — it becomes a formal tool once real-world use proves its value
+
+### Changed
+- **Bounded deadline for LLM calls**: new `llm.timeout_sec` (default 60s) so LLM summarization no longer waits indefinitely on slow upstreams; a tighter caller-side ctx deadline always wins
+- **MCP output contract tests**: `pkg/search/core/contract_test.go` pins the MCP tool output contract (fields/format) so provider expansion cannot break the existing result structure
+
 ## v3.9.1 — 2026-10-24 (Yuanbao search, fetch proxy switch and shortcut sync)
 
 ### Added

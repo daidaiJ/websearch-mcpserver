@@ -144,6 +144,21 @@ func registerTools(server *mcp.Server, conf config.Config) {
 	} else if conf.PDFParser.Enabled {
 		setState("pdf_parser", "unavailable")
 	}
+	// ── 注册 search_history 工具（默认关闭：enabled 显式开启且存储就绪才注册） ──
+	// 试验性（idea）：实用性尚未确认，体验确认有价值后再转正式工具。
+	if conf.SearchHistoryEnabled() && historyInst != nil {
+		histDesc := "本地搜索历史检索工具（FTS5 全文匹配历史查询与结果标题/摘要）。省略 query 返回最近历史（按时间倒序）。"
+		histDesc += "适合「之前查过什么来着」与复用已查结果而不必重新联网搜索；需要完整正文时对对应 URL 用 cleanfetch。"
+		histDesc += "数据只落本地 SQLite、不出网；每次 smartsearch 成功后自动写入（保留期默认 30 天）。"
+		mcp.AddTool(server, &mcp.Tool{
+			Name:        "search_history",
+			Description: histDesc,
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(bool)},
+		}, SearchHistoryHandler)
+		log.Info("Available tool: search_history")
+		setState("search_history", "registered")
+	}
+
 	publishTools(states)
 }
 

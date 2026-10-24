@@ -307,6 +307,11 @@ func webSourceCatalog(conf config.Config) []SourceView {
 		"exa":       len(conf.Exa.EffectiveSKList()) > 0,
 		"doubao":    len(conf.Doubao.EffectiveSKList()) > 0,
 		"yuanbao":   len(conf.Yuanbao.EffectiveSKList()) > 0,
+		"tinyfish":  len(conf.TinyFish.EffectiveSKList()) > 0,
+		// keenable 无 Key 可显式 enabled 开启 public 免 Key 档（anysearch 匿名档同口径按已配置呈现）；
+		// apipool.engines 显式列出同样视为 opt-in（该模式下 public 档直接参与轮转）。
+		"keenable": len(conf.Keenable.EffectiveSKList()) > 0 || conf.Keenable.PublicTierOptedIn() ||
+			slices.Contains(conf.Apipool.GetEngines(), "keenable"),
 	}
 	engineConfigured := map[string]bool{
 		"baidu_web": true, "bing": true, "google": true, "duckduckgo": true,
@@ -388,6 +393,8 @@ func webSourceCatalog(conf config.Config) []SourceView {
 		{ID: "exa", Name: "Exa", Group: "web", Configured: apiConfigured["exa"], Active: active["exa"], aliases: []string{"exa"}},
 		{ID: "doubao", Name: "豆包搜索", Group: "web", Configured: apiConfigured["doubao"], Active: active["doubao"], aliases: []string{"doubao"}},
 		{ID: "yuanbao", Name: "元宝搜索", Group: "web", Configured: apiConfigured["yuanbao"], Active: active["yuanbao"], aliases: []string{"yuanbao", "tencent_yuanbao"}},
+		{ID: "tinyfish", Name: "TinyFish", Group: "web", Configured: apiConfigured["tinyfish"], Active: active["tinyfish"], QuotaQueryable: true, aliases: []string{"tinyfish", "tinyfish_api"}},
+		{ID: "keenable", Name: "Keenable", Group: "web", Configured: apiConfigured["keenable"], Active: active["keenable"], aliases: []string{"keenable", "keenable_api"}},
 		{ID: "baidu_web", Name: "百度网页", Group: "web", Configured: engineConfigured["baidu_web"], Active: active["baidu_web"], aliases: baiduWebAliases},
 		{ID: "bing", Name: "Bing", Group: "web", Configured: engineConfigured["bing"], Active: active["bing"], aliases: []string{"bing"}},
 		{ID: "google", Name: "Google", Group: "web", Configured: engineConfigured["google"], Active: active["google"], aliases: []string{"google"}},
@@ -424,6 +431,12 @@ func webSourceCatalog(conf config.Config) []SourceView {
 			s.Condition = "需要已配置 Key；参与对应单源/hybrid 或 apipool.engines"
 			if s.ID == "anysearch" {
 				s.Condition = "无 Key 可用匿名档；参与 anysearch/hybrid 或 apipool.engines"
+			}
+			if s.ID == "tinyfish" {
+				s.Condition = "需要已配置 Key；参与 hybrid 或 apipool.engines"
+			}
+			if s.ID == "keenable" {
+				s.Condition = "有 Key 走 keyed 档；无 Key 需显式 enabled: true 或加入 apipool.engines（public 免 Key 档按 IP 限流，默认不自动参与 hybrid）"
 			}
 			if s.ID == "doubao" {
 				if conf.Doubao.GetVersion() == "custom" {

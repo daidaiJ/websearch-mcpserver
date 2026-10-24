@@ -39,42 +39,45 @@ const (
 // ── 顶层配置 ──
 
 type Config struct {
-	Port               int               `mapstructure:"port"`
-	Host               string            `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
-	AuthToken          string            `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
-	MCPStateless       bool              `mapstructure:"mcp_stateless"`        // MCP 无状态 HTTP 模式：每个 POST 独立处理，无需 initialize 握手与 Mcp-Session-Id 会话（对齐 MCP 2026-07-28 stateless-first 方向），便于水平扩展；代价是 GET SSE 长连与 sampling/elicitation 等服务端主动交互不可用（本项目未使用，见 mcp/server.go RegisterRouter）
-	MCPResources       *bool             `mapstructure:"mcp_resources"`        // MCP Resource 观测开关（search://capabilities 与 search://health）：只读、结构上不含密钥、不占工具槽位；省略 = 启用，显式 false 关闭
-	UpstreamTimeoutSec int               `mapstructure:"upstream_timeout_sec"` // API 上游超时（秒），默认 30；显式 0 = 不设超时（有挂起风险）
-	LogLevel           string            `mapstructure:"log_level"`
-	Mode               string            `mapstructure:"mode"`
-	Network            string            `mapstructure:"network"`         // 学术搜索适配区域: china / international，不是网页来源或豆包过滤
-	BlackListHost      []string          `mapstructure:"black_list_host"` // 全局屏蔽站点
-	RateLimit          RateLimitConfig   `mapstructure:"rate_limit"`      // 全局限流配置
-	Baidu              BaiduConfig       `mapstructure:"baidu"`
-	Tavily             TavilyConfig      `mapstructure:"tavily"`
-	Exa                ExaConfig         `mapstructure:"exa"`
-	Anysearch          AnysearchConfig   `mapstructure:"anysearch"`
-	Doubao             DoubaoConfig      `mapstructure:"doubao"`
-	Yuanbao            YuanbaoConfig     `mapstructure:"yuanbao"`
-	LLM                LLMConfig         `mapstructure:"llm"`
-	Jina               JinaConfig        `mapstructure:"jina"`
-	Cache              CacheConfig       `mapstructure:"cache"`
-	Log                LogConfig         `mapstructure:"log"`
-	Bing               BingConfig        `mapstructure:"bing"`
-	So360              So360Config       `mapstructure:"so360"`
-	Wikipedia          WikipediaConfig   `mapstructure:"wikipedia"`
-	GoogleNews         GoogleNewsConfig  `mapstructure:"google_news"`
-	DuckDuckGo         DuckDuckGoConfig  `mapstructure:"duckduckgo"`
-	Google             GoogleConfig      `mapstructure:"google"`
-	Academic           AcademicConfig    `mapstructure:"academic"`
-	CleanFetch         CleanFetchConfig  `mapstructure:"cleanfetch"`
-	PDFParser          PDFParserConfig   `mapstructure:"pdf_parser"`
-	Everything         EverythingConfig  `mapstructure:"everything"`
-	Proxy              ProxyConfig       `mapstructure:"proxy"`
-	SmartSearch        SmartSearchConfig `mapstructure:"smartsearch"`
-	Apipool            ApipoolConfig     `mapstructure:"apipool"`
-	MCPHub             MCPHubConfig      `mapstructure:"mcp_hub"`
-	Dashboard          DashboardConfig   `mapstructure:"dashboard"`
+	Port               int                 `mapstructure:"port"`
+	Host               string              `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
+	AuthToken          string              `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
+	MCPStateless       bool                `mapstructure:"mcp_stateless"`        // MCP 无状态 HTTP 模式：每个 POST 独立处理，无需 initialize 握手与 Mcp-Session-Id 会话（对齐 MCP 2026-07-28 stateless-first 方向），便于水平扩展；代价是 GET SSE 长连与 sampling/elicitation 等服务端主动交互不可用（本项目未使用，见 mcp/server.go RegisterRouter）
+	MCPResources       *bool               `mapstructure:"mcp_resources"`        // MCP Resource 观测开关（search://capabilities 与 search://health）：只读、结构上不含密钥、不占工具槽位；省略 = 启用，显式 false 关闭
+	UpstreamTimeoutSec int                 `mapstructure:"upstream_timeout_sec"` // API 上游超时（秒），默认 30；显式 0 = 不设超时（有挂起风险）
+	LogLevel           string              `mapstructure:"log_level"`
+	Mode               string              `mapstructure:"mode"`
+	Network            string              `mapstructure:"network"`         // 学术搜索适配区域: china / international，不是网页来源或豆包过滤
+	BlackListHost      []string            `mapstructure:"black_list_host"` // 全局屏蔽站点
+	RateLimit          RateLimitConfig     `mapstructure:"rate_limit"`      // 全局限流配置
+	Baidu              BaiduConfig         `mapstructure:"baidu"`
+	Tavily             TavilyConfig        `mapstructure:"tavily"`
+	Exa                ExaConfig           `mapstructure:"exa"`
+	Anysearch          AnysearchConfig     `mapstructure:"anysearch"`
+	Doubao             DoubaoConfig        `mapstructure:"doubao"`
+	Yuanbao            YuanbaoConfig       `mapstructure:"yuanbao"`
+	TinyFish           TinyFishConfig      `mapstructure:"tinyfish"`
+	Keenable           KeenableConfig      `mapstructure:"keenable"`
+	SearchHistory      SearchHistoryConfig `mapstructure:"search_history"`
+	LLM                LLMConfig           `mapstructure:"llm"`
+	Jina               JinaConfig          `mapstructure:"jina"`
+	Cache              CacheConfig         `mapstructure:"cache"`
+	Log                LogConfig           `mapstructure:"log"`
+	Bing               BingConfig          `mapstructure:"bing"`
+	So360              So360Config         `mapstructure:"so360"`
+	Wikipedia          WikipediaConfig     `mapstructure:"wikipedia"`
+	GoogleNews         GoogleNewsConfig    `mapstructure:"google_news"`
+	DuckDuckGo         DuckDuckGoConfig    `mapstructure:"duckduckgo"`
+	Google             GoogleConfig        `mapstructure:"google"`
+	Academic           AcademicConfig      `mapstructure:"academic"`
+	CleanFetch         CleanFetchConfig    `mapstructure:"cleanfetch"`
+	PDFParser          PDFParserConfig     `mapstructure:"pdf_parser"`
+	Everything         EverythingConfig    `mapstructure:"everything"`
+	Proxy              ProxyConfig         `mapstructure:"proxy"`
+	SmartSearch        SmartSearchConfig   `mapstructure:"smartsearch"`
+	Apipool            ApipoolConfig       `mapstructure:"apipool"`
+	MCPHub             MCPHubConfig        `mapstructure:"mcp_hub"`
+	Dashboard          DashboardConfig     `mapstructure:"dashboard"`
 }
 
 // ── 各搜索引擎配置 ──
@@ -176,6 +179,62 @@ func (c AnysearchConfig) EffectiveSKList() []string {
 		return []string{c.APIKey}
 	}
 	return nil
+}
+
+// TinyFishConfig TinyFish Search/Fetch API。
+// 免费额度：搜索 12000 次/天、fetch 1000 URL/天（均 00:00 UTC 重置）；
+// 默认限流搜索 30 请求/分钟、fetch 150 URL/分钟。仅 Key 档，无匿名档，
+// 未配 Key 时适配器不启用。fetch 免费档供 cleanfetch 远端抓取链复用（按成功 URL 计数）。
+type TinyFishConfig struct {
+	Enabled *bool    `mapstructure:"enabled"`
+	APIKey  string   `mapstructure:"api_key"` // TinyFish API Key（https://docs.tinyfish.ai）
+	SKList  []string `mapstructure:"sk_list"` // 多 Key 轮转列表（优先级高于 api_key）
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c TinyFishConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// KeenableConfig Keenable Search/Fetch API。
+// 免费 10 请求/秒；keyed 端点按 credits 计费，未配 Key 时自动走 public 免 Key 端点
+// （X-Keenable-Title 标识应用名，按出口 IP 限流，不消耗 credits，与 anysearch 匿名档同模式）。
+// fetch 免费档供 cleanfetch 远端抓取链复用；仅能抓已索引 URL，live=true 可抓未索引页。
+type KeenableConfig struct {
+	Enabled *bool    `mapstructure:"enabled"`
+	APIKey  string   `mapstructure:"api_key"` // Keenable API Key（keen_ 前缀，https://docs.keenable.ai）
+	SKList  []string `mapstructure:"sk_list"` // 多 Key 轮转列表（优先级高于 api_key）
+	// Live fetch 时是否强制从源站实抓（true=绕过索引副本，可抓未索引 URL；默认 false）
+	Live *bool `mapstructure:"live"`
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c KeenableConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// IsLive 返回 fetch 是否强制源站实抓，默认 false。
+func (c KeenableConfig) IsLive() bool {
+	return c.Live != nil && *c.Live
+}
+
+// PublicTierOptedIn public 免 Key 档是否被显式开启（enabled 显式 true）。
+// public 档按 IP 限流且质量待长期观察，默认不自动参与 hybrid；
+// 仅在配置了 Key（keyed 档）或显式 opt-in 时加入引擎组合。
+func (c KeenableConfig) PublicTierOptedIn() bool {
+	return c.Enabled != nil && *c.Enabled
 }
 
 // DoubaoConfig 火山引擎豆包联网搜索（Global / Custom）。
@@ -602,6 +661,9 @@ type LLMConfig struct {
 	ModelId string `mapstructure:"model_id"`
 	// SummaryProgressInterval 摘要流式进度推送的最小间隔（秒），默认 1。
 	SummaryProgressInterval int `mapstructure:"summary_progress_interval"`
+	// TimeoutSec 单次 LLM 调用（含流式全程）的整体超时（秒），默认 60。
+	// 超时按「摘要失败」处理，搜索工具回退原始结果；替代共享 HTTP 客户端的固定 30s。
+	TimeoutSec int `mapstructure:"timeout_sec"`
 }
 
 // GetSummaryProgressInterval 返回摘要进度推送最小间隔；未配置或非正值默认 1s。
@@ -610,6 +672,14 @@ func (c LLMConfig) GetSummaryProgressInterval() time.Duration {
 		return time.Second
 	}
 	return time.Duration(c.SummaryProgressInterval) * time.Second
+}
+
+// GetTimeout 返回单次 LLM 调用的整体超时；未配置或非正值默认 60s。
+func (c LLMConfig) GetTimeout() time.Duration {
+	if c.TimeoutSec <= 0 {
+		return 60 * time.Second
+	}
+	return time.Duration(c.TimeoutSec) * time.Second
 }
 
 type CacheConfig struct {
@@ -991,8 +1061,10 @@ func (c ApipoolConfig) GetWeights() map[string]int {
 		"baidu":     1500,
 		"tavily":    1200,
 		"exa":       1200,
-		"doubao":    500, // 火山免费档每月默认 500 积分
-		"yuanbao":   0,   // 超出免费额度按量后付费，默认不参与加权起始选择
+		"doubao":    500,  // 火山免费档每月默认 500 积分
+		"yuanbao":   0,    // 超出免费额度按量后付费，默认不参与加权起始选择
+		"tinyfish":  1200, // 免费搜索 12000 次/天
+		"keenable":  800,  // public 免 Key 档按 IP 限流，质量待长期观察
 	}
 	maps.Copy(w, c.Weights)
 	return w
@@ -1060,6 +1132,28 @@ func (c Config) GetCleanupInterval() time.Duration {
 		minutes = 360
 	}
 	return time.Duration(minutes) * time.Minute
+}
+
+// SearchHistoryConfig 本地搜索历史（FTS5）。
+// 默认关闭：零值不建库、不注册 search_history 工具（2026-10-24 拍板：新工具独立开关，默认关闭）。
+type SearchHistoryConfig struct {
+	Enabled       *bool  `mapstructure:"enabled"`        // 显式 true 启用并注册 search_history 工具
+	StoragePath   string `mapstructure:"storage_path"`   // 默认 exe 同目录 history/search-history.db
+	RetentionDays int    `mapstructure:"retention_days"` // 保留天数，默认 30；负值按默认处理
+}
+
+// SearchHistoryEnabled 返回搜索历史总开关，默认关闭。
+func (c Config) SearchHistoryEnabled() bool {
+	return c.SearchHistory.Enabled != nil && *c.SearchHistory.Enabled
+}
+
+// GetSearchHistoryStoragePath 返回历史 SQLite 数据库路径。
+// 未配置时默认 exe 同目录 history 子目录（search-history.db）。
+func (c Config) GetSearchHistoryStoragePath() string {
+	if c.SearchHistory.StoragePath != "" {
+		return c.SearchHistory.StoragePath
+	}
+	return filepath.Join(ExeBaseDir(), "history", "search-history.db")
 }
 
 func (c Config) GetMode() string {

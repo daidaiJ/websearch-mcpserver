@@ -292,13 +292,13 @@ func TestAnysearch_IsBlockedHost(t *testing.T) {
 		rawURL string
 		want   bool
 	}{
-		{"https://baijiahao.baidu.com/s?id=1", true},         // 精确
-		{"https://news.csdn.net/a", true},                    // 子域后缀
-		{"https://BLOG.CSDN.NET/a", true},                    // host 大小写不敏感
-		{"https://go.dev/doc", false},                        // 未命中
-		{"https://evil.com/??u=https://csdn.net", false},     // 仅出现在 query 中，host 未命中
-		{"https://csdn.net.evil.com/a", false},               // 后缀相似但非子域
-		{"", false},                                          // 空URL
+		{"https://baijiahao.baidu.com/s?id=1", true},     // 精确
+		{"https://news.csdn.net/a", true},                // 子域后缀
+		{"https://BLOG.CSDN.NET/a", true},                // host 大小写不敏感
+		{"https://go.dev/doc", false},                    // 未命中
+		{"https://evil.com/??u=https://csdn.net", false}, // 仅出现在 query 中，host 未命中
+		{"https://csdn.net.evil.com/a", false},           // 后缀相似但非子域
+		{"", false},                                      // 空URL
 	}
 	for _, tt := range tests {
 		if got := isBlockedHost(tt.rawURL, blocked); got != tt.want {

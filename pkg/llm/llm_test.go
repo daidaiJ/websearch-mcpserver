@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"websearch/pkg/config"
 )
 
 // sseChunk 构造一个 OpenAI-compatible SSE data 行。
@@ -183,5 +185,70 @@ func TestChatStreamMalformedLine(t *testing.T) {
 	}
 	if len(tokens) != 1 || tokens[0] != "ok" {
 		t.Errorf("非 JSON 行应被跳过, got %v", tokens)
+	}
+}
+
+func TestClientWithDeadline(t *testing.T) {
+	// 与 TestChatContextTimeout 同款黑洞上游：验证 NewClientWithTimeout 在
+	// 调用方 ctx 无 deadline 时也会按时失败（N2 有界 deadline）。
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	c := NewClientWithTimeout("http://"+ln.Addr().String(), "test-key", "test-model", 150*time.Millisecond)
+	start := time.Now()
+	if _, err = c.ChatWithContext(context.Background(), "sys", "user"); err == nil {
+		t.Fatal("client 超时后应返回错误")
+	}
+	if elapsed := time.Since(start); elapsed >= time.Second {
+		t.Errorf("client 超时应 < 1s, got %v", elapsed)
+	}
+
+	// 流式路径同样受 deadline 约束
+	ch := make(chan string, 4)
+	errCh := make(chan error, 1)
+	start = time.Now()
+	go c.ChatStream(context.Background(), "sys", "user", ch, errCh)
+	for range ch {
+	}
+	if err = <-errCh; err == nil {
+		t.Fatal("流式 client 超时后应返回错误")
+	}
+	if elapsed := time.Since(start); elapsed >= time.Second {
+		t.Errorf("流式 client 超时应 < 1s, got %v", elapsed)
+	}
+}
+
+func TestClientDeadlineRespectsCallerCtx(t *testing.T) {
+	// 调用方 ctx 已带更早 deadline 时不被覆盖：取更早者。
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	c := NewClientWithTimeout("http://"+ln.Addr().String(), "test-key", "test-model", time.Hour)
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err = c.ChatWithContext(ctx, "sys", "user"); err == nil {
+		t.Fatal("调用方 deadline 触发后应返回错误")
+	}
+	if elapsed := time.Since(start); elapsed >= time.Second {
+		t.Errorf("应遵循调用方更早的 deadline, got %v", elapsed)
+	}
+}
+
+func TestLLMConfigGetTimeout(t *testing.T) {
+	if got := (config.LLMConfig{}).GetTimeout(); got != 60*time.Second {
+		t.Fatalf("default timeout = %v, want 60s", got)
+	}
+	if got := (config.LLMConfig{TimeoutSec: 90}).GetTimeout(); got != 90*time.Second {
+		t.Fatalf("timeout = %v, want 90s", got)
+	}
+	if got := (config.LLMConfig{TimeoutSec: -1}).GetTimeout(); got != 60*time.Second {
+		t.Fatalf("negative timeout should fall back to default, got %v", got)
 	}
 }

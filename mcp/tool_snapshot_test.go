@@ -29,7 +29,7 @@ func TestToolSnapshotDoesNotProbeEverything(t *testing.T) {
 		readers.Go(func() {
 			for range 20 {
 				snapshot := ToolSnapshot()
-				if len(snapshot) != 5 || snapshot[4].State != "unprobed" {
+				if len(snapshot) != 6 || snapshot[4].State != "unprobed" {
 					t.Error("snapshot must preserve the unprobed state")
 				}
 				snapshot[0].State = "modified copy"

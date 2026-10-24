@@ -14,6 +14,18 @@
 
 ### MCP 生态跟进
 
+- [x] **N1. TinyFish Search/Fetch REST provider（2026-10-24 拍板并落地）**
+  免费额度：搜索 12000 次/天（30 req/min）、fetch 1000 URL/天（150 URL/min，按成功 URL 计数），00:00 UTC 重置；仅 Key 档无匿名档。`pkg/search/provider/tinyfish.go`：GET `api.search.tinyfish.ai`（X-API-Key）+ POST `api.fetch.tinyfish.ai`；接入 apipool/hybrid 供应商池与 source switch（`tinyfish.enabled`）；fetch 能力接入 cleanfetch 远端抓取链。国内直连实测 200（1.8s），无需代理。
+- [x] **N2. Keenable Search/Fetch REST provider（拍板并落地，测试 Key 实测通过）**
+  免费 10 req/s；keyed 端点 + public 免 Key 端点（X-Keenable-Title，按 IP 限流不耗 credits，anysearch 匿名档同模式）。POST `api.keenable.ai/v1/search`（`mode: pro`、`max_results` 1-50）+ GET `/v1/fetch`（仅索引页，`live=true` 实抓）；接入供应商池、source switch（`keenable.enabled`）与 cleanfetch 远端抓取链；public 档默认不自动参与 hybrid（`PublicTierOptedIn`）。国内直连实测 200（3.0s）。
+- [x] **N3. cleanfetch 远端抓取链扩展：供应商 fetch API 优先（拍板并落地）**
+  `fetch_mode` 非 off 时远端链按「供应商 fetch API（TinyFish/Keenable，优先消耗按 URL 计数的免费额度）→ mcphub 托管 MCP → 本地 webfetch/Jina」顺序级联；`fetchPageWithFallback` 改链式逐级失败切换。
+- [x] **N4. `search_history` FTS5 查询史工具（拍板并落地）**：`pkg/history` SQLite FTS5 虚表 + 触发器同步；独立保留期默认 30 天可配，每小时后台清理；MCP 只读工具 `search_history`（query/limit/offset）；**独立配置开关** `search_history.enabled` 默认关闭（不建库、不注册工具）；隐私红线：只存 query 与结果快照，不含密钥、不出网。
+- [x] **N5. 输出契约测试（拍板并落地）**：`pkg/search/core/contract_test.go` 固化字段顺序、「空结果≠合法输入隐藏该行」、易变字段集中在 ProvenanceHeader；不改 ProvenanceHeader 置顶设计。
+- [x] **N6. quota 多供应商额度感知（拍板并落地，2026-10-24 真机实测）**：仅接入有官方用量端点的供应商——TinyFish 接入 `pkg/quota`：官方 `GET api.search.tinyfish.ai/usage` 与 `api.fetch.tinyfish.ai/usage`（X-API-Key），`limit=1 + start_after=当日 00:00 UTC` 直读响应 `total`（真机实测 total 随过滤条件返回，无需翻页聚合），免费档上限按官方文档取值（搜索 12000/天、fetch 1000/天）；搜索主指标不受 fetch 查询失败影响，官方查询整体失败回退本地用量。智谱/Keenable 无公开用量端点不探测。
+- [x] ~~智谱 webSearchPrime mcphub preset~~ **评审后不做**：调用会消耗 GLM Coding Plan 套餐额度，与零增量额度定位冲突（已从分支历史整体撤出）。
+- 原 N-llm（LLM 摘要有界 deadline）已落地，见下方归档表。
+
 - [ ] **E1. go-sdk v1.7.0 → v1.8.0（2026-07-28 新 spec：stateless core / extensions / elicitation / sampling / tasks）**
   对本项目有实际价值的两点：
   - **sampling**：摘要借客户端模型，把"自配 LLM key 才能摘要"的门槛降为可选项；
@@ -36,6 +48,7 @@
 | **O1** metrics 端点 | `GET /metrics` 零依赖手写 Prometheus 文本；只读脱敏，遥测未启用返回 503 | `b780769` |
 | **T1** SSRF fuzz | 三个 Fuzz 目标覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`，CI 跑 10s 短窗口 | `b780769` |
 | **T3** CI 护栏 | `go test -race -short` 步骤 + golangci-lint v2 job（`--new-from-rev` 只拦新增代码） | `b780769` |
+| **N-llm** LLM 调用有界 deadline | `llm.timeout_sec`（默认 60s，含流式全程）；调用方 ctx 更早 deadline 优先；超时按摘要失败回退原始结果。原拟「智谱 webSearchPrime mcphub preset」经评审不做——会消耗 GLM Coding Plan 套餐额度，与零增量额度定位冲突 | `01dd2fa` |
 
 > 验证：`go build ./...`、`go vet ./...`、`go test ./...`（含网络集成）、`go test -race -short ./...`、golangci-lint（新增代码 0 issues）、actionlint 全绿；`/metrics` 已用真实二进制实机验证。
 

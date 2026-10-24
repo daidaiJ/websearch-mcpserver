@@ -228,7 +228,7 @@ func BuildYuanbaoMode(conf config.Config, pool *provider.KeyPool, fallback *adap
 // 跨请求时供应商选择由策略决定（round-robin / priority / weighted），Key 均 round-robin 轮转。
 // 供应商顺序由 conf.Apipool.Engines 配置控制（默认 anysearch → baidu → tavily → exa）。
 // 百度端点由 baidu.enable_ai_search 配置控制（默认 true=智能搜索）。
-func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool *provider.KeyPool, baiduWeb *adapter.EngineSearchAdapter) core.SearchInf {
+func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool *provider.KeyPool, baiduWeb *adapter.EngineSearchAdapter) core.SearchInf {
 	// 按配置顺序构建供应商（web 兜底始终追加在末尾）
 	var providers []apipool.ApipoolProvider
 	for _, name := range conf.Apipool.GetEngines() {
@@ -271,6 +271,15 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 			if yuanbaoPool != nil {
 				providers = append(providers, apipool.NewApipoolProvider("yuanbao", newYuanbaoFromConf(yuanbaoPool, conf), yuanbaoPool))
 			}
+		case "tinyfish":
+			// 仅 Key 档：未配置 Key 时 pool 为 nil，直接跳过
+			if tinyfishPool != nil {
+				providers = append(providers, apipool.NewApipoolProvider("tinyfish", provider.NewTinyFishSearch(tinyfishPool), tinyfishPool))
+			}
+		case "keenable":
+			// keyed 端点按 credits 计费；pool 为 nil 走 public 免 Key 档（按 IP 限流）
+			keenable := provider.NewKeenableSearch(keenablePool, conf.Keenable.IsLive(), 0)
+			providers = append(providers, apipool.NewApipoolProvider("keenable", keenable, keenablePool))
 		default:
 			log.Infof("apipool: 未知供应商 %q，跳过", name)
 		}
@@ -294,7 +303,7 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 }
 
 // BuildHybridMode 全引擎混合模式：Anysearch（有 Key 走轮转 / 无 Key 匿名档）+ 百度搜索 + 百度网页 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包（有 Key 时）+ Bing + Google + DuckDuckGo。
-func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool *provider.KeyPool, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
+func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool *provider.KeyPool, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	var engines []core.SearchInf
 	if conf.APISourceEnabled("anysearch") {
 		// A nil pool uses the anonymous tier, governed by the same source switch.
@@ -334,6 +343,12 @@ func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, e
 	}
 	if conf.APISourceEnabled("yuanbao") && yuanbaoPool != nil {
 		engines = append(engines, newYuanbaoFromConf(yuanbaoPool, conf))
+	}
+	if conf.APISourceEnabled("tinyfish") && tinyfishPool != nil {
+		engines = append(engines, provider.NewTinyFishSearch(tinyfishPool))
+	}
+	if conf.APISourceEnabled("keenable") && (keenablePool != nil || conf.Keenable.PublicTierOptedIn()) {
+		engines = append(engines, provider.NewKeenableSearch(keenablePool, conf.Keenable.IsLive(), 0))
 	}
 	if conf.Bing.Enabled && fallback != nil {
 		engines = append(engines, fallback)

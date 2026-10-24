@@ -198,6 +198,13 @@ docker build -t websearch-mcpserver .
 - **验收标准：** 按 `dashboard.enabled`/`shortcut`/`theme`/`icon` 创建、更新、删除；坏链与同主题新图标可修复；`install` 与 `start` 一致
 - **详情指针：** [`.handoff/shortcut-sync.md`](.handoff/shortcut-sync.md)
 
+### github-reddit-access — in-progress（调研完成，待立项）
+
+- **当前状态：** 调研完成未写码；开口项 = roadmap 立项（N 系列下个编号）+ OAuth 交互/续期专项调研
+- **关键证据：** reddit `.rss` 脚本 UA 全通（浏览器 UA 403/429）、api.github.com 直连无 Key 可用（search 10/min，PAT 5000/h）；参考 reddit-mcp-buddy 三层降级链
+- **验收标准：** 见 handoff 详情 §5（GitHub 零 Key+PAT 双模、Reddit OAuth 优先 RSS 兜底、cleanfetch 双站特判）
+- **详情指针：** [`.handoff/github-reddit-access.md`](.handoff/github-reddit-access.md)
+
 ### 运维待办
 
 - 本机部署 `D:\Programs\websearch` 已更新到 `v3.10.0-preview.1`（备份 `*.bak-pre-v3.10.0-preview.1`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。

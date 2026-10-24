@@ -21,6 +21,7 @@ func pendingTools() []ToolState {
 		{Name: "cleanfetch", State: "pending"},
 		{Name: "pdf_parser", State: "pending"},
 		{Name: "file_search", State: "unprobed"},
+		{Name: "search_history", State: "pending"},
 	}
 }
 

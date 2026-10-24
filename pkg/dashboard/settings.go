@@ -79,7 +79,7 @@ func settingsView(c config.Config) map[string]any {
 
 func validateSetting(path string, value any) error {
 	boolPaths := []string{"cache.enabled", "bing.enabled", "duckduckgo.enabled", "google.enabled", "academic.enabled", "cleanfetch.enabled", "cleanfetch.auto_proxy", "pdf_parser.enabled", "smartsearch.mmr.enabled", "doubao.icp_host_only"}
-	boolPaths = append(boolPaths, "baidu.enabled", "tavily.enabled", "exa.enabled", "anysearch.enabled", "doubao.enabled", "yuanbao.enabled", "baidu.web_enabled", "so360.enabled", "wikipedia.enabled", "google_news.enabled", "academic.disable_arxiv", "academic.disable_crossref", "academic.disable_openalex", "academic.disable_pubmed", "academic.disable_europepmc", "academic.disable_dblp", "academic.disable_doaj", "academic.disable_semantic_scholar", "academic.disable_google_scholar")
+	boolPaths = append(boolPaths, "baidu.enabled", "tavily.enabled", "exa.enabled", "anysearch.enabled", "doubao.enabled", "yuanbao.enabled", "tinyfish.enabled", "keenable.enabled", "baidu.web_enabled", "so360.enabled", "wikipedia.enabled", "google_news.enabled", "academic.disable_arxiv", "academic.disable_crossref", "academic.disable_openalex", "academic.disable_pubmed", "academic.disable_europepmc", "academic.disable_dblp", "academic.disable_doaj", "academic.disable_semantic_scholar", "academic.disable_google_scholar")
 	if slices.Contains(boolPaths, path) {
 		if _, ok := value.(bool); !ok {
 			return fmt.Errorf("%s must be boolean", path)
@@ -117,7 +117,7 @@ func validateSetting(path string, value any) error {
 		if !ok || len(arr) == 0 {
 			return fmt.Errorf("apipool.engines must be a non-empty array")
 		}
-		allowed := []string{"anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao"}
+		allowed := []string{"anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable"}
 		for _, raw := range arr {
 			v, ok := raw.(string)
 			if !ok || !slices.Contains(allowed, v) {

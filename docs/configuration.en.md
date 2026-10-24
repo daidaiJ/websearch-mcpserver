@@ -164,6 +164,25 @@ yuanbao:
   monthly_limit: 2000       # Local monthly cap; 0=unlimited (accepts pay-as-you-go risk); positive=custom cap
   state_path: ""            # Counter file; empty = data/yuanbao-quota.json beside the executable
 
+# TinyFish Search/Fetch API (mode=apipool requires explicit engines entry; hybrid auto-joins when keyed)
+# Free allowance: search 12,000/day (30 req/min), fetch 1,000 URLs/day (150 URLs/min,
+# counted per successfully fetched URL), reset at 00:00 UTC. Keyed tier only, no anonymous tier.
+# Its fetch capability joins the cleanfetch remote-fetch chain (preferred when mcp_hub.fetch_mode is on, per-URL counting).
+tinyfish:
+  enabled: true             # API source switch; false keeps api_key/sk_list stored
+  api_key: ""               # TinyFish API key (https://docs.tinyfish.ai)
+  sk_list: []               # multi-key rotation list (takes precedence over api_key)
+
+# Keenable Search/Fetch API (mode=apipool requires explicit engines entry)
+# Free 10 req/s; the keyed endpoint bills credits, while without a key the keyless public endpoint
+# is used automatically (per-IP rate limit, no credits); the public tier does not auto-join hybrid — set enabled: true explicitly.
+# Fetch covers indexed URLs only (live: true forces a live crawl); also joins the cleanfetch remote-fetch chain.
+keenable:
+  enabled: false            # API source switch; the keyless public tier needs explicit true to join hybrid
+  api_key: ""               # Keenable API key (keen_ prefix, https://docs.keenable.ai)
+  sk_list: []               # multi-key rotation list (takes precedence over api_key)
+  live: false               # force live crawl on fetch (true can fetch unindexed URLs)
+
 # Bing engine (fallback + engine mode primary, no key needed)
 bing:
   enabled: true             # Master switch
@@ -244,12 +263,23 @@ llm:
   api_key: ""                               # Env: LLM_API_KEY
   model_id: "gpt-4o-mini"
   summary_progress_interval: 1              # Min interval (seconds) between summary progress notifications, default 1
+  timeout_sec: 60                           # Overall timeout (seconds) per LLM call including the whole stream, default 60;
+                                            # on timeout the summary fails and search falls back to raw results
 
 # Cache (disabled by default)
 cache:
   # enabled: true            # Unset → disabled by default (since v3.5.0); set true to enable
   # storage_path: ""         # Unset → exe sibling dir cache/websearch-cache.db
   cleanup_interval: 30      # Cleanup interval (minutes), max 360
+
+# Search history (disabled by default; FTS5 full-text over "what you already searched")
+# When enabled, every successful smartsearch writes the query + result snapshot
+# (title/URL/truncated snippet, up to 20 per search) and registers the search_history MCP tool;
+# data stays in local SQLite, never leaves the machine, and never contains keys.
+# search_history:
+#   enabled: true             # explicit true to enable; when off no DB is created and the tool is not registered
+#   storage_path: ""          # Unset → exe sibling dir history/search-history.db
+#   retention_days: 30        # retention days, default 30; expired rows are cleaned hourly
 
 # Local control center (off by default; passive real-call telemetry only, no active probes,
 # raw queries/URLs are never stored). Prefer a separate dashboard.yaml next to the main config
@@ -373,7 +403,9 @@ pdf_parser:
 #       weight: 1.0
 
 # Keyless MCP Hub cascade (optional; search engine when mode=mcphub)
-# When fetch_mode is not off, cleanfetch also uses the same servers (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
+# When fetch_mode is not off, the cleanfetch remote-fetch chain tries provider fetch APIs first
+# (tinyfish/keenable, consuming their per-URL free allowances), then the same MCP servers
+# (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority (default, stability first) / round-robin
@@ -440,7 +472,7 @@ log:
 
 ## Search Sources and Mode Routing
 
-`baidu.enabled`, `tavily.enabled`, `exa.enabled`, `anysearch.enabled`, `doubao.enabled`, and `yuanbao.enabled` independently control the six API sources. Omitted switches mean `true`, preserving existing configurations. Disabling a source removes it from routing without deleting `api_key`, `sk_list`, or secret-overlay keys. AnySearch uses the same switch for keyed and anonymous access; the other five APIs still require usable keys. `baidu.web_enabled` independently controls the Baidu web source. Yuanbao's `yuanbao.monthly_limit` is enforced locally before each request; once the cap is reached the source is treated as unavailable and other sources take over.
+`baidu.enabled`, `tavily.enabled`, `exa.enabled`, `anysearch.enabled`, `doubao.enabled`, `yuanbao.enabled`, `tinyfish.enabled`, and `keenable.enabled` independently control the API sources. Omitted switches mean `true`, preserving existing configurations. Disabling a source removes it from routing without deleting `api_key`, `sk_list`, or secret-overlay keys. AnySearch uses the same switch for keyed and anonymous access; Keenable falls back to its keyless public tier but does not join hybrid by default — set `enabled: true` or list it in `apipool.engines`; TinyFish has no anonymous tier and stays out when keyless. `baidu.web_enabled` independently controls the Baidu web source. Yuanbao's `yuanbao.monthly_limit` is enforced locally before each request; once the cap is reached the source is treated as unavailable and other sources take over.
 
 Source switches permit or deny a source; `mode` selects among permitted sources:
 
@@ -495,7 +527,7 @@ dashboard:
 
 ### Quota management
 
-- Local usage = real successful calls from telemetry (per provider, per period); providers are never probed. Tavily official usage takes priority when the official endpoint is available.
+- Local usage = real successful calls from telemetry (per provider, per period); providers without official endpoints are never probed. Tavily / TinyFish official usage takes priority when the official endpoint is available (TinyFish reads today's call counts from the official `/usage` endpoints; free tier 12,000 searches/day and 1,000 fetch URLs/day).
 - Providers without a configured `quotas.limits` entry default to **1000 calls/period**; `reset` supports monthly / weekly / daily / none (manual only).
 - WebUI "Settings → Quota management" offers manual reset (recount from now) and usage adjustment (real records untouched); both use the same source-allowlist and admin-password rules.
 
@@ -551,7 +583,7 @@ dashboard:
 |-------|---------|-------|
 | `port` | 8338 | stop/kill/status also use this port when no config |
 | `mode` | engine | Selects permitted sources; only enabled fallbacks can be used, while keyless AnySearch can use its anonymous tier |
-| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` | true (omitted) | Independent API source switches; false keeps keys and applies to every mode, including anonymous AnySearch |
+| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` / `tinyfish.enabled` / `keenable.enabled` | true (omitted) | Independent API source switches; false keeps keys and applies to every mode, including anonymous AnySearch |
 | `dashboard.write_allowed_networks` | [] | Independent write allowlist; loopback-only by default; invalid entries fail closed; admin password still required |
 | `mcp_resources` | true | MCP Resource observability toggle: `search://capabilities` and `search://health`, read-only, secret-free, no tool slot |
 | `mcp_stateless` | false | Stateless MCP HTTP mode: each POST handled independently, no session handshake, easier horizontal scaling; GET SSE returns 405 |
@@ -561,8 +593,8 @@ dashboard:
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
 | `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order / `weighted` weighted-random |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao`/`yuanbao` are not in the default list — add them explicitly when you have a key |
-| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits; yuanbao defaults to 0 (pay-as-you-go source stays out of weighted starts unless configured) |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao`/`yuanbao`/`tinyfish`/`keenable` are not in the default list — add them explicitly when you have a key (keenable may also run keyless) |
+| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0, tinyfish=1200, keenable=800 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits; yuanbao defaults to 0 (pay-as-you-go source stays out of weighted starts unless configured); tinyfish 1200 matches its 12,000 searches/day free tier and keenable 800 its keyless public tier |
 | `doubao.version` | global | Global / Custom; concurrent both goes through hybrid, not inside the adapter |
 | `doubao.num_results` | 10 | Global max 20; Custom max 50 |
 | `doubao.time_range` | "" | Custom default; MCP request-level `time_range` wins (mapped to OneDay/OneWeek/OneMonth/OneYear) |
@@ -572,6 +604,9 @@ dashboard:
 | `yuanbao.mode` | 0 | 0=public web / 1=authoritative vertical sources / 2=mixed; 0 is omitted (lite-compatible) |
 | `yuanbao.freshness` | "" | Default dN/mN/yN/date; MCP request-level `time_range` wins |
 | `yuanbao.state_path` | `data/yuanbao-quota.json` beside the executable | Counter file; the cap survives restarts |
+| `tinyfish.enabled` | true (omitted) | TinyFish source switch; keyless TinyFish never participates (keyed tier only) |
+| `keenable.enabled` | true (omitted) | Keenable source switch; keyless use of the public tier still needs an explicit `true` to join hybrid |
+| `keenable.live` | false | Force a live crawl on fetch (true can fetch unindexed URLs instead of the index copy) |
 | `tavily.include_raw_content` | true | Tavily requests raw page content (raw_content, fast path); explicit false falls back to excerpts |
 | `exa.include_text` | true | Exa requests page body text (contents.text) |
 | `exa.text_max_characters` | 3000 | Max characters of Exa body text |

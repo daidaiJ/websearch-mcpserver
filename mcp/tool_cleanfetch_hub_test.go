@@ -47,7 +47,7 @@ func TestFetchPageWithFallback(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.hub.calls = 0
-			got, err := fetchPageWithFallback(context.Background(), "https://example.com", tc.mode, tc.hub, tc.local)
+			got, err := fetchPageWithFallback(context.Background(), "https://example.com", tc.mode, []mcpHubFetcher{tc.hub}, tc.local)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want %q", err, tc.wantErr)
@@ -59,6 +59,33 @@ func TestFetchPageWithFallback(t *testing.T) {
 				t.Fatalf("hub calls = %d, want %d", tc.hub.calls, tc.wantCalls)
 			}
 		})
+	}
+}
+
+func TestFetchPageWithFallbackChainOrder(t *testing.T) {
+	// 远端链顺序：供应商 fetch API → mcphub；前者成功则后者不消耗调用。
+	localErr := func(context.Context, string) (string, error) { return "", errors.New("local failed") }
+	providerOK := &fakeHubFetcher{text: "provider"}
+	hubOK := &fakeHubFetcher{text: "hub"}
+
+	got, err := fetchPageWithFallback(context.Background(), "https://example.com",
+		config.MCPHubFetchPrefer, []mcpHubFetcher{providerOK, hubOK}, localErr)
+	if err != nil || got != "provider" {
+		t.Fatalf("got %q err %v, want provider", got, err)
+	}
+	if providerOK.calls != 1 || hubOK.calls != 0 {
+		t.Fatalf("provider calls=%d hub calls=%d, want 1/0", providerOK.calls, hubOK.calls)
+	}
+
+	// 供应商失败 → 级联到 mcphub，不再走本地。
+	providerErr := &fakeHubFetcher{err: errors.New("quota exhausted")}
+	got, err = fetchPageWithFallback(context.Background(), "https://example.com",
+		config.MCPHubFetchPrefer, []mcpHubFetcher{providerErr, hubOK}, localErr)
+	if err != nil || got != "hub" {
+		t.Fatalf("got %q err %v, want hub", got, err)
+	}
+	if providerErr.calls != 1 || hubOK.calls != 1 {
+		t.Fatalf("provider calls=%d hub calls=%d, want 1/1", providerErr.calls, hubOK.calls)
 	}
 }
 

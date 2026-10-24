@@ -95,7 +95,7 @@ func TestLookbackDaysToRecency(t *testing.T) {
 		days int
 		want string
 	}{
-		{0, "semiyear"},  // 默认
+		{0, "semiyear"}, // 默认
 		{1, "day"},
 		{3, "week"},
 		{7, "week"},

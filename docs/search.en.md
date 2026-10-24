@@ -35,7 +35,7 @@
 | `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
 | `yuanbao` | Tencent Yuanbao Search (API KEY mode; [docs](https://cloud.tencent.com/document/product/1806/130615)) | `TENCENTCLOUD_WSA_APIKEY` |
-| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Yuanbao if keyed + Bing + DuckDuckGo + Google) | All optional |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Yuanbao if keyed + TinyFish if keyed + Keenable if keyed or explicitly enabled + Bing + DuckDuckGo + Google) | All optional |
 | `mcphub` | Keyless hosted-MCP cascade: parallel → anysearch → exa → firecrawl, cool down and switch on failure; optional per-server key | **None** (optional key) |
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao`/`yuanbao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
@@ -53,8 +53,8 @@
 | `anysearch` | AnySearch; key-pool rotation with keys, anonymous tier (no auth header, IP-rate-limited) when keyless |
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
 | `yuanbao` | Tencent Yuanbao Search (API KEY mode); once the local monthly cap is hit the source is treated as unavailable and falls back to Bing |
-| `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao`/`yuanbao` must be listed in `apipool.engines`), Baidu web search always last |
-| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Yuanbao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
+| `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` / `yuanbao` / `tinyfish` / `keenable` must be listed in `apipool.engines`), Baidu web search always last |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Yuanbao (if keyed) + TinyFish (if keyed) + Keenable (if keyed or explicitly enabled) + Bing + Google + DuckDuckGo, concurrent |
 | `mcphub` | Cascades hosted MCP servers in `mcp_hub.servers` order (default parallel → anysearch → exa → firecrawl), one per request; cools down and switches on failure, falls back to Bing when all fail |
 
 ---
@@ -246,7 +246,7 @@ apipool:
 - **`priority`**: always starts from the first provider; exhausts all SKs → switches to next provider → web-engine fallback
 - **`weighted`**: weighted-random selection of the starting provider, which naturally spreads request bursts across providers. A provider's effective weight = **configured weight × currently available SK count** (auto-shrinks when SKs cool down, self-healing); providers absent from the weight table count as 1; an explicit `0` excludes a provider from weighted starting selection (it stays in the failure-switch chain); when all weights are 0 it degrades to round-robin. The web-engine fallback has no key pool and a fixed weight of 1
 
-**Default weights** (overridable via `apipool.weights`): `anysearch=30000`, `baidu=1500`, `tavily=1200`, `exa=1200`, `doubao=500` (free-tier monthly credits)
+**Default weights** (overridable via `apipool.weights`): `anysearch=30000`, `baidu=1500`, `tavily=1200`, `exa=1200`, `doubao=500` (free-tier monthly credits), `tinyfish=1200` (12,000 free searches/day), `keenable=800` (keyless public tier, per-IP rate limit)
 
 **Workflow**: select provider → `pool.Next()` → call API → success / mark key cooldown 30 min → retry next SK in same provider → all exhausted → next provider → all failed → web-engine fallback
 
@@ -330,6 +330,20 @@ Results include engine source and relevance score by default (for engines that s
 **LLM summarization**: with the `llm` section configured, `smartsearch` accepts `intent` and generates a structured summary; the summary stage pushes tokens in real time via MCP progress notifications, auto-cancels on client disconnect, and falls back to non-streaming summary on failure.
 
 **Scope boundary**: current facts, web leads and documentation lookups; for systematic literature reviews or academic questions needing citation data, use `academicsearch`.
+
+### `search_history` — Local Search History (experimental, disabled by default)
+
+> **Experimental (idea)**: utility not yet confirmed — off by default for evaluation; it becomes a formal tool once real-world use proves its value.
+
+Registered when `search_history.enabled: true`. FTS5 full-text search over the history this server itself recorded: every successful `smartsearch` writes the query + a result snapshot (title/URL/truncated snippet, up to 20 per search), letting the model reuse already-fetched results instead of re-searching.
+
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `query` | string | ❌ | History lookup keywords (FTS5 matches queries and result titles/snippets); omit or empty = most recent history (newest first) |
+| `limit` | int | ❌ | Max entries returned (default 10, hard cap 50) |
+| `offset` | int | ❌ | Pagination offset (default 0) |
+
+Data stays in local SQLite (`search_history.storage_path`, default `history/search-history.db` next to the exe), never leaves the machine and never contains keys; retention defaults to 30 days (`search_history.retention_days`), expired rows are cleaned hourly. Snapshots are truncated snippets — use `cleanfetch` on the URL for full content.
 
 ### `academicsearch` — Academic Paper Search
 

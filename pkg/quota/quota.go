@@ -1,9 +1,10 @@
 // Package quota reads only documented, official provider usage endpoints.
 // It never estimates quota from local request counts and never scrapes a web UI.
 //
-// Tavily 是唯一能用搜索 Key 查询官方用量的供应商，因此本包只查询并只返回
-// Tavily；其他供应商既不探测也不出现在结果里。额度读取是只读操作：不写遥测、
-// 不影响健康判定，也不产生计费调用。
+// Tavily 与 TinyFish 是能用搜索 Key 查询官方用量的供应商，本包只查询并只返回
+// 这两家；其他供应商既不探测也不出现在结果里。TinyFish 的官方 /usage 端点返回
+// 分页调用记录（total 随过滤条件返回），本包按「当日（00:00 UTC 起）记录数」
+// 折算已用量。额度读取是只读操作：不写遥测、不影响健康判定，也不产生计费调用。
 package quota
 
 import (
@@ -26,12 +27,20 @@ import (
 const (
 	// tavilyUsageEndpoint 是 Tavily 官方文档公开的用量查询端点。
 	tavilyUsageEndpoint = "https://api.tavily.com/usage"
+	// TinyFish 官方文档公开的用量查询端点（X-API-Key 鉴权）。
+	tinyfishSearchUsageEndpoint = "https://api.search.tinyfish.ai/usage"
+	tinyfishFetchUsageEndpoint  = "https://api.fetch.tinyfish.ai/usage"
+	// TinyFish 官方免费档额度（00:00 UTC 重置）。官方 /usage 端点只给调用计数
+	// 不给上限，上限取官方文档公开的免费档数值；档位变动时需同步 docs。
+	tinyfishSearchDailyLimit = 12000
+	tinyfishFetchDailyLimit  = 1000
 	// cacheTTL 保证控制中心不会高频访问官方端点。
 	cacheTTL = 5 * time.Minute
 	// requestTimeout 是单次额度查询的整体超时。
 	requestTimeout = 12 * time.Second
-	// providerTavily 是唯一被查询的供应商名。
-	providerTavily = "tavily"
+	// providerTavily / providerTinyfish 是被查询的供应商名。
+	providerTavily   = "tavily"
+	providerTinyfish = "tinyfish"
 )
 
 type Item struct {
@@ -52,6 +61,12 @@ type Item struct {
 	// AutoReset 是生效的重置策略：monthly / weekly / daily / none / official。
 	// official 表示该条目由供应商官方端点给出，本地周期不参与计算。
 	AutoReset string `json:"auto_reset,omitempty"`
+}
+
+// tinyfishUsageResponse 只取官方 /usage 分页列表的 total 字段（配合
+// limit=1 + start_after 过滤即可拿到当日调用数，无需翻页聚合）。
+type tinyfishUsageResponse struct {
+	Total int `json:"total"`
 }
 
 type tavilyUsageResponse struct {
@@ -78,6 +93,9 @@ type Service struct {
 	client   *http.Client
 	endpoint string
 	now      func() time.Time
+	// TinyFish 官方端点可注入（单测覆写）；newService 落默认常量。
+	tinyfishSearchURL string
+	tinyfishFetchURL  string
 
 	mu       sync.Mutex
 	cached   []Item
@@ -104,7 +122,8 @@ func newService(conf config.Config, endpoint string, client *http.Client, store 
 	if client == nil {
 		client = &http.Client{Timeout: requestTimeout}
 	}
-	return &Service{conf: conf, store: store, client: client, endpoint: endpoint, now: time.Now}
+	return &Service{conf: conf, store: store, client: client, endpoint: endpoint, now: time.Now,
+		tinyfishSearchURL: tinyfishSearchUsageEndpoint, tinyfishFetchURL: tinyfishFetchUsageEndpoint}
 }
 
 // Get 返回额度条目：官方 Tavily（有 Key 才查）加上每个 API 供应商的本地
@@ -122,11 +141,14 @@ func (s *Service) Get(ctx context.Context) []Item {
 }
 
 // collect 汇总官方与本地两条来源。没有遥测 store 时保持旧行为：只返回
-// 官方 Tavily 条目（含查询失败状态）。有遥测时，Tavily 官方数字可用则官方
-// 优先（本地周期不参与计算），官方失败则回退本地用量。
+// 官方条目（含查询失败状态）。有遥测时，官方数字可用则官方优先（本地周期
+// 不参与计算），官方失败则回退本地用量。
 func (s *Service) collect(ctx context.Context) []Item {
 	now := s.clock()
-	official := s.tavily(ctx)
+	official := map[string]Item{
+		providerTavily:   s.tavily(ctx),
+		providerTinyfish: s.tinyfish(ctx),
+	}
 	byName := make(map[string]Item)
 	if s.store != nil {
 		if names, err := s.store.QuotaProviders(); err == nil {
@@ -145,9 +167,12 @@ func (s *Service) collect(ctx context.Context) []Item {
 			}
 		}
 	}
-	if official.Status == "available" || byName[providerTavily].Status == "" {
-		official.AutoReset = "official"
-		byName[providerTavily] = official
+	for _, provider := range []string{providerTavily, providerTinyfish} {
+		item := official[provider]
+		if item.Status == "available" || byName[provider].Status == "" {
+			item.AutoReset = "official"
+			byName[provider] = item
+		}
 	}
 	out := make([]Item, 0, len(byName))
 	for _, item := range byName {
@@ -245,6 +270,10 @@ func providerKeyCount(conf config.Config, name string) int {
 		return len(conf.Doubao.EffectiveSKList())
 	case "yuanbao":
 		return len(conf.Yuanbao.EffectiveSKList())
+	case "tinyfish":
+		return len(conf.TinyFish.EffectiveSKList())
+	case "keenable":
+		return len(conf.Keenable.EffectiveSKList())
 	default:
 		return 0
 	}
@@ -365,6 +394,79 @@ func tavilyItem(body tavilyUsageResponse, updatedAt time.Time) Item {
 			"account_plan_usage": body.Account.PlanUsage, "account_plan_limit": body.Account.PlanLimit,
 			"paygo_usage": body.Account.PaygoUsage, "paygo_limit": body.Account.PaygoLimit},
 	}
+}
+
+// tinyfish 查询 TinyFish 官方用量端点：搜索为主指标（Used/Limit/Remaining），
+// fetch 用量放 Details。两个端点共用同一把 Key（取第一把，与 Tavily 同口径）。
+func (s *Service) tinyfish(ctx context.Context) Item {
+	keys := s.conf.TinyFish.EffectiveSKList()
+	if len(keys) == 0 {
+		return Item{Provider: providerTinyfish, Status: "not_configured"}
+	}
+	// 官方免费档按自然日（00:00 UTC）重置，查询窗口取当日零点。
+	dayStart := s.clock().UTC().Truncate(24 * time.Hour)
+	searchUsed, errMsg := s.tinyfishUsed(ctx, s.tinyfishSearchURL, keys[0], dayStart)
+	if errMsg != "" {
+		return Item{Provider: providerTinyfish, Configured: true, Status: "query_failed", Error: errMsg, Source: s.tinyfishSearchURL}
+	}
+	used, limit := float64(searchUsed), float64(tinyfishSearchDailyLimit)
+	remaining := limit - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	item := Item{
+		Provider: providerTinyfish, Configured: true, Status: "available", Unit: "calls",
+		Used: &used, Limit: &limit, Remaining: &remaining,
+		UpdatedAt: s.clock().Format(time.RFC3339), Source: s.tinyfishSearchURL,
+		ResetAt: dayStart.Add(24 * time.Hour).Format(time.RFC3339),
+		Details: map[string]any{
+			"search_used": searchUsed, "search_limit": tinyfishSearchDailyLimit,
+			"window_start": dayStart.Format(time.RFC3339),
+		},
+	}
+	fetchUsed, errMsg := s.tinyfishUsed(ctx, s.tinyfishFetchURL, keys[0], dayStart)
+	if errMsg != "" {
+		// fetch 计数失败不拖垮主指标：搜索数字照常返回，失败说明进 Details。
+		item.Details["fetch_error"] = "fetch 用量查询失败：" + errMsg
+		return item
+	}
+	item.Details["fetch_used"] = fetchUsed
+	item.Details["fetch_limit"] = tinyfishFetchDailyLimit
+	return item
+}
+
+// tinyfishUsed 用 limit=1 + start_after=当日零点 查官方 /usage 列表，
+// 直接取响应里的 total 作为当日调用数（2026-10-24 真机实测：total 随过滤
+// 条件返回）。返回值为 (计数, 失败说明)；失败说明为空表示成功。
+func (s *Service) tinyfishUsed(ctx context.Context, endpoint, key string, dayStart time.Time) (int, string) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return 0, safeError(err)
+	}
+	req.Header.Set("X-API-Key", key)
+	q := req.URL.Query()
+	q.Set("limit", "1")
+	q.Set("start_after", dayStart.Format(time.RFC3339))
+	req.URL.RawQuery = q.Encode()
+	res, err := s.client.Do(req)
+	if err != nil {
+		return 0, safeError(err)
+	}
+	defer res.Body.Close()
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return 0, fmt.Sprintf("官方 API 拒绝该 Key（HTTP %d）", res.StatusCode)
+	case http.StatusTooManyRequests:
+		return 0, fmt.Sprintf("官方 API 限流（HTTP %d）", res.StatusCode)
+	default:
+		return 0, fmt.Sprintf("官方 API 返回 HTTP %d", res.StatusCode)
+	}
+	var body tinyfishUsageResponse
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return 0, "官方 API 响应无法解析"
+	}
+	return body.Total, ""
 }
 
 func safeError(err error) string {

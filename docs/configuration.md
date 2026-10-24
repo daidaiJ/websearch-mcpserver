@@ -161,6 +161,25 @@ yuanbao:
   monthly_limit: 2000       # 本端月调用上限；0=不限制（显式承担后付费风险），正数=自定义
   state_path: ""            # 月计数落盘路径；空 = exe 同目录 data/yuanbao-quota.json
 
+# TinyFish Search/Fetch API（mode=apipool 需显式加入 engines；hybrid 有 Key 自动参与）
+# 免费额度：搜索 12000 次/天（30 请求/分钟）、fetch 1000 URL/天（150 URL/分钟，
+# 按成功抓取的 URL 计数），均 00:00 UTC 重置。仅 Key 档，无匿名档。
+# fetch 能力接入 cleanfetch 远端抓取链（mcp_hub.fetch_mode 非 off 时优先消耗，按 URL 计数）。
+tinyfish:
+  enabled: true             # API 源开关；false 保留 api_key/sk_list
+  api_key: ""               # TinyFish API Key（https://docs.tinyfish.ai）
+  sk_list: []               # 多 Key 轮转列表（优先级高于 api_key）
+
+# Keenable Search/Fetch API（mode=apipool 需显式加入 engines）
+# 免费 10 请求/秒；keyed 端点按 credits 计费，未配 Key 自动走 public 免 Key 端点
+# （按出口 IP 限流、不消耗 credits）；public 档默认不自动参与 hybrid，需显式 enabled: true。
+# fetch 仅供已索引 URL（live: true 强制源站实抓）；同样接入 cleanfetch 远端抓取链。
+keenable:
+  enabled: false            # API 源开关；public 免 Key 档需显式 true 才参与 hybrid
+  api_key: ""               # Keenable API Key（keen_ 前缀，https://docs.keenable.ai）
+  sk_list: []               # 多 Key 轮转列表（优先级高于 api_key）
+  live: false               # fetch 是否强制源站实抓（true 可抓未索引 URL）
+
 # Bing 引擎（兜底 + engine 模式主力，无需 Key）
 # 仅控制 Bing 源，不是 smartsearch 工具总开关
 bing:
@@ -241,12 +260,22 @@ llm:
   api_key: ""                               # 环境变量: LLM_API_KEY
   model_id: "gpt-4o-mini"
   summary_progress_interval: 1              # 摘要进度推送最小间隔（秒），默认 1
+  timeout_sec: 60                           # 单次 LLM 调用整体超时（秒，含流式全程），默认 60；
+                                            # 超时按摘要失败处理，搜索回退原始结果
 
 # 缓存（默认关闭）
 cache:
   # enabled: true            # 不设置时默认关闭（v3.5.0 起）；显式 true 启用
   # storage_path: ""         # 未配置时默认 exe 同目录 cache/websearch-cache.db
   cleanup_interval: 30      # 清理间隔（分钟），最大 360
+
+# 搜索历史（默认关闭；FTS5 全文检索「自己查过的东西」）
+# 启用后每次 smartsearch 成功自动写入 query + 结果快照（标题/URL/截断摘要，最多 20 条/次），
+# 并注册 search_history MCP 工具；数据只落本地 SQLite、不出网，不含密钥。
+# search_history:
+#   enabled: true             # 显式 true 启用；关闭时不建库、不注册工具
+#   storage_path: ""          # 未配置时默认 exe 同目录 history/search-history.db
+#   retention_days: 30        # 保留天数，默认 30；过期行每小时自动清理
 
 # 本机控制中心（默认关闭；仅被动记录真实调用，不主动探测，不保存完整查询或 URL）
 # 推荐用独立配置文件 dashboard.yaml 管理（主配置同目录，样例见 dashboard.example.yaml）：
@@ -383,7 +412,9 @@ pdf_parser:
 #       weight: 1.0
 
 # MCP Hub 零 Key 级联（可选，mode=mcphub 时作为搜索引擎）
-# fetch_mode 非 off 时，cleanfetch 也按同一批 server 抓取（需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
+# fetch_mode 非 off 时，cleanfetch 远端抓取链按「供应商 fetch API（tinyfish/keenable，
+# 优先消耗按 URL 计数的免费额度）→ 同一批 MCP server」顺序抓取
+# （需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
@@ -416,9 +447,9 @@ pdf_parser:
 #     # - doubao
 #     # - yuanbao
 #   weights:              # weighted 策略权重（单 Key 权重，实际权重按可用 Key 数累加）
-#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500，yuanbao=0
-#     baidu: 1500
-#     tavily: 1200
+#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200,
+#     baidu: 1500         #   doubao=500（每月默认积分）, yuanbao=0（后付费源默认不参与加权起始）,
+#     tavily: 1200        #   tinyfish=1200（免费 12000 次/天）, keenable=800（public 免 Key 档按 IP 限流）
 #     exa: 1200
 #     doubao: 500
 #     yuanbao: 0          # 后付费源默认不参与加权起始；显式配正数才会被加权选中
@@ -433,7 +464,7 @@ log:
 
 ## 搜索源与模式路由
 
-`baidu.enabled`、`tavily.enabled`、`exa.enabled`、`anysearch.enabled`、`doubao.enabled`、`yuanbao.enabled` 是各 API 的独立开关，省略时均视为 `true`，保持旧配置行为。关闭只停止参与路由，不删除 `api_key`、`sk_list` 或私密覆盖中的 Key。AnySearch 的有 Key 和无 Key 匿名档共用开关；其余五个 API 仍须有可用 Key。`baidu.web_enabled` 单独控制百度网页源，不受 `baidu.enabled` 影响。元宝的 `yuanbao.monthly_limit` 在发请求前本地拦截，达到上限后该源按不可用处理，由其他来源回退。
+`baidu.enabled`、`tavily.enabled`、`exa.enabled`、`anysearch.enabled`、`doubao.enabled`、`yuanbao.enabled`、`tinyfish.enabled`、`keenable.enabled` 是各 API 的独立开关，省略时均视为 `true`，保持旧配置行为。关闭只停止参与路由，不删除 `api_key`、`sk_list` 或私密覆盖中的 Key。AnySearch 的有 Key 和无 Key 匿名档共用开关；Keenable 无 Key 时走 public 免 Key 档，但默认不自动参与 hybrid，需显式 `enabled: true` 或写入 `apipool.engines` 才启用；TinyFish 无 Key 时不参与（无匿名档）。`baidu.web_enabled` 单独控制百度网页源，不受 `baidu.enabled` 影响。元宝的 `yuanbao.monthly_limit` 在发请求前本地拦截，达到上限后该源按不可用处理，由其他来源回退。
 
 开关决定源是否允许使用，`mode` 决定从允许源中如何选用：
 
@@ -490,7 +521,7 @@ dashboard:
 
 ### 额度管理
 
-- 本地用量 = 遥测中的真实成功调用（按供应商、按周期计数），不主动探测供应商；Tavily 官方用量端点可用时优先展示官方数字。
+- 本地用量 = 遥测中的真实成功调用（按供应商、按周期计数），不主动探测无官方端点的供应商；Tavily / TinyFish 官方用量端点可用时优先展示官方数字（TinyFish 为官方 `/usage` 当日调用数，搜索 12000 次/天、fetch 1000 URL/天免费档）。
 - 上限 `quotas.limits` 未配置的供应商默认 **1000 次/周期**；周期 `reset` 支持 monthly / weekly / daily / none（仅手动）。
 - WebUI「设置 → 额度管理」可手动重置（从现在重新累计）或把展示用量修正为指定值（真实记录不动），两者都遵守同一来源白名单与管理员口令规则。
 
@@ -546,7 +577,7 @@ dashboard:
 |------|--------|------|
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
 | `mode` | engine | 按模式组合允许源；不可用时仅可使用已启用回退，AnySearch 无 Key 可走匿名档 |
-| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` | true（省略） | API 源独立开关；false 保留 Key，约束所有模式；AnySearch 匿名档同受约束 |
+| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` / `tinyfish.enabled` / `keenable.enabled` | true（省略） | API 源独立开关；false 保留 Key，约束所有模式；AnySearch 匿名档同受约束 |
 | `dashboard.write_allowed_networks` | [] | 独立写白名单；默认仅 loopback；非法条目整体 fail-closed，仍需管理员口令 |
 | `mcp_resources` | true | MCP Resource 观测开关：`search://capabilities` 与 `search://health`，只读、不含密钥、不占工具槽位 |
 | `mcp_stateless` | false | MCP 无状态 HTTP 模式：每个 POST 独立处理、免会话握手，便于水平扩展；GET SSE 返回 405 |
@@ -556,8 +587,8 @@ dashboard:
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |
 | `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 / `weighted` 加权随机 |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao`/`yuanbao` 不在默认列表，有 Key 时显式加入 |
-| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分；元宝默认 0（后付费源不参与加权起始，需显式配权重） |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao`/`yuanbao`/`tinyfish`/`keenable` 不在默认列表，有 Key（keenable 也可无 Key）时显式加入 |
+| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0, tinyfish=1200, keenable=800 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分；元宝默认 0（后付费源不参与加权起始，需显式配权重）；TinyFish 1200 对齐免费搜索 12000 次/天，Keenable 800 为 public 免 Key 档 |
 | `doubao.version` | global | Global / Custom；两版并发走 hybrid，适配器内不提供 both |
 | `doubao.num_results` | 10 | Global 最大 20；Custom 最大 50 |
 | `doubao.time_range` | "" | Custom 默认时间范围；MCP 请求级 `time_range` 优先（映射 OneDay/OneWeek/OneMonth/OneYear） |
@@ -567,6 +598,9 @@ dashboard:
 | `yuanbao.mode` | 0 | 0=公开网页 / 1=权威垂直信源 / 2=混合；0 不传（兼容极速版） |
 | `yuanbao.freshness` | "" | 默认时效 dN/mN/yN/日期；MCP 请求级 `time_range` 优先 |
 | `yuanbao.state_path` | exe 同目录 `data/yuanbao-quota.json` | 月调用计数落盘路径，重启后继续守住额度 |
+| `tinyfish.enabled` | true（省略） | TinyFish 源开关；无 Key 时该源不参与（仅 Key 档） |
+| `keenable.enabled` | true（省略） | Keenable 源开关；无 Key 时 public 免 Key 档仍需显式 `true` 才参与 hybrid |
+| `keenable.live` | false | fetch 是否强制源站实抓（true 可抓未索引 URL，跳过索引副本） |
 | `tavily.include_raw_content` | true | Tavily 请求返回页面原文（raw_content，快速路径）；显式 false 退回摘要片段 |
 | `exa.include_text` | true | Exa 请求返回页面正文（contents.text） |
 | `exa.text_max_characters` | 3000 | Exa 正文最大字符数 |

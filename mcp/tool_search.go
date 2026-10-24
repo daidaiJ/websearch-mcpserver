@@ -314,6 +314,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 				// 缓存只存干净摘要，失败诊断不落缓存
 				_ = requestCache.Store(cacheQuery, intent, false, results, output, ttl)
 			}
+			recordSearchHistory(query, results)
 			for i, result := range results {
 				if result.ContentSaved {
 					output += "\n\n" + searchcore.FormatMD(i+1, result.Title, result.Url, result.Content)
@@ -328,6 +329,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 	if err != nil {
 		return nil, nil, err
 	}
+	recordSearchHistory(query, results)
 	// 超限时保留候选预览，完整结果转存临时文件供 MCP 分段读取；
 	// 缓存仍存原始结果，缓存命中路径按同一规则再落盘
 	if notice, dumped := dumpSearchResultsIfOversize(results, ret); dumped {
@@ -337,6 +339,18 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 		_ = requestCache.Store(cacheQuery, intent, false, results, "", ttl)
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(ret, diag, len(results))}}}, nil, nil
+}
+
+// recordSearchHistory 把一次成功的 smartsearch 写入本地历史（search_history 启用时）。
+// 空结果也记录（空结果是合法结果）；写入失败只记日志，不影响搜索主链路。
+// 隐私红线：只存 query 与结果快照（标题/URL/截断摘要），不含密钥、不出网。
+func recordSearchHistory(query string, results []search.SearchResult) {
+	if historyInst == nil {
+		return
+	}
+	if err := historyInst.Insert(query, "web", results); err != nil {
+		log.Errf("搜索历史写入失败: %v", err)
+	}
 }
 
 // hasTransientResultFiles 判断结果中是否含临时文件提示（不持久缓存、不进摘要附加）。

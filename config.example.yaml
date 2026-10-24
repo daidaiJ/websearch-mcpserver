@@ -181,6 +181,31 @@ rate_limit:
 #   state_path: ""        # 月计数落盘路径；空 = exe 同目录 data/yuanbao-quota.json
 
 # ==============================================
+# TinyFish Search/Fetch API（可选；mode=apipool 需显式加入 engines，hybrid 有 Key 自动参与）
+# 免费额度：搜索 12000 次/天（30 请求/分钟）、fetch 1000 URL/天（150 URL/分钟，
+# 按成功抓取的 URL 计数），均 00:00 UTC 重置。仅 Key 档，无匿名档。
+# fetch 能力接入 cleanfetch 远端抓取链（mcp_hub.fetch_mode 非 off 时优先消耗，按 URL 计数）。
+# ==============================================
+# tinyfish:
+#   enabled: true         # API 源开关；false 保留 api_key/sk_list
+#   api_key: ""           # TinyFish API Key（https://docs.tinyfish.ai）
+#   sk_list:              # 多 Key 轮转列表（优先级高于 api_key）
+#     - "sk-tinyfish-xxxx"
+
+# ==============================================
+# Keenable Search/Fetch API（可选；mode=apipool 需显式加入 engines）
+# 免费 10 请求/秒；keyed 端点按 credits 计费，未配 Key 自动走 public 免 Key 端点
+# （X-Keenable-Title 标识，按出口 IP 限流、不消耗 credits）；public 档默认不参与 hybrid，需显式 enabled: true。
+# fetch 仅供已索引 URL（live: true 强制源站实抓）；同样接入 cleanfetch 远端抓取链。
+# ==============================================
+# keenable:
+#   enabled: false        # API 源开关；public 免 Key 档需显式 true 才参与 hybrid
+#   api_key: ""           # Keenable API Key（keen_ 前缀，https://docs.keenable.ai）
+#   sk_list:              # 多 Key 轮转列表（优先级高于 api_key）
+#     - "keen_xxxx"
+#   live: false           # fetch 是否强制源站实抓（true 可抓未索引 URL）
+
+# ==============================================
 # Bing 通用搜索引擎（兜底引擎 + engine 模式主力引擎）
 # 无需 API Key，默认开启
 # bing.enabled 只控制 Bing 源，不是 smartsearch 工具总开关；其他可用路由仍可搜索。
@@ -289,6 +314,8 @@ proxy:
 #   api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 #   model_id: "gpt-4o-mini"
 #   summary_progress_interval: 1   # 摘要进度推送最小间隔（秒），默认 1
+#   timeout_sec: 60                # 单次 LLM 调用整体超时（秒，含流式全程），默认 60；
+#                                  # 超时按摘要失败处理，搜索回退原始结果
 
 # ==============================================
 # 缓存配置（可选，默认关闭）
@@ -300,6 +327,16 @@ cache:
   # enabled: true
   # storage_path: "D:/data/search_cache.db"
   cleanup_interval: 30
+
+# ==============================================
+# 搜索历史（可选，默认关闭；FTS5 全文检索「自己查过的东西」）
+# 启用后每次 smartsearch 成功自动写入 query + 结果快照（标题/URL/截断摘要，最多 20 条/次），
+# 并注册 search_history MCP 工具；数据只落本地 SQLite、不出网，不含密钥。
+# ==============================================
+# search_history:
+#   enabled: true             # 显式 true 启用；关闭时不建库、不注册工具
+#   storage_path: ""          # 未配置时默认 exe 同目录 history/search-history.db
+#   retention_days: 30        # 保留天数，默认 30；过期行每小时自动清理
 
 # ==============================================
 # Jina Reader 配置（可选，用于 cleanfetch 工具回退）

@@ -1,13 +1,13 @@
 package apipool
 
 import (
-	"websearch/pkg/search/provider"
-	"websearch/pkg/search/core"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
+	"websearch/pkg/search/core"
+	"websearch/pkg/search/provider"
 )
 
 // ── poolAwareEngine mock：调用 pool.Next() 模拟真实引擎行为 ──────────────
@@ -395,9 +395,11 @@ type timeRangeRecorder struct {
 	lastLookback int
 }
 
-func (t *timeRangeRecorder) Name() string                                   { return t.name }
-func (t *timeRangeRecorder) Search(query string) (string, error)            { return "", nil }
-func (t *timeRangeRecorder) SearchRaw(query string) ([]core.SearchResult, error) { return t.results, t.err }
+func (t *timeRangeRecorder) Name() string                        { return t.name }
+func (t *timeRangeRecorder) Search(query string) (string, error) { return "", nil }
+func (t *timeRangeRecorder) SearchRaw(query string) ([]core.SearchResult, error) {
+	return t.results, t.err
+}
 func (t *timeRangeRecorder) MergeContent(_ string, _ []core.SearchResult) (string, error) {
 	return "", nil
 }
@@ -567,7 +569,7 @@ type mockEngine struct {
 	err     error
 }
 
-func (m *mockEngine) Name() string { return m.name }
+func (m *mockEngine) Name() string                        { return m.name }
 func (m *mockEngine) Search(query string) (string, error) { return "", nil }
 func (m *mockEngine) SearchRaw(query string) ([]core.SearchResult, error) {
 	if m.err != nil {

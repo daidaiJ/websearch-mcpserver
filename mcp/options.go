@@ -13,9 +13,11 @@ import (
 	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/history"
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
+	"websearch/pkg/search/provider"
 	"websearch/pkg/search/provider/mcphub"
 )
 
@@ -53,6 +55,30 @@ func WithMCPHubFetch(conf config.Config) ServerOption {
 	return func() { applyMCPHubFetch(conf) }
 }
 
+// WithSearchHistory 在 search_history.enabled=true 时初始化本地搜索历史（FTS5）。
+// 默认关闭：不建库、不注册工具。
+func WithSearchHistory(conf config.Config) ServerOption {
+	return func() { applySearchHistory(conf) }
+}
+
+func applySearchHistory(conf config.Config) {
+	if !conf.SearchHistoryEnabled() {
+		log.Info("search_history 默认关闭；需要时配置 search_history.enabled: true")
+		return
+	}
+	retentionDays := conf.SearchHistory.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = history.DefaultRetentionDays
+	}
+	h, err := history.New(conf.GetSearchHistoryStoragePath(), retentionDays)
+	if err != nil {
+		log.Errf("搜索历史初始化失败，search_history 不启用: %v", err)
+		return
+	}
+	historyInst = h
+	log.Infof("搜索历史已启用（%s，保留 %d 天）", conf.GetSearchHistoryStoragePath(), retentionDays)
+}
+
 // WithEverything 保存 Everything HTTP Server 配置；探测延迟到首个 MCP
 // 客户端接入时（ensureEverything）——websearch 与 Everything 均为自启动，
 // 启动期探测会因时序竞争在 Everything 未就绪时误判不可用，导致
@@ -84,7 +110,7 @@ func applySummarizer(conf config.Config) {
 	if !conf.LLMEnabled() {
 		return
 	}
-	summarizerInst = llm.NewSummarizer(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId)
+	summarizerInst = llm.NewSummarizerWithTimeout(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId, conf.LLM.GetTimeout())
 	summaryProgressInterval = conf.LLM.GetSummaryProgressInterval()
 	log.Info("LLM 摘要功能已启用")
 }
@@ -173,8 +199,22 @@ func nativeFetchProxy(conf config.Config) string {
 	return conf.Proxy.GetProxyEndpoint()
 }
 
+// providerFetchAdapter 把 provider 的 3 参 Fetch（带 maxChars）适配为
+// mcpHubFetcher 的 2 参接口；字符上限沿用 mcp_hub.max_fetch_chars。
+type providerFetchAdapter struct {
+	inner interface {
+		Fetch(ctx context.Context, rawURL string, maxChars int) (string, error)
+	}
+	maxChars int
+}
+
+func (a providerFetchAdapter) Fetch(ctx context.Context, rawURL string) (string, error) {
+	return a.inner.Fetch(ctx, rawURL, a.maxChars)
+}
+
 // applyMCPHubFetch 初始化 cleanfetch 的托管 MCP 增强层。
 // 默认 off，不改变既有抓取顺序；失败时仅记录并退回本地 webfetch/Jina。
+// 远端抓取链顺序：供应商 fetch API（按 URL 计数的免费额度优先）→ mcphub 托管 MCP。
 func applyMCPHubFetch(conf config.Config) {
 	mcpHubFetchMode = conf.MCPHub.GetFetchMode()
 	if mcpHubFetchMode == config.MCPHubFetchOff {
@@ -182,7 +222,29 @@ func applyMCPHubFetch(conf config.Config) {
 	}
 	if !conf.CleanFetch.Enabled {
 		log.Info("cleanfetch.enabled=false，MCP 抓取增强不生效")
+		mcpHubFetchMode = config.MCPHubFetchOff
 		return
+	}
+	providerFetchers = nil
+	if conf.APISourceEnabled("tinyfish") && len(conf.TinyFish.EffectiveSKList()) > 0 {
+		if pool, err := provider.NewKeyPool(conf.TinyFish.EffectiveSKList()); err == nil {
+			providerFetchers = append(providerFetchers, providerFetchAdapter{
+				inner:    provider.NewTinyFishSearch(pool),
+				maxChars: conf.MCPHub.MaxFetchChars,
+			})
+		}
+	}
+	if conf.APISourceEnabled("keenable") {
+		var pool *provider.KeyPool
+		if keys := conf.Keenable.EffectiveSKList(); len(keys) > 0 {
+			if p, err := provider.NewKeyPool(keys); err == nil {
+				pool = p
+			}
+		}
+		providerFetchers = append(providerFetchers, providerFetchAdapter{
+			inner:    provider.NewKeenableSearch(pool, conf.Keenable.IsLive(), 0),
+			maxChars: conf.MCPHub.MaxFetchChars,
+		})
 	}
 	if hub, ok := searchapi.(*mcphub.Hub); ok {
 		mcpHubFetchInst = hub
@@ -191,12 +253,16 @@ func applyMCPHubFetch(conf config.Config) {
 	}
 	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), nil)
 	if err != nil {
+		if len(providerFetchers) > 0 {
+			log.Infof("MCP hub 不可用(%v)，cleanfetch 远端抓取仅用供应商 fetch API", err)
+			return
+		}
 		log.Errf("MCP 抓取增强未启用: %v", err)
 		mcpHubFetchMode = config.MCPHubFetchOff
 		return
 	}
 	mcpHubFetchInst = hub
-	log.Infof("MCP 抓取增强已启用（fetch_mode=%s，server 顺序: %v）", mcpHubFetchMode, hub.RotationNames())
+	log.Infof("MCP 抓取增强已启用（fetch_mode=%s，供应商 fetcher %d 个，server 顺序: %v）", mcpHubFetchMode, len(providerFetchers), hub.RotationNames())
 }
 
 // ensureWebFetch 确保 webfetch 可用：cleanfetch/pdf_parser 已启用时在 Init 阶段

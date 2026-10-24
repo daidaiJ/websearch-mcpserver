@@ -35,7 +35,7 @@
 | `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)）；无 Key 时走匿名档（免鉴权，按出口 IP 限流） | `ANYSEARCH_API_KEY`（可选） |
 | `doubao` | 豆包联网搜索 Global / Custom（[获取 Key](https://console.volcengine.com/search-infinity/api-key)） | `DOUBAO_SEARCH_API_KEY` |
 | `yuanbao` | 腾讯云元宝搜索（API KEY 方式；[文档](https://cloud.tencent.com/document/product/1806/130615)） | `TENCENTCLOUD_WSA_APIKEY` |
-| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
+| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + TinyFish(有 Key 时) + Keenable(有 Key 或显式开启时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
 | `mcphub` | 零 Key 托管 MCP 级联：parallel → anysearch → exa → firecrawl，失败冷却后切下一个；单 server 可选 Key | **无需**（可选 Key） |
 
 > 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao`/`yuanbao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
@@ -53,8 +53,8 @@
 | `anysearch` | AnySearch；有 Key 走 Key 池轮询，无 Key 走匿名档（免鉴权，按出口 IP 限流） |
 | `doubao` | 豆包联网搜索 Global/Custom（`doubao.version`）；无 Key 时回退 Bing |
 | `yuanbao` | 腾讯云元宝搜索（API KEY 方式）；本地月上限达到后按不可用处理并回退 Bing |
-| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao`/`yuanbao` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
-| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
+| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao`/`yuanbao`/`tinyfish`/`keenable` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
+| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + TinyFish(有 Key 时) + Keenable(有 Key 或显式开启时) + Bing + Google + DuckDuckGo，并发 |
 | `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP（默认 parallel → anysearch → exa → firecrawl），一次请求命中一个；失败冷却后切换，全部失败回退 Bing |
 
 ---
@@ -246,7 +246,7 @@ apipool:
 - **`priority`**：始终从列表第一个供应商开始，用完所有 SK → 切换下一个供应商 → 网页引擎兜底
 - **`weighted`**：按权重加权随机选起始供应商，突发请求天然分散到多家供应商。供应商有效权重 = **配置权重 × 当前可用 SK 数**（SK 失效冷却后权重自动下降，自愈）；权重表未收录的供应商按 1 计；显式 `0` 表示不参与加权起始选择（仍保留在失败切换链路）；全部权重为 0 时退化为 round-robin。网页引擎兜底无 Key 池，固定权重 1
 
-**权重默认值**（可被 `apipool.weights` 覆盖）：`anysearch=30000`、`baidu=1500`、`tavily=1200`、`exa=1200`、`doubao=500`（对齐免费档每月积分）
+**权重默认值**（可被 `apipool.weights` 覆盖）：`anysearch=30000`、`baidu=1500`、`tavily=1200`、`exa=1200`、`doubao=500`（对齐免费档每月积分）、`tinyfish=1200`（免费搜索 12000 次/天）、`keenable=800`（public 免 Key 档按 IP 限流）
 
 **工作流程**：选供应商 → `pool.Next()` 取 key → 调 API → 成功返回 / 失败标记 key 冷却 30 分钟 → 同供应商下一个 SK 重试 → 全部耗尽切下一个供应商 → 全部失败用网页引擎兜底
 
@@ -330,6 +330,20 @@ mcp_hub:
 **LLM 摘要**：配置 `llm` 节后，`smartsearch` 支持 `intent` 参数并生成结构化摘要；摘要阶段通过 MCP progress notification 逐 token 流式推送生成过程，客户端断开自动取消，失败自动回退非流式摘要。
 
 **适用边界**：时效性事实、网页线索与文档检索；系统性文献综述、需要引用数据的学术问题请改用 `academicsearch`。
+
+### `search_history` — 本地搜索历史（试验性，默认关闭）
+
+> **试验性（idea）**：实用性尚未确认，先默认关闭供体验；真机使用确认有价值后再转正式工具。
+
+`search_history.enabled: true` 启用后注册。FTS5 全文检索本服务自己记录的搜索历史：每次 `smartsearch` 成功后自动写入 query + 结果快照（标题/URL/截断摘要，最多 20 条/次），让模型复用已查结果而不必重抓。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `query` | string | ❌ | 历史检索关键词（FTS5 匹配查询与结果标题/摘要）；省略或空 = 返回最近历史（按时间倒序） |
+| `limit` | int | ❌ | 返回条数上限（默认 10，硬上限 50） |
+| `offset` | int | ❌ | 翻页偏移量（默认 0） |
+
+数据只落本地 SQLite（`search_history.storage_path`，默认 exe 同目录 `history/search-history.db`），不出网、不含密钥；保留期 `search_history.retention_days` 默认 30 天，过期每小时清理。正文快照是截断摘要，完整正文请对对应 URL 用 `cleanfetch` 重取。
 
 ### `academicsearch` — 学术论文检索
 
