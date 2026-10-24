@@ -48,6 +48,7 @@ const (
 	GoogleNews      = "googlenews"
 	Google          = "google"
 	DuckDuckGo      = "duckduckgo"
+	GitHub          = "github" // api.github.com（直连可达，2026-10-24 实测）
 	Web             = "web"        // 通用外网连通性
 	Ruanyifeng      = "ruanyifeng" // ruanyifeng.com 博客
 	WmySkxz         = "wmyskxz"    // wmyskxz.cn
@@ -65,6 +66,7 @@ var probeURLs = map[string]string{
 	GoogleNews:      "https://news.google.com/rss",
 	Google:          "https://www.google.com/generate_204",
 	DuckDuckGo:      "https://duckduckgo.com/",
+	GitHub:          "https://api.github.com/rate_limit",
 	Web:             "https://example.com",
 	Ruanyifeng:      "https://www.ruanyifeng.com/blog/",
 	WmySkxz:         "https://wmyskxz.cn/",

@@ -56,6 +56,7 @@ type Config struct {
 	Doubao             DoubaoConfig        `mapstructure:"doubao"`
 	TinyFish           TinyFishConfig      `mapstructure:"tinyfish"`
 	Keenable           KeenableConfig      `mapstructure:"keenable"`
+	GitHub             GitHubConfig        `mapstructure:"github"`
 	SearchHistory      SearchHistoryConfig `mapstructure:"search_history"`
 	LLM                LLMConfig           `mapstructure:"llm"`
 	Jina               JinaConfig          `mapstructure:"jina"`
@@ -233,6 +234,35 @@ func (c KeenableConfig) IsLive() bool {
 // 仅在配置了 Key（keyed 档）或显式 opt-in 时加入引擎组合。
 func (c KeenableConfig) PublicTierOptedIn() bool {
 	return c.Enabled != nil && *c.Enabled
+}
+
+// GitHubConfig GitHub 搜索/抓取（REST API，零 Key 可用，国内直连可达无需代理）。
+// 匿名 search 10/min、core 60/h；配 PAT 提额 search 30/min、core 5000/h（官方 docs 核对）。
+// github.com HTML 是 JS 渲染抓不到，搜索与 cleanfetch 仓库页特判均走 API；
+// cleanfetch 仓库/blob 特判与引擎复用同一批 token。默认关闭（wikipedia 同口径），
+// 显式 enabled: true 参与搜索；未配 Key 走匿名档。
+type GitHubConfig struct {
+	Enabled    bool     `mapstructure:"enabled"`     // 总开关（默认 false）
+	APIKey     string   `mapstructure:"api_key"`     // PAT（github_pat_/ghp_ 前缀）；环境变量 GITHUB_TOKEN
+	TokenList  []string `mapstructure:"token_list"`  // 多 PAT 轮转列表（优先级高于 api_key）
+	NumResults int      `mapstructure:"num_results"` // 单次结果数（默认 10，上限 50）
+	PerMin     int      `mapstructure:"per_min"`     // search 每分钟限流（默认按是否配 token 取 10/30）
+}
+
+// EffectiveTokenList 返回合并后的 PAT 列表：token_list 非空时直接返回，否则用 api_key 构造单元素列表。
+func (c GitHubConfig) EffectiveTokenList() []string {
+	if len(c.TokenList) > 0 {
+		return c.TokenList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// HasToken 是否配置了 PAT（提额档）。
+func (c GitHubConfig) HasToken() bool {
+	return len(c.EffectiveTokenList()) > 0
 }
 
 // DoubaoConfig 火山引擎豆包联网搜索（Global / Custom）。
@@ -1431,6 +1461,9 @@ func applyKnownEnv(conf *Config) {
 			conf.Doubao.APIKey = v
 			break
 		}
+	}
+	if v := os.Getenv("GITHUB_TOKEN"); v != "" {
+		conf.GitHub.APIKey = v
 	}
 	if v := os.Getenv("LLM_BASE_URL"); v != "" {
 		conf.LLM.BaseURL = v
