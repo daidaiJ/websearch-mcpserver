@@ -62,7 +62,7 @@ const (
 	bingBlockThreshold  = 5
 )
 
-func (e *bingEngine) Name() string                  { return "bing" }
+func (e *bingEngine) Name() string                    { return "bing" }
 func (e *bingEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {

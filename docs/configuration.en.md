@@ -147,6 +147,25 @@ doubao:
   query_rewrite: false      # Custom: enable query rewriting
   need_content: false       # Custom: request full page content
 
+# TinyFish Search/Fetch API (mode=apipool requires explicit engines entry; hybrid auto-joins when keyed)
+# Free allowance: search 12,000/day (30 req/min), fetch 1,000 URLs/day (150 URLs/min,
+# counted per successfully fetched URL), reset at 00:00 UTC. Keyed tier only, no anonymous tier.
+# Its fetch capability joins the cleanfetch remote-fetch chain (preferred when mcp_hub.fetch_mode is on, per-URL counting).
+tinyfish:
+  enabled: true             # API source switch; false keeps api_key/sk_list stored
+  api_key: ""               # TinyFish API key (https://docs.tinyfish.ai)
+  sk_list: []               # multi-key rotation list (takes precedence over api_key)
+
+# Keenable Search/Fetch API (mode=apipool requires explicit engines entry)
+# Free 10 req/s; the keyed endpoint bills credits, while without a key the keyless public endpoint
+# is used automatically (per-IP rate limit, no credits); the public tier does not auto-join hybrid — set enabled: true explicitly.
+# Fetch covers indexed URLs only (live: true forces a live crawl); also joins the cleanfetch remote-fetch chain.
+keenable:
+  enabled: false            # API source switch; the keyless public tier needs explicit true to join hybrid
+  api_key: ""               # Keenable API key (keen_ prefix, https://docs.keenable.ai)
+  sk_list: []               # multi-key rotation list (takes precedence over api_key)
+  live: false               # force live crawl on fetch (true can fetch unindexed URLs)
+
 # Bing engine (fallback + engine mode primary, no key needed)
 bing:
   enabled: true             # Master switch
@@ -353,7 +372,9 @@ pdf_parser:
 #       weight: 1.0
 
 # Keyless MCP Hub cascade (optional; search engine when mode=mcphub)
-# When fetch_mode is not off, cleanfetch also uses the same servers (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
+# When fetch_mode is not off, the cleanfetch remote-fetch chain tries provider fetch APIs first
+# (tinyfish/keenable, consuming their per-URL free allowances), then the same MCP servers
+# (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority (default, stability first) / round-robin

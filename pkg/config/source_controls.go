@@ -17,6 +17,10 @@ func (c Config) APISourceEnabled(name string) bool {
 		enabled = c.Anysearch.Enabled
 	case "doubao":
 		enabled = c.Doubao.Enabled
+	case "tinyfish":
+		enabled = c.TinyFish.Enabled
+	case "keenable":
+		enabled = c.Keenable.Enabled
 	default:
 		return false
 	}

@@ -149,7 +149,8 @@ func mergeFetchURLs(url string, urls []string) []string {
 }
 
 // fetchCleanPage 抓取单个 URL：SSRF/HEAD 预检后按 mcp_hub.fetch_mode
-// 选择 MCP 托管抓取与本地 webfetch/Jina 的顺序，任一层失败自动降级。
+// 选择远端抓取链（供应商 fetch API → MCP 托管抓取）与本地 webfetch/Jina 的
+// 顺序，任一层失败自动降级。
 func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	if err := validateURLSecurity(rawURL); err != nil {
 		return "", err
@@ -164,31 +165,63 @@ func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	if isPDFURL(rawURL) {
 		return local(ctx, rawURL)
 	}
-	return fetchPageWithFallback(ctx, rawURL, mcpHubFetchMode, mcpHubFetchInst, local)
+	return fetchPageWithFallback(ctx, rawURL, mcpHubFetchMode, remoteFetchChain(), local)
 }
 
-// fetchPageWithFallback 按 off/prefer/fallback 编排 MCP 与本地抓取。
+// remoteFetchChain 返回远端抓取链：供应商 fetch API（优先消耗按 URL
+// 计数的免费额度）→ mcphub 托管 MCP。均未启用时返回 nil，走本地。
+func remoteFetchChain() []mcpHubFetcher {
+	chain := make([]mcpHubFetcher, 0, len(providerFetchers)+1)
+	chain = append(chain, providerFetchers...)
+	if mcpHubFetchInst != nil {
+		chain = append(chain, mcpHubFetchInst)
+	}
+	if len(chain) == 0 {
+		return nil
+	}
+	return chain
+}
+
+// fetchPageWithFallback 按 off/prefer/fallback 编排远端抓取链与本地抓取。
 // 两条链路都失败时同时保留两侧错误，便于归因。
-func fetchPageWithFallback(ctx context.Context, rawURL, mode string, hub mcpHubFetcher,
+func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mcpHubFetcher,
 	local func(context.Context, string) (string, error)) (string, error) {
-	if hub == nil || mode == "" || mode == config.MCPHubFetchOff {
+	if len(remote) == 0 || mode == "" || mode == config.MCPHubFetchOff {
 		return local(ctx, rawURL)
+	}
+	// 逐个尝试远端 fetcher：供应商 fetch API → MCP 托管；失败级联到下一个。
+	tryRemote := func() (string, error) {
+		var errs []string
+		for _, f := range remote {
+			text, err := f.Fetch(ctx, rawURL)
+			if err == nil && strings.TrimSpace(text) != "" {
+				return text, nil
+			}
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			if err == nil {
+				err = errors.New("空结果")
+			}
+			errs = append(errs, err.Error())
+		}
+		return "", errors.New(strings.Join(errs, "；"))
 	}
 	switch mode {
 	case config.MCPHubFetchPrefer:
-		text, err := hub.Fetch(ctx, rawURL)
+		text, err := tryRemote()
 		if err == nil {
 			return text, nil
 		}
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		log.Infof("MCP 托管抓取失败(%v)，降级到本地 webfetch/Jina", err)
+		log.Infof("远端抓取失败(%v)，降级到本地 webfetch/Jina", err)
 		text, localErr := local(ctx, rawURL)
 		if localErr == nil {
 			return text, nil
 		}
-		return "", fmt.Errorf("MCP 托管抓取失败: %w；本地抓取失败: %w", err, localErr)
+		return "", fmt.Errorf("远端抓取失败: %w；本地抓取失败: %w", err, localErr)
 	case config.MCPHubFetchFallback:
 		text, localErr := local(ctx, rawURL)
 		if localErr == nil {
@@ -197,12 +230,12 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, hub mcpHubF
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		log.Infof("本地抓取失败(%v)，尝试 MCP 托管抓取", localErr)
-		text, hubErr := hub.Fetch(ctx, rawURL)
-		if hubErr == nil {
+		log.Infof("本地抓取失败(%v)，尝试远端抓取链", localErr)
+		text, remoteErr := tryRemote()
+		if remoteErr == nil {
 			return text, nil
 		}
-		return "", fmt.Errorf("本地抓取失败: %w；MCP 托管抓取失败: %w", localErr, hubErr)
+		return "", fmt.Errorf("本地抓取失败: %w；远端抓取失败: %w", localErr, remoteErr)
 	default:
 		return local(ctx, rawURL)
 	}

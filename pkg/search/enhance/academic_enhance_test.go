@@ -1,9 +1,9 @@
 package enhance
 
 import (
-	"websearch/pkg/search/core"
 	"math"
 	"testing"
+	"websearch/pkg/search/core"
 )
 
 // ── 信号函数 ─────────────────────────────────────────────────────────────────

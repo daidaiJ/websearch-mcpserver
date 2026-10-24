@@ -126,7 +126,7 @@ func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadRe
 		return nil, nil, errResultUnavailable
 	}
 	reader := bufio.NewReader(f)
-	var base int64    // 计数起点字节偏移（缓存命中时为缓存点，扫描路径为 0）
+	var base int64     // 计数起点字节偏移（缓存命中时为缓存点，扫描路径为 0）
 	var consumed int64 // 自 base 起累计消费的字节数
 	if params.Offset == file.cacheChar {
 		// 顺序续读命中缓存（含 offset 0）：直接按字节偏移定位，跳过逐 rune 扫描。

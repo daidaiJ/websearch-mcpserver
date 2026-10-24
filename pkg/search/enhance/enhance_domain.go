@@ -29,10 +29,10 @@ var brandDomains = map[string]struct{}{
 }
 
 var (
-	commercialTLDRe   = regexp.MustCompile(`\.(shop|store|deals|sale|boutique|fashion|wedding|beauty|salon)$`)
-	lowQualityTLDRe   = regexp.MustCompile(`\.(tk|cf|ga|gq|ml)$`)
+	commercialTLDRe    = regexp.MustCompile(`\.(shop|store|deals|sale|boutique|fashion|wedding|beauty|salon)$`)
+	lowQualityTLDRe    = regexp.MustCompile(`\.(tk|cf|ga|gq|ml)$`)
 	authoritativeTLDRe = regexp.MustCompile(`\.(io|org|dev|edu|gov)$`)
-	dictionaryHostRe  = regexp.MustCompile(
+	dictionaryHostRe   = regexp.MustCompile(
 		`(?:^|\.)(?:wiktionary\.org|merriam-webster\.com|dictionary\.com|thesaurus\.com|` +
 			`vocabulary\.com|collinsdictionary\.com|dictionary\.cambridge\.org|` +
 			`(?:[a-z0-9-]+\.)?(?:dictionary|thesaurus|vocabulary|glossary))\b`)

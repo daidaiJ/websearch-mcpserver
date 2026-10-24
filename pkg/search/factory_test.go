@@ -17,6 +17,8 @@ func TestDisabledAPIsAllModes(t *testing.T) {
 				Exa:       config.ExaConfig{Enabled: &disabled, APIKey: "stored-test-key"},
 				Anysearch: config.AnysearchConfig{Enabled: &disabled, APIKey: "stored-test-key"},
 				Doubao:    config.DoubaoConfig{Enabled: &disabled, APIKey: "stored-test-key"},
+				TinyFish:  config.TinyFishConfig{Enabled: &disabled, APIKey: "stored-test-key"},
+				Keenable:  config.KeenableConfig{Enabled: &disabled, APIKey: "stored-test-key"},
 			}
 			g, err := NewFromConfig(conf)
 			if err != nil {

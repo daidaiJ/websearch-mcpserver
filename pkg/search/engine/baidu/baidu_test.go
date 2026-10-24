@@ -1,10 +1,10 @@
 package baidu
 
 import (
-	"websearch/internal/testenv"
 	"strings"
 	"testing"
 	"time"
+	"websearch/internal/testenv"
 
 	"websearch/pkg/antirobot"
 )

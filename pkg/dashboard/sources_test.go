@@ -81,7 +81,7 @@ func TestOverviewApipoolProviderNamesMatchRouting(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			route := mode.BuildApipoolMode(conf, nil, nil, pool, nil, nil, nil)
+			route := mode.BuildApipoolMode(conf, nil, nil, pool, nil, nil, nil, nil, nil)
 			if (route != nil) != tc.wantActive {
 				t.Fatalf("actual apipool route exists = %v, want %v", route != nil, tc.wantActive)
 			}

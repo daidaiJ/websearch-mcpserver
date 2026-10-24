@@ -144,6 +144,25 @@ doubao:
   query_rewrite: false      # Custom: 是否启用查询改写
   need_content: false       # Custom: 是否请求网页正文
 
+# TinyFish Search/Fetch API（mode=apipool 需显式加入 engines；hybrid 有 Key 自动参与）
+# 免费额度：搜索 12000 次/天（30 请求/分钟）、fetch 1000 URL/天（150 URL/分钟，
+# 按成功抓取的 URL 计数），均 00:00 UTC 重置。仅 Key 档，无匿名档。
+# fetch 能力接入 cleanfetch 远端抓取链（mcp_hub.fetch_mode 非 off 时优先消耗，按 URL 计数）。
+tinyfish:
+  enabled: true             # API 源开关；false 保留 api_key/sk_list
+  api_key: ""               # TinyFish API Key（https://docs.tinyfish.ai）
+  sk_list: []               # 多 Key 轮转列表（优先级高于 api_key）
+
+# Keenable Search/Fetch API（mode=apipool 需显式加入 engines）
+# 免费 10 请求/秒；keyed 端点按 credits 计费，未配 Key 自动走 public 免 Key 端点
+# （按出口 IP 限流、不消耗 credits）；public 档默认不自动参与 hybrid，需显式 enabled: true。
+# fetch 仅供已索引 URL（live: true 强制源站实抓）；同样接入 cleanfetch 远端抓取链。
+keenable:
+  enabled: false            # API 源开关；public 免 Key 档需显式 true 才参与 hybrid
+  api_key: ""               # Keenable API Key（keen_ 前缀，https://docs.keenable.ai）
+  sk_list: []               # 多 Key 轮转列表（优先级高于 api_key）
+  live: false               # fetch 是否强制源站实抓（true 可抓未索引 URL）
+
 # Bing 引擎（兜底 + engine 模式主力，无需 Key）
 # 仅控制 Bing 源，不是 smartsearch 工具总开关
 bing:
@@ -363,7 +382,9 @@ pdf_parser:
 #       weight: 1.0
 
 # MCP Hub 零 Key 级联（可选，mode=mcphub 时作为搜索引擎）
-# fetch_mode 非 off 时，cleanfetch 也按同一批 server 抓取（需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
+# fetch_mode 非 off 时，cleanfetch 远端抓取链按「供应商 fetch API（tinyfish/keenable，
+# 优先消耗按 URL 计数的免费额度）→ 同一批 MCP server」顺序抓取
+# （需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
@@ -395,9 +416,9 @@ pdf_parser:
 #     - exa
 #     # - doubao
 #   weights:              # weighted 策略权重（单 Key 权重，实际权重按可用 Key 数累加）
-#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500（每月默认积分）
-#     baidu: 1500
-#     tavily: 1200
+#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200,
+#     baidu: 1500         #   doubao=500（每月默认积分）, tinyfish=1200（免费 12000 次/天）,
+#     tavily: 1200        #   keenable=800（public 免 Key 档按 IP 限流）
 #     exa: 1200
 #     doubao: 500
 

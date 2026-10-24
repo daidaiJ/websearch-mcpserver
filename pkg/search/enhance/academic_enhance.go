@@ -1,11 +1,11 @@
 package enhance
 
 import (
-	"websearch/pkg/search/core"
 	"math"
 	"sort"
 	"strings"
 	"time"
+	"websearch/pkg/search/core"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/log"

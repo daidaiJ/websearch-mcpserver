@@ -159,6 +159,31 @@ rate_limit:
 #   need_content: false   # Custom: 是否请求网页正文
 
 # ==============================================
+# TinyFish Search/Fetch API（可选；mode=apipool 需显式加入 engines，hybrid 有 Key 自动参与）
+# 免费额度：搜索 12000 次/天（30 请求/分钟）、fetch 1000 URL/天（150 URL/分钟，
+# 按成功抓取的 URL 计数），均 00:00 UTC 重置。仅 Key 档，无匿名档。
+# fetch 能力接入 cleanfetch 远端抓取链（mcp_hub.fetch_mode 非 off 时优先消耗，按 URL 计数）。
+# ==============================================
+# tinyfish:
+#   enabled: true         # API 源开关；false 保留 api_key/sk_list
+#   api_key: ""           # TinyFish API Key（https://docs.tinyfish.ai）
+#   sk_list:              # 多 Key 轮转列表（优先级高于 api_key）
+#     - "sk-tinyfish-xxxx"
+
+# ==============================================
+# Keenable Search/Fetch API（可选；mode=apipool 需显式加入 engines）
+# 免费 10 请求/秒；keyed 端点按 credits 计费，未配 Key 自动走 public 免 Key 端点
+# （X-Keenable-Title 标识，按出口 IP 限流、不消耗 credits）；public 档默认不参与 hybrid，需显式 enabled: true。
+# fetch 仅供已索引 URL（live: true 强制源站实抓）；同样接入 cleanfetch 远端抓取链。
+# ==============================================
+# keenable:
+#   enabled: false        # API 源开关；public 免 Key 档需显式 true 才参与 hybrid
+#   api_key: ""           # Keenable API Key（keen_ 前缀，https://docs.keenable.ai）
+#   sk_list:              # 多 Key 轮转列表（优先级高于 api_key）
+#     - "keen_xxxx"
+#   live: false           # fetch 是否强制源站实抓（true 可抓未索引 URL）
+
+# ==============================================
 # Bing 通用搜索引擎（兜底引擎 + engine 模式主力引擎）
 # 无需 API Key，默认开启
 # bing.enabled 只控制 Bing 源，不是 smartsearch 工具总开关；其他可用路由仍可搜索。
@@ -434,12 +459,15 @@ log:
 #     - exa
 #     # - doubao          # 不在默认列表；有 Key 时显式加入
 #   weights:              # weighted 策略的供应商权重（单 Key 权重，实际权重 = 配置权重 × 当前可用 Key 数累加）
-#                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500（每月默认积分）；显式 0 = 不参与加权起始选择
+#                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500（每月默认积分），
+#                         #   tinyfish=1200（免费搜索 12000 次/天），keenable=800（public 免 Key 档按 IP 限流）；显式 0 = 不参与加权起始选择
 #     anysearch: 30000
 #     baidu: 1500
 #     tavily: 1200
 #     exa: 1200
 #     doubao: 500
+#     tinyfish: 1200
+#     keenable: 800
 
 # ==============================================
 # 本机控制中心（可选；不执行主动健康探测）

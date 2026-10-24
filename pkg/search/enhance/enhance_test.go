@@ -1,9 +1,9 @@
 package enhance
 
 import (
-	"websearch/pkg/search/core"
 	"math"
 	"testing"
+	"websearch/pkg/search/core"
 )
 
 // ── 文本信号 ────────────────────────────────────────────────────────────────
@@ -180,8 +180,8 @@ func TestRecencyFactor(t *testing.T) {
 
 func TestApplyScoreFloor(t *testing.T) {
 	results := []core.SearchResult{
-		{Url: "https://a.com", Score: 0.5, Engine: "bing"},   // Top-1
-		{Url: "https://b.com", Score: 0.20, Engine: "bing"},  // 高于阀值 → 保留
+		{Url: "https://a.com", Score: 0.5, Engine: "bing"},    // Top-1
+		{Url: "https://b.com", Score: 0.20, Engine: "bing"},   // 高于阀值 → 保留
 		{Url: "https://c.com", Score: 0.02, Engine: "google"}, // 低于阀值 → 被过滤（无每引擎保底）
 	}
 	kept := ApplyScoreFloor(results, 0.05)
@@ -317,4 +317,3 @@ func TestEnhanceFiltersLowQuality(t *testing.T) {
 		}
 	}
 }
-

@@ -54,6 +54,8 @@ type Config struct {
 	Exa                ExaConfig         `mapstructure:"exa"`
 	Anysearch          AnysearchConfig   `mapstructure:"anysearch"`
 	Doubao             DoubaoConfig      `mapstructure:"doubao"`
+	TinyFish           TinyFishConfig    `mapstructure:"tinyfish"`
+	Keenable           KeenableConfig    `mapstructure:"keenable"`
 	LLM                LLMConfig         `mapstructure:"llm"`
 	Jina               JinaConfig        `mapstructure:"jina"`
 	Cache              CacheConfig       `mapstructure:"cache"`
@@ -174,6 +176,62 @@ func (c AnysearchConfig) EffectiveSKList() []string {
 		return []string{c.APIKey}
 	}
 	return nil
+}
+
+// TinyFishConfig TinyFish Search/Fetch API。
+// 免费额度：搜索 12000 次/天、fetch 1000 URL/天（均 00:00 UTC 重置）；
+// 默认限流搜索 30 请求/分钟、fetch 150 URL/分钟。仅 Key 档，无匿名档，
+// 未配 Key 时适配器不启用。fetch 免费档供 cleanfetch 远端抓取链复用（按成功 URL 计数）。
+type TinyFishConfig struct {
+	Enabled *bool    `mapstructure:"enabled"`
+	APIKey  string   `mapstructure:"api_key"` // TinyFish API Key（https://docs.tinyfish.ai）
+	SKList  []string `mapstructure:"sk_list"` // 多 Key 轮转列表（优先级高于 api_key）
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c TinyFishConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// KeenableConfig Keenable Search/Fetch API。
+// 免费 10 请求/秒；keyed 端点按 credits 计费，未配 Key 时自动走 public 免 Key 端点
+// （X-Keenable-Title 标识应用名，按出口 IP 限流，不消耗 credits，与 anysearch 匿名档同模式）。
+// fetch 免费档供 cleanfetch 远端抓取链复用；仅能抓已索引 URL，live=true 可抓未索引页。
+type KeenableConfig struct {
+	Enabled *bool    `mapstructure:"enabled"`
+	APIKey  string   `mapstructure:"api_key"` // Keenable API Key（keen_ 前缀，https://docs.keenable.ai）
+	SKList  []string `mapstructure:"sk_list"` // 多 Key 轮转列表（优先级高于 api_key）
+	// Live fetch 时是否强制从源站实抓（true=绕过索引副本，可抓未索引 URL；默认 false）
+	Live *bool `mapstructure:"live"`
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c KeenableConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// IsLive 返回 fetch 是否强制源站实抓，默认 false。
+func (c KeenableConfig) IsLive() bool {
+	return c.Live != nil && *c.Live
+}
+
+// PublicTierOptedIn public 免 Key 档是否被显式开启（enabled 显式 true）。
+// public 档按 IP 限流且质量待长期观察，默认不自动参与 hybrid；
+// 仅在配置了 Key（keyed 档）或显式 opt-in 时加入引擎组合。
+func (c KeenableConfig) PublicTierOptedIn() bool {
+	return c.Enabled != nil && *c.Enabled
 }
 
 // DoubaoConfig 火山引擎豆包联网搜索（Global / Custom）。
@@ -950,7 +1008,9 @@ func (c ApipoolConfig) GetWeights() map[string]int {
 		"baidu":     1500,
 		"tavily":    1200,
 		"exa":       1200,
-		"doubao":    500, // 火山免费档每月默认 500 积分
+		"doubao":    500,  // 火山免费档每月默认 500 积分
+		"tinyfish":  1200, // 免费搜索 12000 次/天
+		"keenable":  800,  // public 免 Key 档按 IP 限流，质量待长期观察
 	}
 	maps.Copy(w, c.Weights)
 	return w

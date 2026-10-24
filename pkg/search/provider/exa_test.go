@@ -1,10 +1,9 @@
 package provider
 
 import (
-	"websearch/pkg/search/core"
 	"strings"
 	"testing"
-
+	"websearch/pkg/search/core"
 )
 
 // ── 单元测试（不需要网络和 API Key） ──
@@ -180,4 +179,3 @@ func TestExaSearchImpl_SearchRawWithTimeRange_Integration(t *testing.T) {
 	}
 	t.Logf("不限时间范围结果数: %d", len(results))
 }
-

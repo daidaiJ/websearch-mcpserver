@@ -1,10 +1,10 @@
 package enhance
 
 import (
-	"websearch/pkg/search/core"
 	"net/url"
 	"sort"
 	"strings"
+	"websearch/pkg/search/core"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
@@ -23,7 +23,6 @@ import (
 // ──────────────────────────────────────────────────────────────────────────────
 
 const rrfK = 60.0 // RRF 融合常数
-
 
 // RRFScore 对单个 URL 在各引擎中的排名做 Reciprocal Rank Fusion。
 // ranks: engine -> rank（0 基）；K <= 0 时取默认 60。
