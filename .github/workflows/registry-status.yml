@@ -1,0 +1,67 @@
+# MCP Registry 版本状态运维：workflow_dispatch 手动触发，
+# 对 registry.modelcontextprotocol.io 上的服务器版本做 active/deprecated/deleted 状态变更。
+#
+# 用途：
+#   - 误发版本下架（deleted）
+#   - 旧版本弃用提示（deprecated，可带 --message）
+#   - 误操作恢复（active）
+#
+# 注意：registry 不支持物理删除版本，deleted 只是状态标记（列表接口不再返回该版本）。
+# 认证走 GitHub OIDC（与 release.yml 的 publish-registry 同口径），无需存储凭据。
+
+name: Registry Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 3.10.0；留空 = 用 --all-versions 作用于全部版本）'
+        required: false
+        type: string
+      status:
+        description: '目标状态'
+        required: true
+        type: choice
+        options:
+          - active
+          - deprecated
+          - deleted
+      message:
+        description: '状态变更说明（可选，随版本元数据保存）'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+
+jobs:
+  update-status:
+    name: Mark ${{ inputs.status }} ${{ inputs.version || 'all versions' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Update version status
+        run: |
+          set -euo pipefail
+          SERVER="io.github.daidaiJ/websearch-mcpserver"
+          ARGS=(status --status "${{ inputs.status }}")
+          if [ -n "${{ inputs.message }}" ]; then
+            ARGS+=(--message "${{ inputs.message }}")
+          fi
+          if [ -n "${{ inputs.version }}" ]; then
+            ARGS+=("$SERVER" "${{ inputs.version }}")
+          else
+            ARGS+=(--all-versions "$SERVER")
+          fi
+          ./mcp-publisher "${ARGS[@]}"
+
+      - name: Verify registry listing
+        run: |
+          curl -s "https://registry.modelcontextprotocol.io/v0.1/servers?search=websearch-mcpserver" \
+            | jq '[.servers[].server.version]'
