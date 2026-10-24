@@ -34,10 +34,11 @@
 | `exa` | Exa Web Search API（[获取 Key](https://dashboard.exa.ai/api-keys)） | `EXA_API_KEY` |
 | `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)）；无 Key 时走匿名档（免鉴权，按出口 IP 限流） | `ANYSEARCH_API_KEY`（可选） |
 | `doubao` | 豆包联网搜索 Global / Custom（[获取 Key](https://console.volcengine.com/search-infinity/api-key)） | `DOUBAO_SEARCH_API_KEY` |
-| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
+| `yuanbao` | 腾讯云元宝搜索（API KEY 方式；[文档](https://cloud.tencent.com/document/product/1806/130615)） | `TENCENTCLOUD_WSA_APIKEY` |
+| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
 | `mcphub` | 零 Key 托管 MCP 级联：parallel → anysearch → exa → firecrawl，失败冷却后切下一个；单 server 可选 Key | **无需**（可选 Key） |
 
-> 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
+> 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao`/`yuanbao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
 >
 > **推荐选型**：**零 Key 场景用 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 场景用 `apipool`**（多供应商 Key 池轮转，失败自动切换，网页引擎兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景。
 
@@ -51,8 +52,9 @@
 | `exa` | Exa；无 Key 时回退 Bing |
 | `anysearch` | AnySearch；有 Key 走 Key 池轮询，无 Key 走匿名档（免鉴权，按出口 IP 限流） |
 | `doubao` | 豆包联网搜索 Global/Custom（`doubao.version`）；无 Key 时回退 Bing |
-| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
-| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
+| `yuanbao` | 腾讯云元宝搜索（API KEY 方式）；本地月上限达到后按不可用处理并回退 Bing |
+| `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao`/`yuanbao` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
+| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + Bing + Google + DuckDuckGo，并发 |
 | `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP（默认 parallel → anysearch → exa → firecrawl），一次请求命中一个；失败冷却后切换，全部失败回退 Bing |
 
 ---
@@ -71,6 +73,7 @@
 | `exa` | Exa Web Search API | ❌ | 否 |
 | `anysearch` | AnySearch API（内置本地黑名单过滤） | ❌ | 否 |
 | `doubao` | 豆包联网搜索 Global/Custom API（内置本地黑名单过滤；Custom 回传 score） | ✅ | 否 |
+| `yuanbao` | 腾讯云元宝搜索 API KEY 方式（内置本地黑名单过滤；回传 0~1 相关性分数） | ✅ | 否 |
 | `baidu_api` | 百度千帆搜索（`enable_ai_search` 控制端点） | ❌ | 否 |
 | `so360` | 360 搜索（HTML，中文第二索引；默认关闭，`so360.enabled` 开启） | ❌ | 否 |
 | `wikipedia` | Wikipedia MediaWiki API（参考型来源；默认关闭，`wikipedia.enabled` 开启，`lang` 选语言版本） | ❌ | 是（自动检测） |
@@ -203,6 +206,9 @@ smartsearch:
     doubao:            # 豆包联网搜索（Custom 回传 score；Global 不回传）
       min_score: 0
       max_size: 4
+    yuanbao:           # 腾讯云元宝搜索（回传 0~1 相关性分数）
+      min_score: 0
+      max_size: 4
 ```
 
 **Score 过滤逻辑**：
@@ -225,12 +231,14 @@ apipool:
     - tavily
     - exa
     # - doubao            # 不在默认列表；有 Key 时显式加入
+    # - yuanbao           # 不在默认列表；有 Key 时显式加入
   weights:                # weighted 策略权重（单 Key 权重；默认值见下）
     anysearch: 30000
     baidu: 1500
     tavily: 1200
     exa: 1200
     doubao: 500           # 免费档每月默认 500 积分
+    yuanbao: 0            # 后付费源默认不参与加权起始；显式配正数才会被加权选中
 ```
 
 **策略说明**：
@@ -314,7 +322,7 @@ mcp_hub:
 |------|------|------|------|
 | `query` | string | ✅ | 搜索关键词 |
 | `intent` | string | ❌ | 搜索意图（仅 LLM 启用时生效，未启用时自动移除该参数节省上下文） |
-| `time_range` | int | ❌ | 搜索时间范围（月），默认 3。`1`=近 1 个月，`6`=近半年，`12`=近一年，`0`=不限。豆包 Custom 会映射为 `OneDay`/`OneWeek`/`OneMonth`/`OneYear`；Global 无时间过滤接口，忽略 |
+| `time_range` | int | ❌ | 搜索时间范围（月），默认 3。`1`=近 1 个月，`6`=近半年，`12`=近一年，`0`=不限。豆包 Custom 会映射为 `OneDay`/`OneWeek`/`OneMonth`/`OneYear`；元宝映射为 `dN`/`mN`/`yN`；豆包 Global 无时间过滤接口，忽略 |
 | `fetch_top_n` | int | ❌ | 正文抓取模式：不传时与旧版一致，只返回引擎/供应商自带内容（服务端 `smartsearch.fetch_top_n` 可改默认，默认 `0` 不抓）；传 `0` 表示只要标题摘要和 URL；传 `1-5` 表示为前 N 条获取页面原文——支持原文传参的 API 引擎（Tavily/Exa/豆包）直接走快速路径，网页引擎内部抓取（无需 `cleanfetch.enabled`，webfetch 惰性初始化）；已有足量正文的条目自动跳过；抓取被反爬防护（JS 挑战/WAF）拦截时在该条结果上显式标注 |
 
 返回结果默认附带来源引擎和相关性分数（Tavily / 豆包 Custom 等支持 score 的引擎）。可通过 `smartsearch.show_meta: false` 关闭。

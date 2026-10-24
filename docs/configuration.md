@@ -74,7 +74,7 @@ mcp_stateless: false        # MCP 无状态 HTTP 模式（默认 false = 会话�
                             # 免 initialize 握手与 Mcp-Session-Id 会话，便于反向代理/负载均衡水平扩展；
                             # GET SSE 长连返回 405。本服务工具均为请求-响应式，无状态模式下功能无损
 log_level: info             # debug / info / warn / error
-mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine / mcphub
+mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / yuanbao / hybrid / engine / mcphub
 network: china              # 学术适配区域 china / international；不切换网页来源或豆包站点范围
 
 # 全局限流（对所有搜索引擎统一生效）
@@ -144,6 +144,23 @@ doubao:
   query_rewrite: false      # Custom: 是否启用查询改写
   need_content: false       # Custom: 是否请求网页正文
 
+# 腾讯云元宝搜索（API KEY 方式；mode=yuanbao/hybrid；apipool 需显式加入 engines）
+# 文档: https://cloud.tencent.com/document/product/1806/130615
+# 控制台: https://console.cloud.tencent.com/wsapi/index
+# 每月免费额度 2000 次，超出后按量后付费（约 20 元/千次，以官网计费为准）；
+# 默认本地月上限 2000 次，达到后停止调用并回退其他来源，避免意外后付费。
+yuanbao:
+  enabled: true             # API 源开关；false 保留 api_key/sk_list
+  api_key: ""               # 环境变量: TENCENTCLOUD_WSA_APIKEY（sk_list 为空时自动作为单元素列表）
+  sk_list: []               # 多 Key 轮询列表（优先级高于 api_key；重复 Key 自动去重）
+  num_results: 0            # 0=不传 Cnt（上游默认 10）；其余收敛到 10/20/30/40/50
+  mode: 0                   # 0=公开网页 / 1=权威垂直信源 / 2=混合；0 不传（兼容极速版）
+  site: ""                  # 指定站点（qq.com）或过滤（exclude:qq.com|sohu.com，最多 5 个）
+  industry: ""              # gov / news / acad / finance
+  freshness: ""             # 默认时效 dN/mN/yN/日期；MCP 请求级 time_range 优先
+  monthly_limit: 2000       # 本端月调用上限；0=不限制（显式承担后付费风险），正数=自定义
+  state_path: ""            # 月计数落盘路径；空 = exe 同目录 data/yuanbao-quota.json
+
 # Bing 引擎（兜底 + engine 模式主力，无需 Key）
 # 仅控制 Bing 源，不是 smartsearch 工具总开关
 bing:
@@ -209,7 +226,7 @@ academic:
 proxy:
   enabled: false          # 留空→自动检测；true→使用 endpoint；false→禁用
   endpoint: "http://127.0.0.1:7897"  # 仅 enabled: true 时生效
-  # API 供应商上游请求（百度千帆/Tavily/Exa/AnySearch/豆包/LLM 等）是否走代理。
+  # API 供应商上游请求（百度千帆/Tavily/Exa/AnySearch/豆包/元宝/LLM 等）是否走代理。
   # 默认 false = 强制直连：即使系统设了 HTTP_PROXY/HTTPS_PROXY 环境变量也不会
   # 被静默劫持（供应商请求对环境变量代理免疫）。true 时与引擎代理共用
   # enabled/endpoint/自动检测同一套解析。
@@ -272,6 +289,7 @@ cleanfetch:
   timeout_sec: 30           # 单次请求超时（秒），默认 30
   max_fetch_size_mb: 10     # HEAD 预检最大文件大小（MB），超过拒绝抓取（默认 10）；也是 fetch_top_n 单条正文字节上限
   use_system_proxy: false   # 自动使用系统代理（环境变量+注册表），默认 false
+  auto_proxy: true          # 原生 cleanfetch/PDF 抓取自动跟随全局代理（含系统代理检测），默认 true；false = 强制直连
   max_retries: 3            # 最大重试次数（仅 429/502/503），默认 3
 
 # PDF 解析工具（默认关闭，独立于 cleanfetch）
@@ -322,7 +340,7 @@ pdf_parser:
 #     enabled: true            # 总开关（默认 true）
 #     lambda: 0.7              # 相关性-多样性权衡系数 [0,1]，越高越偏相关性（默认 0.7）
 #     target_count: 0          # MMR 后目标条数，0 = 不额外截断
-#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao）
+#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao, yuanbao）
 #     tavily_api:
 #       min_score: 0.5    # Tavily API 最低相关性分数阈值（0 = 不过滤）
 #       max_size: 6       # Tavily API 单引擎最大结果数（默认 4）
@@ -359,6 +377,10 @@ pdf_parser:
 #       min_score: 0      # Custom 回传 score；Global 不回传
 #       max_size: 4
 #       weight: 1.0
+#     yuanbao:
+#       min_score: 0      # 上游回传 0~1 相关性分数
+#       max_size: 4
+#       weight: 1.0
 
 # MCP Hub 零 Key 级联（可选，mode=mcphub 时作为搜索引擎）
 # fetch_mode 非 off 时，cleanfetch 也按同一批 server 抓取（需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
@@ -386,18 +408,20 @@ pdf_parser:
 #                         # priority: 始终从第一个供应商开始
 #                         # weighted: 按权重加权随机选起始供应商（见 weights）
 #   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，网页引擎兜底始终在末尾）
-#                         # 豆包不在默认列表；有 Key 时请显式加入
+#                         # 豆包/元宝不在默认列表；有 Key 时请显式加入
 #     - anysearch
 #     - baidu
 #     - tavily
 #     - exa
 #     # - doubao
+#     # - yuanbao
 #   weights:              # weighted 策略权重（单 Key 权重，实际权重按可用 Key 数累加）
-#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500（每月默认积分）
+#     anysearch: 30000    # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500，yuanbao=0
 #     baidu: 1500
 #     tavily: 1200
 #     exa: 1200
 #     doubao: 500
+#     yuanbao: 0          # 后付费源默认不参与加权起始；显式配正数才会被加权选中
 
 # 日志滚动
 log:
@@ -409,7 +433,7 @@ log:
 
 ## 搜索源与模式路由
 
-`baidu.enabled`、`tavily.enabled`、`exa.enabled`、`anysearch.enabled`、`doubao.enabled` 是各 API 的独立开关，省略时均视为 `true`，保持旧配置行为。关闭只停止参与路由，不删除 `api_key`、`sk_list` 或私密覆盖中的 Key。AnySearch 的有 Key 和无 Key 匿名档共用开关；其余四个 API 仍须有可用 Key。`baidu.web_enabled` 单独控制百度网页源，不受 `baidu.enabled` 影响。
+`baidu.enabled`、`tavily.enabled`、`exa.enabled`、`anysearch.enabled`、`doubao.enabled`、`yuanbao.enabled` 是各 API 的独立开关，省略时均视为 `true`，保持旧配置行为。关闭只停止参与路由，不删除 `api_key`、`sk_list` 或私密覆盖中的 Key。AnySearch 的有 Key 和无 Key 匿名档共用开关；其余五个 API 仍须有可用 Key。`baidu.web_enabled` 单独控制百度网页源，不受 `baidu.enabled` 影响。元宝的 `yuanbao.monthly_limit` 在发请求前本地拦截，达到上限后该源按不可用处理，由其他来源回退。
 
 开关决定源是否允许使用，`mode` 决定从允许源中如何选用：
 
@@ -417,7 +441,7 @@ log:
 |------|------|
 | `engine` | 仅组合已启用的网页源，不因 API 开关开启而添加 API |
 | `baidu` | 已启用且有 Key 的千帆 API，可回退至独立启用的百度网页源；无可用主源时使用已启用 Bing |
-| `tavily` / `exa` / `doubao` | 对应已启用且有 Key 的 API；不可用时使用已启用 Bing |
+| `tavily` / `exa` / `doubao` / `yuanbao` | 对应已启用且有 Key 的 API；不可用时使用已启用 Bing |
 | `anysearch` | 已启用的 AnySearch，有 Key 用 Key 池，否则匿名；关闭后仅可回退至已启用 Bing |
 | `apipool` | 按 `apipool.engines` 顺序过滤禁用/不可用 API，再执行轮转与失败切换；已启用的网页引擎作为末尾兜底；全部为空时可使用已启用 Bing |
 | `hybrid` | 并发组合已启用、可用的 API 与网页源；禁用源不参与，包括匿名 AnySearch |
@@ -427,7 +451,7 @@ log:
 
 `bing.enabled` 只控制 Bing 源及其回退，不是 `smartsearch` 的工具总开关。关闭 Bing 后，当前模式仍有其他可用路由时 `smartsearch` 继续可用；模式没有任何可用主源或回退时才不注册工具。
 
-控制台提供 `hybrid`、`engine`、`apipool` 和单供应商四个入口；单供应商下选择原有五个供应商，保存的八种 `mode` 值不变。模式与所选供应商提供悬停、聚焦或点击展开的说明。`apipool` 的实际首选还由 `apipool.strategy` 与权重决定，不承诺总按列表顺序调用。供应商优先模式仍可能使用已启用的 Bing 回退，不代表完全独占该供应商。
+控制台提供 `hybrid`、`engine`、`apipool` 和单供应商四个入口；单供应商下选择原有六个供应商，保存的十种 `mode` 值不变。模式与所选供应商提供悬停、聚焦或点击展开的说明。`apipool` 的实际首选还由 `apipool.strategy` 与权重决定，不承诺总按列表顺序调用。供应商优先模式仍可能使用已启用的 Bing 回退，不代表完全独占该供应商。
 
 `network` 当前只传入独立学术检索适配器，国内区域不注册 Semantic Scholar / Google Scholar；国际区域仍需各源开关和代理条件。它不是全局“国内/国外网页”选择，也不自动开代理。控制台将其放在高级学术连接设置。豆包站点范围独立使用 `doubao.icp_host_only`：Global 版 `true` 仅搜索国内 ICP 备案站点，`false` 不限制，并非“仅国外”；Custom 不消费此字段。版本与过滤位于供应商启动参数，保存并重启才生效，并失效旧搜索缓存。[官方 Global API](https://docs.volcengine.com/docs/Networkedsearch/doubao-search-global-edition?lang=zh)
 
@@ -506,6 +530,7 @@ dashboard:
 | `ANYSEARCH_API_KEY` | `anysearch.api_key` | AnySearch API Key（[获取地址](https://www.anysearch.com/console/api-keys)） |
 | `DOUBAO_SEARCH_API_KEY` | `doubao.api_key` | 豆包联网搜索 API Key（[控制台](https://console.volcengine.com/search-infinity/api-key)） |
 | `ASK_ECHO_SEARCH_INFINITY_API_KEY` | `doubao.api_key` | 火山官方 MCP 兼容变量名 |
+| `TENCENTCLOUD_WSA_APIKEY` | `yuanbao.api_key` | 腾讯云元宝搜索服务 API KEY（[控制台](https://console.cloud.tencent.com/wsapi/index)） |
 | `LLM_BASE_URL` | `llm.base_url` | |
 | `LLM_API_KEY` | `llm.api_key` | |
 | `LLM_SUMMARY_PROGRESS_INTERVAL` | `llm.summary_progress_interval` | |
@@ -521,7 +546,7 @@ dashboard:
 |------|--------|------|
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
 | `mode` | engine | 按模式组合允许源；不可用时仅可使用已启用回退，AnySearch 无 Key 可走匿名档 |
-| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` | true（省略） | API 源独立开关；false 保留 Key，约束所有模式；AnySearch 匿名档同受约束 |
+| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` | true（省略） | API 源独立开关；false 保留 Key，约束所有模式；AnySearch 匿名档同受约束 |
 | `dashboard.write_allowed_networks` | [] | 独立写白名单；默认仅 loopback；非法条目整体 fail-closed，仍需管理员口令 |
 | `mcp_resources` | true | MCP Resource 观测开关：`search://capabilities` 与 `search://health`，只读、不含密钥、不占工具槽位 |
 | `mcp_stateless` | false | MCP 无状态 HTTP 模式：每个 POST 独立处理、免会话握手，便于水平扩展；GET SSE 返回 405 |
@@ -531,12 +556,17 @@ dashboard:
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |
 | `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 / `weighted` 加权随机 |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao` 不在默认列表，有 Key 时显式加入 |
-| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao`/`yuanbao` 不在默认列表，有 Key 时显式加入 |
+| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分；元宝默认 0（后付费源不参与加权起始，需显式配权重） |
 | `doubao.version` | global | Global / Custom；两版并发走 hybrid，适配器内不提供 both |
 | `doubao.num_results` | 10 | Global 最大 20；Custom 最大 50 |
 | `doubao.time_range` | "" | Custom 默认时间范围；MCP 请求级 `time_range` 优先（映射 OneDay/OneWeek/OneMonth/OneYear） |
 | `doubao.need_content` | true | Custom 请求网页正文（API 快速路径）；显式 false 退回摘要 |
+| `yuanbao.monthly_limit` | 2000 | 本端月调用上限，达到后停止请求并回退其他来源；0=不限制（会产生后付费） |
+| `yuanbao.num_results` | 0 | 0=不传 Cnt（上游默认 10）；其余收敛到 10/20/30/40/50 |
+| `yuanbao.mode` | 0 | 0=公开网页 / 1=权威垂直信源 / 2=混合；0 不传（兼容极速版） |
+| `yuanbao.freshness` | "" | 默认时效 dN/mN/yN/日期；MCP 请求级 `time_range` 优先 |
+| `yuanbao.state_path` | exe 同目录 `data/yuanbao-quota.json` | 月调用计数落盘路径，重启后继续守住额度 |
 | `tavily.include_raw_content` | true | Tavily 请求返回页面原文（raw_content，快速路径）；显式 false 退回摘要片段 |
 | `exa.include_text` | true | Exa 请求返回页面正文（contents.text） |
 | `exa.text_max_characters` | 3000 | Exa 正文最大字符数 |
@@ -558,13 +588,14 @@ dashboard:
 | `academic.disable_doaj` | false | DOAJ 开放获取期刊，国内可直连 |
 | `proxy.enabled` | 未设置 | 未设置时自动检测系统代理；显式 false 禁用；显式 true 使用 endpoint |
 | `proxy.endpoint` | `http://127.0.0.1:7897` | 仅 `enabled: true` 时生效 |
-| `proxy.api_providers` | false | API 供应商上游请求（千帆/Tavily/Exa/AnySearch/豆包/LLM）是否走代理；false 强制直连，环境变量代理不生效 |
+| `proxy.api_providers` | false | API 供应商上游请求（千帆/Tavily/Exa/AnySearch/豆包/元宝/LLM）是否走代理；false 强制直连，环境变量代理不生效 |
 | `cleanfetch.enabled` | false | 仅启用 URL 抓取；工具始终注册，result_ref 正文读取与 `fetch_top_n` 不受限 |
 | `cleanfetch.file_ttl_hours` | 24 | |
 | `cleanfetch.max_inline_lines` | 100 | |
 | `cleanfetch.timeout_sec` | 30 | |
 | `cleanfetch.max_fetch_size_mb` | 10 | HEAD 预检阈值；也是 `fetch_top_n` 单条正文字节上限 |
 | `cleanfetch.use_system_proxy` | false | 自动使用系统代理（环境变量+注册表） |
+| `cleanfetch.auto_proxy` | true | 原生 cleanfetch/PDF 抓取自动跟随全局代理；false = 强制直连（不影响 API 供应商的 `proxy.api_providers`） |
 | `cleanfetch.max_retries` | 3 | 仅对 429/502/503 重试 |
 | `pdf_parser.enabled` | false | 独立于 cleanfetch |
 | `pdf_parser.max_pages` | 20 | 省略 pages 时一次最多解析的页数；单个 pages 区间宽度上限 1000 页 |

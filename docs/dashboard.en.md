@@ -108,6 +108,7 @@ dashboard:
       exa: 1000
       anysearch: 1000
       doubao: 1000
+      yuanbao: 2000             # matches the monthly free tier; enforcement uses yuanbao.monthly_limit
 
   # —— branding & presentation ——
   brand:
@@ -156,7 +157,7 @@ Current behavior:
 - **Admin manual ops** (write-gate protected): "Reset" pushes a provider's (or all) counting window to now; "Adjust" rewrites the displayed usage to a value (converted to an adjustment; raw call records untouched)
 - **Official Tavily usage first + startup sync**: Tavily is the only provider with a public usage endpoint; the server prefetches official usage in the background at startup (read-only, never a billed call) so the console has data on first open — failures stay silent and are retried on demand when the panel loads. Official numbers (credits) are shown first, falling back to local counts on failure
 
-**Why other providers only have local counts (surveyed 2026-09)**: Exa / AnySearch / Bocha (Doubao search) / Baidu Qianfan offer no official endpoint that queries quota with the search API key — Exa's usage API needs a Service Key and only returns spend in USD; Bocha and Qianfan usage APIs live behind their cloud-account signature schemes (not the search key). Check those providers' consoles for real quota; this project relies on user-set `quotas.limits` plus local real-call counting for comparison.
+**Why other providers only have local counts (surveyed 2026-09)**: Exa / AnySearch / Bocha (Doubao search) / Baidu Qianfan / Yuanbao offer no official endpoint that queries quota with the search API key — Exa's usage API needs a Service Key and only returns spend in USD; Bocha, Qianfan and Yuanbao usage APIs live behind their cloud-account signature schemes (not the search key). Check those providers' consoles for real quota; this project relies on user-set `quotas.limits` plus local real-call counting for comparison. Yuanbao additionally enforces `yuanbao.monthly_limit` before every request; the dashboard number is informational.
 
 **Planned (TODO, not in this version — don't misread)**:
 
@@ -178,7 +179,7 @@ Recognized DBLP Anubis challenge pages are recorded as human-verification failur
 
 ## Source management and saving
 
-Settings offer `hybrid`, `engine`, `apipool` and a single-provider entry. The latter selects `baidu`, `tavily`, `exa`, `anysearch` or `doubao`, saving the original `mode` value without migrating existing configurations; `mcphub` is currently configured through `config.yaml` and has no settings-page entry. Single-provider means provider preference, not removal of existing fallbacks. Mode and selected-provider information markers support hover, keyboard focus and click, based on the [v3.7.0 search-mode reference](https://github.com/daidaiJ/websearch-mcpserver/blob/v3.7.0/docs/search.md#搜索模式) with local source-switch constraints. API dispatch depends on its strategy and weights. Advanced academic network environment controls only the academic adapter region, not Doubao or all web-result geography. Desktop settings use independent content-height columns: common settings and appearance/maintenance on the left, credentials and quotas on the right, without equal-height panels. Narrow screens use one column.
+Settings offer `hybrid`, `engine`, `apipool` and a single-provider entry. The latter selects `baidu`, `tavily`, `exa`, `anysearch`, `doubao` or `yuanbao`, saving the original `mode` value without migrating existing configurations; `mcphub` is currently configured through `config.yaml` and has no settings-page entry. Single-provider means provider preference, not removal of existing fallbacks. Mode and selected-provider information markers support hover, keyboard focus and click, based on the [v3.7.0 search-mode reference](https://github.com/daidaiJ/websearch-mcpserver/blob/v3.7.0/docs/search.md#搜索模式) with local source-switch constraints. API dispatch depends on its strategy and weights. Advanced academic network environment controls only the academic adapter region, not Doubao or all web-result geography. Desktop settings use independent content-height columns: common settings and appearance/maintenance on the left, credentials and quotas on the right, without equal-height panels. Narrow screens use one column. "Fetch auto proxy" (`cleanfetch.auto_proxy`, enabled by default) independently controls whether native cleanfetch/PDF follows the global proxy; it is separate from the API-provider `proxy.api_providers` switch.
 
 The Doubao row under Search Sources / API Providers controls `doubao.version` (Global / Custom), independently of search mode. It reuses shared drafts, preview, save/restart and backup restore, remains locked under environment overrides, invalidates search caches and leaves keys unchanged. The UI offers no ICP filter editor and does not reset existing `doubao.icp_host_only` configuration.
 

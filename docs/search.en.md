@@ -34,10 +34,11 @@
 | `exa` | Exa Web Search API ([get key](https://dashboard.exa.ai/api-keys)) | `EXA_API_KEY` |
 | `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
-| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Bing + DuckDuckGo + Google) | All optional |
+| `yuanbao` | Tencent Yuanbao Search (API KEY mode; [docs](https://cloud.tencent.com/document/product/1806/130615)) | `TENCENTCLOUD_WSA_APIKEY` |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + Yuanbao if keyed + Bing + DuckDuckGo + Google) | All optional |
 | `mcphub` | Keyless hosted-MCP cascade: parallel → anysearch → exa → firecrawl, cool down and switch on failure; optional per-server key | **None** (optional key) |
 
-> All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
+> All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao`/`yuanbao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
 >
 > **Recommended**: use **`mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation) and **`apipool` when API keys are available** (multi-provider key rotation with automatic failover and web-engine fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired.
 
@@ -51,8 +52,9 @@
 | `exa` | Exa; falls back to Bing when no key |
 | `anysearch` | AnySearch; key-pool rotation with keys, anonymous tier (no auth header, IP-rate-limited) when keyless |
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
-| `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` must be listed in `apipool.engines`), Baidu web search always last |
-| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
+| `yuanbao` | Tencent Yuanbao Search (API KEY mode); once the local monthly cap is hit the source is treated as unavailable and falls back to Bing |
+| `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao`/`yuanbao` must be listed in `apipool.engines`), Baidu web search always last |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Yuanbao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
 | `mcphub` | Cascades hosted MCP servers in `mcp_hub.servers` order (default parallel → anysearch → exa → firecrawl), one per request; cools down and switches on failure, falls back to Bing when all fail |
 
 ---
@@ -71,6 +73,7 @@
 | `exa` | Exa Web Search API | ❌ | No |
 | `anysearch` | AnySearch API (built-in local blacklist filtering) | ❌ | No |
 | `doubao` | Doubao Search Global/Custom API (local blacklist; Custom returns score) | ✅ | No |
+| `yuanbao` | Tencent Yuanbao Search API KEY mode (local blacklist; returns a 0-1 relevance score) | ✅ | No |
 | `baidu_api` | Baidu Qianfan search (`enable_ai_search` controls endpoint) | ❌ | No |
 | `so360` | 360 Search (HTML, second Chinese index; disabled by default, enable via `so360.enabled`) | ❌ | No |
 | `wikipedia` | Wikipedia MediaWiki API (reference source; disabled by default, enable via `wikipedia.enabled`, `lang` picks the edition) | ❌ | Yes (auto-detected) |
@@ -203,6 +206,9 @@ smartsearch:
     doubao:            # Doubao Search (Custom returns score; Global does not)
       min_score: 0
       max_size: 4
+    yuanbao:           # Tencent Yuanbao Search (returns a 0-1 relevance score)
+      min_score: 0
+      max_size: 4
 ```
 
 **Score filtering logic**:
@@ -225,12 +231,14 @@ apipool:
     - tavily
     - exa
     # - doubao            # not in the default list; add explicitly when you have a key
+    # - yuanbao           # not in the default list; add explicitly when you have a key
   weights:                # weighted strategy weights (per-key; defaults below)
     anysearch: 30000
     baidu: 1500
     tavily: 1200
     exa: 1200
     doubao: 500           # free-tier 500 credits/month
+    yuanbao: 0            # Pay-as-you-go source stays out of weighted starts unless given a positive weight
 ```
 
 **Strategy details**:
@@ -314,7 +322,7 @@ Degradation and safety:
 |-----------|------|----------|-------------|
 | `query` | string | ✅ | Search keyword |
 | `intent` | string | ❌ | Search intent (only effective when LLM is enabled; auto-removed to save context when disabled) |
-| `time_range` | int | ❌ | Search time range in months, default 3. `1`=last month, `6`=last 6 months, `12`=last year, `0`=unlimited. Doubao Custom maps this to `OneDay`/`OneWeek`/`OneMonth`/`OneYear`; Global has no time-filter API and ignores it |
+| `time_range` | int | ❌ | Search time range in months, default 3. `1`=last month, `6`=last 6 months, `12`=last year, `0`=unlimited. Doubao Custom maps this to `OneDay`/`OneWeek`/`OneMonth`/`OneYear`; Yuanbao maps it to `dN`/`mN`/`yN`; Doubao Global has no time-filter API and ignores it |
 | `fetch_top_n` | int | ❌ | Body-fetch mode: when omitted, behaves as before — only engine/provider-provided content is returned (server config `smartsearch.fetch_top_n` can change the default, default `0` = no fetch); `0` means title+snippet+URL only; `1-5` obtains page-original text for the top N results — API engines that support full-text params (Tavily/Exa/Doubao) use the fast path directly, web engines fetch internally (no `cleanfetch.enabled` needed, webfetch lazily initializes); results already carrying sufficient body text are skipped; anti-bot blocks (JS challenge/WAF) are explicitly annotated on the result |
 
 Results include engine source and relevance score by default (for engines that support scores like Tavily / Doubao Custom). Disable via `smartsearch.show_meta: false`.

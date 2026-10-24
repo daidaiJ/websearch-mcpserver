@@ -2,6 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### 新增
+- **腾讯云元宝搜索（`yuanbao`）**：新增 API KEY 方式接入（`POST https://api.wsa.cloud.tencent.com/SearchPro`），支持 `mode: yuanbao`、hybrid 并发与显式加入 `apipool.engines`；解析 `Response.Pages[]` 的标题/URL/摘要/发布日期/score，`time_range` 映射为 `dN`/`mN`/`yN`，支持 `site`/`industry`/`mode` 过滤、本地黑名单与 `sk_list` 多 Key 轮询
+- **元宝月度调用硬上限**：`yuanbao.monthly_limit` 默认 2000（对齐每月免费额度），每次请求前本地计数并在达到上限后停止调用、回退其他来源；计数落盘 `data/yuanbao-quota.json`，重启后继续生效。`0` 显式关闭上限即接受后付费
+- 控制中心加入元宝来源卡片与 `TENCENTCLOUD_WSA_APIKEY` 密钥状态；`apipool.weights.yuanbao` 默认 0，后付费源不参与加权起始
+- **原生抓取独立代理开关**：`cleanfetch.auto_proxy`（默认 true）控制 cleanfetch/PDF 是否自动跟随全局代理，WebUI 增加“抓取自动走代理”开关；关闭后强制直连，不再受系统代理影响，与 API 供应商的 `proxy.api_providers` 解耦
+
 ## v3.9.0 — 2026-10-22（零 Key MCP 级联与观测护栏）
 
 > 本版包含路线图首批八项落地（`b780769`）、`feat/parallel-mcp` 分支合入的零 Key 托管 MCP 级联模式，以及吸收 [@MattLYT](https://github.com/MattLYT) 的 [PR #26](https://github.com/daidaiJ/websearch-mcpserver/pull/26)（Wikipedia 检索操作符剥离，merge `0d94295`）。

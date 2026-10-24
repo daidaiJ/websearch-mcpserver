@@ -52,7 +52,7 @@
 | 没有 / 不想注册任何 Key | `mcphub`（推荐） | 零 Key 托管 MCP 级联（Parallel → AnySearch → Exa → Firecrawl），失败冷却后切换，最终回退 Bing |
 | 只依赖本地网页引擎、不需要 MCP | `engine` | 百度网页 + Bing 并发，零配置可用（代理可用时自动加入 DuckDuckGo） |
 | 只有百度千帆 Key | `baidu` | 千帆搜索失败自动回退百度网页搜索 |
-| 只有一家海外供应商的 Key | `tavily` / `exa` / `anysearch` / `doubao` | 对应单一供应商模式，无 Key 时回退 Bing |
+| 只有一家海外供应商的 Key | `tavily` / `exa` / `anysearch` / `doubao` / `yuanbao` | 对应单一供应商模式，无 Key 时回退 Bing |
 | 有多家 Key，想省额度自动切换 | `apipool` | 每次只调一家，失败自动换下一家，最后网页引擎兜底 |
 | Key 多、求结果覆盖面 | `hybrid` | 全引擎并发，多引擎共识参与评分 |
 

@@ -29,7 +29,7 @@ An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo
 Layered design: clients see up to five MCP tools; the engine group is assembled by `mode`; scoring, cache, proxy, and fetch all run in-process. Queries never pass through a third-party aggregator.
 
 <p align="center">
-  <img src="docs/images/architecture.png" alt="System architecture: client, retrieval protocol and dashboard, orchestration, 8 general and 9 academic engines, supporting components" width="900">
+  <img src="docs/images/architecture.png" alt="System architecture: client, retrieval protocol and dashboard, orchestration, 9 general and 9 academic engines, supporting components" width="900">
 </p>
 
 | Layer | Role |
@@ -37,7 +37,7 @@ Layered design: clients see up to five MCP tools; the engine group is assembled 
 | **Client** | Claude Code / Qwen Code / Cursor / HTTP API / embed as a Go module |
 | **Protocol** | `/mcp` up to five tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console · `/metrics` Prometheus observability |
 | **Orchestration** | `factory` / `mode` · `hybrid` / `apipool` / `mcphub` · `enhance` (RRF / Boost / MMR) |
-| **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao + 4 hosted MCP upstreams; 9 academic sources in parallel |
+| **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao / Yuanbao + 4 hosted MCP upstreams; 9 academic sources in parallel |
 | **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary, Everything |
 
 Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md](docs/architecture.en.md).
@@ -59,7 +59,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | Capability | Description |
 |------------|-------------|
 | Zero-key search | Recommended `mcphub`: hosted-MCP cascade over Parallel / AnySearch / Exa / Firecrawl with cooldown failover, no API keys required; `engine` mode uses local Baidu web + Bing instead |
-| Multi-engine fusion | Multiple search modes, 8 general engines + 4 hosted MCP upstreams + 9 academic engines, auto-fallback on primary failure |
+| Multi-engine fusion | Multiple search modes, 9 general engines + 4 hosted MCP upstreams + 9 academic engines, auto-fallback on primary failure |
 | Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up mirrors / reposts |
 | Response transparency | Failure lists, date and retrieval provenance; request cancellation propagates through every engine with a per-engine soft timeout; oversize search results retain candidate previews and a `result_ref` for complete body delivery through the `cleanfetch` saved-result mode |
 | Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |
@@ -125,7 +125,7 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 
 ## Search Modes at a Glance
 
-The single `mode` field decides the engine group: **use `mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation); **use `apipool` when API keys are available** (multi-provider key rotation with automatic failover and web-engine fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired; `baidu` / `tavily` / `exa` / `anysearch` / `doubao` are single-provider modes (they participate only with a key, with auto-fallback on failure); `hybrid` runs all engines concurrently. `mcphub` also supports `rotation_engines` to share load with local engines and automatically enables/skips proxy-required upstreams. Missing keys auto-degrade to `engine`.
+The single `mode` field decides the engine group: **use `mcphub` for zero-key deployments** (hosted-MCP cascade with cooldown and local-engine/Bing degradation); **use `apipool` when API keys are available** (multi-provider key rotation with automatic failover and web-engine fallback). `engine` remains the choice when only local web engines are needed and MCP is not desired; `baidu` / `tavily` / `exa` / `anysearch` / `doubao` / `yuanbao` are single-provider modes (they participate only with a key, with auto-fallback on failure); `hybrid` runs all engines concurrently. `mcphub` also supports `rotation_engines` to share load with local engines and automatically enables/skips proxy-required upstreams. Missing keys auto-degrade to `engine`.
 
 Participating engines per mode, key-signup links, `sk_list` multi-key rotation, and per-engine rate limits: [docs/search.en.md](docs/search.en.md).
 

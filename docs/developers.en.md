@@ -40,13 +40,13 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | `search` (root) | **Composition root**: `SearchGroup` assembly + public type aliases (external code keeps using `search.SearchResult` etc.) | `NewFromConfig(conf) *SearchGroup`, `SearchGroup{Primary, Fallback, Academic}` |
 | `search/core` | Type-contract leaf: shared by all subpackages, **must not** import other search subpackages | `SearchInf`, `SearchResult`, `SearchTimeRanger`, `ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`, `DiagnosticsSearcher`/`ContextDiagnosticsSearcher`, `AcademicSearcher`, `ScoreBucket`, `FilterByScore/SortByScore`, `NormalizeURL`, `FormatMD` result formatters |
 | `search/engine` | Low-level web engines (HTTP fetching + anti-bot params), implement `antirobot.Engine` | `Engine` + `Opts` of `baidu/bing/ddg/google` |
-| `search/provider` | API provider adapters (implement `SearchInf`) + key pool | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewBaiduAISearch/NewBaiduSeach`, `KeyPool` (per-provider SK rotation), `KeyError` |
+| `search/provider` | API provider adapters (implement `SearchInf`) + key pool | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`, `KeyPool` (per-provider SK rotation), `KeyError` |
 | `search/provider/mcphub` | Hosted-MCP cascade hub (implements `SearchInf` + `Fetch`) | `New`, presets (parallel/anysearch/exa/firecrawl), MCP Streamable HTTP client, `priority`/`round-robin`, engine backends in rotation/fallback, independent search/fetch cooldowns |
 | `search/adapter` | Adapts "non-API" sources into `SearchInf` | `EngineSearchAdapter` (antirobot.Engine → SearchInf), `BingSearchAdapter`, `BaiduWithFallback`, `AcademicAdapter` |
 | `search/apipool` | Cross-provider rotation strategy (sibling of hybrid) | `ApipoolSearchImpl` (round-robin/priority/weighted), `ApipoolProvider` |
 | `search/hybrid` | Concurrent multi-engine strategy | `HybridSearchImpl` (concurrent calls, request-context propagation with per-engine soft timeout, dedup & merge, per-engine `EngineFilter`, failure diagnostics) |
 | `search/enhance` | Advanced scoring pipeline (works on `ScoreBucket`, engine-agnostic) | `EnhanceResults/EnhanceResultsMMR` (RRF/domain quality/lexical alignment/rare-terms/consensus boost/threshold), `ApplyMMR`, `EnhanceAcademicResults` (academic signals: citations/venue/PDF/recency) |
-| `search/mode` | Search-mode construction: assembles Primary per `config.mode` | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildApipoolMode/BuildHybridMode/BuildMCPHubMode`, `InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
+| `search/mode` | Search-mode construction: assembles Primary per `config.mode` | `BuildEngineMode/BuildBaiduMode/BuildTavilyMode/BuildExaMode/BuildAnysearchMode/BuildDoubaoMode/BuildYuanbaoMode/BuildApipoolMode/BuildHybridMode/BuildMCPHubMode`, `InitBingEngine/InitBaiduWebEngine/InitGoogleEngine/InitDuckDuckGoEngine/InitAcademicEngine` |
 
 ### Other domain packages
 

@@ -2,6 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### Added
+- **Tencent Yuanbao Search (`yuanbao`)**: API KEY mode (`POST https://api.wsa.cloud.tencent.com/SearchPro`) with `mode: yuanbao`, hybrid participation and explicit `apipool.engines` opt-in; parses `Response.Pages[]` title/URL/snippet/date/score, maps `time_range` to `dN`/`mN`/`yN`, supports `site`/`industry`/`mode` filters, local blacklists and `sk_list` rotation
+- **Hard local monthly cap for Yuanbao**: `yuanbao.monthly_limit` defaults to 2000 (matching the monthly free tier); calls are counted before each request and stop at the cap, falling back to other sources. The counter persists in `data/yuanbao-quota.json` across restarts. Setting `0` explicitly disables the cap and accepts pay-as-you-go charges
+- Dashboard source card and `TENCENTCLOUD_WSA_APIKEY` secret status for Yuanbao; `apipool.weights.yuanbao` defaults to 0 so the pay-as-you-go source stays out of weighted starts
+- **Independent native-fetch proxy switch**: `cleanfetch.auto_proxy` (default true) controls whether cleanfetch/PDF follows the global proxy, with a "Fetch auto proxy" toggle in the WebUI. Disabling it forces direct connections regardless of system proxy, decoupled from the API-provider `proxy.api_providers` switch
+
 ## v3.9.0 — 2026-10-22 (Keyless MCP cascade and observability guardrails)
 
 > This release bundles the first roadmap batch (`b780769`), the keyless hosted-MCP cascade mode merged from the `feat/parallel-mcp` branch, and the absorbed [PR #26](https://github.com/daidaiJ/websearch-mcpserver/pull/26) by [@MattLYT](https://github.com/MattLYT) (Wikipedia search-operator stripping, merge `0d94295`).

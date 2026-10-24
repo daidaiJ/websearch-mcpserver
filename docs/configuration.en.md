@@ -75,7 +75,7 @@ mcp_stateless: false        # Stateless MCP HTTP mode (default false = stateful)
 mcp_resources: true         # MCP Resource observability (default true): search://capabilities and
                             # search://health — read-only, secret-free, no tool slot; false to disable
 log_level: info             # debug / info / warn / error
-mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / hybrid / engine / mcphub
+mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / yuanbao / hybrid / engine / mcphub
 network: china              # Academic adapter region; not web-source selection or Doubao site scope
 
 # Global rate limit (applies to all search engines)
@@ -146,6 +146,23 @@ doubao:
   auth_level: 0             # Custom: 0=default, 1=highly authoritative sources only
   query_rewrite: false      # Custom: enable query rewriting
   need_content: false       # Custom: request full page content
+
+# Tencent Yuanbao Search (API KEY mode; mode=yuanbao/hybrid; add to apipool.engines explicitly)
+# Docs: https://cloud.tencent.com/document/product/1806/130615
+# Console: https://console.cloud.tencent.com/wsapi/index
+# 2,000 free calls per month; usage beyond that is billed pay-as-you-go (about CNY 20 per 1,000 calls,
+# subject to official pricing). The local monthly cap stops calls at 2,000 by default to avoid surprise bills.
+yuanbao:
+  enabled: true             # API source switch; false keeps api_key/sk_list
+  api_key: ""               # Env: TENCENTCLOUD_WSA_APIKEY (single key is used as sk_list when sk_list is empty)
+  sk_list: []               # Multi-key rotation list (priority over api_key; duplicates are deduplicated)
+  num_results: 0            # 0=omit Cnt (upstream default 10); other values clamp to 10/20/30/40/50
+  mode: 0                   # 0=public web / 1=authoritative vertical sources / 2=mixed; 0 is omitted (lite-compatible)
+  site: ""                  # One site (qq.com) or exclusion (exclude:qq.com|sohu.com, up to 5)
+  industry: ""              # gov / news / acad / finance
+  freshness: ""             # Default dN/mN/yN/date; MCP request-level time_range wins
+  monthly_limit: 2000       # Local monthly cap; 0=unlimited (accepts pay-as-you-go risk); positive=custom cap
+  state_path: ""            # Counter file; empty = data/yuanbao-quota.json beside the executable
 
 # Bing engine (fallback + engine mode primary, no key needed)
 bing:
@@ -275,6 +292,7 @@ cleanfetch:
   timeout_sec: 30           # Per-request timeout (seconds), default 30
   max_fetch_size_mb: 10     # HEAD pre-check max file size (MB), reject above (default 10); also the per-result byte cap for fetch_top_n
   use_system_proxy: false   # Auto-use system proxy (env vars + Windows registry), default false
+  auto_proxy: true          # Native cleanfetch/PDF fetches follow the global proxy (including system-proxy detection), default true; false = force direct
   max_retries: 3            # Max retries (429/502/503 only), default 3
 
 # PDF parser (disabled by default, independent of cleanfetch)
@@ -312,7 +330,7 @@ pdf_parser:
 #     enabled: true            # Master switch (default true)
 #     lambda: 0.7              # Relevance-diversity tradeoff [0,1], higher = more relevance (default 0.7)
 #     target_count: 0          # Target count after MMR, 0 = no extra truncation
-#   engines:              # Per-engine config (names: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao)
+#   engines:              # Per-engine config (names: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao, yuanbao)
 #     tavily_api:
 #       min_score: 0.5    # Tavily API minimum relevance score threshold (0 = no filter)
 #       max_size: 6       # Tavily API per-engine max results (default 4)
@@ -349,6 +367,10 @@ pdf_parser:
 #       min_score: 0      # Custom returns score; Global does not
 #       max_size: 4
 #       weight: 1.0
+#     yuanbao:
+#       min_score: 0      # Upstream returns a 0-1 relevance score
+#       max_size: 4
+#       weight: 1.0
 
 # Keyless MCP Hub cascade (optional; search engine when mode=mcphub)
 # When fetch_mode is not off, cleanfetch also uses the same servers (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
@@ -376,18 +398,20 @@ pdf_parser:
 #                         # priority: always start from first provider
 #                         # weighted: weighted-random starting provider (see weights)
 #   engines:              # Provider priority order (default [anysearch, baidu, tavily, exa], web-engine fallback always last)
-#                         # Doubao is not in the default list; add it explicitly when you have a key
+#                         # Doubao/Yuanbao are not in the default list; add them explicitly when you have a key
 #     - anysearch
 #     - baidu
 #     - tavily
 #     - exa
 #     # - doubao
+#     # - yuanbao
 #   weights:              # weighted strategy weights (per-key, accumulated by available key count)
-#     anysearch: 30000    # defaults: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 (monthly free-tier credits)
+#     anysearch: 30000    # defaults: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0
 #     baidu: 1500
 #     tavily: 1200
 #     exa: 1200
 #     doubao: 500
+#     yuanbao: 0          # Pay-as-you-go source stays out of weighted starts unless given a positive weight
 
 # Log rotation
 
@@ -416,7 +440,7 @@ log:
 
 ## Search Sources and Mode Routing
 
-`baidu.enabled`, `tavily.enabled`, `exa.enabled`, `anysearch.enabled`, and `doubao.enabled` independently control the five API sources. Omitted switches mean `true`, preserving existing configurations. Disabling a source removes it from routing without deleting `api_key`, `sk_list`, or secret-overlay keys. AnySearch uses the same switch for keyed and anonymous access; the other four APIs still require usable keys. `baidu.web_enabled` independently controls the Baidu web source.
+`baidu.enabled`, `tavily.enabled`, `exa.enabled`, `anysearch.enabled`, `doubao.enabled`, and `yuanbao.enabled` independently control the six API sources. Omitted switches mean `true`, preserving existing configurations. Disabling a source removes it from routing without deleting `api_key`, `sk_list`, or secret-overlay keys. AnySearch uses the same switch for keyed and anonymous access; the other five APIs still require usable keys. `baidu.web_enabled` independently controls the Baidu web source. Yuanbao's `yuanbao.monthly_limit` is enforced locally before each request; once the cap is reached the source is treated as unavailable and other sources take over.
 
 Source switches permit or deny a source; `mode` selects among permitted sources:
 
@@ -424,7 +448,7 @@ Source switches permit or deny a source; `mode` selects among permitted sources:
 |------|---------|
 | `engine` | Enabled web sources only; enabling an API does not add it to this mode |
 | `baidu` | Enabled, keyed Qianfan API, optionally falling back to independently enabled Baidu web; enabled Bing if no primary source is usable |
-| `tavily` / `exa` / `doubao` | The enabled, keyed API; enabled Bing when that source is unavailable |
+| `tavily` / `exa` / `doubao` / `yuanbao` | The enabled, keyed API; enabled Bing when that source is unavailable |
 | `anysearch` | Enabled AnySearch with key rotation or the anonymous tier; disabled AnySearch can only fall back to enabled Bing |
 | `apipool` | Filter disabled/unusable APIs from `apipool.engines`, then rotate and fail over; enabled web engines serve as the final fallback; enabled Bing can be used if the pool is empty |
 | `hybrid` | Combine enabled, usable APIs and web sources concurrently; disabled sources, including anonymous AnySearch, are excluded |
@@ -434,7 +458,7 @@ Source switches permit or deny a source; `mode` selects among permitted sources:
 
 `bing.enabled` controls only the Bing source and its fallback, not the `smartsearch` tool itself. With Bing disabled, another usable route in the configured mode keeps `smartsearch` available. The tool is not registered only when that mode has no usable primary or fallback.
 
-The console offers `hybrid`, `engine`, `apipool` and a single-provider entry; the latter selects the five existing providers while preserving the eight persisted `mode` values. Mode and selected-provider descriptions support hover, focus or click. The pool's first provider also depends on `apipool.strategy` and weights, so list-order dispatch is not guaranteed. Provider preference can still use an enabled Bing fallback; it is not an exclusive-provider promise.
+The console offers `hybrid`, `engine`, `apipool` and a single-provider entry; the latter selects the six existing providers while preserving the ten persisted `mode` values. Mode and selected-provider descriptions support hover, focus or click. The pool's first provider also depends on `apipool.strategy` and weights, so list-order dispatch is not guaranteed. Provider preference can still use an enabled Bing fallback; it is not an exclusive-provider promise.
 
 `network` currently feeds only the independent academic adapter: China region excludes Semantic Scholar / Google Scholar, while international region still requires each source switch and proxy prerequisites. It is not a global domestic/international web toggle or an automatic proxy switch. The console places it under advanced academic connection settings. Doubao scope is separate: Global `doubao.icp_host_only: true` restricts results to China ICP-filed sites; `false` means unrestricted, not foreign-only. Custom does not consume this field. Version and scope live under provider startup parameters, take effect after save/restart, and invalidate previous search caches. [Official Global API](https://docs.volcengine.com/docs/Networkedsearch/doubao-search-global-edition?lang=zh)
 
@@ -511,6 +535,7 @@ dashboard:
 | `ANYSEARCH_API_KEY` | `anysearch.api_key` | AnySearch API Key ([get key](https://www.anysearch.com/console/api-keys)) |
 | `DOUBAO_SEARCH_API_KEY` | `doubao.api_key` | Doubao Search API Key ([console](https://console.volcengine.com/search-infinity/api-key)) |
 | `ASK_ECHO_SEARCH_INFINITY_API_KEY` | `doubao.api_key` | Official Volcengine MCP-compatible variable name |
+| `TENCENTCLOUD_WSA_APIKEY` | `yuanbao.api_key` | Tencent Yuanbao Search service API KEY ([console](https://console.cloud.tencent.com/wsapi/index)) |
 | `LLM_BASE_URL` | `llm.base_url` | |
 | `LLM_API_KEY` | `llm.api_key` | |
 | `LLM_SUMMARY_PROGRESS_INTERVAL` | `llm.summary_progress_interval` | |
@@ -526,7 +551,7 @@ dashboard:
 |-------|---------|-------|
 | `port` | 8338 | stop/kill/status also use this port when no config |
 | `mode` | engine | Selects permitted sources; only enabled fallbacks can be used, while keyless AnySearch can use its anonymous tier |
-| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` | true (omitted) | Independent API source switches; false keeps keys and applies to every mode, including anonymous AnySearch |
+| `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` | true (omitted) | Independent API source switches; false keeps keys and applies to every mode, including anonymous AnySearch |
 | `dashboard.write_allowed_networks` | [] | Independent write allowlist; loopback-only by default; invalid entries fail closed; admin password still required |
 | `mcp_resources` | true | MCP Resource observability toggle: `search://capabilities` and `search://health`, read-only, secret-free, no tool slot |
 | `mcp_stateless` | false | Stateless MCP HTTP mode: each POST handled independently, no session handshake, easier horizontal scaling; GET SSE returns 405 |
@@ -536,12 +561,17 @@ dashboard:
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
 | `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order / `weighted` weighted-random |
-| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao` is not in the default list — add it explicitly when you have a key |
-| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits |
+| `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao`/`yuanbao` are not in the default list — add them explicitly when you have a key |
+| `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits; yuanbao defaults to 0 (pay-as-you-go source stays out of weighted starts unless configured) |
 | `doubao.version` | global | Global / Custom; concurrent both goes through hybrid, not inside the adapter |
 | `doubao.num_results` | 10 | Global max 20; Custom max 50 |
 | `doubao.time_range` | "" | Custom default; MCP request-level `time_range` wins (mapped to OneDay/OneWeek/OneMonth/OneYear) |
 | `doubao.need_content` | true | Custom requests full page content (API fast path); explicit false falls back to summaries |
+| `yuanbao.monthly_limit` | 2000 | Local monthly call cap; once reached, requests stop and other sources take over; 0=unlimited (incurs pay-as-you-go charges) |
+| `yuanbao.num_results` | 0 | 0=omit Cnt (upstream default 10); other values clamp to 10/20/30/40/50 |
+| `yuanbao.mode` | 0 | 0=public web / 1=authoritative vertical sources / 2=mixed; 0 is omitted (lite-compatible) |
+| `yuanbao.freshness` | "" | Default dN/mN/yN/date; MCP request-level `time_range` wins |
+| `yuanbao.state_path` | `data/yuanbao-quota.json` beside the executable | Counter file; the cap survives restarts |
 | `tavily.include_raw_content` | true | Tavily requests raw page content (raw_content, fast path); explicit false falls back to excerpts |
 | `exa.include_text` | true | Exa requests page body text (contents.text) |
 | `exa.text_max_characters` | 3000 | Max characters of Exa body text |
@@ -563,13 +593,14 @@ dashboard:
 | `academic.disable_doaj` | false | DOAJ open-access journals, reachable from China |
 | `proxy.enabled` | unset | Auto-detects system proxy when not set; explicit false disables; explicit true uses endpoint |
 | `proxy.endpoint` | `http://127.0.0.1:7897` | Only effective when `enabled: true` |
-| `proxy.api_providers` | false | Whether upstream API-provider requests (Qianfan/Tavily/Exa/AnySearch/Doubao/LLM) use the proxy; false forces direct connections immune to proxy env vars |
+| `proxy.api_providers` | false | Whether upstream API-provider requests (Qianfan/Tavily/Exa/AnySearch/Doubao/Yuanbao/LLM) use the proxy; false forces direct connections immune to proxy env vars |
 | `cleanfetch.enabled` | false | Only gates URL fetching; cleanfetch is always registered, result_ref reads and `fetch_top_n` are not gated |
 | `cleanfetch.file_ttl_hours` | 24 | |
 | `cleanfetch.max_inline_lines` | 100 | |
 | `cleanfetch.timeout_sec` | 30 | |
 | `cleanfetch.max_fetch_size_mb` | 10 | HEAD pre-check threshold; also the per-result byte cap for `fetch_top_n` |
 | `cleanfetch.use_system_proxy` | false | Auto-use system proxy (env vars + Windows registry) |
+| `cleanfetch.auto_proxy` | true | Native cleanfetch/PDF fetches follow the global proxy; false = force direct (independent of the API-provider `proxy.api_providers` switch) |
 | `cleanfetch.max_retries` | 3 | Only retries on 429/502/503 |
 | `pdf_parser.enabled` | false | Independent of cleanfetch |
 | `pdf_parser.max_pages` | 20 | Max pages parsed per call when pages is omitted; a single pages range is capped at 1000 pages wide |

@@ -40,6 +40,7 @@ log_level: info
 #   - exa        : 优先 Exa API；失败可回退已启用 Bing
 #   - anysearch  : 优先 AnySearch API/匿名档；失败可回退已启用 Bing
 #   - doubao     : 优先豆包 Global/Custom；失败可回退已启用 Bing
+#   - yuanbao    : 优先腾讯云元宝搜索（API KEY 方式）；失败可回退已启用 Bing
 #   - hybrid     : 已开启且满足凭证/代理条件的 API 与网页源并发混合
 #   - engine     : 已开启且满足代理条件的网页源并行，无需 API Key
 #   - mcphub     : 零 Key 托管 MCP 级联（parallel → anysearch → exa → firecrawl），支持可选 Key
@@ -157,6 +158,27 @@ rate_limit:
 #   auth_level: 0         # Custom: 0=默认，1=仅非常权威来源
 #   query_rewrite: false  # Custom: 是否启用查询改写
 #   need_content: false   # Custom: 是否请求网页正文
+
+# ==============================================
+# 腾讯云元宝搜索（API KEY 方式；mode=yuanbao/hybrid 时；apipool 需显式加入 engines）
+# 文档: https://cloud.tencent.com/document/product/1806/130615
+# 控制台: https://console.cloud.tencent.com/wsapi/index
+# 环境变量: TENCENTCLOUD_WSA_APIKEY
+# 每月免费额度 2000 次，超出后按量后付费（约 20 元/千次，以官网计费为准）；
+# 默认本地月上限 2000 次，达到后停止调用并回退其他来源，避免意外后付费。
+# ==============================================
+# yuanbao:
+#   enabled: true         # API 源开关；false 保留 api_key/sk_list
+#   api_key: ""           # 单 Key（sk_list 为空时自动作为单元素列表）
+#   sk_list:              # 多 Key 轮询列表（优先级高于 api_key）
+#     - "sk-xxxx"
+#   num_results: 0        # 0=不传 Cnt（上游默认 10）；其余收敛到 10/20/30/40/50
+#   mode: 0               # 0=公开网页 / 1=权威垂直信源 / 2=混合；0 不传（兼容极速版）
+#   site: ""              # 指定站点或过滤：qq.com / exclude:qq.com|sohu.com（最多 5 个）
+#   industry: ""          # gov / news / acad / finance
+#   freshness: ""         # 默认时效 dN/mN/yN/日期；MCP 请求级 time_range 优先
+#   monthly_limit: 2000   # 本端月调用上限；0=不限制（会承担后付费风险）
+#   state_path: ""        # 月计数落盘路径；空 = exe 同目录 data/yuanbao-quota.json
 
 # ==============================================
 # Bing 通用搜索引擎（兜底引擎 + engine 模式主力引擎）
@@ -301,6 +323,7 @@ cleanfetch:
   timeout_sec: 30           # 单次请求超时（秒），默认 30；经代理访问海外站点建议 30~60
   max_fetch_size_mb: 10     # HEAD 预检最大文件大小（MB），超过拒绝抓取（默认 10）；也是 fetch_top_n 单条正文字节上限
   use_system_proxy: false   # 自动使用系统代理（环境变量+注册表），默认 false
+  auto_proxy: true          # 原生 cleanfetch 自动跟随全局代理（含系统代理检测），默认 true；false = 强制直连
   max_retries: 3            # 最大重试次数（仅 429/502/503），默认 3
 
 # ==============================================
@@ -356,7 +379,7 @@ log:
 #     enabled: true            # 总开关（默认 true）
 #     lambda: 0.7              # 相关性-多样性权衡系数 [0,1]，越高越偏相关性，越低越偏多样性（默认 0.7）
 #     target_count: 0          # MMR 后目标条数，0 = 不额外截断（由 max_size 统一截断）
-#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao）
+#   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao, yuanbao）
 #     tavily_api:
 #       min_score: 0.5    # Tavily API 最低相关性分数阈值（0 = 不过滤）
 #       max_size: 6       # Tavily API 单引擎最大结果数（默认 4）
@@ -425,19 +448,21 @@ log:
 #                         #   priority: 始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 引擎兜底
 #                         #   weighted: 按权重加权随机选起始供应商，突发请求天然分散（权重见 weights）
 #   engines:              # 供应商优先级顺序（默认 [anysearch, baidu, tavily, exa]，网页引擎兜底始终在末尾）
-#                         # 豆包不在默认列表；有 Key 时请显式加入 - doubao
+#                         # 豆包/元宝不在默认列表；有 Key 时请显式加入
 #     - anysearch
 #     - baidu
 #     - tavily
 #     - exa
 #     # - doubao          # 不在默认列表；有 Key 时显式加入
+#     # - yuanbao         # 不在默认列表；有 Key 时显式加入
 #   weights:              # weighted 策略的供应商权重（单 Key 权重，实际权重 = 配置权重 × 当前可用 Key 数累加）
-#                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500（每月默认积分）；显式 0 = 不参与加权起始选择
+#                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0；显式 0 = 不参与加权起始选择
 #     anysearch: 30000
 #     baidu: 1500
 #     tavily: 1200
 #     exa: 1200
 #     doubao: 500
+#     yuanbao: 0          # 后付费源默认不参与加权起始；显式配正数才会被加权选中
 
 # ==============================================
 # 本机控制中心（可选；不执行主动健康探测）

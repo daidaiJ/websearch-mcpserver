@@ -49,6 +49,7 @@ dashboard:
       exa: 1000
       anysearch: 1000
       doubao: 1000
+      yuanbao: 2000       # 对齐元宝每月免费额度；实际拦截以 yuanbao.monthly_limit 为准
 
   # 品牌呈现（更开放：自托管可打自己的牌子）
   brand:

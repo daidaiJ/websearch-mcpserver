@@ -52,7 +52,7 @@ Client registration JSON, Docker, systemd/launchd daemons and other deployment o
 | No / no desire for API keys | `mcphub` (recommended) | Zero-key hosted-MCP cascade (Parallel → AnySearch → Exa → Firecrawl), switches after cooldown, ultimately falls back to Bing |
 | Local web engines only, no MCP | `engine` | Baidu web + Bing concurrent, zero-config (DuckDuckGo joins automatically when a proxy is available) |
 | Only a Baidu Qianfan key | `baidu` | Qianfan search falls back to Baidu web search on failure |
-| One overseas provider key | `tavily` / `exa` / `anysearch` / `doubao` | Single-provider mode; falls back to Bing without a key |
+| One overseas provider key | `tavily` / `exa` / `anysearch` / `doubao` / `yuanbao` | Single-provider mode; falls back to Bing without a key |
 | Several keys, want quota-saving failover | `apipool` | One provider per request, auto-switch on failure, web-engine fallback |
 | Many keys, want maximum coverage | `hybrid` | All engines concurrent; multi-engine consensus feeds the scoring |
 

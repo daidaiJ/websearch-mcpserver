@@ -29,7 +29,7 @@
 分层设计：客户端最多面对 5 个 MCP 工具；引擎组由 `mode` 组装；评分、缓存、代理、抓取都在本进程内完成，查询不会经过第三方聚合服务。
 
 <p align="center">
-  <img src="docs/images/architecture.png" alt="系统组成架构：接入层、检索协议层与 dashboard、编排层、8 个通用引擎与 9 个学术引擎、支撑组件" width="900">
+  <img src="docs/images/architecture.png" alt="系统组成架构：接入层、检索协议层与 dashboard、编排层、9 个通用引擎与 9 个学术引擎、支撑组件" width="900">
 </p>
 
 | 层 | 做什么 |
@@ -37,7 +37,7 @@
 | **接入** | Claude Code / Qwen Code / Cursor / HTTP API / 嵌入 Go 模块 |
 | **协议** | `/mcp` 最多五个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 · `/metrics` Prometheus 观测 |
 | **编排** | `factory` / `mode` 组装 · `hybrid` / `apipool` / `mcphub` · `enhance`（RRF / Boost / MMR） |
-| **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包 + 4 个托管 MCP 上游；学术 9 源并行 |
+| **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包 / 元宝 + 4 个托管 MCP 上游；学术 9 源并行 |
 | **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要、Everything |
 
 更完整的回退链、代理检测与嵌入方式见 [docs/architecture.md](docs/architecture.md)。
@@ -59,7 +59,7 @@
 | 能力 | 说明 |
 |------|------|
 | 零 Key 搜索 | 推荐 `mcphub`：Parallel / AnySearch / Exa / Firecrawl 托管 MCP 级联，失败冷却后切换，无需 API Key；`engine` 模式则走百度网页 + Bing 等本地引擎 |
-| 多引擎融合 | 多种搜索模式、8 个通用引擎 + 4 个托管 MCP 上游 + 9 个学术引擎，主引擎失败自动回退 |
+| 多引擎融合 | 多种搜索模式、9 个通用引擎 + 4 个托管 MCP 上游 + 9 个学术引擎，主引擎失败自动回退 |
 | 相关性评分 | RRF 融合排名 + 词汇对齐 / 域名品质 / 共识 / 权威 / 时效加分，低分自动裁剪；MMR 打散转载 / 镜像 |
 | 响应透明 | 失败清单、日期与检索溯源；请求取消贯穿各引擎并带单引擎软超时；超限搜索保留候选预览，完整结果落盘后提供 `result_ref`，通过 `cleanfetch` 的引用读取模式分段读取 |
 | 学术搜索 | 9 大学术引擎并行，按引用数 / 期刊权威 / PDF 可用性 / 新鲜度评分；DOI 跨引擎去重 |
@@ -125,7 +125,7 @@ autostart.vbs
 
 ## 搜索模式速览
 
-`mode` 一个字段决定引擎组合：**零 Key 推荐 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 推荐 `apipool`**（多供应商 Key 池轮转，失败自动切换，网页引擎兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景；`baidu` / `tavily` / `exa` / `anysearch` / `doubao` 为单供应商直连（有 Key 才参与，主引擎失败自动回退）；`hybrid` 全引擎并发；`mcphub` 支持 `rotation_engines` 把本地引擎加入轮转、按代理可用性自动启用/跳过需代理上游。无 Key 时单供应商模式自动降级为 `engine`。
+`mode` 一个字段决定引擎组合：**零 Key 推荐 `mcphub`**（托管 MCP 级联，失败冷却 + 本地引擎/Bing 降级）；**有 API Key 推荐 `apipool`**（多供应商 Key 池轮转，失败自动切换，网页引擎兜底）。`engine` 适合只依赖本地网页引擎、不需要 MCP 的场景；`baidu` / `tavily` / `exa` / `anysearch` / `doubao` / `yuanbao` 为单供应商直连（有 Key 才参与，主引擎失败自动回退）；`hybrid` 全引擎并发；`mcphub` 支持 `rotation_engines` 把本地引擎加入轮转、按代理可用性自动启用/跳过需代理上游。无 Key 时单供应商模式自动降级为 `engine`。
 
 各模式的参与引擎、获取 Key 入口、`sk_list` 多 Key 轮询与逐引擎限流口径见 [docs/search.md](docs/search.md)。
 
