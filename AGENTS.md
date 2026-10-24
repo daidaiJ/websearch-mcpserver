@@ -187,12 +187,12 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### eco-absorb 供应商扩展批 — done（已合入 master，未打版本 tag）
+### eco-absorb 供应商扩展批 — done（已随 v3.10.0 发布）
 
-- **当前状态：** 10 提交经 `git merge --no-ff` 合入 master（merge `0aa96ba`，父提交 `566c712` + `3d78aa1`）；按用户要求**本次不打 tag**，改动留在 CHANGELOG `Unreleased`，待后续提交再统一发版
-- **关键证据：** 分支远端 head `3d78aa1`（本地 worktree 已删除）；TinyFish `/usage` 真机实测（total 随 start_after 过滤）；测试 Key 只在 gitignored 的 `config.yaml` / `config.test.yaml`
+- **当前状态：** 已随 `v3.10.0` 正式发布（2026-10-24，Release + GHCR + MCP Registry 三线就绪）；发版前经两轴审查修复 4 处（LLM withDeadline 取更早者、search_history FTS5 特殊字符、history 优雅关闭、工具描述补试验性）
+- **关键证据：** 分支远端 head `3d78aa1`（本地 worktree 已删除）；TinyFish `/usage` 真机实测（total 随 start_after 过滤）；测试 Key 在 gitignored 的 `config.test.yaml` 与部署 `config.yaml`
 - **合入验证（2026-10-24）：** 21 个冲突文件逐个手工合并（CHANGELOG 把 Unreleased 留在 v3.9.1 之上、config/doc 列表同时容纳 yuanbao 与 tinyfish/keenable、`BuildApipoolMode`/`BuildHybridMode` 增补 pool 形参并同步调用点）；`go build ./...`、`go vet ./...`、`go test ./...` 全绿（39 包），`golangci-lint --new-from-rev` 修掉 errorlint / staticcheck 共 4 处后仅剩 CRLF 引起的 gofmt 误报
-- **文档同步：** CHANGELOG 中英 Unreleased（提交对照改为真实 SHA）、roadmap N6 归档、dashboard/configuration/search 文档中英同步（额度探测表述 + search_history 试验性标注）；合入时另补了跨批次一致性：源开关与默认值速查表、`apipool.engines`/`weights` 列表、README 引擎清单同时列上 yuanbao 与 tinyfish/keenable（TinyFish/Keenable 无独立 mode，不进模式表）
+- **文档同步：** CHANGELOG 中英 v3.10.0、roadmap N6 归档、dashboard/configuration/search 文档中英同步；合入时另补了跨批次一致性：源开关与默认值速查表、`apipool.engines`/`weights` 列表、README 引擎清单同时列上 yuanbao 与 tinyfish/keenable（TinyFish/Keenable 无独立 mode，不进模式表）
 - **详情指针：** [`.handoff/eco-absorb-providers.md`](.handoff/eco-absorb-providers.md)
 - **路线图权威：** [docs/optimization-roadmap.md](docs/optimization-roadmap.md) N 系列（N1-N6 已归档；智谱 preset 评审后不做——消耗套餐额度）
 
@@ -203,16 +203,17 @@ docker build -t websearch-mcpserver .
 - **验收：** `go test ./...`、`go test -race -short -p 1 ./...`、golangci-lint 0 issues
 - **详情指针：** [`.handoff/shortcut-sync.md`](.handoff/shortcut-sync.md)
 
-### github-reddit-access — in-progress（调研完成，待立项）
+### github-reddit-access — done（GitHub 已随 v3.10.0 落地；Reddit 整线放弃，N7 归档）
 
-- **当前状态：** 调研完成未写码；开口项 = roadmap 立项（N 系列下个编号）+ OAuth 交互/续期专项调研
-- **关键证据：** reddit `.rss` 脚本 UA 全通（浏览器 UA 403/429）、api.github.com 直连无 Key 可用（search 10/min，PAT 5000/h）；参考 reddit-mcp-buddy 三层降级链
-- **验收标准：** 见 handoff 详情 §5（GitHub 零 Key+PAT 双模、Reddit OAuth 优先 RSS 兜底、cleanfetch 双站特判）
+- **当前状态：** GitHub 引擎 + cleanfetch 仓库/blob 特判 + 失败回退已随 `v3.10.0` 发布；Reddit 经评审整线放弃（官方公告进入关停周期，收益期 < 5 个月），调研结论留档 roadmap N7
+- **验收结果：** GitHub 零 Key 匿名 + PAT 双模、429/403 冷却（Retry-After / x-ratelimit-reset）、blob 走 contents API、搜索失败回 Bing `site:github.com`、抓取失败回 webfetch→Jina、typed-nil 防护（InitGithubEngine 返回接口类型）——真机全部验证通过
 - **详情指针：** [`.handoff/github-reddit-access.md`](.handoff/github-reddit-access.md)
 
 ### 运维待办
 
-- 本机部署 `D:\Programs\websearch` 已更新到 `v3.9.1`（备份 `websearch-mcpserver.exe.bak-pre-v3.9.1`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`。误发的 `v3.10.0-preview.1` 远端与本地 tag 已删除（无 Release、无 GHCR 镜像）。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
+- 本机部署 `D:\Programs\websearch` 已更新到 `v3.10.0`（备份 `websearch-mcpserver.exe.bak-pre-v3.10.0`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`；新供应商已配测试 Key（tinyfish/keenable 进 `apipool.engines`，github PAT 提额，search_history 已开启），`mcp_hub.fetch_mode: prefer` 激活远端抓取链；真网验证全过（tinyfish 搜索/fetch/官方额度、keenable keyed 搜索、cleanfetch github 特判、search_history 写入+FTS）
+- **发布流程教训（2026-10-24）：** `-registry` tag 推送不可重复——MCP Registry 同版本二次 publish 报 400 duplicate（首次已成功发布即占位）。误发版本用 `mcp-publisher status --status deleted`（已建 `.github/workflows/registry-status.yml` 运维工作流，OIDC 认证）下架；重发同版本 tag 必须钉同一 commit（构建可复现，产物 sha256 与 registry 元数据逐一致时可不重 publish）。registry 约束：`status active` 不允许携带 message
+- 误发的 `v3.10.0-preview.1` 远端与本地 tag 已删除。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
 
 ### 待验证
 
