@@ -83,6 +83,11 @@ func settingsFromDocument(c config.Config, b []byte) (map[string]any, error) {
 	for _, source := range SourceCatalog(c) {
 		// Missing source switches retain loader defaults, not a pending runtime value.
 		values[source.ControlPath] = source.Category == "api" || source.ID == "bing" || source.ID == "duckduckgo"
+		if source.ID == "keenable" && len(c.Keenable.EffectiveSKList()) == 0 {
+			// public 免 Key 档需显式 enabled: true 才参与路由，缺省不能当 true 处理，
+			// 否则保存任意设置都会把 public 档静默写进候选配置。
+			values[source.ControlPath] = false
+		}
 		if source.Inverted {
 			values[source.ControlPath] = false
 		}
