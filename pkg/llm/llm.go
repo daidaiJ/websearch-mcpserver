@@ -65,12 +65,13 @@ func NewClientWithTimeout(baseURL, apiKey, model_id string, timeout time.Duratio
 	return c
 }
 
-// withDeadline 在 c.timeout > 0 且 ctx 尚无 deadline 时派生带超时的 ctx。
+// withDeadline 确保 ctx 带上本端超时；调用方已有不晚于本端超时的 deadline
+// 时遵循调用方，否则按 c.timeout 派生（两者恒取更早者）。
 func (c *Client) withDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
 	if c.timeout <= 0 {
 		return ctx, nil
 	}
-	if _, ok := ctx.Deadline(); ok {
+	if dl, ok := ctx.Deadline(); ok && !dl.After(time.Now().Add(c.timeout)) {
 		return ctx, nil
 	}
 	return context.WithTimeout(ctx, c.timeout)

@@ -68,6 +68,37 @@ func TestInsertAndSearch(t *testing.T) {
 	}
 }
 
+// TestSearchSpecialCharsFTSSafe 特殊字符查询不得触发 FTS5 语法错误：
+// 引号/括号/星号/连字符/AND-OR 操作符经 ftsQuery 引号包裹后退化为词组匹配。
+func TestSearchSpecialCharsFTSSafe(t *testing.T) {
+	s := newTestStore(t, 0)
+	if err := s.Insert(`golang "context" 包`, "web", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Insert("rust OR go 教程", "web", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`golang "context"`, // 引号
+		"golang (context)", // 括号
+		"go*",              // 前缀星号
+		"golang OR rust",   // FTS5 操作符
+		"c++ -lang",        // 连字符
+		"NEAR",             // 纯操作符词
+	} {
+		recs, err := s.Search(q, 10, 0)
+		if err != nil {
+			t.Fatalf("query %q 不应报错: %v", q, err)
+		}
+		_ = recs // 命中数不校验（引号包裹后操作符退化为普通词），只要不报错
+	}
+	// 简单词组语义不变：多词隐式 AND 仍命中
+	recs, err := s.Search("golang 包", 10, 0)
+	if err != nil || len(recs) != 1 || recs[0].Query != `golang "context" 包` {
+		t.Fatalf("简单词组 AND 语义应保留: recs=%+v err=%v", recs, err)
+	}
+}
+
 func TestInsertEmptyQueryIgnored(t *testing.T) {
 	s := newTestStore(t, 0)
 	if err := s.Insert("   ", "web", sampleResults()); err != nil {

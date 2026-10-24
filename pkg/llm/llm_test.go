@@ -241,6 +241,26 @@ func TestClientDeadlineRespectsCallerCtx(t *testing.T) {
 	}
 }
 
+func TestClientDeadlineOverridesLaterCallerCtx(t *testing.T) {
+	// 调用方 ctx deadline 晚于本端超时时，本端超时仍生效（两者取更早者）。
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	c := NewClientWithTimeout("http://"+ln.Addr().String(), "test-key", "test-model", 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	start := time.Now()
+	if _, err = c.ChatWithContext(ctx, "sys", "user"); err == nil {
+		t.Fatal("本端超时触发后应返回错误")
+	}
+	if elapsed := time.Since(start); elapsed >= time.Second {
+		t.Errorf("本端 150ms 超时应生效, got %v", elapsed)
+	}
+}
+
 func TestLLMConfigGetTimeout(t *testing.T) {
 	if got := (config.LLMConfig{}).GetTimeout(); got != 60*time.Second {
 		t.Fatalf("default timeout = %v, want 60s", got)

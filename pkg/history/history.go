@@ -147,11 +147,14 @@ func (s *Store) Search(query string, limit, offset int) ([]Record, error) {
 			`SELECT id, query, mode, results, result_count, created_at
 			 FROM search_history ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, limit, offset)
 	} else {
+		// 用户输入不能直接进 MATCH：引号/括号/星号/AND-OR 等会触发 FTS5
+		// 语法错误。按空白分词、逐词引号包裹（内部引号翻倍）后隐式 AND，
+		// 简单查询的匹配语义不变，特殊字符输入退化为普通词组匹配。
 		rows, err = s.db.Query(
 			`SELECT h.id, h.query, h.mode, h.results, h.result_count, h.created_at
 			 FROM search_history_fts f JOIN search_history h ON h.id = f.rowid
 			 WHERE search_history_fts MATCH ?
-			 ORDER BY h.created_at DESC, h.id DESC LIMIT ? OFFSET ?`, query, limit, offset)
+			 ORDER BY h.created_at DESC, h.id DESC LIMIT ? OFFSET ?`, ftsQuery(query), limit, offset)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("history 检索失败: %w", err)
@@ -209,6 +212,18 @@ func (s *Store) cleanLoop() {
 			_ = s.Cleanup()
 		}
 	}
+}
+
+// ftsQuery 把用户输入转成安全的 FTS5 MATCH 表达式：按空白分词后每词引号
+// 包裹（内部引号翻倍），词间空格为隐式 AND。裸输入里的引号/括号/星号/
+// AND-OR-NEAR 等操作符都会触发 FTS5 语法错误或改变语义。
+func ftsQuery(query string) string {
+	fields := strings.Fields(query)
+	quoted := make([]string, 0, len(fields))
+	for _, f := range fields {
+		quoted = append(quoted, `"`+strings.ReplaceAll(f, `"`, `""`)+`"`)
+	}
+	return strings.Join(quoted, " ")
 }
 
 // snapshotResults 截断结果快照：最多 maxResultsPerRecord 条、正文每条 maxSnippetRunes。

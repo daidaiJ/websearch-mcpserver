@@ -295,6 +295,11 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 		c.Close()
 	}
 
+	// 关闭搜索历史库（停清理协程，WAL 落盘）
+	if h := mcpserver.GetSearchHistory(); h != nil {
+		h.Close()
+	}
+
 	// 清理 PID 文件
 	_ = daemon.RemovePID()
 

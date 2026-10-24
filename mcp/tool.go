@@ -186,3 +186,8 @@ func GetSearchGroup() *search.SearchGroup {
 func GetWebFetch() *webfetch.Fetcher {
 	return webfetchInst
 }
+
+// GetSearchHistory 返回搜索历史存储实例（供 server 包关闭时清理；未启用为 nil）。
+func GetSearchHistory() *history.Store {
+	return historyInst
+}
