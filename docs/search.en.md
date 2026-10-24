@@ -75,7 +75,7 @@
 | `so360` | 360 Search (HTML, second Chinese index; disabled by default, enable via `so360.enabled`) | ❌ | No |
 | `wikipedia` | Wikipedia MediaWiki API (reference source; disabled by default, enable via `wikipedia.enabled`, `lang` picks the edition) | ❌ | Yes (auto-detected) |
 | `google_news` | Google News RSS (redirect links resolved to publisher URLs, structured publish dates; disabled by default, enable via `google_news.enabled`, `edition` picks the locale) | ❌ | Yes (auto-detected) |
-| `github` | GitHub REST API repository search (zero-key anonymous tier 10 searches/min; PAT raises it to 30/min; structured creation dates with ★/language metadata; disabled by default, enable via `github.enabled`, PAT via `github.api_key`/`token_list`) | No (PAT optional) | No |
+| `github` | GitHub REST API repository search (zero-key anonymous tier 10 searches/min; PAT raises it to 30/min; structured creation dates with ★/language metadata; disabled by default, enable via `github.enabled`, PAT via `github.api_key`/`token_list`; on API failure or zero results it automatically falls back to Bing with `site:github.com`) | No (PAT optional) | No |
 
 **Academic engines** (no keys required):
 
@@ -375,7 +375,7 @@ When no usable results remain and engines have failed, the error retains each en
 
 URL fetching requires `cleanfetch.enabled: true`; saved-body reads do not. Based on go-webfetch, no proxy needed; built-in DNS rebinding protection and HEAD pre-check for large files (`max_fetch_size_mb` controls threshold, default 10MB; every redirect hop is re-checked against private-network/metadata rules, up to 5 hops); falls back to Jina Reader on failure (requires `jina.api_key`, proxy auto-detected).
 
-**Site-specific handling**: `github.com` pages are JS-rendered and yield no body via regular fetching; matching URLs are routed to the GitHub REST API instead (no HEAD pre-check / fallback chain) — repo roots return metadata (description/★/language/license/last push) plus the raw README; `blob` pages fetch source files through the contents API (`Accept: application/vnd.github.raw`, bypassing the raw.githubusercontent CDN that is unreachable from mainland networks); `issues`/`pull` pages are out of scope. The API anonymous tier allows 60 requests/hour; configure `github.api_key` (or `token_list`) to raise it to 5000/hour, sharing the same tokens as the GitHub search engine.
+**Site-specific handling**: `github.com` pages are JS-rendered and yield no body via regular fetching; matching URLs are routed to the GitHub REST API first (no HEAD pre-check) — repo roots return metadata (description/★/language/license/last push) plus the raw README; `blob` pages fetch source files through the contents API (`Accept: application/vnd.github.raw`, bypassing the raw.githubusercontent CDN that is unreachable from mainland networks); `issues`/`pull` pages are out of scope. On API failure (rate limit/403/unhandled path) it falls back to the regular webfetch → Jina Reader chain. The API anonymous tier allows 60 requests/hour; configure `github.api_key` (or `token_list`) to raise it to 5000/hour, sharing the same tokens as the GitHub search engine.
 
 In batch mode (`urls`), each URL is pre-checked and fetched independently; one failure does not affect the others, and results are returned grouped by URL. With only `url`, output is identical to previous versions.
 

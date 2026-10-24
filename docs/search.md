@@ -75,7 +75,7 @@
 | `so360` | 360 搜索（HTML，中文第二索引；默认关闭，`so360.enabled` 开启） | ❌ | 否 |
 | `wikipedia` | Wikipedia MediaWiki API（参考型来源；默认关闭，`wikipedia.enabled` 开启，`lang` 选语言版本） | ❌ | 是（自动检测） |
 | `google_news` | Google News RSS（跳转链接回源发布方 URL，带结构化发布日期；默认关闭，`google_news.enabled` 开启，`edition` 选版本） | ❌ | 是（自动检测） |
-| `github` | GitHub REST API 仓库搜索（零 Key 匿名档 search 10/min；配 PAT 提额 30/min；带结构化创建日期与 ★/语言元信息；默认关闭，`github.enabled` 开启，`github.api_key`/`token_list` 配 PAT） | 否（PAT 可选） | 否 |
+| `github` | GitHub REST API 仓库搜索（零 Key 匿名档 search 10/min；配 PAT 提额 30/min；带结构化创建日期与 ★/语言元信息；默认关闭，`github.enabled` 开启，`github.api_key`/`token_list` 配 PAT；API 失败或零结果自动回退 Bing `site:github.com` 检索） | 否（PAT 可选） | 否 |
 
 **学术搜索引擎**（无需 Key）：
 
@@ -375,7 +375,7 @@ mcp_hub:
 
 URL 抓取需配置 `cleanfetch.enabled: true`；引用读取不受此开关限制。基于 go-webfetch，无需代理；内置 DNS rebinding 防护和 HEAD 预检防大文件（`max_fetch_size_mb` 控制阈值，默认 10MB；重定向逐跳复跑私网/metadata 校验，最多 5 跳）；失败时自动回退 Jina Reader（需配置 `jina.api_key`，代理自动检测）。
 
-**站点特判**：`github.com` 页面 HTML 是 JS 渲染、常规抓取拿不到正文，命中即改走 GitHub REST API（不做 HEAD 预检/降级链）——仓库根输出元数据（描述/★/语言/许可证/最近推送）+ README 原文；`blob` 页走 contents API 取源文件（`Accept: application/vnd.github.raw`，不走国内不可达的 raw.githubusercontent CDN）；`issues`/`pull` 等动态页不在接管范围。API 匿名档 60 次/小时，配置 `github.api_key`（或 `token_list`）后提额 5000 次/小时，与 GitHub 搜索引擎共用同一批 token。
+**站点特判**：`github.com` 页面 HTML 是 JS 渲染、常规抓取拿不到正文，命中即改走 GitHub REST API（不做 HEAD 预检）——仓库根输出元数据（描述/★/语言/许可证/最近推送）+ README 原文；`blob` 页走 contents API 取源文件（`Accept: application/vnd.github.raw`，不走国内不可达的 raw.githubusercontent CDN）；`issues`/`pull` 等动态页不在接管范围。API 失败（限流/403/未接管路径）自动回落常规 webfetch → Jina Reader 抓取链。API 匿名档 60 次/小时，配置 `github.api_key`（或 `token_list`）后提额 5000 次/小时，与 GitHub 搜索引擎共用同一批 token。
 
 批量模式（`urls`）下每条 URL 独立预检与抓取，单条失败不影响其它，结果按 URL 分节返回；只传 `url` 时输出与旧版一致。
 

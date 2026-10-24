@@ -40,8 +40,8 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	// ── 初始化 Google News 引擎（无需 API Key，需代理） ──
 	gnewsAdapter := mode.InitGoogleNewsEngine(conf)
 
-	// ── 初始化 GitHub 引擎（REST API，零 Key 默认启用，直连可达） ──
-	githubAdapter := mode.InitGithubEngine(conf)
+	// ── 初始化 GitHub 引擎（REST API，零 Key 默认启用，直连可达；API 失败回退 Bing 站点限定检索） ──
+	githubAdapter := mode.InitGithubEngine(conf, g.Fallback)
 
 	// ── 初始化 Google 引擎（需代理，由 resolver 动态解析） ──
 	googleAdapter := mode.InitGoogleEngine(conf)

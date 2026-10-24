@@ -33,7 +33,7 @@ type EngineAdapters struct {
 	So360     *adapter.EngineSearchAdapter
 	Wikipedia *adapter.EngineSearchAdapter
 	GNews     *adapter.EngineSearchAdapter
-	GitHub    *adapter.EngineSearchAdapter
+	GitHub    core.SearchInf // GitHubWithFallback（API 失败回退 Bing 站点限定检索）
 	Google    *adapter.EngineSearchAdapter
 	DDG       *adapter.EngineSearchAdapter
 }
@@ -487,7 +487,10 @@ func InitGoogleNewsEngine(conf config.Config) *adapter.EngineSearchAdapter {
 }
 
 // InitGithubEngine 初始化 GitHub 搜索引擎（REST API，零 Key 匿名档，PAT 提额）。
-func InitGithubEngine(conf config.Config) *adapter.EngineSearchAdapter {
+// bing 非 nil 时 API 失败（限流/403/零结果）自动回退 Bing site:github.com 检索。
+// 返回接口类型：具体指针的 nil 赋给 EngineAdapters.GitHub（core.SearchInf）会变成
+// typed-nil，`ads.GitHub != nil` 恒真，禁用的引擎会被装进模式。
+func InitGithubEngine(conf config.Config, bing *adapter.BingSearchAdapter) core.SearchInf {
 	if !conf.GitHub.Enabled {
 		log.Info("GitHub 引擎已禁用（github.enabled=false，默认关闭；REST API 零 Key 可用）")
 		return nil
@@ -498,13 +501,17 @@ func InitGithubEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		NumResults: conf.GitHub.NumResults,
 		PerMin:     conf.GitHub.PerMin,
 	})
-	a := adapter.NewEngineSearchAdapter("github", eng)
-	if conf.GitHub.HasToken() {
-		log.Info("GitHub 引擎已启用（REST API，PAT 提额 search 30/min）")
-	} else {
-		log.Info("GitHub 引擎已启用（REST API，零 Key 匿名档 search 10/min；配置 github.api_key 可提额 30/min）")
+	primary := adapter.NewEngineSearchAdapter("github", eng)
+	var fb core.SearchInf
+	if bing != nil {
+		fb = bing
 	}
-	return a
+	if conf.GitHub.HasToken() {
+		log.Info("GitHub 引擎已启用（REST API，PAT 提额 search 30/min；失败回退 Bing site:github.com）")
+	} else {
+		log.Info("GitHub 引擎已启用（REST API，零 Key 匿名档 search 10/min；配置 github.api_key 可提额 30/min；失败回退 Bing site:github.com）")
+	}
+	return adapter.NewGitHubWithFallback(primary, fb)
 }
 
 // InitBingEngine 根据配置初始化 Bing 引擎适配器（各模式通用兜底）。

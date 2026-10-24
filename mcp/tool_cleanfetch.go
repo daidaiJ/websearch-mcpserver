@@ -156,19 +156,20 @@ func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	if err := validateURLSecurity(rawURL); err != nil {
 		return "", err
 	}
-	// 站点特判：HTML 抓不到的站点（github.com 为 JS 渲染）直接走官方 API，
-	// 不做 headCheck、不进远端/本地降级链——常规链路对该类 URL 必然失败。
+	// 站点特判：HTML 抓不到的站点（github.com 为 JS 渲染）优先走官方 API，
+	// 不做 headCheck、不进远端/本地降级链；API 失败（限流/403/路径不接管）时
+	// 回落常规抓取链——Jina Reader 能渲染 JS 页面，仍有产出可能。
 	if siteFetchGitHub != nil && sitefetch.MatchGitHub(rawURL) {
 		started := time.Now()
-		text, err := siteFetchGitHub.Fetch(ctx, rawURL)
+		text, apiErr := siteFetchGitHub.Fetch(ctx, rawURL)
 		telemetry.RecordEventContext(ctx, telemetry.Event{
 			Kind: "provider", Provider: "github_api", Query: rawURL,
-			Success: err == nil, Duration: time.Since(started), ResultCount: 1, Error: err,
+			Success: apiErr == nil, Duration: time.Since(started), ResultCount: 1, Error: apiErr,
 		})
-		if err != nil {
-			return "", err
+		if apiErr == nil {
+			return text, nil
 		}
-		return text, nil
+		log.Infof("github 站点特判 API 抓取失败(%v)，回落常规抓取链", apiErr)
 	}
 	if err := headCheck(ctx, rawURL); err != nil {
 		return "", err
