@@ -313,13 +313,13 @@ func webSourceCatalog(conf config.Config) []SourceView {
 	}
 	engineConfigured := map[string]bool{
 		"baidu_web": true, "bing": true, "google": true, "duckduckgo": true,
-		"so360": true, "wikipedia": true, "googlenews": true,
+		"so360": true, "wikipedia": true, "googlenews": true, "github": true,
 	}
 	engineEnabled := map[string]bool{
 		"baidu_web": conf.Baidu.WebEnabled, "bing": conf.Bing.Enabled,
 		"google": conf.Google.Enabled, "duckduckgo": conf.DuckDuckGo.Enabled,
 		"so360": conf.So360.Enabled, "wikipedia": conf.Wikipedia.Enabled,
-		"googlenews": conf.GoogleNews.Enabled,
+		"googlenews": conf.GoogleNews.Enabled, "github": conf.GitHub.Enabled,
 	}
 	engineReady := map[string]bool{}
 	for name, enabled := range engineEnabled {
@@ -399,6 +399,7 @@ func webSourceCatalog(conf config.Config) []SourceView {
 		{ID: "so360", Name: "360 搜索", Group: "web", Configured: true, Active: active["so360"], aliases: []string{"so360"}},
 		{ID: "wikipedia", Name: "Wikipedia", Group: "web", Configured: true, Active: active["wikipedia"], aliases: []string{"wikipedia"}},
 		{ID: "googlenews", Name: "Google News", Group: "web", Configured: true, Active: active["googlenews"], aliases: []string{"googlenews", "google_news"}},
+		{ID: "github", Name: "GitHub", Group: "web", Configured: true, Active: active["github"], aliases: []string{"github", "github_api"}},
 	}
 	for i := range out {
 		s := &out[i]
@@ -421,6 +422,8 @@ func webSourceCatalog(conf config.Config) []SourceView {
 				if !proxyResolved {
 					s.Condition += "；代理端点当前未解析"
 				}
+			case "github":
+				s.Condition = "参与 engine/hybrid；REST API 零 Key 匿名档（search 10/min），配 PAT 提额 30/min；直连可达无需代理；cleanfetch 仓库/blob 页复用同批 token"
 			}
 		} else {
 			s.Category, s.Enabled = "api", conf.APISourceEnabled(s.ID)

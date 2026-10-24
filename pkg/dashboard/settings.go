@@ -56,7 +56,7 @@ func settingsView(c config.Config) map[string]any {
 			"BAIDU_SK": len(c.Baidu.EffectiveSKList()) > 0, "TAVILY_SK": len(c.Tavily.EffectiveSKList()) > 0,
 			"EXA_API_KEY": len(c.Exa.EffectiveSKList()) > 0, "ANYSEARCH_API_KEY": len(c.Anysearch.EffectiveSKList()) > 0,
 			"DOUBAO_SEARCH_API_KEY": len(c.Doubao.EffectiveSKList()) > 0, "JINA_API_KEY": c.Jina.APIKey != "",
-			"MINERU_TOKEN": c.PDFParser.MinerUToken != "",
+			"MINERU_TOKEN": c.PDFParser.MinerUToken != "", "GITHUB_TOKEN": c.GitHub.HasToken(),
 		},
 		// 管理员口令只暴露“是否已配置”，值本身永不离开服务端，
 		// 也不能通过本控制台修改（只能手改 dashboard.yaml 后重启）。
@@ -79,7 +79,7 @@ func settingsView(c config.Config) map[string]any {
 
 func validateSetting(path string, value any) error {
 	boolPaths := []string{"cache.enabled", "bing.enabled", "duckduckgo.enabled", "google.enabled", "academic.enabled", "cleanfetch.enabled", "pdf_parser.enabled", "smartsearch.mmr.enabled", "doubao.icp_host_only"}
-	boolPaths = append(boolPaths, "baidu.enabled", "tavily.enabled", "exa.enabled", "anysearch.enabled", "doubao.enabled", "tinyfish.enabled", "keenable.enabled", "baidu.web_enabled", "so360.enabled", "wikipedia.enabled", "google_news.enabled", "academic.disable_arxiv", "academic.disable_crossref", "academic.disable_openalex", "academic.disable_pubmed", "academic.disable_europepmc", "academic.disable_dblp", "academic.disable_doaj", "academic.disable_semantic_scholar", "academic.disable_google_scholar")
+	boolPaths = append(boolPaths, "baidu.enabled", "tavily.enabled", "exa.enabled", "anysearch.enabled", "doubao.enabled", "tinyfish.enabled", "keenable.enabled", "github.enabled", "baidu.web_enabled", "so360.enabled", "wikipedia.enabled", "google_news.enabled", "academic.disable_arxiv", "academic.disable_crossref", "academic.disable_openalex", "academic.disable_pubmed", "academic.disable_europepmc", "academic.disable_dblp", "academic.disable_doaj", "academic.disable_semantic_scholar", "academic.disable_google_scholar")
 	if slices.Contains(boolPaths, path) {
 		if _, ok := value.(bool); !ok {
 			return fmt.Errorf("%s must be boolean", path)
