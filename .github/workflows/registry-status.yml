@@ -51,7 +51,8 @@ jobs:
           set -euo pipefail
           SERVER="io.github.daidaiJ/websearch-mcpserver"
           ARGS=(status --status "${{ inputs.status }}")
-          if [ -n "${{ inputs.message }}" ]; then
+          # registry 约束：设为 active 时不允许携带 message
+          if [ -n "${{ inputs.message }}" ] && [ "${{ inputs.status }}" != "active" ]; then
             ARGS+=(--message "${{ inputs.message }}")
           fi
           if [ -n "${{ inputs.version }}" ]; then
