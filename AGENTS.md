@@ -124,6 +124,8 @@ pkg/
 | AnySearch 匿名档（2026-10-06 出口实测） | 直连与代理均 200，POST 不带 Authorization 即匿名 IP 限流档（上游 anysearch.py 注释同口径），结果在 `data.results` | KeyPool 为空自动走匿名档，本端保守钳制 1/s·20/min；上游未公布阈值，调参须实测 |
 | Wikipedia / Google News（2026-10-06 出口实测） | 直连均超时；代理下 Wikipedia MediaWiki API 200 + 正常 JSON，Google News RSS 200 + 52 item 且 batchexecute RPC 可回源发布方 URL（f.req 须三层嵌套 + ts 数字形态，否则 400） | 已注册（均需代理，无可用代理解析时跳过）；Google News 解析契约对齐上游 gnews.py |
 | 腾讯云元宝搜索（2026-10-24 接入） | API KEY 方式 `POST api.wsa.cloud.tencent.com/SearchPro`，Bearer sk-...，返回 `Response.Pages[]`（JSON 字符串）；每月免费 2000 次，超出按量后付费（约 20 元/千次） | 已注册（`yuanbao.*`，默认不加入 apipool；hybrid 有 Key 时参与）；`yuanbao.monthly_limit` 默认 2000 并在请求前落盘拦截，禁止默认放开 |
+| TinyFish / Keenable 供应商（2026-10-24 接入） | TinyFish 仅 Key 档（免费搜索 12000 次/天、fetch 1000 URL/天，00:00 UTC 重置，国内直连实测无需代理）；Keenable 未配 Key 自动走 public 免 Key 端点（`X-Keenable-Title` 标识，按出口 IP 限流） | 均已注册（`tinyfish.*` / `keenable.*`）；两者默认不进 `apipool.engines`，hybrid 中 TinyFish 有 Key 即参与、Keenable 的 public 档需显式 `enabled: true` 才参与（质量待观察）；fetch 能力并入 cleanfetch 远端抓取链（沿用 `mcp_hub.fetch_mode`） |
+| `search_history` 本地历史（2026-10-24 接入，试验性） | smartsearch 成功后落本地 SQLite（FTS5），`search_history` MCP 工具全文检索；数据不出网，默认保留 30 天 | `search_history.enabled` 零值 = 不建库、不注册工具；实用性待真机确认，确认有价值后再转正式工具 |
 
 ---
 
@@ -165,7 +167,7 @@ docker build -t websearch-mcpserver .
 2. **写操作安全模型（不可退让）**：所有写端点（设置/密钥/重启/清缓存/额度重置修正）**默认仅 loopback** + `X-Admin-Password` 头，服务端常量时间比较。用户可在 `dashboard.yaml` 配置 `write_allowed_networks` 放行任意 CIDR/IP；空值或任一非法条目均回退 loopback。读白名单及转发头不授予写权限。口令只能配在 `dashboard.yaml`（`admin_password` / `admin_password_sha256`），**永远不出现在设置页白名单和 secrets 覆盖文件**——WebUI 无法读取或修改它。未配置口令 = 写端点整体禁用。
 3. **配置分层与回退**：控制中心专属配置（口令/网段/额度/品牌）住独立 `dashboard.yaml`（`config.Load` 的 overlay，`WEBSEARCH_DASHBOARD_CONFIG` 可改路径），按字段覆盖主配置；主 `config.yaml` 零改动即可升级，删文件即回退。新键一律"零值 = 安全默认"，不允许要求老配置迁移脚本。
 4. **隐私出网红线**：遥测只存脱敏元数据（查询哈希/主题/语言/关键词），错误文本服务端正则脱敏后才落库；密钥值任何接口永不回显（服务端不出网，前端掩码不算数）。新增端点时先过一遍"响应体会不会带密钥/原文"。
-5. **品牌可定制**：`dashboard.brand`（title/logo/theme/accent）走 overview/settings 响应注入；主题 = `green/blue/mono` 三预设（CSS 变量块）+ accent 覆盖，本浏览器选择存 localStorage。桌面快捷方式图标跟主题（`cmd/assets/app-{theme}.ico`），启动时轻量检查（marker 文件字符串比较）主题变化才重建。
+5. **品牌可定制**：`dashboard.brand`（title/logo/theme/accent）走 overview/settings 响应注入；主题 = `green/blue/mono` 三预设（CSS 变量块）+ accent 覆盖，本浏览器选择存 localStorage。桌面快捷方式图标跟主题（`cmd/assets/app-{theme}.ico`）；`start`/`open`/`install` 读取 `.lnk` 逐项校验目标、参数、工作目录与图标，主题或图标内容变化时落盘带内容哈希的新 ico 并重建。
 6. **配置文档唯一入口**：控制中心所有可配置项（含 `dashboard.shortcut` 快捷方式落位、`brand.footer` 关于块）的完整参考与「agent 向人类确认清单」住 `docs/dashboard.md` / `dashboard.en.md`；新增配置键必须同步该文档与 `dashboard.example.yaml`，不允许只在代码注释里出现。
 6. **图标资产再生成**：改设计 → `go run ./tools/genicon`（在仓库根目录跑），产出 3 主题 ico + web logo，不要手工改二进制资产。
 
@@ -183,19 +185,20 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### eco-absorb 供应商扩展批 — in-progress（分支未推送）
+### eco-absorb 供应商扩展批 — done（已合入 master，未打版本 tag）
 
-- **当前状态：** 5 提交全绿未推送；开口项 = dashboard 源面板补 tinyfish/keenable 条目、N6 quota TinyFish `/usage`、CHANGELOG（中英）
-- **关键证据：** worktree `D:\CODE\ai\websearch-ecoabsorb`（feat/eco-absorb，基于 master `e2be3a9`）；全量 `go test ./...` 绿；TinyFish/Keenable 直连实测 200 无需代理
-- **验收标准：** 见 handoff 详情 §4；合并流程 = 等 yuanbao 合入后 rebase 再 PR
+- **当前状态：** 10 提交经 `git merge --no-ff` 合入 master（merge `0aa96ba`，父提交 `566c712` + `3d78aa1`）；按用户要求**本次不打 tag**，改动留在 CHANGELOG `Unreleased`，待后续提交再统一发版
+- **关键证据：** 分支远端 head `3d78aa1`（本地 worktree 已删除）；TinyFish `/usage` 真机实测（total 随 start_after 过滤）；测试 Key 只在 gitignored 的 `config.yaml` / `config.test.yaml`
+- **合入验证（2026-10-24）：** 21 个冲突文件逐个手工合并（CHANGELOG 把 Unreleased 留在 v3.9.1 之上、config/doc 列表同时容纳 yuanbao 与 tinyfish/keenable、`BuildApipoolMode`/`BuildHybridMode` 增补 pool 形参并同步调用点）；`go build ./...`、`go vet ./...`、`go test ./...` 全绿（39 包），`golangci-lint --new-from-rev` 修掉 errorlint / staticcheck 共 4 处后仅剩 CRLF 引起的 gofmt 误报
+- **文档同步：** CHANGELOG 中英 Unreleased（提交对照改为真实 SHA）、roadmap N6 归档、dashboard/configuration/search 文档中英同步（额度探测表述 + search_history 试验性标注）；合入时另补了跨批次一致性：源开关与默认值速查表、`apipool.engines`/`weights` 列表、README 引擎清单同时列上 yuanbao 与 tinyfish/keenable（TinyFish/Keenable 无独立 mode，不进模式表）
 - **详情指针：** [`.handoff/eco-absorb-providers.md`](.handoff/eco-absorb-providers.md)
-- **路线图权威：** [docs/optimization-roadmap.md](docs/optimization-roadmap.md) N 系列（N1-N5 已归档；智谱 preset 评审后不做——消耗套餐额度）
+- **路线图权威：** [docs/optimization-roadmap.md](docs/optimization-roadmap.md) N 系列（N1-N6 已归档；智谱 preset 评审后不做——消耗套餐额度）
 
-### shortcut-sync — pending（下个会话修复）
+### shortcut-sync — done（随 v3.9.1 发布）
 
-- **当前状态：** 需求确认，未改代码；现有 `v3.10.0-preview.1` 只在 `start` 做 marker+存在性检查
-- **关键证据：** `cmd/setup_windows.go` 的 `ensureShortcuts`/`ensureDashboardShortcut`/`runInstall`；`cmd/open.go` 无同步；无快捷方式测试
-- **验收标准：** 按 `dashboard.enabled`/`shortcut`/`theme`/`icon` 创建、更新、删除；坏链与同主题新图标可修复；`install` 与 `start` 一致
+- **当前状态：** 已合入 master（`7c854c8`）并随 `v3.9.1` 发布；本地部署已升级，桌面快捷方式启动时自动刷新为内容哈希图标
+- **关键证据：** `syncDashboardShortcut` 统一 `start`/`open`/`install`；逐项校验 `.lnk` 目标/参数/工作目录/图标路径与索引；`off`/控制台关闭时删除已知位置；真机覆盖坏链、篡改、exe 重命名、中文路径
+- **验收：** `go test ./...`、`go test -race -short -p 1 ./...`、golangci-lint 0 issues
 - **详情指针：** [`.handoff/shortcut-sync.md`](.handoff/shortcut-sync.md)
 
 ### github-reddit-access — in-progress（调研完成，待立项）
@@ -207,7 +210,7 @@ docker build -t websearch-mcpserver .
 
 ### 运维待办
 
-- 本机部署 `D:\Programs\websearch` 已更新到 `v3.10.0-preview.1`（备份 `*.bak-pre-v3.10.0-preview.1`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
+- 本机部署 `D:\Programs\websearch` 已更新到 `v3.9.1`（备份 `websearch-mcpserver.exe.bak-pre-v3.9.1`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`。误发的 `v3.10.0-preview.1` 远端与本地 tag 已删除（无 Release、无 GHCR 镜像）。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
 
 ### 待验证
 
