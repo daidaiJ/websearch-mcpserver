@@ -22,7 +22,7 @@
   `fetch_mode` 非 off 时远端链按「供应商 fetch API（TinyFish/Keenable，优先消耗按 URL 计数的免费额度）→ mcphub 托管 MCP → 本地 webfetch/Jina」顺序级联；`fetchPageWithFallback` 改链式逐级失败切换。
 - [x] **N4. `search_history` FTS5 查询史工具（拍板并落地）**：`pkg/history` SQLite FTS5 虚表 + 触发器同步；独立保留期默认 30 天可配，每小时后台清理；MCP 只读工具 `search_history`（query/limit/offset）；**独立配置开关** `search_history.enabled` 默认关闭（不建库、不注册工具）；隐私红线：只存 query 与结果快照，不含密钥、不出网。
 - [x] **N5. 输出契约测试（拍板并落地）**：`pkg/search/core/contract_test.go` 固化字段顺序、「空结果≠合法输入隐藏该行」、易变字段集中在 ProvenanceHeader；不改 ProvenanceHeader 置顶设计。
-- [ ] **N6. quota 多供应商额度感知（拍板，受限）**：仅接入有官方用量端点的供应商——TinyFish fetch 已确认有 `GET /usage` 端点（响应结构待实测后接 `pkg/quota`），智谱/Keenable 无公开用量端点不探测。
+- [x] **N6. quota 多供应商额度感知（拍板并落地，2026-10-24 真机实测）**：仅接入有官方用量端点的供应商——TinyFish 接入 `pkg/quota`：官方 `GET api.search.tinyfish.ai/usage` 与 `api.fetch.tinyfish.ai/usage`（X-API-Key），`limit=1 + start_after=当日 00:00 UTC` 直读响应 `total`（真机实测 total 随过滤条件返回，无需翻页聚合），免费档上限按官方文档取值（搜索 12000/天、fetch 1000/天）；搜索主指标不受 fetch 查询失败影响，官方查询整体失败回退本地用量。智谱/Keenable 无公开用量端点不探测。
 - [x] ~~智谱 webSearchPrime mcphub preset~~ **评审后不做**：调用会消耗 GLM Coding Plan 套餐额度，与零增量额度定位冲突（已从分支历史整体撤出）。
 - 原 N-llm（LLM 摘要有界 deadline）已落地，见下方归档表。
 
