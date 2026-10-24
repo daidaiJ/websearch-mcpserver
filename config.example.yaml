@@ -249,6 +249,19 @@ google_news:
   # per_min: 30     # 每分钟限流（默认 30）
 
 # ==============================================
+# GitHub 搜索引擎（REST API，零 Key 匿名档可用，国内直连可达无需代理）
+# 匿名 search 10/min；配 PAT 提额 30/min（core 60/h → 5000/h）。
+# cleanfetch 对 github.com 仓库/blob 页的站点特判与引擎复用同一批 token。
+# ==============================================
+github:
+  enabled: false      # 总开关（默认 false）
+  # api_key: ""       # PAT（github_pat_/ghp_ 前缀）；环境变量 GITHUB_TOKEN
+  # token_list:       # 多 PAT 轮转列表（优先级高于 api_key）
+  #   - "github_pat_xxxx"
+  # num_results: 10   # 单次结果数（默认 10，上限 50）
+  # per_min: 30       # search 每分钟限流（默认按是否配 token 取 10/30）
+
+# ==============================================
 # DuckDuckGo 搜索引擎（需代理才能访问）
 # 无需 API Key，默认开启；代理启用时自动参与搜索
 # ==============================================

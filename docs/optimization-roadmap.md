@@ -24,6 +24,9 @@
 - [x] **N5. 输出契约测试（拍板并落地）**：`pkg/search/core/contract_test.go` 固化字段顺序、「空结果≠合法输入隐藏该行」、易变字段集中在 ProvenanceHeader；不改 ProvenanceHeader 置顶设计。
 - [x] **N6. quota 多供应商额度感知（拍板并落地，2026-10-24 真机实测）**：仅接入有官方用量端点的供应商——TinyFish 接入 `pkg/quota`：官方 `GET api.search.tinyfish.ai/usage` 与 `api.fetch.tinyfish.ai/usage`（X-API-Key），`limit=1 + start_after=当日 00:00 UTC` 直读响应 `total`（真机实测 total 随过滤条件返回，无需翻页聚合），免费档上限按官方文档取值（搜索 12000/天、fetch 1000/天）；搜索主指标不受 fetch 查询失败影响，官方查询整体失败回退本地用量。智谱/Keenable 无公开用量端点不探测。
 - [x] ~~智谱 webSearchPrime mcphub preset~~ **评审后不做**：调用会消耗 GLM Coding Plan 套餐额度，与零增量额度定位冲突（已从分支历史整体撤出）。
+- [ ] **N7. GitHub 站点接入 + Reddit 整线放弃（2026-10-24 落地）**
+  - **GitHub（落地）**：`pkg/search/engine/github` REST API 引擎——`api.github.com` 国内直连可达（无需代理）；零 Key 匿名档 search 10/min + PAT 提额 30/min（token 轮转 + 429/403 冷却，Retry-After / x-ratelimit-reset 双来源）；`github.enabled` 默认关闭（wikipedia 同口径），参与 engine/hybrid/mcphub。cleanfetch 站点特判：`pkg/fetch/sitefetch` 对 `github.com/<owner>/<repo>` 改走 API（元数据 + README raw），`blob` 页转 raw.githubusercontent 直取源文件（不耗 API 配额），token 与引擎同批（`github.api_key` / `token_list`，env `GITHUB_TOKEN`）。github.com HTML 是 JS 渲染抓不到，API 是唯一正道；code search 要求认证不做。
+  - **Reddit（评审后不做，2026-10-24 用户拍板）**：官方 2026-09-30 公告进入关停周期——新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 全线停止支持、未注册 app 2027-01-12 移除访问、公共 Data API 2027-03 终止。原方案（OAuth script app 100 QPM 优先 + RSS 兜底）两条通道均在死线上，建在将死的 API 上不值得；引擎失败虽可软降级，但整线收益期 < 5 个月。已完成的 OAuth/auth.ts 调研结论留档：script app 注册制（reddit.com/prefs/apps 自建）、client_credentials / password grant 均无 refresh token、过期静默重取（reddit-mcp-buddy src/core/auth.ts 模式）。上游若重新开放（Devvit/付费 API 出现普适免费档）再重立项目。
 - 原 N-llm（LLM 摘要有界 deadline）已落地，见下方归档表。
 
 - [ ] **E1. go-sdk v1.7.0 → v1.8.0（2026-07-28 新 spec：stateless core / extensions / elicitation / sampling / tasks）**

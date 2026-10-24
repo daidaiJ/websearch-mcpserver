@@ -126,6 +126,8 @@ pkg/
 | 腾讯云元宝搜索（2026-10-24 接入） | API KEY 方式 `POST api.wsa.cloud.tencent.com/SearchPro`，Bearer sk-...，返回 `Response.Pages[]`（JSON 字符串）；每月免费 2000 次，超出按量后付费（约 20 元/千次） | 已注册（`yuanbao.*`，默认不加入 apipool；hybrid 有 Key 时参与）；`yuanbao.monthly_limit` 默认 2000 并在请求前落盘拦截，禁止默认放开 |
 | TinyFish / Keenable 供应商（2026-10-24 接入） | TinyFish 仅 Key 档（免费搜索 12000 次/天、fetch 1000 URL/天，00:00 UTC 重置，国内直连实测无需代理）；Keenable 未配 Key 自动走 public 免 Key 端点（`X-Keenable-Title` 标识，按出口 IP 限流） | 均已注册（`tinyfish.*` / `keenable.*`）；两者默认不进 `apipool.engines`，hybrid 中 TinyFish 有 Key 即参与、Keenable 的 public 档需显式 `enabled: true` 才参与（质量待观察）；fetch 能力并入 cleanfetch 远端抓取链（沿用 `mcp_hub.fetch_mode`） |
 | `search_history` 本地历史（2026-10-24 接入，试验性） | smartsearch 成功后落本地 SQLite（FTS5），`search_history` MCP 工具全文检索；数据不出网，默认保留 30 天 | `search_history.enabled` 零值 = 不建库、不注册工具；实用性待真机确认，确认有价值后再转正式工具 |
+| GitHub（2026-10-24 接入） | `api.github.com` 国内直连可达无需代理；匿名 search 10/min、core 60/h，PAT 提额 search 30/min、core 5000/h（官方 docs 核对）；github.com HTML 是 JS 渲染抓不到，搜索与 cleanfetch 仓库/blob 特判均优先走 REST API（`blob` 走 contents API 取原文——raw.githubusercontent CDN 国内无代理不可达，勿改回），API 失败自动回退（搜索回 Bing `site:github.com`，抓取回 webfetch → Jina 链）；code search 要求认证不做 | 已注册（`github.enabled`，默认关闭；`github.api_key`/`token_list` 配 PAT，env `GITHUB_TOKEN`）；限流冷却取 Retry-After / x-ratelimit-reset；EngineAdapters.GitHub 收接口类型（typed-nil 陷阱见 InitGithubEngine 注释） |
+| Reddit（2026-10-24 评审后整线放弃） | 浏览器 UA 全拦（HTML/.json/api 均 403），`.rss` 用脚本 UA 可达但 PullPush 被 Cloudflare 挡死；官方 2026-09-30 公告：新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 全线停、未注册 app 2027-01-12 移除、公共 Data API 2027-03 终止 | 两条候选通道（OAuth script app / RSS 兜底）均在死线上，收益期 < 5 个月，不立项；OAuth 调研结论留档 docs/optimization-roadmap.md N7，上游重开（Devvit/普适免费档）再议 |
 
 ---
 

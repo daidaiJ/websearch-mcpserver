@@ -49,6 +49,7 @@ func fullWebConfig() config.Config {
 		Yuanbao:    config.YuanbaoConfig{APIKey: "yuanbao-key"},
 		TinyFish:   config.TinyFishConfig{APIKey: "tinyfish-key"},
 		Keenable:   config.KeenableConfig{APIKey: "keen-key"},
+		GitHub:     config.GitHubConfig{Enabled: true, APIKey: "github_pat_test"},
 		Bing:       config.BingConfig{Enabled: true},
 		Google:     config.GoogleConfig{Enabled: true},
 		DuckDuckGo: config.DuckDuckGoConfig{Enabled: true},
@@ -115,13 +116,13 @@ func TestWebSourceCatalogConfiguredAndActivePerMode(t *testing.T) {
 			configure: func(c *config.Config) { c.Mode = config.ModeHybrid },
 			wantActive: []string{
 				"anysearch", "baidu", "baidu_web", "bing", "doubao",
-				"duckduckgo", "exa", "google", "keenable", "tavily", "tinyfish", "yuanbao",
+				"duckduckgo", "exa", "github", "google", "keenable", "tavily", "tinyfish", "yuanbao",
 			},
 		},
 		{
 			name:       "engine 只用网页引擎",
 			configure:  func(c *config.Config) { c.Mode = config.ModeEngine },
-			wantActive: []string{"baidu_web", "bing", "duckduckgo", "google"},
+			wantActive: []string{"baidu_web", "bing", "duckduckgo", "github", "google"},
 		},
 		{
 			name:       "baidu 千帆加网页回退",
@@ -336,7 +337,7 @@ func TestBuildDashboardOverviewSortsSourcesByState(t *testing.T) {
 		got = append(got, s.ID)
 	}
 	// 已启用在前（保持目录顺序），已配置未启用居中，未配置最后。
-	want := []string{"baidu_web", "bing", "google", "duckduckgo", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable", "so360", "wikipedia", "googlenews"}
+	want := []string{"baidu_web", "bing", "google", "duckduckgo", "github", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable", "so360", "wikipedia", "googlenews"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("sources 顺序 = %v, want %v", got, want)
 	}
@@ -414,8 +415,8 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 	conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://127.0.0.1:1"}
 	conf.Academic = config.AcademicConfig{Enabled: true, DisableArxiv: true}
 	catalog := SourceCatalog(conf)
-	if len(catalog) != 24 {
-		t.Fatalf("catalog must include 15 web and 9 academic sources: %d", len(catalog))
+	if len(catalog) != 25 {
+		t.Fatalf("catalog must include 16 web and 9 academic sources: %d", len(catalog))
 	}
 	if s := sourceByID(t, catalog, "tavily"); s.Enabled || !s.Configured || s.Active || s.Category != "api" || s.ControlPath != "tavily.enabled" {
 		t.Fatalf("stored key must not override disabled source: %+v", s)

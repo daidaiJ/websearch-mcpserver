@@ -212,6 +212,17 @@ google_news:
   # per_sec: 1              # Rate limit per second (default 1)
   # per_min: 30             # Rate limit per minute (default 30)
 
+# GitHub engine (REST API, zero-key anonymous tier, direct connection from CN — no proxy needed)
+# Anonymous search 10/min; a PAT raises it to 30/min (core 60/h → 5000/h);
+# cleanfetch's github.com repo/blob special-casing shares the same tokens
+github:
+  enabled: false            # Master switch (default false)
+  # api_key: ""             # PAT (github_pat_/ghp_ prefix); env GITHUB_TOKEN
+  # token_list:             # Multi-PAT rotation list (takes priority over api_key)
+  #   - "github_pat_xxxx"
+  # num_results: 10         # Results per search (default 10, cap 50)
+  # per_min: 30             # Search rate limit per minute (default 10/30 depending on PAT)
+
 # DuckDuckGo engine (needs proxy, no key needed)
 duckduckgo:
   enabled: true             # Master switch (auto-joins search when proxy is available)
@@ -659,6 +670,11 @@ dashboard:
 | `wikipedia.lang` | zh | Language edition |
 | `google_news.enabled` | false | Google News RSS engine (keyless news index with structured dates; needs proxy, verified 2026-10-06; redirect links are resolved to publisher URLs) |
 | `google_news.edition` | zh-CN | News edition (zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR) |
+| `github.enabled` | false | GitHub engine (REST API repository search, zero-key anonymous tier 10 searches/min; direct connection from CN, verified 2026-10-24) |
+| `github.api_key` | "" | PAT (github_pat_/ghp_ prefix); raises search to 30/min and core to 5000/h; shared with cleanfetch repo/blob special-casing; env `GITHUB_TOKEN` |
+| `github.token_list` | [] | Multi-PAT rotation list (takes priority over api_key) |
+| `github.num_results` | 10 | Results per search (cap 50) |
+| `github.per_min` | 10/30 | Search rate limit per minute (default 10/30 depending on PAT) |
 | `smartsearch.mmr.enabled` | true | MMR diversity re-ranking |
 | `smartsearch.mmr.lambda` | 0.7 | Relevance-diversity tradeoff |
 | `cache.enabled` | false | Unset → disabled by default (since v3.5.0); set true to enable (storage_path defaults to exe sibling dir cache/websearch-cache.db) |
