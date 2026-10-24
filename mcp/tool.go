@@ -10,6 +10,7 @@ import (
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
+	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/history"
 	"websearch/pkg/llm"
@@ -77,6 +78,9 @@ var (
 	webfetchInst    *webfetch.Fetcher
 	mcpHubFetchInst mcpHubFetcher
 	mcpHubFetchMode string
+	// siteFetchGitHub cleanfetch 站点特判：github.com 仓库/blob 页改走 REST API
+	// （HTML 是 JS 渲染抓不到），与 GitHub 引擎共用 conf.GitHub 的 token 提额。
+	siteFetchGitHub *sitefetch.GitHubFetcher
 	// providerFetchers 供应商自带 fetch API 的远端抓取链（TinyFish/Keenable 等），
 	// 排在 mcphub 托管 MCP 之前：优先消耗供应商按 URL 计数的免费 fetch 额度。
 	providerFetchers     []mcpHubFetcher

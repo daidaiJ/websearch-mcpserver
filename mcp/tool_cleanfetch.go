@@ -11,6 +11,7 @@ import (
 	"time"
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/jina"
+	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/log"
 	"websearch/pkg/telemetry"
@@ -154,6 +155,20 @@ func mergeFetchURLs(url string, urls []string) []string {
 func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	if err := validateURLSecurity(rawURL); err != nil {
 		return "", err
+	}
+	// 站点特判：HTML 抓不到的站点（github.com 为 JS 渲染）直接走官方 API，
+	// 不做 headCheck、不进远端/本地降级链——常规链路对该类 URL 必然失败。
+	if siteFetchGitHub != nil && sitefetch.MatchGitHub(rawURL) {
+		started := time.Now()
+		text, err := siteFetchGitHub.Fetch(ctx, rawURL)
+		telemetry.RecordEventContext(ctx, telemetry.Event{
+			Kind: "provider", Provider: "github_api", Query: rawURL,
+			Success: err == nil, Duration: time.Since(started), ResultCount: 1, Error: err,
+		})
+		if err != nil {
+			return "", err
+		}
+		return text, nil
 	}
 	if err := headCheck(ctx, rawURL); err != nil {
 		return "", err

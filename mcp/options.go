@@ -12,6 +12,7 @@ import (
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
+	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/history"
 	"websearch/pkg/llm"
@@ -182,6 +183,7 @@ func ensureEverything() bool {
 }
 
 func applyWebFetch(conf config.Config) {
+	siteFetchGitHub = sitefetch.NewGitHubFetcher(conf.GitHub.EffectiveTokenList())
 	webfetchLazyCfg = &conf
 	if !conf.CleanFetch.Enabled && !conf.PDFParser.Enabled {
 		return
