@@ -181,20 +181,28 @@ docker build -t websearch-mcpserver .
 
 ## 🔄 Handoff 摘要
 
-> 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前状态、运维待办与待验证项。
+> 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### 当前状态（2026-10-19）
+### eco-absorb 供应商扩展批 — in-progress（分支未推送）
 
-- `master` 已推送 `b780769`：优化路线图首批八项落地（R1 context 贯通 + per-engine 软超时、R2 诊断 per-request、R3 缓存并发读、Q1 URL 归一化、Q2 守卫校准回放、O1 `/metrics`、T1 SSRF fuzz、T3 CI race + lint）。全量 `go test ./...`、`go test -race -short ./...`、golangci-lint、actionlint 全绿。
-- 剩余优化项见 [docs/optimization-roadmap.md](docs/optimization-roadmap.md) 待办区：Q3 摘要 token 预算、E1 go-sdk v1.8 升级、T2 引擎解析测试补密度。
-- 待发布：批次 1+3 → `v3.8.x` 补丁版；R1（批次 2）→ `v3.9.0`。`-registry` tag 按发布矩阵在 base Release 就绪后另打。
+- **当前状态：** 5 提交全绿未推送；开口项 = dashboard 源面板补 tinyfish/keenable 条目、N6 quota TinyFish `/usage`、CHANGELOG（中英）
+- **关键证据：** worktree `D:\CODE\ai\websearch-ecoabsorb`（feat/eco-absorb，基于 master `e2be3a9`）；全量 `go test ./...` 绿；TinyFish/Keenable 直连实测 200 无需代理
+- **验收标准：** 见 handoff 详情 §4；合并流程 = 等 yuanbao 合入后 rebase 再 PR
+- **详情指针：** [`.handoff/eco-absorb-providers.md`](.handoff/eco-absorb-providers.md)
+- **路线图权威：** [docs/optimization-roadmap.md](docs/optimization-roadmap.md) N 系列（N1-N5 已归档；智谱 preset 评审后不做——消耗套餐额度）
+
+### shortcut-sync — pending（下个会话修复）
+
+- **当前状态：** 需求确认，未改代码；现有 `v3.10.0-preview.1` 只在 `start` 做 marker+存在性检查
+- **关键证据：** `cmd/setup_windows.go` 的 `ensureShortcuts`/`ensureDashboardShortcut`/`runInstall`；`cmd/open.go` 无同步；无快捷方式测试
+- **验收标准：** 按 `dashboard.enabled`/`shortcut`/`theme`/`icon` 创建、更新、删除；坏链与同主题新图标可修复；`install` 与 `start` 一致
+- **详情指针：** [`.handoff/shortcut-sync.md`](.handoff/shortcut-sync.md)
 
 ### 运维待办
 
-- 本机部署 `D:\Programs\websearch` 仍跑旧二进制；其 config.yaml 显式的 `everything.max_results: 50` 会被硬上限收敛为 20（要默认 10 需删该行或改 10）。
-- MCP Registry 缺 `v3.6.1` / `v3.6.2`（历次未打 `-registry` tag），如需补发在原 commit 上补 tag。
+- 本机部署 `D:\Programs\websearch` 已更新到 `v3.10.0-preview.1`（备份 `*.bak-pre-v3.10.0-preview.1`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
 
 ### 待验证
 
-- 新引擎真实链路长期回归：验证码页出现频率、anysearch 匿名档限流阈值、googlenews 回源失败率。
-- 冷却落盘真网冷启动回归（重启后 ddg/arxiv 实际避让）；date_source 新旧缓存行往返实测。
+- [ ] tinyfish/keenable 经二进制真网链路长期回归（限流阈值、结果质量；当前仅有 curl 实测 + 单测）
+- [ ] 新引擎/新工具真实链路长期回归：验证码页频率、anysearch 匿名档阈值、googlenews 回源失败率、search_history 写入与 FTS 命中率
