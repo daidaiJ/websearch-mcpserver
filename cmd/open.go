@@ -17,6 +17,10 @@ const openWaitTimeout = 15 * time.Second
 
 // runOpen 先确保服务在运行（不在则后台拉起并等待就绪），然后打开 WebUI。
 func runOpen(conf *config.Config) {
+	// open 也是快捷方式的目标：每次拉起时顺手校正 .lnk（坏链、换图标、
+	// exe 挪位置后从新目录执行一次 open 即可自愈）。
+	syncDashboardShortcut(conf)
+
 	url := fmt.Sprintf("http://127.0.0.1:%d/dashboard/", conf.Port)
 
 	running := false

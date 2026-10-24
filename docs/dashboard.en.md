@@ -217,13 +217,15 @@ Passive warnings (`suspension.*` / `suspension_scope: observation`) reflect real
 | `desktop` (default) | Creates `WebSearchMCP.lnk` on the desktop; double-click = start server + open console (lazy start) |
 | `start` | Creates the shortcut under Start Menu "Programs": searchable from the Start screen, pinnable manually. Programmatic pin-to-Start is unreliable on Win10/11, so the Start Menu entry is the supported path |
 | `both` | Desktop + Start menu |
-| `off` | No shortcuts created (existing ones are not auto-removed; delete manually or run uninstall) |
+| `off` | No shortcuts created; known desktop/Start-menu shortcuts are removed. `dashboard.enabled: false` behaves the same |
 
 Details:
 
-- Windows only; created automatically on `start`/`open`, and `install` follows this setting too
-- Icon follows `brand.theme` (or `brand.icon`); each boot does a lightweight marker-file check and rebuilds only when theme/path/placement changed
-- Changing the `shortcut` value cleans up the previous location automatically (no dead links)
+- Windows only; `start`, `open` and `install` share one idempotent sync routine
+- The desired state is derived from the current executable path (target, `open` argument, executable directory) plus `brand.theme` / `brand.icon`. Each `.lnk` is read and its target, arguments, working directory, icon path and icon index are checked; any mismatch (manual edit, renamed or moved executable, theme/icon change, placement change) is rewritten
+- A correct shortcut is only read and reported `unchanged`; missing ones report `created`, broken/changed ones `updated`, and `off` cleanup `removed`
+- Icon file names carry a content hash (`websearch-<theme|custom>-<hash8>.ico`), so theme or icon-content changes produce a new file name and bypass the Windows icon cache
+- Changing `shortcut` removes locations that are no longer needed (no dead links); the legacy `websearch-shortcut.theme` marker is removed automatically
 - `uninstall` always cleans every known location (desktop + Start menu + startup folder)
 
 ## Security model

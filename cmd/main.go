@@ -20,9 +20,9 @@ import (
 var version = "dev"
 
 func runStart(conf *config.Config) {
-	// 控制台启用时确保桌面快捷方式存在（幂等、尽力而为）：
-	// 给 lazy 启动一个入口，替代开机自启动的常驻模式。
-	ensureDashboardShortcut(conf)
+	// 按配置同步快捷方式（幂等、尽力而为）：给 lazy 启动一个入口，
+	// 替代开机自启动的常驻模式。
+	syncDashboardShortcut(conf)
 
 	// 尝试通过 health 端点检测服务是否已运行
 	_, err := daemon.GetHealth(conf.Port)

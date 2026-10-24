@@ -14,9 +14,9 @@
 
 dashboard:
   enabled: true
-  # 快捷方式落位（Windows，start/open 时自动创建）：desktop（桌面，默认）/
-  # start（开始菜单，开始屏幕可搜索并手动固定）/ both / off（不创建）。
-  # uninstall 始终清理全部已知位置。
+  # 快捷方式落位（Windows，start/open/install 同步）：desktop（桌面，默认）/
+  # start（开始菜单，开始屏幕可搜索并手动固定）/ both / off（删除已知位置）。
+  # 目标/参数/工作目录/图标不符时自动重写；uninstall 始终清理全部已知位置。
   shortcut: desktop
   storage_path: "./data/dashboard.db"
   retention_days: 30                          # 明细保留天数，每日汇总长期保留

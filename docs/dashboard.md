@@ -217,13 +217,15 @@ PDF 页进度当前为 `not_collected`，控制中心不能据此展示真实逐
 | `desktop`（默认） | 桌面创建 `WebSearchMCP.lnk`，双击 = 拉起服务 + 打开控制台（lazy 启动） |
 | `start` | 开始菜单「Programs」创建同名快捷方式：开始屏幕可直接搜索到，也可手动「固定到开始屏幕」。程序化直接 pin 在 Win10/11 上不可靠，故以开始菜单条目为准 |
 | `both` | 桌面 + 开始菜单 |
-| `off` | 不创建任何快捷方式（已创建的不会被自动删除，可手动删或 uninstall） |
+| `off` | 不创建快捷方式，并删除桌面/开始菜单中的已知快捷方式；`dashboard.enabled: false` 行为相同 |
 
 细节：
 
-- 仅 Windows 生效；`start`/`open` 时自动创建，`install` 也会按此配置落位
-- 图标跟随 `brand.theme`（或 `brand.icon` 自定义）；每次启动只做轻量检查（读 marker 文件比对），主题/路径/落位变化时才重建
-- 更换 `shortcut` 值会自动清理旧位置的 `.lnk`，不留死链
+- 仅 Windows 生效；`start`、`open`、`install` 共用同一同步逻辑，重复执行幂等
+- 期望状态由当前 exe 路径（目标 + `open` 参数 + exe 目录）与 `brand.theme` / `brand.icon` 计算；逐个读取 `.lnk` 校验目标、参数、工作目录、图标路径与图标索引，任一不符（手工改坏、exe 重命名或换目录、主题/图标变化、落位变化）即重写
+- 已正确的快捷方式只读取校验并报 `unchanged`；缺失报 `created`，被改坏或需要换图标/路径报 `updated`，`off` 清理报 `removed`
+- 图标文件名含内容哈希（`websearch-<theme|custom>-<hash8>.ico`）：主题或图标文件内容变化会换新文件名并重建 `.lnk`，绕开 Windows 图标缓存
+- 更换 `shortcut` 值会清理不再需要的位置，不留死链；旧版 `websearch-shortcut.theme` marker 自动移除
 - `uninstall` 始终清理全部已知位置（桌面 + 开始菜单 + 开机自启目录）
 
 ## 安全模型

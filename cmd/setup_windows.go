@@ -4,10 +4,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -27,7 +30,7 @@ var (
 	procCoUninitialize   = ole32.MustFindProc("CoUninitialize")
 	procCoTaskMemFree    = ole32.MustFindProc("CoTaskMemFree")
 
-	shell32                 = syscall.NewLazyDLL("shell32.dll")
+	shell32                  = syscall.NewLazyDLL("shell32.dll")
 	procSHGetKnownFolderPath = shell32.NewProc("SHGetKnownFolderPath")
 )
 
@@ -143,88 +146,202 @@ type IPersistFile struct {
 	LpVtbl *IPersistFileVtbl
 }
 
-func createShortcut(shortcutPath, targetPath, arguments, workingDir string, windowStyle int, iconPath string) error {
-	// 初始化 COM
-	hr, _, _ := procCoInitializeEx.Call(0, 0)
-	if hr != 0 {
-		return fmt.Errorf("CoInitializeEx failed: %d", hr)
-	}
-	defer procCoUninitialize.Call()
+const (
+	coinitMultithreaded = 0
+	coinitSFalse        = 1
+	rpcEChangedMode     = 0x80010106
+	slgpRawPath         = 4 // SLGP_RAWPATH：返回 .lnk 中保存的原始目标路径
+)
 
-	// 解析 CLSID_ShellLink
+// coInitialize 初始化当前线程的 COM，返回成对的清理函数。同线程已初始化
+// （S_FALSE）时仍须成对调用 CoUninitialize；套间模式冲突时沿用已有套间。
+func coInitialize() (func(), error) {
+	hr, _, _ := procCoInitializeEx.Call(0, coinitMultithreaded)
+	switch uint32(hr) {
+	case 0, coinitSFalse:
+		return func() { _, _, _ = procCoUninitialize.Call() }, nil
+	case rpcEChangedMode:
+		return func() {}, nil
+	default:
+		return nil, fmt.Errorf("CoInitializeEx failed: HRESULT %#x", hr)
+	}
+}
+
+func newShellLink() (*IShellLinkW, *IPersistFile, error) {
 	clsid, err := parseGUID("{00021401-0000-0000-C000-000000000046}")
 	if err != nil {
-		return fmt.Errorf("invalid CLSID: %v", err)
+		return nil, nil, fmt.Errorf("invalid CLSID: %w", err)
 	}
-
-	// 解析 IID_IShellLinkW
 	iid, err := parseGUID("{000214F9-0000-0000-C000-000000000046}")
 	if err != nil {
-		return fmt.Errorf("invalid IID: %v", err)
+		return nil, nil, fmt.Errorf("invalid IID: %w", err)
 	}
 
-	// 创建 ShellLink 对象
-	var shellLink *IShellLinkW
-	hr, _, _ = procCoCreateInstance.Call(
+	var link *IShellLinkW
+	hr, _, _ := procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(&clsid)),
 		0,
 		1, // CLSCTX_INPROC_SERVER
 		uintptr(unsafe.Pointer(&iid)),
-		uintptr(unsafe.Pointer(&shellLink)),
+		uintptr(unsafe.Pointer(&link)),
 	)
 	if hr != 0 {
-		return fmt.Errorf("CoCreateInstance failed: %d", hr)
-	}
-	defer syscall.SyscallN(shellLink.LpVtbl.Release, uintptr(unsafe.Pointer(shellLink)))
-
-	// 设置目标路径
-	targetPathPtr, _ := syscall.UTF16PtrFromString(targetPath)
-	syscall.SyscallN(shellLink.LpVtbl.SetPath, uintptr(unsafe.Pointer(shellLink)), uintptr(unsafe.Pointer(targetPathPtr)))
-
-	// 设置参数
-	argumentsPtr, _ := syscall.UTF16PtrFromString(arguments)
-	syscall.SyscallN(shellLink.LpVtbl.SetArguments, uintptr(unsafe.Pointer(shellLink)), uintptr(unsafe.Pointer(argumentsPtr)))
-
-	// 设置工作目录
-	workingDirPtr, _ := syscall.UTF16PtrFromString(workingDir)
-	syscall.SyscallN(shellLink.LpVtbl.SetWorkingDirectory, uintptr(unsafe.Pointer(shellLink)), uintptr(unsafe.Pointer(workingDirPtr)))
-
-	// 设置窗口样式 (SW_HIDE = 0)
-	syscall.SyscallN(shellLink.LpVtbl.SetShowCmd, uintptr(unsafe.Pointer(shellLink)), uintptr(windowStyle))
-
-	// 设置图标（空串则沿用目标文件默认图标）
-	if iconPath != "" {
-		iconPtr, _ := syscall.UTF16PtrFromString(iconPath)
-		syscall.SyscallN(shellLink.LpVtbl.SetIconLocation,
-			uintptr(unsafe.Pointer(shellLink)), uintptr(unsafe.Pointer(iconPtr)), 0)
+		return nil, nil, fmt.Errorf("CoCreateInstance failed: HRESULT %#x", hr)
 	}
 
-	// 获取 IPersistFile 接口
-	persistFileIID, err := parseGUID("{0000010b-0000-0000-C000-000000000046}")
+	persistIID, err := parseGUID("{0000010b-0000-0000-C000-000000000046}")
 	if err != nil {
-		return fmt.Errorf("invalid PersistFile IID: %v", err)
+		_, _, _ = syscall.SyscallN(link.LpVtbl.Release, uintptr(unsafe.Pointer(link)))
+		return nil, nil, fmt.Errorf("invalid PersistFile IID: %w", err)
 	}
-
-	var persistFile *IPersistFile
-	hr, _, _ = syscall.SyscallN(shellLink.LpVtbl.QueryInterface,
-		uintptr(unsafe.Pointer(shellLink)),
-		uintptr(unsafe.Pointer(&persistFileIID)),
-		uintptr(unsafe.Pointer(&persistFile)),
+	var persist *IPersistFile
+	hr, _, _ = syscall.SyscallN(link.LpVtbl.QueryInterface,
+		uintptr(unsafe.Pointer(link)),
+		uintptr(unsafe.Pointer(&persistIID)),
+		uintptr(unsafe.Pointer(&persist)),
 	)
 	if hr != 0 {
-		return fmt.Errorf("QueryInterface IPersistFile failed: %d", hr)
+		_, _, _ = syscall.SyscallN(link.LpVtbl.Release, uintptr(unsafe.Pointer(link)))
+		return nil, nil, fmt.Errorf("QueryInterface IPersistFile failed: HRESULT %#x", hr)
 	}
-	defer syscall.SyscallN(persistFile.LpVtbl.Release, uintptr(unsafe.Pointer(persistFile)))
+	return link, persist, nil
+}
 
-	// 保存快捷方式
-	shortcutPathPtr, _ := syscall.UTF16PtrFromString(shortcutPath)
-	syscall.SyscallN(persistFile.LpVtbl.Save,
-		uintptr(unsafe.Pointer(persistFile)),
-		uintptr(unsafe.Pointer(shortcutPathPtr)),
-		1, // TRUE
-	)
-
+func setShellLinkString(fn uintptr, link *IShellLinkW, value string) error {
+	p, err := syscall.UTF16PtrFromString(value)
+	if err != nil {
+		return err
+	}
+	if hr, _, _ := syscall.SyscallN(fn, uintptr(unsafe.Pointer(link)), uintptr(unsafe.Pointer(p))); hr != 0 {
+		return fmt.Errorf("HRESULT %#x", hr)
+	}
 	return nil
+}
+
+func setShellLinkIcon(link *IShellLinkW, iconPath string) error {
+	p, err := syscall.UTF16PtrFromString(iconPath)
+	if err != nil {
+		return err
+	}
+	hr, _, _ := syscall.SyscallN(link.LpVtbl.SetIconLocation,
+		uintptr(unsafe.Pointer(link)), uintptr(unsafe.Pointer(p)), 0)
+	if hr != 0 {
+		return fmt.Errorf("HRESULT %#x", hr)
+	}
+	return nil
+}
+
+func createShortcut(shortcutPath, targetPath, arguments, workingDir string, windowStyle int, iconPath string) error {
+	uninit, err := coInitialize()
+	if err != nil {
+		return err
+	}
+	defer uninit()
+
+	link, persist, err := newShellLink()
+	if err != nil {
+		return err
+	}
+	defer func() { _, _, _ = syscall.SyscallN(link.LpVtbl.Release, uintptr(unsafe.Pointer(link))) }()
+	defer func() { _, _, _ = syscall.SyscallN(persist.LpVtbl.Release, uintptr(unsafe.Pointer(persist))) }()
+
+	if err := setShellLinkString(link.LpVtbl.SetPath, link, targetPath); err != nil {
+		return fmt.Errorf("SetPath: %w", err)
+	}
+	if err := setShellLinkString(link.LpVtbl.SetArguments, link, arguments); err != nil {
+		return fmt.Errorf("SetArguments: %w", err)
+	}
+	if err := setShellLinkString(link.LpVtbl.SetWorkingDirectory, link, workingDir); err != nil {
+		return fmt.Errorf("SetWorkingDirectory: %w", err)
+	}
+	if hr, _, _ := syscall.SyscallN(link.LpVtbl.SetShowCmd,
+		uintptr(unsafe.Pointer(link)), uintptr(windowStyle)); hr != 0 {
+		return fmt.Errorf("SetShowCmd: HRESULT %#x", hr)
+	}
+	if iconPath != "" {
+		if err := setShellLinkIcon(link, iconPath); err != nil {
+			return fmt.Errorf("SetIconLocation: %w", err)
+		}
+	}
+
+	shortcutPathPtr, err := syscall.UTF16PtrFromString(shortcutPath)
+	if err != nil {
+		return err
+	}
+	if hr, _, _ := syscall.SyscallN(persist.LpVtbl.Save,
+		uintptr(unsafe.Pointer(persist)),
+		uintptr(unsafe.Pointer(shortcutPathPtr)),
+		1); hr != 0 { // TRUE
+		return fmt.Errorf("save: HRESULT %#x", hr)
+	}
+	return nil
+}
+
+func readShellLinkString(fn uintptr, link *IShellLinkW) (string, error) {
+	buf := make([]uint16, 32768)
+	hr, _, _ := syscall.SyscallN(fn,
+		uintptr(unsafe.Pointer(link)),
+		uintptr(unsafe.Pointer(&buf[0])),
+		uintptr(len(buf)),
+	)
+	if hr != 0 {
+		return "", fmt.Errorf("HRESULT %#x", hr)
+	}
+	return syscall.UTF16ToString(buf), nil
+}
+
+func readShortcut(shortcutPath string) (shortcutSpec, error) {
+	uninit, err := coInitialize()
+	if err != nil {
+		return shortcutSpec{}, err
+	}
+	defer uninit()
+
+	link, persist, err := newShellLink()
+	if err != nil {
+		return shortcutSpec{}, err
+	}
+	defer func() { _, _, _ = syscall.SyscallN(link.LpVtbl.Release, uintptr(unsafe.Pointer(link))) }()
+	defer func() { _, _, _ = syscall.SyscallN(persist.LpVtbl.Release, uintptr(unsafe.Pointer(persist))) }()
+
+	pathPtr, err := syscall.UTF16PtrFromString(shortcutPath)
+	if err != nil {
+		return shortcutSpec{}, err
+	}
+	if hr, _, _ := syscall.SyscallN(persist.LpVtbl.Load,
+		uintptr(unsafe.Pointer(persist)),
+		uintptr(unsafe.Pointer(pathPtr)),
+		0); hr != 0 { // STGM_READ
+		return shortcutSpec{}, fmt.Errorf("load: HRESULT %#x", hr)
+	}
+
+	var spec shortcutSpec
+	targetBuf := make([]uint16, 32768)
+	if hr, _, _ := syscall.SyscallN(link.LpVtbl.GetPath,
+		uintptr(unsafe.Pointer(link)),
+		uintptr(unsafe.Pointer(&targetBuf[0])),
+		uintptr(len(targetBuf)),
+		0, // WIN32_FIND_DATAW：不需要
+		slgpRawPath); hr != 0 {
+		return shortcutSpec{}, fmt.Errorf("GetPath: HRESULT %#x", hr)
+	}
+	spec.Target = syscall.UTF16ToString(targetBuf)
+	if spec.Arguments, err = readShellLinkString(link.LpVtbl.GetArguments, link); err != nil {
+		return shortcutSpec{}, fmt.Errorf("GetArguments: %w", err)
+	}
+	if spec.WorkingDir, err = readShellLinkString(link.LpVtbl.GetWorkingDirectory, link); err != nil {
+		return shortcutSpec{}, fmt.Errorf("GetWorkingDirectory: %w", err)
+	}
+	iconBuf := make([]uint16, 32768)
+	if hr, _, _ := syscall.SyscallN(link.LpVtbl.GetIconLocation,
+		uintptr(unsafe.Pointer(link)),
+		uintptr(unsafe.Pointer(&iconBuf[0])),
+		uintptr(len(iconBuf)),
+		uintptr(unsafe.Pointer(&spec.IconIndex))); hr != 0 {
+		return shortcutSpec{}, fmt.Errorf("GetIconLocation: HRESULT %#x", hr)
+	}
+	spec.IconPath = syscall.UTF16ToString(iconBuf)
+	return spec, nil
 }
 
 // desktopShortcutPath 返回桌面快捷方式的固定路径；固定文件名天然去重。
@@ -240,20 +357,36 @@ func startMenuShortcutPath() string {
 		"Microsoft", "Windows", "Start Menu", "Programs", "WebSearchMCP.lnk")
 }
 
-// shortcutTargets 按 dashboard.shortcut 配置返回应存在的快捷方式路径。
-func shortcutTargets(mode string) []string {
+type shortcutLocation struct {
+	Label string
+	Path  string
+}
+
+func desktopLocation() shortcutLocation {
+	return shortcutLocation{Label: "desktop", Path: desktopShortcutPath()}
+}
+
+func startMenuLocation() shortcutLocation {
+	return shortcutLocation{Label: "start menu", Path: startMenuShortcutPath()}
+}
+
+func allShortcutLocations() []shortcutLocation {
+	return []shortcutLocation{desktopLocation(), startMenuLocation()}
+}
+
+// shortcutLocations 按 dashboard.shortcut 配置返回应存在的快捷方式。
+func shortcutLocations(mode string) []shortcutLocation {
 	switch mode {
 	case "start":
-		return []string{startMenuShortcutPath()}
+		return []shortcutLocation{startMenuLocation()}
 	case "both":
-		return []string{desktopShortcutPath(), startMenuShortcutPath()}
+		return []shortcutLocation{desktopLocation(), startMenuLocation()}
 	default: // desktop
-		return []string{desktopShortcutPath()}
+		return []shortcutLocation{desktopLocation()}
 	}
 }
 
-// themeICO 返回主题对应的内嵌图标字节；每次启动的图标检查只做字符串
-// 比较，主题变化时才落盘新 ico 并重建 .lnk（轻量级行为）。
+// themeICO 返回主题对应的内嵌图标字节。
 func themeICO(theme string) []byte {
 	switch theme {
 	case "blue":
@@ -265,112 +398,198 @@ func themeICO(theme string) []byte {
 	}
 }
 
-// ensureShortcuts 创建/维护「双击即启动并打开控制台」的快捷方式（目标 =
-// websearch-mcpserver open，图标跟随品牌主题），落位由 dashboard.shortcut
-// 决定（桌面 / 开始菜单 / 两者）。marker 记录主题、exe 路径与落位模式，
-// 均未变化且目标文件在位时每次启动只做一次文件读取（轻量级检查）；任一
-// 变化（换主题、exe 挪位置、改落位）才清理旧位置并重建。
-func ensureShortcuts(theme, customIcon, mode string) (created bool, err error) {
-	targets := shortcutTargets(mode)
-	exePath, err := os.Executable()
-	if err != nil {
-		return false, err
+type shortcutSpec struct {
+	Target     string
+	Arguments  string
+	WorkingDir string
+	IconPath   string
+	IconIndex  int32
+}
+
+func sameShortcutPath(a, b string) bool {
+	if a == "" || b == "" {
+		return a == b
 	}
+	if strings.EqualFold(filepath.Clean(a), filepath.Clean(b)) {
+		return true
+	}
+	// 8.3 短名、junction/符号链接等写法差异按文件身份比较。
+	ai, aerr := os.Stat(a)
+	bi, berr := os.Stat(b)
+	return aerr == nil && berr == nil && os.SameFile(ai, bi)
+}
+
+// matches 逐项比较 .lnk 的实际内容与期望值；路径大小写不敏感。
+func (s shortcutSpec) matches(other shortcutSpec) bool {
+	return sameShortcutPath(s.Target, other.Target) &&
+		strings.TrimSpace(s.Arguments) == strings.TrimSpace(other.Arguments) &&
+		sameShortcutPath(s.WorkingDir, other.WorkingDir) &&
+		sameShortcutPath(s.IconPath, other.IconPath) &&
+		s.IconIndex == other.IconIndex
+}
+
+func shortcutIconKey(theme, customIcon string) string {
+	if customIcon != "" {
+		return "custom"
+	}
+	return theme
+}
+
+// shortcutIconPath 把图标内容哈希写进文件名：内容变化即换 IconLocation
+// 路径，绕开 Windows 图标缓存（同路径覆盖图标可能不刷新）。
+func shortcutIconPath(exeDir, iconKey string, data []byte) string {
+	sum := sha256.Sum256(data)
+	name := fmt.Sprintf("websearch-%s-%s.ico", iconKey, hex.EncodeToString(sum[:4]))
+	return filepath.Join(exeDir, name)
+}
+
+func shortcutIconData(theme, customIcon string) ([]byte, error) {
+	if customIcon == "" {
+		return themeICO(theme), nil
+	}
+	b, err := os.ReadFile(customIcon)
+	if err != nil {
+		return nil, fmt.Errorf("read brand.icon: %w", err)
+	}
+	return b, nil
+}
+
+// desiredShortcutMode 返回期望的落位；控制台关闭或 shortcut: off 时为 off。
+func desiredShortcutMode(conf *config.Config) string {
+	if conf == nil || !conf.Dashboard.Enabled {
+		return "off"
+	}
+	return conf.Dashboard.GetShortcut()
+}
+
+type shortcutReport struct {
+	Created   []shortcutLocation
+	Updated   []shortcutLocation
+	Removed   []shortcutLocation
+	Unchanged []shortcutLocation
+}
+
+func (r shortcutReport) print() {
+	for _, group := range []struct {
+		action    string
+		locations []shortcutLocation
+	}{
+		{"created", r.Created},
+		{"updated", r.Updated},
+		{"removed", r.Removed},
+		{"unchanged", r.Unchanged},
+	} {
+		for _, loc := range group.locations {
+			fmt.Printf("shortcut %s (%s)\n", group.action, loc.Label)
+		}
+	}
+}
+
+func removeShortcutLocations(locations []shortcutLocation, report *shortcutReport) error {
+	for _, loc := range locations {
+		err := os.Remove(loc.Path)
+		switch {
+		case err == nil:
+			report.Removed = append(report.Removed, loc)
+		case os.IsNotExist(err):
+		default:
+			return fmt.Errorf("remove %s shortcut: %w", loc.Label, err)
+		}
+	}
+	return nil
+}
+
+// syncShortcuts 以配置和当前 exe 为期望状态，逐个校正已知位置的 .lnk：
+// 缺失则创建，目标/参数/工作目录/图标任一不符（含手工改坏、升级换图标、
+// exe 挪位置）则重写，落位不再需要的位置删除。幂等，重复执行只报 unchanged。
+func syncShortcuts(conf *config.Config, exePath string) (shortcutReport, error) {
+	var report shortcutReport
+	mode := desiredShortcutMode(conf)
 	exePath, _ = filepath.Abs(exePath)
 	exeDir := filepath.Dir(exePath)
-	markerPath := filepath.Join(exeDir, "websearch-shortcut.theme")
-	iconKey := theme
-	if customIcon != "" {
-		iconKey = "custom"
-	}
-	want := iconKey + "\n" + exePath + "\n" + mode + "\n"
+	// 旧版用 marker 跳过重建，内容校验后不再需要。
+	defer func() { _ = os.Remove(shortcutMarkerPath(exeDir)) }()
 
-	upToDate := true
-	for _, p := range targets {
-		if _, statErr := os.Stat(p); statErr != nil {
-			upToDate = false
-			break
-		}
-	}
-	if upToDate {
-		if b, rerr := os.ReadFile(markerPath); rerr == nil && string(b) == want {
-			return false, nil
-		}
+	if mode == "off" {
+		return report, removeShortcutLocations(allShortcutLocations(), &report)
 	}
 
-	// 落位变化时清理另一处的旧快捷方式（desktop ↔ start 互换不留死链）
-	for _, stale := range []string{desktopShortcutPath(), startMenuShortcutPath()} {
-		if _, statErr := os.Stat(stale); statErr == nil {
-			_ = os.Remove(stale)
+	wanted := shortcutLocations(mode)
+	needed := make(map[string]bool, len(wanted))
+	for _, loc := range wanted {
+		needed[loc.Path] = true
+	}
+	var stale []shortcutLocation
+	for _, loc := range allShortcutLocations() {
+		if !needed[loc.Path] {
+			stale = append(stale, loc)
 		}
+	}
+	if err := removeShortcutLocations(stale, &report); err != nil {
+		return report, err
 	}
 
-	// 每主题/自定义一个 ico 文件：换图标即换 IconLocation 路径，绕开 Windows 图标缓存
-	var iconData []byte
-	if customIcon != "" {
-		b, rerr := os.ReadFile(customIcon)
-		if rerr != nil {
-			return false, fmt.Errorf("read brand.icon: %w", rerr)
-		}
-		iconData = b
-	} else {
-		iconData = themeICO(theme)
+	iconData, err := shortcutIconData(conf.Dashboard.Brand.GetTheme(), conf.Dashboard.Brand.Icon)
+	if err != nil {
+		return report, err
 	}
-	iconPath := filepath.Join(exeDir, "websearch-"+iconKey+".ico")
-	if existing, err := os.ReadFile(iconPath); err != nil || !bytes.Equal(existing, iconData) {
-		if err := os.WriteFile(iconPath, iconData, 0o644); err != nil {
-			return false, err
+	iconPath := shortcutIconPath(exeDir, shortcutIconKey(
+		conf.Dashboard.Brand.GetTheme(), conf.Dashboard.Brand.Icon), iconData)
+	if existing, rerr := os.ReadFile(iconPath); rerr != nil || !bytes.Equal(existing, iconData) {
+		if werr := os.WriteFile(iconPath, iconData, 0o644); werr != nil {
+			return report, werr
 		}
 	}
 
-	for _, p := range targets {
-		if err := createShortcut(
-			p,
-			exePath,
-			"open",
-			exeDir,
-			0, // SW_HIDE：open 进程秒退，窗口无需可见
-			iconPath,
-		); err != nil {
-			return false, err
+	want := shortcutSpec{
+		Target:     exePath,
+		Arguments:  "open",
+		WorkingDir: exeDir,
+		IconPath:   iconPath,
+	}
+	for _, loc := range wanted {
+		_, statErr := os.Stat(loc.Path)
+		existed := statErr == nil
+		if existed {
+			if actual, rerr := readShortcut(loc.Path); rerr == nil && actual.matches(want) {
+				report.Unchanged = append(report.Unchanged, loc)
+				continue
+			}
+		}
+		if err := createShortcut(loc.Path, want.Target, want.Arguments, want.WorkingDir, 0, want.IconPath); err != nil {
+			return report, fmt.Errorf("write %s shortcut: %w", loc.Label, err)
+		}
+		if existed {
+			report.Updated = append(report.Updated, loc)
+		} else {
+			report.Created = append(report.Created, loc)
 		}
 	}
-	if err := os.WriteFile(markerPath, []byte(want), 0o644); err != nil {
-		return false, err
-	}
-	return true, nil
+	return report, nil
+}
+
+func shortcutMarkerPath(exeDir string) string {
+	return filepath.Join(exeDir, "websearch-shortcut.theme")
 }
 
 // removeShortcuts 删除全部已知位置的快捷方式（uninstall 时调用）。
 func removeShortcuts() error {
-	var firstErr error
-	for _, p := range []string{desktopShortcutPath(), startMenuShortcutPath()} {
-		if _, err := os.Stat(p); os.IsNotExist(err) {
-			continue
-		} else if err := os.Remove(p); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
+	var report shortcutReport
+	return removeShortcutLocations(allShortcutLocations(), &report)
 }
 
-// ensureDashboardShortcut 在控制台启用时按 dashboard.shortcut 配置创建/维护
-// 快捷方式（幂等、尽力而为），由 start 启动路径调用：给 lazy 启动一个入口，
-// 替代开机自启动的常驻。shortcut: off 时不创建任何快捷方式。
-func ensureDashboardShortcut(conf *config.Config) {
-	if !conf.Dashboard.Enabled {
+// syncDashboardShortcut 按配置同步快捷方式（start/open/install 共用）。
+// 快捷方式维护是尽力而为：失败只打日志，不影响服务启动。
+func syncDashboardShortcut(conf *config.Config) {
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "shortcut: %v\n", err)
 		return
 	}
-	mode := conf.Dashboard.GetShortcut()
-	if mode == "off" {
-		return
-	}
-	created, err := ensureShortcuts(conf.Dashboard.Brand.GetTheme(), conf.Dashboard.Brand.Icon, mode)
-	switch {
-	case err != nil:
-		fmt.Fprintf(os.Stderr, "shortcut (%s): %v\n", mode, err)
-	case created:
-		fmt.Println("shortcut created/refreshed (WebSearchMCP, mode: " + mode + ")")
+	report, err := syncShortcuts(conf, exePath)
+	report.print()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "shortcut: %v\n", err)
 	}
 }
 
@@ -422,7 +641,7 @@ func runInstall() {
 		"wscript.exe",
 		fmt.Sprintf(`"%s"`, vbsPath),
 		exeDir,
-		0, // SW_HIDE
+		0,  // SW_HIDE
 		"", // 沿用目标默认图标
 	)
 	if err != nil {
@@ -431,24 +650,15 @@ func runInstall() {
 	}
 	fmt.Println("created shortcut in startup folder")
 
-	// 4. 快捷方式（lazy 启动入口：双击 = start + 打开控制台）。落位与主题
-	// 按 dashboard.yaml 实际配置（读不到配置时回退桌面 + 默认主题）。
-	mode, theme := "desktop", "green"
-	if conf, err := config.Load(configPath); err == nil {
-		mode, theme = conf.Dashboard.GetShortcut(), conf.Dashboard.Brand.GetTheme()
+	// 4. 快捷方式（lazy 启动入口：双击 = start + 打开控制台）。与 start/open
+	// 共用同一同步逻辑：落位、主题、自定义图标按 dashboard.yaml 实际配置
+	// （配置读不到时回退默认启用 + 桌面 + 内置主题）。
+	conf, err := config.Load(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load config for shortcuts: %v\n", err)
+		conf = &config.Config{Dashboard: config.DashboardConfig{Enabled: true}}
 	}
-	if mode == "off" {
-		fmt.Println("dashboard.shortcut=off: skip shortcuts")
-	} else {
-		created, serr := ensureShortcuts(theme, "", mode)
-		if serr != nil {
-			fmt.Fprintf(os.Stderr, "shortcut (%s): %v\n", mode, serr)
-		} else if created {
-			fmt.Println("created shortcut (WebSearchMCP, mode: " + mode + ")")
-		} else {
-			fmt.Println("shortcut already exists")
-		}
-	}
+	syncDashboardShortcut(conf)
 
 	fmt.Println("installation complete!")
 }

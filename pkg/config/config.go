@@ -638,8 +638,9 @@ type DashboardConfig struct {
 	// Empty lists or invalid entries fail closed to loopback-only writes.
 	WriteAllowedNetworks []string `mapstructure:"write_allowed_networks"`
 	// Shortcut 控制快捷方式落位行为（Windows）：desktop（默认，桌面）/
-	// start（开始菜单，可在开始屏幕搜索并手动固定）/ both / off（不创建）。
-	// 仅 start/open 安装路径生效；uninstall 始终清理全部已知位置。
+	// start（开始菜单，可在开始屏幕搜索并手动固定）/ both / off（不创建并
+	// 删除已知位置）。start/open/install 都会按当前配置与 exe 路径校正
+	// .lnk；uninstall 始终清理全部已知位置。
 	Shortcut string `mapstructure:"shortcut"`
 	// AdminPassword 是写操作（设置/密钥/重启/清缓存/额度管理）的口令，必须在
 	// config.yaml 显式配置。出于安全考虑它不在控制台设置页的白名单里，也不能
@@ -673,7 +674,8 @@ type BrandConfig struct {
 	// Accent 自定义主色（#RGB / #RRGGBB），设置后覆盖主题预设的主色。
 	Accent string `mapstructure:"accent"`
 	// Icon 自定义快捷方式图标（.ico 文件路径）。空 = 按主题内置图标；
-	// 每次启动轻量检查，文件变化时重建桌面快捷方式。
+	// start/open/install 会校验图标内容，变化时落盘带内容哈希的新文件名
+	// 并重建快捷方式（绕开 Windows 图标缓存）。
 	Icon string `mapstructure:"icon"`
 	// Footer 控制页面底部的项目介绍（含 GitHub 项目链接）。nil/true =
 	// 显示（默认）；false = 隐藏。零值兼容：旧配置无该字段时保持显示。
