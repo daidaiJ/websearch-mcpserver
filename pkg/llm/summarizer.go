@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"websearch/pkg/log"
 	"websearch/pkg/search/core"
 )
@@ -14,6 +16,14 @@ type Summarizer struct {
 func NewSummarizer(baseURL, apiKey, model_id string) *Summarizer {
 	return &Summarizer{
 		llm: NewClient(baseURL, apiKey, model_id),
+	}
+}
+
+// NewSummarizerWithTimeout 同 NewSummarizer，但为每次 LLM 调用设置整体超时
+// （含流式全程）；超时按摘要失败处理，由调用方回退原始结果。
+func NewSummarizerWithTimeout(baseURL, apiKey, model_id string, timeout time.Duration) *Summarizer {
+	return &Summarizer{
+		llm: NewClientWithTimeout(baseURL, apiKey, model_id, timeout),
 	}
 }
 

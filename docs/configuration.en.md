@@ -227,6 +227,8 @@ llm:
   api_key: ""                               # Env: LLM_API_KEY
   model_id: "gpt-4o-mini"
   summary_progress_interval: 1              # Min interval (seconds) between summary progress notifications, default 1
+  timeout_sec: 60                           # Overall timeout (seconds) per LLM call including the whole stream, default 60;
+                                            # on timeout the summary fails and search falls back to raw results
 
 # Cache (disabled by default)
 cache:

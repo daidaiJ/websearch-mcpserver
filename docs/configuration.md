@@ -224,6 +224,8 @@ llm:
   api_key: ""                               # 环境变量: LLM_API_KEY
   model_id: "gpt-4o-mini"
   summary_progress_interval: 1              # 摘要进度推送最小间隔（秒），默认 1
+  timeout_sec: 60                           # 单次 LLM 调用整体超时（秒，含流式全程），默认 60；
+                                            # 超时按摘要失败处理，搜索回退原始结果
 
 # 缓存（默认关闭）
 cache:

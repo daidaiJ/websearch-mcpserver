@@ -552,6 +552,9 @@ type LLMConfig struct {
 	ModelId string `mapstructure:"model_id"`
 	// SummaryProgressInterval 摘要流式进度推送的最小间隔（秒），默认 1。
 	SummaryProgressInterval int `mapstructure:"summary_progress_interval"`
+	// TimeoutSec 单次 LLM 调用（含流式全程）的整体超时（秒），默认 60。
+	// 超时按「摘要失败」处理，搜索工具回退原始结果；替代共享 HTTP 客户端的固定 30s。
+	TimeoutSec int `mapstructure:"timeout_sec"`
 }
 
 // GetSummaryProgressInterval 返回摘要进度推送最小间隔；未配置或非正值默认 1s。
@@ -560,6 +563,14 @@ func (c LLMConfig) GetSummaryProgressInterval() time.Duration {
 		return time.Second
 	}
 	return time.Duration(c.SummaryProgressInterval) * time.Second
+}
+
+// GetTimeout 返回单次 LLM 调用的整体超时；未配置或非正值默认 60s。
+func (c LLMConfig) GetTimeout() time.Duration {
+	if c.TimeoutSec <= 0 {
+		return 60 * time.Second
+	}
+	return time.Duration(c.TimeoutSec) * time.Second
 }
 
 type CacheConfig struct {

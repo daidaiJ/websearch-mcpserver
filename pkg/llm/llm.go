@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
+
 	"websearch/pkg/client"
 	"websearch/pkg/log"
 )
@@ -42,6 +44,9 @@ type Client struct {
 	baseURL string
 	apiKey  string
 	model   string
+	// timeout 单次调用（含流式全程）的整体超时；0 = 不额外设限，
+	// 此时沿用共享 HTTP 客户端自身的超时（默认 30s）。
+	timeout time.Duration
 }
 
 func NewClient(baseURL, apiKey, model_id string) *Client {
@@ -52,6 +57,25 @@ func NewClient(baseURL, apiKey, model_id string) *Client {
 	}
 }
 
+// NewClientWithTimeout 同 NewClient，但为每次调用设置整体超时。
+// 调用方 ctx 已带更早 deadline 时不覆盖（取更早者）。
+func NewClientWithTimeout(baseURL, apiKey, model_id string, timeout time.Duration) *Client {
+	c := NewClient(baseURL, apiKey, model_id)
+	c.timeout = timeout
+	return c
+}
+
+// withDeadline 在 c.timeout > 0 且 ctx 尚无 deadline 时派生带超时的 ctx。
+func (c *Client) withDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	if c.timeout <= 0 {
+		return ctx, nil
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, nil
+	}
+	return context.WithTimeout(ctx, c.timeout)
+}
+
 // Chat 以非流式方式调用 LLM，返回完整回答。
 func (c *Client) Chat(systemPrompt, userPrompt string) (string, error) {
 	return c.ChatWithContext(context.Background(), systemPrompt, userPrompt)
@@ -59,6 +83,13 @@ func (c *Client) Chat(systemPrompt, userPrompt string) (string, error) {
 
 // ChatWithContext 同 Chat，但支持 ctx 取消（如客户端断开时中止请求）。
 func (c *Client) ChatWithContext(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := c.withDeadline(ctx)
+	if cancel != nil {
+		defer cancel()
+	}
 	reqBody := ChatRequest{
 		Model: c.model,
 		Messages: []ChatMessage{
@@ -103,6 +134,13 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 		close(ch)
 		errCh <- streamErr
 	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := c.withDeadline(ctx)
+	if cancel != nil {
+		defer cancel()
+	}
 
 	reqBody := ChatRequest{
 		Model: c.model,

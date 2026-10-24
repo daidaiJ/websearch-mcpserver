@@ -84,7 +84,7 @@ func applySummarizer(conf config.Config) {
 	if !conf.LLMEnabled() {
 		return
 	}
-	summarizerInst = llm.NewSummarizer(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId)
+	summarizerInst = llm.NewSummarizerWithTimeout(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId, conf.LLM.GetTimeout())
 	summaryProgressInterval = conf.LLM.GetSummaryProgressInterval()
 	log.Info("LLM 摘要功能已启用")
 }
