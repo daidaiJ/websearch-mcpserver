@@ -2,13 +2,16 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.9.1 — 2026-10-24 (Yuanbao search, fetch proxy switch and shortcut sync)
 
 ### Added
 - **Tencent Yuanbao Search (`yuanbao`)**: API KEY mode (`POST https://api.wsa.cloud.tencent.com/SearchPro`) with `mode: yuanbao`, hybrid participation and explicit `apipool.engines` opt-in; parses `Response.Pages[]` title/URL/snippet/date/score, maps `time_range` to `dN`/`mN`/`yN`, supports `site`/`industry`/`mode` filters, local blacklists and `sk_list` rotation
 - **Hard local monthly cap for Yuanbao**: `yuanbao.monthly_limit` defaults to 2000 (matching the monthly free tier); calls are counted before each request and stop at the cap, falling back to other sources. The counter persists in `data/yuanbao-quota.json` across restarts. Setting `0` explicitly disables the cap and accepts pay-as-you-go charges
 - Dashboard source card and `TENCENTCLOUD_WSA_APIKEY` secret status for Yuanbao; `apipool.weights.yuanbao` defaults to 0 so the pay-as-you-go source stays out of weighted starts
 - **Independent native-fetch proxy switch**: `cleanfetch.auto_proxy` (default true) controls whether cleanfetch/PDF follows the global proxy, with a "Fetch auto proxy" toggle in the WebUI. Disabling it forces direct connections regardless of system proxy, decoupled from the API-provider `proxy.api_providers` switch
+
+### Fixed
+- **Desktop shortcuts ignored configuration and executable moves**: `start`, `open` and `install` now share one sync routine that treats `dashboard.enabled`, `dashboard.shortcut`, `brand.theme`/`brand.icon` and the current executable path as the desired state. Each `.lnk` is read and its target, arguments, working directory, icon path and icon index are checked; missing, dead, manually broken or renamed/moved-executable shortcuts are rewritten with `created` / `updated` / `removed` / `unchanged` output. `shortcut: off` or a disabled dashboard now removes known desktop and Start-menu shortcuts instead of only skipping creation. Icon file names carry a content hash (`websearch-<theme|custom>-<hash8>.ico`) so theme or icon-content changes refresh the Windows icon cache
 
 ## v3.9.0 — 2026-10-22 (Keyless MCP cascade and observability guardrails)
 
