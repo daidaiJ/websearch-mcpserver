@@ -84,6 +84,16 @@ func loadDoubaoAPIKey(t *testing.T) string {
 	return conf.Doubao.APIKey
 }
 
+// loadYuanbaoAPIKey 从测试配置加载腾讯云元宝搜索 API Key。
+func loadYuanbaoAPIKey(t *testing.T) string {
+	t.Helper()
+	conf := loadTestConfig(t)
+	if conf.Yuanbao.APIKey == "" {
+		t.Skip("跳过: 未配置 yuanbao.api_key")
+	}
+	return conf.Yuanbao.APIKey
+}
+
 // mockEngine 测试用 SearchInf 替身。
 type mockEngine struct {
 	name    string

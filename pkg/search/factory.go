@@ -62,6 +62,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	exaPool := newKeyPoolFromList(conf.Exa.EffectiveSKList(), "exa")
 	anysearchPool := newKeyPoolFromList(conf.Anysearch.EffectiveSKList(), "anysearch")
 	doubaoPool := newKeyPoolFromList(conf.Doubao.EffectiveSKList(), "doubao")
+	yuanbaoPool := newKeyPoolFromList(conf.Yuanbao.EffectiveSKList(), "yuanbao")
 
 	// ── 按模式选择主引擎 ──
 	switch conf.GetMode() {
@@ -81,12 +82,15 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	case config.ModeDoubao:
 		g.Primary = mode.BuildDoubaoMode(conf, doubaoPool, g.Fallback)
 
+	case config.ModeYuanbao:
+		g.Primary = mode.BuildYuanbaoMode(conf, yuanbaoPool, g.Fallback)
+
 	case config.ModeApipool:
-		g.Primary = mode.BuildApipoolMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, baiduWebAdapter)
+		g.Primary = mode.BuildApipoolMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, baiduWebAdapter)
 		log.Infof("搜索模式: apipool（API Key 池轮转）")
 
 	case config.ModeHybrid:
-		g.Primary = mode.BuildHybridMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, ads, g.Fallback)
+		g.Primary = mode.BuildHybridMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, ads, g.Fallback)
 
 	case config.ModeMCPHub:
 		g.Primary = mode.BuildMCPHubMode(conf, ads, g.Fallback)

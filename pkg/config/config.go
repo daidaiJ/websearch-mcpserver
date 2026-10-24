@@ -29,7 +29,8 @@ const (
 	ModeTavily    = "tavily"
 	ModeExa       = "exa"
 	ModeAnysearch = "anysearch"
-	ModeDoubao    = "doubao" // 火山引擎豆包联网搜索（Global / Custom，由 doubao.version 选择）
+	ModeDoubao    = "doubao"  // 火山引擎豆包联网搜索（Global / Custom，由 doubao.version 选择）
+	ModeYuanbao   = "yuanbao" // 腾讯云元宝搜索（API KEY 方式，免费额度超出后按量后付费）
 	ModeHybrid    = "hybrid"
 	ModeEngine    = "engine" // 纯引擎模式，无需 API Key
 	ModeMCPHub    = "mcphub" // 零 Key 托管 MCP 级联 hub（parallel → anysearch → exa → firecrawl）
@@ -54,6 +55,7 @@ type Config struct {
 	Exa                ExaConfig         `mapstructure:"exa"`
 	Anysearch          AnysearchConfig   `mapstructure:"anysearch"`
 	Doubao             DoubaoConfig      `mapstructure:"doubao"`
+	Yuanbao            YuanbaoConfig     `mapstructure:"yuanbao"`
 	LLM                LLMConfig         `mapstructure:"llm"`
 	Jina               JinaConfig        `mapstructure:"jina"`
 	Cache              CacheConfig       `mapstructure:"cache"`
@@ -213,6 +215,48 @@ func (c DoubaoConfig) GetVersion() string {
 	return "global"
 }
 
+// YuanbaoConfig 腾讯云元宝搜索（API KEY 方式）。
+// 文档: https://cloud.tencent.com/document/product/1806/130615
+// 每月免费额度 2000 次，超出后按量后付费；MonthlyLimit 在发起请求前本地拦截。
+// 这是搜索服务密钥（sk-...），与腾讯云 API 3.0 SecretId/SecretKey 不通用。
+type YuanbaoConfig struct {
+	Enabled    *bool    `mapstructure:"enabled"`
+	APIKey     string   `mapstructure:"api_key"`     // 服务 API KEY，环境变量 TENCENTCLOUD_WSA_APIKEY
+	SKList     []string `mapstructure:"sk_list"`     // 多 Key 轮询列表（优先级高于 api_key）
+	NumResults int      `mapstructure:"num_results"` // 0=不传 Cnt（上游默认 10）；10/20/30/40/50
+	Mode       int      `mapstructure:"mode"`        // 0=公开网页 / 1=权威垂直信源 / 2=混合；0 不传（兼容极速版）
+	Site       string   `mapstructure:"site"`        // 指定站点，或 exclude:a.com|b.com 过滤
+	Industry   string   `mapstructure:"industry"`    // gov / news / acad / finance
+	Freshness  string   `mapstructure:"freshness"`   // 默认时效 dN/mN/yN/日期；MCP time_range 优先
+	// MonthlyLimit 本端每月调用上限：省略 = 2000；0 = 不限制（显式承担后付费风险）；
+	// 正数 = 自定义上限。达到上限后不再请求该源，由其他来源回退。
+	MonthlyLimit *int `mapstructure:"monthly_limit"`
+	// StatePath 月度计数落盘路径；空 = exe 同目录 data/yuanbao-quota.json。
+	StatePath string `mapstructure:"state_path"`
+}
+
+// EffectiveSKList 返回合并后的 Key 列表。
+func (c YuanbaoConfig) EffectiveSKList() []string {
+	if len(c.SKList) > 0 {
+		return c.SKList
+	}
+	if c.APIKey != "" {
+		return []string{c.APIKey}
+	}
+	return nil
+}
+
+// GetMonthlyLimit 返回本地月度调用上限。省略 = 2000；显式 0 = -1（不限制）。
+func (c YuanbaoConfig) GetMonthlyLimit() int {
+	if c.MonthlyLimit == nil {
+		return 2000
+	}
+	if *c.MonthlyLimit <= 0 {
+		return -1
+	}
+	return *c.MonthlyLimit
+}
+
 type BingConfig struct {
 	Enabled bool     `mapstructure:"enabled"` // 总开关（默认 true）
 	Blocked []string `mapstructure:"blocked"` // Bing 屏蔽域名
@@ -360,7 +404,13 @@ type CleanFetchConfig struct {
 	TimeoutSec     int    `mapstructure:"timeout_sec"`       // 单次请求超时（秒），默认 30
 	MaxFetchSizeMB int    `mapstructure:"max_fetch_size_mb"` // 最大抓取文件大小（MB），HEAD 预检用，默认 10
 	UseSystemProxy bool   `mapstructure:"use_system_proxy"`  // 自动使用系统代理（默认 false）
+	AutoProxy      *bool  `mapstructure:"auto_proxy"`        // 原生抓取是否自动跟随全局代理（默认 true）
 	MaxRetries     int    `mapstructure:"max_retries"`       // 最大重试次数（默认 3）
+}
+
+// AutoProxyEnabled 报告原生 cleanfetch 是否自动跟随全局代理，默认开启。
+func (c CleanFetchConfig) AutoProxyEnabled() bool {
+	return c.AutoProxy == nil || *c.AutoProxy
 }
 
 // ── PDF 解析配置 ──
@@ -477,7 +527,7 @@ func (c PDFParserConfig) GetMinerUPageBudget() int {
 type ProxyConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`  // 显式启用代理（默认 false，未设置时自动检测）
 	Endpoint string `mapstructure:"endpoint"` // 代理地址（默认 http://127.0.0.1:7897")
-	// APIProviders 控制 API 供应商上游请求（baidu/tavily/exa/anysearch/doubao/LLM 等）
+	// APIProviders 控制 API 供应商上游请求（baidu/tavily/exa/anysearch/doubao/yuanbao/LLM 等）
 	// 是否走代理。默认 false = 强制直连：显式置空 transport 的 Proxy，不吃
 	// HTTP(S)_PROXY 等环境变量，避免本机代理环境静默劫持供应商请求。
 	// true 时按 enabled/endpoint/自动检测的同一套解析走代理。
@@ -940,6 +990,7 @@ func (c ApipoolConfig) GetWeights() map[string]int {
 		"tavily":    1200,
 		"exa":       1200,
 		"doubao":    500, // 火山免费档每月默认 500 积分
+		"yuanbao":   0,   // 超出免费额度按量后付费，默认不参与加权起始选择
 	}
 	maps.Copy(w, c.Weights)
 	return w
@@ -989,6 +1040,15 @@ func (c Config) GetCacheStoragePath() string {
 	return filepath.Join(ExeBaseDir(), "cache", "websearch-cache.db")
 }
 
+// GetYuanbaoStatePath 返回元宝月度调用计数的落盘路径。
+// 默认放 exe 同目录 data/ 下，确保重启后仍能守住免费额度。
+func (c Config) GetYuanbaoStatePath() string {
+	if path := strings.TrimSpace(c.Yuanbao.StatePath); path != "" {
+		return path
+	}
+	return filepath.Join(ExeBaseDir(), "data", "yuanbao-quota.json")
+}
+
 func (c Config) GetCleanupInterval() time.Duration {
 	minutes := c.Cache.CleanupInterval
 	if minutes <= 0 {
@@ -1012,6 +1072,8 @@ func (c Config) GetMode() string {
 		return ModeAnysearch
 	case ModeDoubao:
 		return ModeDoubao
+	case ModeYuanbao:
+		return ModeYuanbao
 	case ModeHybrid, "hybird":
 		return ModeHybrid
 	case ModeEngine:
@@ -1089,6 +1151,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("exa.api_key", "EXA_API_KEY")
 	viper.BindEnv("anysearch.api_key", "ANYSEARCH_API_KEY")
 	viper.BindEnv("doubao.api_key", "DOUBAO_SEARCH_API_KEY")
+	viper.BindEnv("yuanbao.api_key", "TENCENTCLOUD_WSA_APIKEY")
 	viper.BindEnv("llm.base_url", "LLM_BASE_URL")
 	viper.BindEnv("llm.api_key", "LLM_API_KEY")
 	viper.BindEnv("pdf_parser.mineru_token", "MINERU_TOKEN")
@@ -1331,6 +1394,9 @@ func applyKnownEnv(conf *Config) {
 	}
 	if v := os.Getenv("ANYSEARCH_API_KEY"); v != "" {
 		conf.Anysearch.APIKey = v
+	}
+	if v := os.Getenv("TENCENTCLOUD_WSA_APIKEY"); v != "" {
+		conf.Yuanbao.APIKey = v
 	}
 	for _, envName := range []string{"DOUBAO_SEARCH_API_KEY", "ASK_ECHO_SEARCH_INFINITY_API_KEY"} {
 		if v := os.Getenv(envName); v != "" {
@@ -1601,6 +1667,10 @@ func applyDashboardSecrets(conf *Config) {
 	if v := values["DOUBAO_SEARCH_API_KEY"]; v != "" {
 		conf.Doubao.APIKey = v
 		conf.Doubao.SKList = nil
+	}
+	if v := values["TENCENTCLOUD_WSA_APIKEY"]; v != "" {
+		conf.Yuanbao.APIKey = v
+		conf.Yuanbao.SKList = nil
 	}
 	if v := values["JINA_API_KEY"]; v != "" {
 		conf.Jina.APIKey = v

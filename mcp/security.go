@@ -167,7 +167,7 @@ func (t pdfDownloadTransport) RoundTrip(req *http.Request) (*http.Response, erro
 func pdfHTTPClient(timeout time.Duration) *http.Client {
 	transport := pdfDownloadTransport{}
 	if webfetchLazyCfg != nil {
-		endpoint := webfetchLazyCfg.Proxy.GetProxyEndpoint()
+		endpoint := nativeFetchProxy(*webfetchLazyCfg)
 		if endpoint != "" {
 			transport.proxy = func(*http.Request) (*url.URL, error) {
 				u, err := url.Parse(endpoint)

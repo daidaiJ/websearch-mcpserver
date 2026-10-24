@@ -13,7 +13,7 @@ import (
 func TestAPISourceControls(t *testing.T) {
 	t.Setenv("WEBSEARCH_CONFIG", "")
 	t.Setenv("WEBSEARCH_DASHBOARD_CONFIG", "")
-	for _, name := range []string{"baidu", "tavily", "exa", "anysearch", "doubao"} {
+	for _, name := range []string{"baidu", "tavily", "exa", "anysearch", "doubao", "yuanbao"} {
 		for _, value := range []string{"", "true", "false"} {
 			t.Run(name+"/"+value, func(t *testing.T) {
 				viper.Reset()
@@ -33,7 +33,7 @@ func TestAPISourceControls(t *testing.T) {
 				if conf.APISourceEnabled(name) != (value != "false") {
 					t.Fatal("source switch did not preserve the default or explicit value")
 				}
-				for _, other := range []string{"baidu", "tavily", "exa", "anysearch", "doubao"} {
+				for _, other := range []string{"baidu", "tavily", "exa", "anysearch", "doubao", "yuanbao"} {
 					if other != name && !conf.APISourceEnabled(other) {
 						t.Fatalf("changing %s disabled unrelated %s", name, other)
 					}
@@ -41,6 +41,7 @@ func TestAPISourceControls(t *testing.T) {
 				keys := map[string][]string{
 					"baidu": conf.Baidu.EffectiveSKList(), "tavily": conf.Tavily.EffectiveSKList(),
 					"exa": conf.Exa.EffectiveSKList(), "anysearch": conf.Anysearch.EffectiveSKList(), "doubao": conf.Doubao.EffectiveSKList(),
+					"yuanbao": conf.Yuanbao.EffectiveSKList(),
 				}
 				if len(keys[name]) != 1 || keys[name][0] != "stored-test-key" {
 					t.Fatal("source switch must not remove stored credentials")

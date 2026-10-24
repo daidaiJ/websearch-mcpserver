@@ -184,13 +184,14 @@
                   <div class="mode-choice"><label><input type="radio" name="mode" value="provider" id="mode-single"><span>单供应商</span></label><div class="mode-help"><button type="button" class="mode-info" aria-label="单供应商模式说明" aria-describedby="mode-note-provider" aria-expanded="false">i</button><span class="mode-tip" id="mode-note-provider" role="tooltip">优先使用所选供应商，保留其原有回退路径；所有来源仍受启用开关约束。</span></div></div>
                 </div>
                 <div id="mode-provider-options" class="provider-mode-row hidden">
-                  <label>服务商<select id="mode-provider"><option value="baidu">baidu · 百度千帆</option><option value="tavily">tavily</option><option value="exa">exa</option><option value="anysearch">anysearch</option><option value="doubao">doubao · 豆包</option></select></label>
+                  <label>服务商<select id="mode-provider"><option value="baidu">baidu · 百度千帆</option><option value="tavily">tavily</option><option value="exa">exa</option><option value="anysearch">anysearch</option><option value="doubao">doubao · 豆包</option><option value="yuanbao">yuanbao · 元宝</option></select></label>
                   <div class="mode-choice provider-help"><div class="mode-help"><button type="button" class="mode-info" id="mode-provider-info" aria-label="baidu 模式说明" aria-describedby="mode-note-baidu" aria-expanded="false">i</button>
                     <span class="mode-tip" id="mode-note-baidu" role="tooltip">百度千帆搜索，失败回退已启用的百度网页；无 SK 时使用已启用的百度网页。</span>
                     <span class="mode-tip hidden" id="mode-note-tavily" role="tooltip">Tavily Search API，需要 TAVILY_SK；无 Key 时回退已启用的 Bing。</span>
                     <span class="mode-tip hidden" id="mode-note-exa" role="tooltip">Exa Web Search API，需要 EXA_API_KEY；无 Key 时回退已启用的 Bing。</span>
                     <span class="mode-tip hidden" id="mode-note-anysearch" role="tooltip">AnySearch API；有 Key 时轮询 Key 池，无 Key 时走按出口 IP 限流的匿名档。</span>
                     <span class="mode-tip hidden" id="mode-note-doubao" role="tooltip">豆包联网搜索 Global / Custom，需要 DOUBAO_SEARCH_API_KEY；无 Key 时回退已启用的 Bing。</span>
+                    <span class="mode-tip hidden" id="mode-note-yuanbao" role="tooltip">腾讯云元宝搜索（API KEY 方式），需要 TENCENTCLOUD_WSA_APIKEY；本地月上限达到后回退已启用的 Bing。</span>
                   </div></div>
                 </div>
               </fieldset>
@@ -201,6 +202,7 @@
               <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="cache.enabled" data-key="cache.enabled"><span class="form-check-label">启用缓存</span></label>
               <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="academic.enabled" data-key="academic.enabled"><span class="form-check-label">学术检索</span></label>
               <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="cleanfetch.enabled" data-key="cleanfetch.enabled"><span class="form-check-label">URL 抓取</span></label>
+              <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="cleanfetch.auto_proxy" data-key="cleanfetch.auto_proxy"><span class="form-check-label">抓取自动走代理</span></label>
               <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="pdf_parser.enabled" data-key="pdf_parser.enabled"><span class="form-check-label">PDF 解析</span></label>
               <details class="settings-advanced settings-wide">
                 <summary>高级连接与学术设置</summary>

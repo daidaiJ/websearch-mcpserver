@@ -24,7 +24,7 @@ const DISPLAY = {
 };
 const SECRETS = {
   BAIDU_SK: '百度千帆', TAVILY_SK: 'Tavily', EXA_API_KEY: 'Exa', ANYSEARCH_API_KEY: 'AnySearch',
-  DOUBAO_SEARCH_API_KEY: '豆包', JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU',
+  DOUBAO_SEARCH_API_KEY: '豆包', TENCENTCLOUD_WSA_APIKEY: '元宝', JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU',
 };
 // 各供应商的官方「获取 Key」入口，配置页一键直达
 const SECRET_LINKS = {
@@ -33,6 +33,7 @@ const SECRET_LINKS = {
   EXA_API_KEY: 'https://dashboard.exa.ai/api-keys',
   ANYSEARCH_API_KEY: 'https://www.anysearch.com/console/api-keys',
   DOUBAO_SEARCH_API_KEY: 'https://console.volcengine.com/search-infinity/api-key',
+  TENCENTCLOUD_WSA_APIKEY: 'https://console.cloud.tencent.com/wsapi/index',
   JINA_API_KEY: 'https://jina.ai/api-keys',
   MINERU_TOKEN: 'https://mineru.net/apiManage/token',
 };
@@ -845,7 +846,7 @@ function renderSettingsForm() {
   renderDraftState();
 }
 
-const PROVIDER_MODES = ['baidu', 'tavily', 'exa', 'anysearch', 'doubao'];
+const PROVIDER_MODES = ['baidu', 'tavily', 'exa', 'anysearch', 'doubao', 'yuanbao'];
 
 function renderModeControls() {
   if (!state.settings) return;

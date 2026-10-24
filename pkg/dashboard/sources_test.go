@@ -46,6 +46,7 @@ func fullWebConfig() config.Config {
 		Tavily:     config.TavilyConfig{APIKey: "tavily-key"},
 		Exa:        config.ExaConfig{APIKey: "exa-key"},
 		Doubao:     config.DoubaoConfig{APIKey: "doubao-key"},
+		Yuanbao:    config.YuanbaoConfig{APIKey: "yuanbao-key"},
 		Bing:       config.BingConfig{Enabled: true},
 		Google:     config.GoogleConfig{Enabled: true},
 		DuckDuckGo: config.DuckDuckGoConfig{Enabled: true},
@@ -81,7 +82,7 @@ func TestOverviewApipoolProviderNamesMatchRouting(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			route := mode.BuildApipoolMode(conf, nil, nil, pool, nil, nil, nil)
+			route := mode.BuildApipoolMode(conf, nil, nil, pool, nil, nil, nil, nil)
 			if (route != nil) != tc.wantActive {
 				t.Fatalf("actual apipool route exists = %v, want %v", route != nil, tc.wantActive)
 			}
@@ -112,7 +113,7 @@ func TestWebSourceCatalogConfiguredAndActivePerMode(t *testing.T) {
 			configure: func(c *config.Config) { c.Mode = config.ModeHybrid },
 			wantActive: []string{
 				"anysearch", "baidu", "baidu_web", "bing", "doubao",
-				"duckduckgo", "exa", "google", "tavily",
+				"duckduckgo", "exa", "google", "tavily", "yuanbao",
 			},
 		},
 		{
@@ -330,7 +331,7 @@ func TestBuildDashboardOverviewSortsSourcesByState(t *testing.T) {
 		got = append(got, s.ID)
 	}
 	// 已启用在前（保持目录顺序），已配置未启用居中，未配置最后。
-	want := []string{"baidu_web", "bing", "google", "duckduckgo", "anysearch", "baidu", "tavily", "exa", "doubao", "so360", "wikipedia", "googlenews"}
+	want := []string{"baidu_web", "bing", "google", "duckduckgo", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "so360", "wikipedia", "googlenews"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("sources 顺序 = %v, want %v", got, want)
 	}
@@ -408,8 +409,8 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 	conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://127.0.0.1:1"}
 	conf.Academic = config.AcademicConfig{Enabled: true, DisableArxiv: true}
 	catalog := SourceCatalog(conf)
-	if len(catalog) != 21 {
-		t.Fatalf("catalog must include 12 web and 9 academic sources: %d", len(catalog))
+	if len(catalog) != 22 {
+		t.Fatalf("catalog must include 13 web and 9 academic sources: %d", len(catalog))
 	}
 	if s := sourceByID(t, catalog, "tavily"); s.Enabled || !s.Configured || s.Active || s.Category != "api" || s.ControlPath != "tavily.enabled" {
 		t.Fatalf("stored key must not override disabled source: %+v", s)

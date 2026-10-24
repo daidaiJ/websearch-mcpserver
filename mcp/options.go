@@ -163,6 +163,16 @@ func applyWebFetch(conf config.Config) {
 	ensureWebFetch()
 }
 
+// nativeFetchProxy 返回原生 cleanfetch 使用的代理端点。
+// cleanfetch.auto_proxy 关闭时强制直连（同时禁用 go-webfetch 的环境变量回退），
+// 让原生抓取与 API 供应商的 proxy.api_providers 开关互不影响。
+func nativeFetchProxy(conf config.Config) string {
+	if !conf.CleanFetch.AutoProxyEnabled() {
+		return ""
+	}
+	return conf.Proxy.GetProxyEndpoint()
+}
+
 // applyMCPHubFetch 初始化 cleanfetch 的托管 MCP 增强层。
 // 默认 off，不改变既有抓取顺序；失败时仅记录并退回本地 webfetch/Jina。
 func applyMCPHubFetch(conf config.Config) {
@@ -201,7 +211,12 @@ func ensureWebFetch() bool {
 	if webfetchLazyCfg == nil {
 		return false
 	}
-	f, err := webfetch.NewFromConfig(webfetchLazyCfg.CleanFetch, webfetchLazyCfg.PDFParser, webfetchLazyCfg.Proxy.GetProxyEndpoint())
+	cleanCfg := webfetchLazyCfg.CleanFetch
+	proxyURL := nativeFetchProxy(*webfetchLazyCfg)
+	if !cleanCfg.AutoProxyEnabled() {
+		cleanCfg.UseSystemProxy = false
+	}
+	f, err := webfetch.NewFromConfig(cleanCfg, webfetchLazyCfg.PDFParser, proxyURL)
 	if err != nil {
 		log.Errf("WebFetch 初始化失败: %v", err)
 		return false

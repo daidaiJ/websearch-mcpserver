@@ -243,6 +243,8 @@ func providerKeyCount(conf config.Config, name string) int {
 		return len(conf.Anysearch.EffectiveSKList())
 	case "doubao":
 		return len(conf.Doubao.EffectiveSKList())
+	case "yuanbao":
+		return len(conf.Yuanbao.EffectiveSKList())
 	default:
 		return 0
 	}

@@ -41,7 +41,7 @@ func settingsView(c config.Config) map[string]any {
 			"cache.enabled": c.CacheEnabled(), "cache.cleanup_interval": c.Cache.CleanupInterval,
 			"bing.enabled": c.Bing.Enabled, "duckduckgo.enabled": c.DuckDuckGo.Enabled,
 			"google.enabled": c.Google.Enabled, "academic.enabled": c.Academic.Enabled,
-			"cleanfetch.enabled": c.CleanFetch.Enabled, "pdf_parser.enabled": c.PDFParser.Enabled,
+			"cleanfetch.enabled": c.CleanFetch.Enabled, "cleanfetch.auto_proxy": c.CleanFetch.AutoProxyEnabled(), "pdf_parser.enabled": c.PDFParser.Enabled,
 			"smartsearch.max_size":            c.SmartSearch.MaxSize,
 			"smartsearch.relevance_threshold": c.SmartSearch.RelevanceThreshold,
 			"smartsearch.mmr.enabled":         c.SmartSearch.MMR.Enabled,
@@ -55,7 +55,7 @@ func settingsView(c config.Config) map[string]any {
 		"secrets": map[string]bool{
 			"BAIDU_SK": len(c.Baidu.EffectiveSKList()) > 0, "TAVILY_SK": len(c.Tavily.EffectiveSKList()) > 0,
 			"EXA_API_KEY": len(c.Exa.EffectiveSKList()) > 0, "ANYSEARCH_API_KEY": len(c.Anysearch.EffectiveSKList()) > 0,
-			"DOUBAO_SEARCH_API_KEY": len(c.Doubao.EffectiveSKList()) > 0, "JINA_API_KEY": c.Jina.APIKey != "",
+			"DOUBAO_SEARCH_API_KEY": len(c.Doubao.EffectiveSKList()) > 0, "TENCENTCLOUD_WSA_APIKEY": len(c.Yuanbao.EffectiveSKList()) > 0, "JINA_API_KEY": c.Jina.APIKey != "",
 			"MINERU_TOKEN": c.PDFParser.MinerUToken != "",
 		},
 		// 管理员口令只暴露“是否已配置”，值本身永不离开服务端，
@@ -78,8 +78,8 @@ func settingsView(c config.Config) map[string]any {
 }
 
 func validateSetting(path string, value any) error {
-	boolPaths := []string{"cache.enabled", "bing.enabled", "duckduckgo.enabled", "google.enabled", "academic.enabled", "cleanfetch.enabled", "pdf_parser.enabled", "smartsearch.mmr.enabled", "doubao.icp_host_only"}
-	boolPaths = append(boolPaths, "baidu.enabled", "tavily.enabled", "exa.enabled", "anysearch.enabled", "doubao.enabled", "baidu.web_enabled", "so360.enabled", "wikipedia.enabled", "google_news.enabled", "academic.disable_arxiv", "academic.disable_crossref", "academic.disable_openalex", "academic.disable_pubmed", "academic.disable_europepmc", "academic.disable_dblp", "academic.disable_doaj", "academic.disable_semantic_scholar", "academic.disable_google_scholar")
+	boolPaths := []string{"cache.enabled", "bing.enabled", "duckduckgo.enabled", "google.enabled", "academic.enabled", "cleanfetch.enabled", "cleanfetch.auto_proxy", "pdf_parser.enabled", "smartsearch.mmr.enabled", "doubao.icp_host_only"}
+	boolPaths = append(boolPaths, "baidu.enabled", "tavily.enabled", "exa.enabled", "anysearch.enabled", "doubao.enabled", "yuanbao.enabled", "baidu.web_enabled", "so360.enabled", "wikipedia.enabled", "google_news.enabled", "academic.disable_arxiv", "academic.disable_crossref", "academic.disable_openalex", "academic.disable_pubmed", "academic.disable_europepmc", "academic.disable_dblp", "academic.disable_doaj", "academic.disable_semantic_scholar", "academic.disable_google_scholar")
 	if slices.Contains(boolPaths, path) {
 		if _, ok := value.(bool); !ok {
 			return fmt.Errorf("%s must be boolean", path)
@@ -89,7 +89,7 @@ func validateSetting(path string, value any) error {
 	switch path {
 	case "mode":
 		v, ok := value.(string)
-		if !ok || !slices.Contains([]string{"hybrid", "engine", "apipool", "mcphub", "baidu", "tavily", "exa", "anysearch", "doubao"}, v) {
+		if !ok || !slices.Contains([]string{"hybrid", "engine", "apipool", "mcphub", "baidu", "tavily", "exa", "anysearch", "doubao", "yuanbao"}, v) {
 			return fmt.Errorf("invalid mode")
 		}
 	case "network":
@@ -117,7 +117,7 @@ func validateSetting(path string, value any) error {
 		if !ok || len(arr) == 0 {
 			return fmt.Errorf("apipool.engines must be a non-empty array")
 		}
-		allowed := []string{"anysearch", "baidu", "tavily", "exa", "doubao"}
+		allowed := []string{"anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao"}
 		for _, raw := range arr {
 			v, ok := raw.(string)
 			if !ok || !slices.Contains(allowed, v) {
@@ -171,7 +171,7 @@ func setYAMLPath(doc *yaml.Node, path []string, value any) error {
 	return nil
 }
 
-var allowedSecrets = []string{"BAIDU_SK", "TAVILY_SK", "EXA_API_KEY", "ANYSEARCH_API_KEY", "DOUBAO_SEARCH_API_KEY", "JINA_API_KEY", "MINERU_TOKEN"}
+var allowedSecrets = []string{"BAIDU_SK", "TAVILY_SK", "EXA_API_KEY", "ANYSEARCH_API_KEY", "DOUBAO_SEARCH_API_KEY", "TENCENTCLOUD_WSA_APIKEY", "JINA_API_KEY", "MINERU_TOKEN"}
 
 func saveSecret(c config.Config, req SecretRequest) error {
 	if !req.Confirm {

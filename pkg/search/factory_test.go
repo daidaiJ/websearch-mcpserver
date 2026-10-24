@@ -8,7 +8,7 @@ import (
 
 func TestDisabledAPIsAllModes(t *testing.T) {
 	disabled := false
-	for _, modeName := range []string{config.ModeBaidu, config.ModeTavily, config.ModeExa, config.ModeAnysearch, config.ModeDoubao, config.ModeApipool, config.ModeHybrid} {
+	for _, modeName := range []string{config.ModeBaidu, config.ModeTavily, config.ModeExa, config.ModeAnysearch, config.ModeDoubao, config.ModeYuanbao, config.ModeApipool, config.ModeHybrid} {
 		for _, bingEnabled := range []bool{false, true} {
 			conf := config.Config{
 				Mode: modeName, Bing: config.BingConfig{Enabled: bingEnabled},
@@ -17,6 +17,7 @@ func TestDisabledAPIsAllModes(t *testing.T) {
 				Exa:       config.ExaConfig{Enabled: &disabled, APIKey: "stored-test-key"},
 				Anysearch: config.AnysearchConfig{Enabled: &disabled, APIKey: "stored-test-key"},
 				Doubao:    config.DoubaoConfig{Enabled: &disabled, APIKey: "stored-test-key"},
+				Yuanbao:   config.YuanbaoConfig{Enabled: &disabled, APIKey: "stored-test-key"},
 			}
 			g, err := NewFromConfig(conf)
 			if err != nil {
@@ -43,6 +44,16 @@ func TestNewFromConfig_DoubaoMode_NoKey_Fallback(t *testing.T) {
 	}
 	if g.Primary.Name() != "bing" {
 		t.Fatalf("fallback Name() = %q, want bing", g.Primary.Name())
+	}
+}
+
+func TestNewFromConfig_YuanbaoMode_NoKey_Fallback(t *testing.T) {
+	g, err := NewFromConfig(config.Config{Mode: config.ModeYuanbao, Bing: config.BingConfig{Enabled: true}})
+	if err != nil {
+		t.Fatalf("NewFromConfig: %v", err)
+	}
+	if g.Primary == nil || g.Primary.Name() != "bing" {
+		t.Fatal("expected Bing fallback when yuanbao has no key")
 	}
 }
 

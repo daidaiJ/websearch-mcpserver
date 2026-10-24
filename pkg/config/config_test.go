@@ -512,6 +512,7 @@ func TestApipoolConfig_GetWeights(t *testing.T) {
 		"tavily":    1200,
 		"exa":       1200,
 		"doubao":    500,
+		"yuanbao":   0,
 	} {
 		if w[name] != want {
 			t.Errorf("default weight[%s] = %d, want %d", name, w[name], want)
@@ -553,6 +554,50 @@ func TestGetMode_Doubao(t *testing.T) {
 	}
 }
 
+func TestGetMode_Yuanbao(t *testing.T) {
+	conf := Config{Mode: ModeYuanbao}
+	if conf.GetMode() != ModeYuanbao {
+		t.Errorf("GetMode() = %q, want %q", conf.GetMode(), ModeYuanbao)
+	}
+	if !conf.NeedsAPIKey() {
+		t.Error("mode=yuanbao should require API key")
+	}
+}
+
+func TestYuanbaoConfig_MonthlyLimit(t *testing.T) {
+	if got := (YuanbaoConfig{}).GetMonthlyLimit(); got != 2000 {
+		t.Errorf("omitted monthly_limit = %d, want 2000", got)
+	}
+	zero := 0
+	if got := (YuanbaoConfig{MonthlyLimit: &zero}).GetMonthlyLimit(); got != -1 {
+		t.Errorf("explicit 0 monthly_limit = %d, want -1 (unlimited)", got)
+	}
+	custom := 500
+	if got := (YuanbaoConfig{MonthlyLimit: &custom}).GetMonthlyLimit(); got != 500 {
+		t.Errorf("custom monthly_limit = %d, want 500", got)
+	}
+	if got := (YuanbaoConfig{APIKey: "k1"}).EffectiveSKList(); len(got) != 1 || got[0] != "k1" {
+		t.Errorf("single api_key should become sk_list, got %v", got)
+	}
+	if got := (YuanbaoConfig{SKList: []string{"k1", "k2"}, APIKey: "k3"}).EffectiveSKList(); len(got) != 2 {
+		t.Errorf("sk_list should win over api_key, got %v", got)
+	}
+}
+
+func TestCleanFetchAutoProxyEnabled(t *testing.T) {
+	if !(CleanFetchConfig{}).AutoProxyEnabled() {
+		t.Fatal("auto_proxy must default to true")
+	}
+	off := false
+	if (CleanFetchConfig{AutoProxy: &off}).AutoProxyEnabled() {
+		t.Fatal("explicit auto_proxy=false must disable proxy inheritance")
+	}
+	on := true
+	if !(CleanFetchConfig{AutoProxy: &on}).AutoProxyEnabled() {
+		t.Fatal("explicit auto_proxy=true must keep proxy inheritance")
+	}
+}
+
 func TestDoubaoConfig_EffectiveSKListAndVersion(t *testing.T) {
 	if got := (DoubaoConfig{APIKey: "k1"}).EffectiveSKList(); len(got) != 1 || got[0] != "k1" {
 		t.Errorf("single api_key should become sk_list, got %v", got)
@@ -574,6 +619,14 @@ func TestAnysearchConfig_EffectiveSKList(t *testing.T) {
 	}
 	if got := (AnysearchConfig{}).EffectiveSKList(); got != nil {
 		t.Errorf("empty config should return nil, got %v", got)
+	}
+}
+
+func TestDefault_AppliesYuanbaoEnv(t *testing.T) {
+	t.Setenv("TENCENTCLOUD_WSA_APIKEY", "sk-test")
+	conf := Default()
+	if conf.Yuanbao.APIKey != "sk-test" {
+		t.Errorf("Yuanbao.APIKey = %q, want sk-test", conf.Yuanbao.APIKey)
 	}
 }
 

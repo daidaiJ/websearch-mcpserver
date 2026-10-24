@@ -39,7 +39,7 @@ dashboard:
   # allowed_networks: ["192.168.1.0/24"]
   quotas:
     reset: monthly        # monthly / weekly / daily / none
-    limits: { tavily: 1000, exa: 1000, anysearch: 1000, doubao: 1000 }
+    limits: { tavily: 1000, exa: 1000, anysearch: 1000, doubao: 1000, yuanbao: 2000 }
   brand:
     title: ""             # 控制台标题；空 = "WebSearch 控制中心"
     theme: ""             # green（默认）/ blue / mono

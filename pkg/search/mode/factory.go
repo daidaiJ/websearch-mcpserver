@@ -212,11 +212,23 @@ func BuildDoubaoMode(conf config.Config, pool *provider.KeyPool, fallback *adapt
 	return newDoubaoFromConf(pool, conf)
 }
 
+// BuildYuanbaoMode 腾讯云元宝搜索单引擎模式（API KEY 方式）。
+func BuildYuanbaoMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.BingSearchAdapter) core.SearchInf {
+	if !conf.APISourceEnabled("yuanbao") || pool == nil {
+		log.Error("mode=yuanbao API 源已关闭或未配置 Key")
+		if conf.Bing.Enabled && fallback != nil {
+			return fallback
+		}
+		return nil
+	}
+	return newYuanbaoFromConf(pool, conf)
+}
+
 // BuildApipoolMode API Key 池轮转模式：每次请求只调用一个供应商，失败自动切换下一个。
 // 跨请求时供应商选择由策略决定（round-robin / priority / weighted），Key 均 round-robin 轮转。
 // 供应商顺序由 conf.Apipool.Engines 配置控制（默认 anysearch → baidu → tavily → exa）。
 // 百度端点由 baidu.enable_ai_search 配置控制（默认 true=智能搜索）。
-func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool *provider.KeyPool, baiduWeb *adapter.EngineSearchAdapter) core.SearchInf {
+func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool *provider.KeyPool, baiduWeb *adapter.EngineSearchAdapter) core.SearchInf {
 	// 按配置顺序构建供应商（web 兜底始终追加在末尾）
 	var providers []apipool.ApipoolProvider
 	for _, name := range conf.Apipool.GetEngines() {
@@ -255,6 +267,10 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 			if doubaoPool != nil {
 				providers = append(providers, apipool.NewApipoolProvider("doubao", newDoubaoFromConf(doubaoPool, conf), doubaoPool))
 			}
+		case "yuanbao":
+			if yuanbaoPool != nil {
+				providers = append(providers, apipool.NewApipoolProvider("yuanbao", newYuanbaoFromConf(yuanbaoPool, conf), yuanbaoPool))
+			}
 		default:
 			log.Infof("apipool: 未知供应商 %q，跳过", name)
 		}
@@ -278,7 +294,7 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 }
 
 // BuildHybridMode 全引擎混合模式：Anysearch（有 Key 走轮转 / 无 Key 匿名档）+ 百度搜索 + 百度网页 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包（有 Key 时）+ Bing + Google + DuckDuckGo。
-func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool *provider.KeyPool, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
+func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool *provider.KeyPool, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	var engines []core.SearchInf
 	if conf.APISourceEnabled("anysearch") {
 		// A nil pool uses the anonymous tier, governed by the same source switch.
@@ -315,6 +331,9 @@ func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, e
 	}
 	if conf.APISourceEnabled("doubao") && doubaoPool != nil {
 		engines = append(engines, newDoubaoFromConf(doubaoPool, conf))
+	}
+	if conf.APISourceEnabled("yuanbao") && yuanbaoPool != nil {
+		engines = append(engines, newYuanbaoFromConf(yuanbaoPool, conf))
 	}
 	if conf.Bing.Enabled && fallback != nil {
 		engines = append(engines, fallback)
@@ -557,6 +576,19 @@ func newDoubaoFromConf(pool *provider.KeyPool, conf config.Config) *provider.Dou
 		MaxSnippetLength:    conf.Doubao.MaxSnippetLength,
 		MaxImageCountPerDoc: conf.Doubao.MaxImageCountPerDoc,
 		ICPHostOnly:         conf.Doubao.ICPHostOnly,
+	})
+}
+
+func newYuanbaoFromConf(pool *provider.KeyPool, conf config.Config) *provider.YuanbaoSearchImpl {
+	return provider.NewYuanbaoSearch(pool, provider.YuanbaoOptions{
+		NumResults:     conf.Yuanbao.NumResults,
+		Mode:           conf.Yuanbao.Mode,
+		Site:           conf.Yuanbao.Site,
+		Industry:       conf.Yuanbao.Industry,
+		Freshness:      conf.Yuanbao.Freshness,
+		ExcludeDomains: conf.BlackListHost,
+		MonthlyLimit:   conf.Yuanbao.GetMonthlyLimit(),
+		StatePath:      conf.GetYuanbaoStatePath(),
 	})
 }
 

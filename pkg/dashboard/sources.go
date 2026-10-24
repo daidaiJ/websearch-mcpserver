@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -305,6 +306,7 @@ func webSourceCatalog(conf config.Config) []SourceView {
 		"tavily":    len(conf.Tavily.EffectiveSKList()) > 0,
 		"exa":       len(conf.Exa.EffectiveSKList()) > 0,
 		"doubao":    len(conf.Doubao.EffectiveSKList()) > 0,
+		"yuanbao":   len(conf.Yuanbao.EffectiveSKList()) > 0,
 	}
 	engineConfigured := map[string]bool{
 		"baidu_web": true, "bing": true, "google": true, "duckduckgo": true,
@@ -385,6 +387,7 @@ func webSourceCatalog(conf config.Config) []SourceView {
 		{ID: "tavily", Name: "Tavily", Group: "web", Configured: apiConfigured["tavily"], Active: active["tavily"], QuotaQueryable: true, aliases: []string{"tavily", "tavily_api"}},
 		{ID: "exa", Name: "Exa", Group: "web", Configured: apiConfigured["exa"], Active: active["exa"], aliases: []string{"exa"}},
 		{ID: "doubao", Name: "豆包搜索", Group: "web", Configured: apiConfigured["doubao"], Active: active["doubao"], aliases: []string{"doubao"}},
+		{ID: "yuanbao", Name: "元宝搜索", Group: "web", Configured: apiConfigured["yuanbao"], Active: active["yuanbao"], aliases: []string{"yuanbao", "tencent_yuanbao"}},
 		{ID: "baidu_web", Name: "百度网页", Group: "web", Configured: engineConfigured["baidu_web"], Active: active["baidu_web"], aliases: baiduWebAliases},
 		{ID: "bing", Name: "Bing", Group: "web", Configured: engineConfigured["bing"], Active: active["bing"], aliases: []string{"bing"}},
 		{ID: "google", Name: "Google", Group: "web", Configured: engineConfigured["google"], Active: active["google"], aliases: []string{"google"}},
@@ -429,6 +432,13 @@ func webSourceCatalog(conf config.Config) []SourceView {
 					s.Condition += "；Global；仅国内 ICP 备案站点"
 				} else {
 					s.Condition += "；Global；不限制 ICP 备案"
+				}
+			}
+			if s.ID == "yuanbao" {
+				if limit := conf.Yuanbao.GetMonthlyLimit(); limit < 0 {
+					s.Condition += "；本地月上限已关闭，超出免费额度会产生后付费"
+				} else {
+					s.Condition += fmt.Sprintf("；本地月上限 %d 次，达到后停止调用", limit)
 				}
 			}
 		}
