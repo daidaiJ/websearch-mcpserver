@@ -7,6 +7,7 @@
 > 调研吸收批次（路线图 N 系列）：供应商扩展、可靠性护栏与试验性 `search_history`。提交对照：`01dd2fa`（LLM deadline）、`160ad25`（供应商扩展 + 远端抓取链）、`329a226`（输出契约测试）、`9ce0c03`（search_history）及后续 dashboard / 额度补齐提交。
 
 ### 新增
+- **GitHub 搜索引擎与 cleanfetch 站点特判**：REST API 引擎（零 Key 匿名档 search 10/min，配 PAT 提额 30/min，token 轮转去重 + 429/403 冷却，国内直连可达无需代理），`github.enabled` 默认关闭，参与 engine/hybrid/mcphub；cleanfetch 对 `github.com/<owner>/<repo>` 改走 API（元数据 + README raw），`blob` 页走 contents API 取源文件（`Accept: application/vnd.github.raw`，绕开国内不可达的 raw.githubusercontent CDN），与引擎共用 `github.api_key` / `token_list`（env `GITHUB_TOKEN`）
 - **TinyFish / Keenable Search+Fetch 供应商**：双能力 API 供应商接入 apipool / hybrid 供应商池与源开关（`tinyfish.enabled` / `keenable.enabled`），fetch 能力接入 cleanfetch 远端抓取链（沿用 `mcp_hub.fetch_mode` 键治理整条远端抓取链，零破坏）。TinyFish 仅 Key 档（免费搜索 12000 次/天、fetch 1000 URL/天，00:00 UTC 重置，国内直连实测无需代理）；Keenable 无 Key 自动走 public 免 Key 端点（`X-Keenable-Title` 标识应用名，按出口 IP 限流），但**默认不自动参与 hybrid**（质量待观察）——需显式 `enabled: true` 或加入 `apipool.engines` opt-in
 - **控制中心源面板与设置页同步**：源面板新增 TinyFish / Keenable 条目（Active 态、参与条件、别名归并）；设置页开放两个新开关并把 `apipool.engines` 白名单扩至新供应商；keenable 无 Key 时缺省开关按 false 处理，避免保存任意设置把 public 档静默写进配置
 - **TinyFish 官方额度查询**：控制中心额度新增 TinyFish 官方 `/usage` 端点直读（api.search / api.fetch，X-API-Key，`total` 随 `start_after` 过滤返回），当日（00:00 UTC 起）搜索/抓取调用数无需翻页聚合；免费档上限按官方文档取值（搜索 12000/天、fetch 1000/天）；搜索主指标不受 fetch 查询失败影响，官方查询整体失败时回退本地用量
@@ -15,6 +16,7 @@
 ### 变更
 - **LLM 调用有界 deadline**：新增 `llm.timeout_sec`（默认 60s），LLM 摘要不再无限等待慢上游；调用方 ctx 已有更早 deadline 时以调用方为准
 - **MCP 输出契约测试**：`pkg/search/core/contract_test.go` 固化 MCP 工具输出契约（结果字段/格式），供应商扩展不得破坏既有输出结构
+- **Reddit 接入评审后不做**：官方 2026-09-30 公告进入关停周期（新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 停止支持、公共 Data API 2027-03 终止），OAuth script app 与 RSS 兜底两条候选通道均在死线上，收益期不足 5 个月，整线放弃；调研结论与重开条件留档 `docs/optimization-roadmap.md` N7
 
 ## v3.9.0 — 2026-10-22（零 Key MCP 级联与观测护栏）
 

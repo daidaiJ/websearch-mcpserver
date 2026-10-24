@@ -193,6 +193,17 @@ google_news:
   # per_sec: 1              # 每秒限流（默认 1）
   # per_min: 30             # 每分钟限流（默认 30）
 
+# GitHub 引擎（REST API，零 Key 匿名档可用，国内直连可达无需代理）
+# 匿名 search 10/min；配 PAT 提额 30/min（core 60/h → 5000/h）；
+# cleanfetch 对 github.com 仓库/blob 页的站点特判与引擎复用同一批 token
+github:
+  enabled: false            # 总开关（默认 false）
+  # api_key: ""             # PAT（github_pat_/ghp_ 前缀）；环境变量 GITHUB_TOKEN
+  # token_list:             # 多 PAT 轮转列表（优先级高于 api_key）
+  #   - "github_pat_xxxx"
+  # num_results: 10         # 单次结果数（默认 10，上限 50）
+  # per_min: 30             # search 每分钟限流（默认按是否配 token 取 10/30）
+
 # DuckDuckGo 引擎（需代理，无需 Key）
 duckduckgo:
   enabled: true             # 总开关（代理可用时自动参与搜索）
@@ -619,6 +630,11 @@ dashboard:
 | `wikipedia.lang` | zh | 语言版本 |
 | `google_news.enabled` | false | Google News RSS 引擎（零 Key 新闻索引，带结构化发布日期；需代理，2026-10-06 出口实测；跳转链接自动回源发布方 URL） |
 | `google_news.edition` | zh-CN | 新闻版本（zh-CN/zh-TW/en-US/en-GB/ja-JP/ko-KR） |
+| `github.enabled` | false | GitHub 引擎（REST API 仓库搜索，零 Key 匿名档 search 10/min；国内直连可达无需代理，2026-10-24 实测） |
+| `github.api_key` | "" | PAT（github_pat_/ghp_ 前缀）；提额 search 30/min、core 5000/h；cleanfetch 仓库/blob 特判共用；环境变量 `GITHUB_TOKEN` |
+| `github.token_list` | [] | 多 PAT 轮转列表（优先级高于 api_key） |
+| `github.num_results` | 10 | 单次结果数（上限 50） |
+| `github.per_min` | 10/30 | search 每分钟限流（默认按是否配 token 取匿名/提额档） |
 | `smartsearch.mmr.enabled` | true | MMR 多样性重排 |
 | `smartsearch.mmr.lambda` | 0.7 | 相关性-多样性权衡系数 |
 | `cache.enabled` | false | 不设置时默认关闭（v3.5.0 起）；显式 true 启用（storage_path 默认 exe 同目录 cache/websearch-cache.db） |

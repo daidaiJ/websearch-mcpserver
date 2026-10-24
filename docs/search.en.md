@@ -27,14 +27,14 @@
 
 | Mode | Description | Key Required |
 |------|-------------|--------------|
-| `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled) | **None** |
+| `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled, GitHub when `github.enabled`) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
 | `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; web-engine fallback | All optional |
 | `tavily` | Tavily Search API ([get key](https://app.tavily.com/home)) | `TAVILY_SK` |
 | `exa` | Exa Web Search API ([get key](https://dashboard.exa.ai/api-keys)) | `EXA_API_KEY` |
 | `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
-| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao if keyed + TinyFish if keyed + Keenable if keyed or explicitly enabled + Bing + DuckDuckGo + Google) | All optional |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + GitHub if enabled + Tavily + Exa + Doubao if keyed + TinyFish if keyed + Keenable if keyed or explicitly enabled + Bing + DuckDuckGo + Google) | All optional |
 | `mcphub` | Keyless hosted-MCP cascade: parallel → anysearch → exa → firecrawl, cool down and switch on failure; optional per-server key | **None** (optional key) |
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
@@ -45,14 +45,14 @@
 
 | Mode | Engines |
 |------|---------|
-| `engine` | Baidu web + Bing + so360 (if enabled) + Google (if enabled) + DuckDuckGo / Wikipedia / Google News (if proxy available), concurrent |
+| `engine` | Baidu web + Bing + so360 (if enabled) + Google (if enabled) + DuckDuckGo / Wikipedia / Google News (if proxy available) + GitHub (if enabled), concurrent |
 | `baidu` | Baidu Qianfan (`enable_ai_search` controls endpoint) → falls back to Baidu web search |
 | `tavily` | Tavily; falls back to Bing when no key |
 | `exa` | Exa; falls back to Bing when no key |
 | `anysearch` | AnySearch; key-pool rotation with keys, anonymous tier (no auth header, IP-rate-limited) when keyless |
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
 | `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` / `tinyfish` / `keenable` must be listed in `apipool.engines`), Baidu web search always last |
-| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + GitHub (if enabled) + Tavily + Exa + Doubao (if keyed) + Bing + Google + DuckDuckGo, concurrent |
 | `mcphub` | Cascades hosted MCP servers in `mcp_hub.servers` order (default parallel → anysearch → exa → firecrawl), one per request; cools down and switches on failure, falls back to Bing when all fail |
 
 ---
@@ -75,6 +75,7 @@
 | `so360` | 360 Search (HTML, second Chinese index; disabled by default, enable via `so360.enabled`) | ❌ | No |
 | `wikipedia` | Wikipedia MediaWiki API (reference source; disabled by default, enable via `wikipedia.enabled`, `lang` picks the edition) | ❌ | Yes (auto-detected) |
 | `google_news` | Google News RSS (redirect links resolved to publisher URLs, structured publish dates; disabled by default, enable via `google_news.enabled`, `edition` picks the locale) | ❌ | Yes (auto-detected) |
+| `github` | GitHub REST API repository search (zero-key anonymous tier 10 searches/min; PAT raises it to 30/min; structured creation dates with ★/language metadata; disabled by default, enable via `github.enabled`, PAT via `github.api_key`/`token_list`) | No (PAT optional) | No |
 
 **Academic engines** (no keys required):
 
@@ -373,6 +374,8 @@ When no usable results remain and engines have failed, the error retains each en
 | `limit` | integer | no | Reference mode only: default/0 = 4096, maximum 8192 |
 
 URL fetching requires `cleanfetch.enabled: true`; saved-body reads do not. Based on go-webfetch, no proxy needed; built-in DNS rebinding protection and HEAD pre-check for large files (`max_fetch_size_mb` controls threshold, default 10MB; every redirect hop is re-checked against private-network/metadata rules, up to 5 hops); falls back to Jina Reader on failure (requires `jina.api_key`, proxy auto-detected).
+
+**Site-specific handling**: `github.com` pages are JS-rendered and yield no body via regular fetching; matching URLs are routed to the GitHub REST API instead (no HEAD pre-check / fallback chain) — repo roots return metadata (description/★/language/license/last push) plus the raw README; `blob` pages fetch source files through the contents API (`Accept: application/vnd.github.raw`, bypassing the raw.githubusercontent CDN that is unreachable from mainland networks); `issues`/`pull` pages are out of scope. The API anonymous tier allows 60 requests/hour; configure `github.api_key` (or `token_list`) to raise it to 5000/hour, sharing the same tokens as the GitHub search engine.
 
 In batch mode (`urls`), each URL is pre-checked and fetched independently; one failure does not affect the others, and results are returned grouped by URL. With only `url`, output is identical to previous versions.
 
