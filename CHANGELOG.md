@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## v3.9.2 — 2026-10-24（供应商扩展、GitHub 引擎与 search_history）
+## v3.10.0 — 2026-10-24（供应商扩展、GitHub 引擎与 search_history）
 
 > 调研吸收批次（路线图 N 系列）：供应商扩展、可靠性护栏与试验性 `search_history`，经 `feat/provider-eco-absorb` 分支合入 master。提交对照：`bb30253`（LLM deadline）、`a7045b3`（供应商扩展 + 远端抓取链）、`45104d7`（输出契约测试）、`7cf198e`（search_history）、`bf9053d`（dashboard 源面板与设置页）、`067fcf5`（TinyFish 官方额度直读）及后续 roadmap / 文档提交。
 

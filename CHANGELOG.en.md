@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## v3.9.2 — 2026-10-24 (Provider expansion, GitHub engine and search_history)
+## v3.10.0 — 2026-10-24 (Provider expansion, GitHub engine and search_history)
 
 > Survey-absorb batch (roadmap N series): provider expansion, reliability guardrails and the experimental `search_history`, merged into master from the `feat/provider-eco-absorb` branch. Commit map: `bb30253` (LLM deadline), `a7045b3` (provider expansion + remote fetch chain), `45104d7` (output contract tests), `7cf198e` (search_history), `bf9053d` (dashboard source panel and settings), `067fcf5` (TinyFish official usage), plus follow-up roadmap / docs commits.
 
