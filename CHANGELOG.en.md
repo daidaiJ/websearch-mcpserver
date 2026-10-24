@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased (v3.10.0 staging)
+## v3.10.0 — 2026-10-24 (Provider expansion, GitHub engine and search_history)
 
 > Survey-absorb batch (roadmap N series): provider expansion, reliability guardrails and the experimental `search_history`, merged into master from the `feat/provider-eco-absorb` branch. Commit map: `bb30253` (LLM deadline), `a7045b3` (provider expansion + remote fetch chain), `45104d7` (output contract tests), `7cf198e` (search_history), `bf9053d` (dashboard source panel and settings), `067fcf5` (TinyFish official usage), plus follow-up roadmap / docs commits.
 
@@ -14,9 +14,15 @@
 - **Experimental `search_history` tool (off by default)**: after each successful smartsearch the query and result digest are stored in a local SQLite database (FTS5); the `search_history` MCP tool full-text searches "what was already searched", with data never leaving the machine and a default 30-day retention. `search_history.enabled` zero value = no database, no tool registration. **Experimental (idea)**: utility not yet confirmed — it becomes a formal tool once real-world use proves its value
 
 ### Changed
-- **Bounded deadline for LLM calls**: new `llm.timeout_sec` (default 60s) so LLM summarization no longer waits indefinitely on slow upstreams; a tighter caller-side ctx deadline always wins
+- **Bounded deadline for LLM calls**: new `llm.timeout_sec` (default 60s) so LLM summarization no longer waits indefinitely on slow upstreams; the client-side timeout and the caller's ctx deadline always resolve to whichever is earlier
 - **MCP output contract tests**: `pkg/search/core/contract_test.go` pins the MCP tool output contract (fields/format) so provider expansion cannot break the existing result structure
 - **Reddit integration dropped after review**: Reddit's 2026-09-30 announcement put the platform on a shutdown timeline (new public API applications close 2026-10-31, RSS support ends 2026-11-13, the public Data API terminates 2027-03); both candidate channels (OAuth script app / RSS fallback) sit on that timeline with less than five months of value, so the whole line was dropped. Research findings and revival conditions are archived in `docs/optimization-roadmap.md` N7
+
+### Fixed (pre-release review)
+- **`search_history` FTS5 special-character tolerance**: search terms containing quotes, parentheses, asterisks or `AND`-`OR` operators used to trigger FTS5 syntax errors; queries are now split on whitespace and each token is quote-wrapped (implicit AND), keeping the semantics of simple term queries unchanged
+- **`search_history` database closes with graceful shutdown**: the shutdown path previously missed the history store (cleanup goroutine kept running, WAL never checkpointed); it now closes in the same sequence as cache/WebFetch
+- **LLM client timeout now applies when the caller's deadline is later**: `withDeadline` previously gave up the client-side timeout whenever the caller carried any deadline; it now takes the earlier of the two
+- The `search_history` tool description now carries the experimental label
 
 ## v3.9.1 — 2026-10-24 (Yuanbao search, fetch proxy switch and shortcut sync)
 

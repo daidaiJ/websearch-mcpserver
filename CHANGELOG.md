@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased（v3.10.0 预备）
+## v3.10.0 — 2026-10-24（供应商扩展、GitHub 引擎与 search_history）
 
 > 调研吸收批次（路线图 N 系列）：供应商扩展、可靠性护栏与试验性 `search_history`，经 `feat/provider-eco-absorb` 分支合入 master。提交对照：`bb30253`（LLM deadline）、`a7045b3`（供应商扩展 + 远端抓取链）、`45104d7`（输出契约测试）、`7cf198e`（search_history）、`bf9053d`（dashboard 源面板与设置页）、`067fcf5`（TinyFish 官方额度直读）及后续 roadmap / 文档提交。
 
@@ -14,9 +14,15 @@
 - **试验性 `search_history` 工具（默认关闭）**：smartsearch 成功后把 query + 结果摘要落本地 SQLite（FTS5），`search_history` MCP 工具支持全文检索「搜自己查过的东西」，数据不出网、保留期默认 30 天；`search_history.enabled` 零值 = 不建库、不注册工具。**试验性（idea）**：实用性尚未确认，体验确认有价值后再转正式工具
 
 ### 变更
-- **LLM 调用有界 deadline**：新增 `llm.timeout_sec`（默认 60s），LLM 摘要不再无限等待慢上游；调用方 ctx 已有更早 deadline 时以调用方为准
+- **LLM 调用有界 deadline**：新增 `llm.timeout_sec`（默认 60s），LLM 摘要不再无限等待慢上游；本端超时与调用方 ctx deadline 恒取更早者
 - **MCP 输出契约测试**：`pkg/search/core/contract_test.go` 固化 MCP 工具输出契约（结果字段/格式），供应商扩展不得破坏既有输出结构
 - **Reddit 接入评审后不做**：官方 2026-09-30 公告进入关停周期（新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 停止支持、公共 Data API 2027-03 终止），OAuth script app 与 RSS 兜底两条候选通道均在死线上，收益期不足 5 个月，整线放弃；调研结论与重开条件留档 `docs/optimization-roadmap.md` N7
+
+### 修复（发版前审查）
+- **`search_history` FTS5 查询特殊字符兼容**：含引号/括号/星号/`AND`-`OR` 等操作符的检索词此前会触发 FTS5 语法错误，现按空白分词后引号包裹（隐式 AND），简单词组语义不变
+- **`search_history` 库随服务优雅关闭**：此前关闭路径漏掉历史库（清理协程不停、WAL 不落盘），现与 cache/WebFetch 同一关闭序列
+- **LLM 本端超时在调用方 deadline 更晚时生效**：`withDeadline` 此前在调用方带任意 deadline 时完全放弃本端超时，现修正为两者取更早者
+- `search_history` 工具描述补「试验性」标注
 
 ## v3.9.1 — 2026-10-24（元宝搜索、抓取代理开关与快捷方式同步）
 
