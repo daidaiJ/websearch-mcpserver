@@ -19,6 +19,7 @@ import (
 // 探测/检索失败的分类错误：
 //   - ErrUnavailable：HTTP Server 不可达（未启动、端口不对）
 //   - ErrAuth：鉴权失败（配置的用户名/口令与服务端不一致）
+//
 // 调用方据此决定是否暴露 file_search 工具及给出可行动的提示。
 var (
 	ErrUnavailable = errors.New("everything http server 不可达")
@@ -51,14 +52,14 @@ func New(baseURL, username, password string, timeout time.Duration) *Client {
 
 // SearchOptions 一次检索的返回控制与原生过滤参数。
 type SearchOptions struct {
-	Offset      int    // 起始条目（分页）
-	Count       int    // 返回条数上限（必须显式设置：JSON 模式下服务端默认返回全量）
-	Sort        string // name / path / size / date_modified（空 = 服务端默认 name）
-	Descending  bool   // 配合 Sort 使用
-	MatchCase   bool   // 区分大小写（原生 i 参数）
-	WholeWord   bool   // 全字匹配（原生 w 参数）
-	Regex       bool   // 正则检索（原生 r 参数）
-	Diacritics  bool   // 区分变音符号（原生 m 参数）
+	Offset     int    // 起始条目（分页）
+	Count      int    // 返回条数上限（必须显式设置：JSON 模式下服务端默认返回全量）
+	Sort       string // name / path / size / date_modified（空 = 服务端默认 name）
+	Descending bool   // 配合 Sort 使用
+	MatchCase  bool   // 区分大小写（原生 i 参数）
+	WholeWord  bool   // 全字匹配（原生 w 参数）
+	Regex      bool   // 正则检索（原生 r 参数）
+	Diacritics bool   // 区分变音符号（原生 m 参数）
 }
 
 // Item 一条索引命中。
@@ -91,10 +92,10 @@ func (c *Client) Probe(ctx context.Context) error {
 // Search 执行检索。query 为最终查询串（调用方负责拼装路径限定项与用户词）。
 func (c *Client) Search(ctx context.Context, query string, opt SearchOptions) (*Result, error) {
 	q := url.Values{
-		"s":             {query},
-		"j":             {"1"}, // JSON 输出；不带时返回 HTML
-		"c":             {strconv.Itoa(opt.Count)},
-		"o":             {strconv.Itoa(opt.Offset)},
+		"s":                    {query},
+		"j":                    {"1"}, // JSON 输出；不带时返回 HTML
+		"c":                    {strconv.Itoa(opt.Count)},
+		"o":                    {strconv.Itoa(opt.Offset)},
 		"path_column":          {"1"},
 		"size_column":          {"1"},
 		"date_modified_column": {"1"},

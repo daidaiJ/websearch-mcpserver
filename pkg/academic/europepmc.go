@@ -80,12 +80,12 @@ type europePMCResp struct {
 }
 
 type europePMCItem struct {
-	ID     string `json:"id"`
-	Source string `json:"source"`
-	Title  string `json:"title"`
+	ID           string `json:"id"`
+	Source       string `json:"source"`
+	Title        string `json:"title"`
 	AuthorString string `json:"authorString"`
-	DOI    string `json:"doi"`
-	JournalInfo struct {
+	DOI          string `json:"doi"`
+	JournalInfo  struct {
 		Journal struct {
 			Title string `json:"title"`
 		} `json:"journal"`

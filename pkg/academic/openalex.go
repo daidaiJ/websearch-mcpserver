@@ -84,19 +84,19 @@ type openalexResp struct {
 }
 
 type openalexWork struct {
-	Title          string               `json:"title"`
-	DOI            string               `json:"doi"`
-	ID             string               `json:"id"`
-	DisplayName    string               `json:"display_name"`
-	AbstractInvIdx map[string][]int     `json:"abstract_inverted_index"`
-	Authorships    []openalexAuthorship `json:"authorships"`
-	PrimaryLocation *openalexLocation   `json:"primary_location"`
-	BestOALocation  *openalexLocation   `json:"best_oa_location"`
-	OpenAccess      *openalexOA         `json:"open_access"`
-	PublicationDate string              `json:"publication_date"`
-	CitedByCount   int                  `json:"cited_by_count"`
-	RelevanceScore float64              `json:"relevance_score"`
-	Keywords       []openalexConcept    `json:"keywords"`
+	Title           string               `json:"title"`
+	DOI             string               `json:"doi"`
+	ID              string               `json:"id"`
+	DisplayName     string               `json:"display_name"`
+	AbstractInvIdx  map[string][]int     `json:"abstract_inverted_index"`
+	Authorships     []openalexAuthorship `json:"authorships"`
+	PrimaryLocation *openalexLocation    `json:"primary_location"`
+	BestOALocation  *openalexLocation    `json:"best_oa_location"`
+	OpenAccess      *openalexOA          `json:"open_access"`
+	PublicationDate string               `json:"publication_date"`
+	CitedByCount    int                  `json:"cited_by_count"`
+	RelevanceScore  float64              `json:"relevance_score"`
+	Keywords        []openalexConcept    `json:"keywords"`
 }
 
 type openalexAuthorship struct {

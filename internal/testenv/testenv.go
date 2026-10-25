@@ -48,7 +48,7 @@ const (
 	GoogleNews      = "googlenews"
 	Google          = "google"
 	DuckDuckGo      = "duckduckgo"
-	GitHub          = "github" // api.github.com（直连可达，2026-10-24 实测）
+	GitHub          = "github"     // api.github.com（直连可达，2026-10-24 实测）
 	Web             = "web"        // 通用外网连通性
 	Ruanyifeng      = "ruanyifeng" // ruanyifeng.com 博客
 	WmySkxz         = "wmyskxz"    // wmyskxz.cn

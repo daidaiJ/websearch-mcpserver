@@ -92,8 +92,8 @@ type pubmedIDList struct {
 }
 
 type pubmedArticleSet struct {
-	XMLName  xml.Name         `xml:"PubmedArticleSet"`
-	Articles []pubmedArticle  `xml:"PubmedArticle"`
+	XMLName  xml.Name        `xml:"PubmedArticleSet"`
+	Articles []pubmedArticle `xml:"PubmedArticle"`
 }
 
 type pubmedArticle struct {

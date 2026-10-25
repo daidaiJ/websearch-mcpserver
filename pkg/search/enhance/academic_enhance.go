@@ -83,7 +83,8 @@ func JournalBoost(journal string) float64 {
 }
 
 // AcademicRecencyFactor 学术新鲜度因子：仅时间敏感查询生效，窗口比通用搜索更宽松。
-//   < 1 年 ×1.15 | < 3 年 ×1.08 | < 5 年 ×1.03 | ≥ 5 年或无日期 ×1.00
+//
+//	< 1 年 ×1.15 | < 3 年 ×1.08 | < 5 年 ×1.03 | ≥ 5 年或无日期 ×1.00
 func AcademicRecencyFactor(temporal bool, publishDate string) float64 {
 	if !temporal {
 		return 1.0
@@ -207,6 +208,7 @@ func EnhanceAcademicResults(query string, buckets []core.ScoreBucket, threshold 
 //   - score < threshold 的结果被丢弃
 //   - Top-1 永不过滤
 //   - 每引擎保底：引擎内排名第 1 的结果即使低于阀值也恢复
+//
 // 输入需已按 score 降序排序。
 func applyAcademicScoreFloor(scored []core.SearchResult, buckets []core.ScoreBucket, threshold float64) []core.SearchResult {
 	if threshold <= 0 {

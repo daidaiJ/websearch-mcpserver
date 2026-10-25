@@ -11,8 +11,8 @@ import (
 )
 
 type unpaywallResp struct {
-	IsOA           bool             `json:"is_oa"`
-	BestOALocation *unpaywallLoc    `json:"best_oa_location"`
+	IsOA           bool          `json:"is_oa"`
+	BestOALocation *unpaywallLoc `json:"best_oa_location"`
 }
 
 type unpaywallLoc struct {

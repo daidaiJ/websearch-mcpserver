@@ -1,0 +1,4 @@
+# Go 源码统一 LF：gofmt / golangci-lint 的规范输出是 LF，
+# Windows autocrlf 检出的 CRLF 工作树会导致 gofmt -l 全文件误报、
+# gofmt -w 产生整文件改写噪音。检出与提交双向都固定为 LF。
+*.go text eol=lf

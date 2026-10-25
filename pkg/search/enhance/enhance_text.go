@@ -41,6 +41,7 @@ func isCJK(r rune) bool {
 // tokenize 将文本切分为词元：
 //   - 英文/数字：按非字母数字分割，小写，长度 >= 2
 //   - 中文：按字符 bigram（相邻两字），单字作为降级补充
+//
 // 不依赖分词库，bigram 近似足够用于词汇对齐。
 func tokenize(s string) []string {
 	s = strings.ToLower(s)

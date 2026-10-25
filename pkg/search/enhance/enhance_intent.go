@@ -88,7 +88,8 @@ func parsePublishDate(s string) (time.Time, bool) {
 }
 
 // RecencyFactor 新鲜度乘数因子。仅时间敏感查询生效；无有效日期返回 1.0。
-//   < 7 天 ×1.5 | < 30 天 ×1.3 | < 90 天 ×1.1 | 其余 ×1.0
+//
+//	< 7 天 ×1.5 | < 30 天 ×1.3 | < 90 天 ×1.1 | 其余 ×1.0
 func RecencyFactor(temporal bool, publishDate string) float64 {
 	if !temporal {
 		return 1.0

@@ -1,9 +1,9 @@
 package academic
 
 import (
-	"websearch/internal/testenv"
 	"strings"
 	"testing"
+	"websearch/internal/testenv"
 
 	"websearch/pkg/antirobot"
 )

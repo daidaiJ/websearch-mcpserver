@@ -60,7 +60,7 @@ func TestFormatDateSourceEmptyIsLegal(t *testing.T) {
 }
 
 // TestMDSearchHeaderStablePrefix 搜索头是稳定前缀：查询与结果数之外不得混入易变字段
-//（时间戳/请求 id 等只能进 ProvenanceHeader，避免逐请求打穿客户端 KV cache）。
+// （时间戳/请求 id 等只能进 ProvenanceHeader，避免逐请求打穿客户端 KV cache）。
 func TestMDSearchHeaderStablePrefix(t *testing.T) {
 	a := MDSearchHeader("q", 3)
 	b := MDSearchHeader("q", 3)

@@ -211,6 +211,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 //   - score < threshold 的结果被丢弃（真正的低质量裁剪）
 //   - Top-1 永不过滤（保证至少有一条最相关结果）
 //   - 至少返回 2 条（若原结果 >= 2），避免过度裁剪导致上下文过空
+//
 // 输入需已按 score 降序排序。
 func ApplyScoreFloor(results []core.SearchResult, threshold float64) []core.SearchResult {
 	if threshold <= 0 {
