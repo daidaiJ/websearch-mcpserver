@@ -196,6 +196,13 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
+### 本机环境收口（部署 v3.10.2 + grok 子代理模型）— done（2026-10-25）
+
+- **当前状态：** 本机部署 `D:\Programs\websearch` 已升级到 `v3.10.2` 并验证；grok CLI 的子代理默认模型改为组 `cline-pass`（DeepSeek V4.1 Flash 主 / GLM-5.3 Flash 备），新会话已验证解析到链首条目
+- **关键证据：** 部署 exe sha256 `beb21986…` 与 base Release 一致、MCP `serverInfo.version = v3.10.2`、真机 smartsearch 与控制中心语言协商通过；子代理 `meta.json` 的 `effective_model_id = cline-pass/deepseek-v4.1-flash`；AGENTS.md 同步提交 `f22179e`
+- **开口项：** registry 里 `3.10.2` 的 `fileSha256` 陈旧（只有换版本号能刷新，待用户拍板）；本地 grok fork 仓库两个待办文件未提交
+- **详情指针：** [`.handoff/local-env-and-grok-cli.md`](.handoff/local-env-and-grok-cli.md)
+
 ### i18n 治理（日志/MCP 元数据/控制中心/工具返回内容 语言模式 auto|zh|en）— done（2026-10-25，随 v3.10.2 发布）
 
 - **当前状态：** 四面 zh-en 双档已全部落地并随 `v3.10.2` 发布（Release + GHCR + MCP Registry 三线就绪）；该版本同日回收重发过一次（先发三面、补完第四面后同版本号重发），base tag 钉 `d79e853`、`-registry` tag 钉 `9883818`
@@ -233,7 +240,7 @@ docker build -t websearch-mcpserver .
 
 ### github-reddit-access — done（GitHub 已随 v3.10.0 落地、v3.10.1 修正；Reddit 整线放弃，N7 归档）
 
-- **当前状态：** GitHub 引擎 + cleanfetch 仓库/blob 特判 + 失败回退已随 `v3.10.0` 发布（v3.10.0 已下架，现行版本 `v3.10.1`）；Reddit 经评审整线放弃（官方公告进入关停周期，收益期 < 5 个月），调研结论留档 roadmap N7
+- **当前状态：** GitHub 引擎 + cleanfetch 仓库/blob 特判 + 失败回退已随 `v3.10.0` 发布（v3.10.0 已下架，现行版本 `v3.10.2`）；Reddit 经评审整线放弃（官方公告进入关停周期，收益期 < 5 个月），调研结论留档 roadmap N7
 - **验收结果：** GitHub 零 Key 匿名 + PAT 双模、429/403 冷却（Retry-After / x-ratelimit-reset）、blob 走 contents API、搜索失败回 Bing `site:github.com`、抓取失败回 webfetch→Jina、typed-nil 防护（InitGithubEngine 返回接口类型）——真机全部验证通过
 - **详情指针：** [`.handoff/github-reddit-access.md`](.handoff/github-reddit-access.md)
 
