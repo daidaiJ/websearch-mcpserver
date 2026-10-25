@@ -2,21 +2,27 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## v3.10.2 — 2026-10-25（国际化治理：日志 / MCP 描述 / 控制中心 zh-en 双档）
+## v3.10.2 — 2026-10-25（国际化治理：日志 / MCP 元数据 / 控制中心 / 工具返回内容 zh-en 双档）
 
-> 三面 i18n 一次交付：`d5f7780`（基础设施 + 日志层 + MCP 描述）、`7b1c246`（控制中心后端与前端）、`d51a0ea`（配置样例与文档同步）。
+> 四面 i18n 一次交付：`d5f7780`（基础设施 + 日志层 + MCP 描述）、`7b1c246`（控制中心后端与前端）、`d51a0ea`（配置样例与文档同步）、`0268707`（tool 域）、`2f18a0d`（fetch 域）、`7e16572`（provider 域）、`1fac4e9`（search 域）。
+>
+> 本版曾于同日先行发布过「三面」版本；因 i18n 治理这一需求还包含工具返回内容一面，回收同版本号重发，本条为完整交付范围。
 
 ### 新增
-- **国际化（i18n）治理：日志 / MCP 描述 / 控制中心三面 zh-en 双档**：新增主配置 `language: auto|zh|en`（零值 `auto` 按系统语言适配：Windows 取用户默认区域，类 Unix 取 `LC_ALL` / `LC_MESSAGES` / `LANG`，匹配不到中英时回落 `en`；环境变量 `WEBCRAWLER_LANGUAGE`）。文案数据住 `pkg/i18n/locales/<域>.<语言>.json`（`log` / `mcp` / `dashboard` / `web` 四域），key 为符号化稳定标识，占位符用命名模板 `{{.Name}}`，复数走 CLDR 规则；新增语言 = 新增一组同域文件并把标签加入 `pkg/i18n/language.go` 的 `supported`，改文案只动 JSON
-- **三种生命周期各取所需**：日志与 MCP 工具描述/参数 Schema 取进程默认语言（MCP 描述在注册时固化，改语言需重启）；控制中心页面与 `/__admin/api/*` 响应按浏览器 `Accept-Language` 每请求协商，协商不出回退配置解析结果。控制台首帧即正确语言：服务端改写 `<html lang>` 并把当前语言的前端文案内联进页面，无切换闪烁
+- **国际化（i18n）治理：日志 / MCP 元数据 / 控制中心 / 工具返回内容四面 zh-en 双档**：新增主配置 `language: auto|zh|en`（零值 `auto` 按系统语言适配：Windows 取用户默认区域，类 Unix 取 `LC_ALL` / `LC_MESSAGES` / `LANG`，匹配不到中英时回落 `en`；环境变量 `WEBCRAWLER_LANGUAGE`）。文案数据住 `pkg/i18n/locales/<域>.<语言>.json`（`log` / `mcp` / `dashboard` / `web` + 工具返回内容的 `tool` / `fetch` / `provider` / `search`，共八域），key 为符号化稳定标识，占位符用命名模板 `{{.Name}}`，复数走 CLDR 规则；新增语言 = 新增一组同域文件并把标签加入 `pkg/i18n/language.go` 的 `supported`，改文案只动 JSON
+- **三种生命周期各取所需**：日志、MCP 工具描述/参数 Schema 与工具返回内容取进程默认语言（MCP 描述在注册时固化，改语言需重启）；控制中心页面与 `/__admin/api/*` 响应按浏览器 `Accept-Language` 每请求协商，协商不出回退配置解析结果。控制台首帧即正确语言：服务端改写 `<html lang>` 并把当前语言的前端文案内联进页面，无切换闪烁
 - **文案目录审计（防漏机制）**：`pkg/i18n/catalog_test.go` 强制每个域在 zh/en 下 key 集合一致、同一 key 的 `{{.占位符}}` 集合一致、代码引用的 key 与目录条目双向一致（无漏登记、无死条目）；`log.*T`、`i18n.T` / `i18n.TCtx`、`jsonschema` 标签与前端 `web.*` 引用四类落地形态都在扫描范围内，纯转发包装须显式登记理由
 
 ### 变更
 - **日志 API 改为符号化 key**：`log.Info/Infof/Warnf/Errf/Error/Debug/Debugf` 统一为 `log.InfoT/WarnT/ErrorT/DebugT(key, "name", value, …)`，日志文案不再内联在调用点；未登记 key 原样输出 key 本身（便于定位），漏登记由目录审计拦截
 - **MCP 工具参数说明改为目录 key**：`jsonschema` 标签从内联中文文案改为 `mcp.param.*` key，注册时按当前语言渲染输入 Schema；顺带修掉标签前缀 `description,` 被当作描述文本透出给客户端的既有缺陷
+- **工具返回内容接入 i18n（第四面，390 条 key）**：MCP 工具**返回内容**里由本服务自产的提示、告警、错误与进度文案迁到符号化 key——工具层参数校验与降级说明、反爬拦截提示、MinerU 分批进度与页码说明、落盘/续读提示、SSRF 与 DNS rebinding 预检拒绝；抓取层（webfetch / Jina / MinerU 含错误码映射表 / Everything / sitefetch）的失败与回退说明；供应商层（tavily / exa / anysearch / baidu / baidu_ai / doubao / yuanbao / tinyfish / keenable / mcphub）的调用错误与配置校验；编排层（hybrid / adapter / apipool / engine）的失败清单、off-topic 守卫原因与限流冷却原因
+- **工具返回内容的治理边界**：只治理**本服务自产**文案；**网页正文、API 供应商返回的结果文本、上游库自带的中文串不治理**。结果记录骨架（`pkg/search/core/format_md.go` 的 `## 结果` / `**标题**` / `**url**` / `**内容**` / 日期注记 / `usage_note` 固定行）由 `contract_test.go` 固化，保持原样；`BuildUserPrompt` 的 LLM 提示词、`enhance` 的停用词与意图关键词表、`telemetry` / `antirobot` 的判类关键词表同属算法输入，一律不动
 
 ### 修复
 - **MCP 参数描述不再带 `description,` 前缀**：此前 `jsonschema:"description,…"` 会把 `description,` 一起当作描述文本发给客户端，工具列表里每条参数说明都带这个噪声前缀
+- **翻译错误文案不再打断按关键词判类的逻辑**：`mcp/tool_search.go` 的 `isAntiBotFailure` 改为中英关键词并列（原先只认中文）；`pkg/search/core/diagnostics.go` 的 `ClassifyFailure` 与 `pkg/telemetry/errorkind.go` 的错误种类判定本就中英并列，核对后保持可用
+- **稳定哨兵与文案分离**：`errResultUnavailable`、`errUnsafeRedirect`、`ErrPageLimit`、`ErrRemoteURLRejected`、`ErrUnavailable`、`ErrAuth` 保留 `errors.Is` 身份（改为 ASCII 标记 + 通用 wrapper），对外文案由调用点的 `i18n.T` 字面量 key 渲染，目录审计仍可静态校验
 
 ## v3.10.1 — 2026-10-25（供应商扩展、GitHub 引擎、search_history 与发布后审查修复）
 

@@ -227,6 +227,14 @@ CI 在 `test` job 内跑 10s 短窗口（种子语料始终随 `go test` 执行�
 | `mcp.*` | 工具描述、参数说明、Resource 描述与正文 | `i18n.T("mcp.tool.smartsearch.desc")`；参数说明写在 `jsonschema` 标签里 |
 | `dashboard.*` | 控制中心 HTTP 响应文案 | `i18n.TCtx(r.Context(), "dashboard.source.baidu.name")` |
 | `web.*` | 控制中心前端文案 | `t('web.nav.overview')`，数据由 `serveIndex` 内联注入 |
+| `tool.*` | MCP 工具**返回内容**里 `mcp/` 自产的提示/告警/错误/进度 | `i18n.T("tool.pdf.batch_start", "Index", i+1, …)` |
+| `fetch.*` | 同上，产出方是 `pkg/fetch/**`（抓取、Jina、MinerU、Everything、sitefetch） | `i18n.T("fetch.mineru.err_quota_exhausted")` |
+| `provider.*` | 同上，产出方是 `pkg/search/provider/**`（各 API 供应商与 mcphub） | `i18n.T("provider.tavily.bad_status", "Status", code)` |
+| `search.*` | 同上，产出方是 `pkg/search/{core,hybrid,adapter,apipool,engine}`、`pkg/llm`、`pkg/history`、`pkg/academic` | `i18n.T("search.hybrid.no_valid_results")` |
+
+**工具返回内容的治理边界（重要）**：`tool` / `fetch` / `provider` / `search` 四域**只装本服务自己产出的文案**（提示、告警、错误、进度、分节标题）。**不治理**外部内容：网页正文、API 供应商返回的结果文本、上游库自带的中文串（如 go-webfetch 的 `AgentHint` 里被 `cleanAgentHint` 解析的「预览（」）。**也不要动** `pkg/search/core/format_md.go` 的结果记录骨架（`## 结果` / `**标题**` / `**url**` / `**内容**` / 日期注记 / `usage_note` 固定行）——那是 `contract_test.go` 固化的输出契约；`BuildUserPrompt` 的 LLM 提示词、`enhance` 的停用词与意图关键词表、`telemetry` / `antirobot` 的判类关键词表同属算法输入，一律保持原样。
+
+**改错误文案前必读**：有三处逻辑按**关键词**对错误分类，翻译文案会静默打断它们——`mcp/tool_search.go` 的 `isAntiBotFailure`、`pkg/search/core/diagnostics.go` 的 `ClassifyFailure`、`pkg/telemetry/errorkind.go` 的错误种类判定。改对应文案时必须同步补英文关键词，或改用哨兵错误（`errors.Is` + 携带本地化文案的 wrapper）。
 
 **约定与防漏**（`pkg/i18n/catalog_test.go` 是唯一入口，改动后必须跑 `go test ./pkg/i18n/`）：
 

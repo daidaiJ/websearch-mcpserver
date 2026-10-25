@@ -214,6 +214,14 @@ Two languages are supported, `zh` and `en`, selected by the main config `languag
 | `mcp.*` | tool descriptions, parameter docs, Resource descriptions and bodies | `i18n.T("mcp.tool.smartsearch.desc")`; parameter docs live in `jsonschema` tags |
 | `dashboard.*` | control-center HTTP response strings | `i18n.TCtx(r.Context(), "dashboard.source.baidu.name")` |
 | `web.*` | control-center frontend strings | `t('web.nav.overview')`, with data inlined by `serveIndex` |
+| `tool.*` | notices/warnings/errors/progress that `mcp/` itself emits into MCP tool **results** | `i18n.T("tool.pdf.batch_start", "Index", i+1, …)` |
+| `fetch.*` | same, produced by `pkg/fetch/**` (fetching, Jina, MinerU, Everything, sitefetch) | `i18n.T("fetch.mineru.err_quota_exhausted")` |
+| `provider.*` | same, produced by `pkg/search/provider/**` (API providers and mcphub) | `i18n.T("provider.tavily.bad_status", "Status", code)` |
+| `search.*` | same, produced by `pkg/search/{core,hybrid,adapter,apipool,engine}`, `pkg/llm`, `pkg/history`, `pkg/academic` | `i18n.T("search.hybrid.no_valid_results")` |
+
+**Scope of tool-result localization (important)**: the `tool` / `fetch` / `provider` / `search` domains hold **only text this service authors** (notices, warnings, errors, progress, section headings). **External content is not governed**: fetched page bodies, result text returned by API providers, and Chinese strings coming from upstream libraries (e.g. the `预览（` that `cleanAgentHint` parses out of go-webfetch's `AgentHint`). **Leave `pkg/search/core/format_md.go`'s result-record skeleton alone** (`## 结果` / `**标题**` / `**url**` / `**内容**`, the date annotations, the fixed `usage_note` line) — that is the output contract frozen by `contract_test.go`. `BuildUserPrompt`'s LLM prompt, `enhance`'s stop-word and intent keyword tables, and `telemetry` / `antirobot`'s classification keywords are algorithmic inputs and stay as they are.
+
+**Before changing an error message**: three places classify errors by **keyword**, and translating the text silently breaks them — `isAntiBotFailure` in `mcp/tool_search.go`, `ClassifyFailure` in `pkg/search/core/diagnostics.go`, and the error-kind check in `pkg/telemetry/errorkind.go`. Add the English keywords alongside the Chinese ones, or switch to a sentinel error (`errors.Is` plus a wrapper that carries the localized text).
 
 **Conventions and guardrails** (`pkg/i18n/catalog_test.go` is the single entry point; run `go test ./pkg/i18n/` after any change):
 
