@@ -221,6 +221,7 @@ docker build -t websearch-mcpserver .
 - 本机部署 `D:\Programs\websearch` 仍为已下架的 `v3.10.0` 构建（备份 `websearch-mcpserver.exe.bak-pre-v3.10.0`），待升级 `v3.10.1`（下载 base Release 的 `websearch-mcpserver-windows-amd64.exe` 覆盖）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`；新供应商已配测试 Key（tinyfish/keenable 进 `apipool.engines`，github PAT 提额，search_history 已开启），`mcp_hub.fetch_mode: prefer` 激活远端抓取链
 - **v3.10.0 下架记录（2026-10-25）：** GitHub Release `v3.10.0` / `v3.10.0-registry` 已删、远端与本地 tags 已删、MCP Registry 经 `registry-status.yml` 置 `deleted`（工作流日志复核：列表余 3.10.1 无 3.10.0）。GHCR 的 `v3.10.0` 镜像 tag 未删（历史版本镜像一律保留，与 3.9.x 同口径）
 - **发布流程教训（2026-10-24）：** `-registry` tag 推送不可重复——MCP Registry 同版本二次 publish 报 400 duplicate（首次已成功发布即占位）。误发版本用 `mcp-publisher status --status deleted`（已建 `.github/workflows/registry-status.yml` 运维工作流，OIDC 认证）下架；重发同版本 tag 必须钉同一 commit（构建可复现，产物 sha256 与 registry 元数据逐一致时可不重 publish）。registry 约束：`status active` 不允许携带 message
+- **发布流程教训（2026-10-25）：** 发版 tag 必须用 annotated tag（`git tag -a vX.Y.Z -m "变更日志"`）——release.yml 的 Release 正文取自 tag message，轻量 tag 会得到空正文（v3.10.1 曾中招，后用 `gh release edit --notes-file` 补救）。版本回收重编时，CHANGELOG 与 Release 日志把被回收版本的内容与修复合并为一个条目交付，不保留已下架版本的独立条目
 - 误发的 `v3.10.0-preview.1` 远端与本地 tag 已删除。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
 
 ### 待验证

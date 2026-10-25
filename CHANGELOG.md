@@ -2,23 +2,9 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## v3.10.1 — 2026-10-25（v3.10.0 发布后审查修复）
+## v3.10.1 — 2026-10-25（供应商扩展、GitHub 引擎、search_history 与发布后审查修复）
 
-> v3.10.0 三线发布后的审查批次：2 个 P1（`fetch_top_n` 未接 GitHub 站点特判、sitefetch 无配额冷却）与 7 个 P2 一并修复。v3.10.0 的 GitHub Release、远端 tags 与 MCP Registry 条目已下架回收，本版接替为最新版。
-
-### 修复
-- **smartsearch `fetch_top_n` 接入 GitHub 站点特判（P1）**：github.com 是 JS 渲染页，webfetch 抓不到正文，此前 `fetch_top_n` 对 GitHub 检索结果的正文补抓必然拿到空壳并误标"反爬拦截"。现与 cleanfetch 共用同一特判入口（REST API 优先、失败回落常规链、遥测同源），正文过统一大小截断
-- **cleanfetch GitHub 特判增加配额冷却（P1）**：sitefetch 侧此前无限流无冷却，匿名 core 60/h（每个仓库页 2 次调用）耗尽后持续 403 空转；现 403/429 按 Retry-After / x-ratelimit-reset 进入冷却（封顶 10 分钟，与搜索引擎侧同口径），冷却中快速失败、立即回退 webfetch → Jina 链
-- **GitHub blob 页路径编码**：owner / repo / 文件路径各段改 `PathEscape` 逐段编码（此前畸形段可产生非法请求路径）；`www.github.com` 前缀归一匹配特判，伪造后缀域（`github.com.evil.example`）不接管
-- **畸形 `pushed_at` 不再 panic**：API 返回短于 10 字符的时间戳时裸切片越界会崩掉抓取链，现防御性截取、原样展示
-- **GitHub 引擎超长查询引号感知截断**：截断到 5 子句时引号短语计为一个子句，不再切出不配对引号（GitHub search API 会以 422 拒绝整个查询）
-- **`search_history` 缓存命中也写历史**：工具描述口径是「每次 smartsearch 成功后自动写入」，此前缓存命中路径漏写；现实时与命中路径一致（命中快照解析失败时跳过）
-- **控制中心额度查询并行化**：Tavily 与 TinyFish 官方 `/usage` 端点改并行查询（各 12s 超时，串行最坏 24s 拖慢面板）
-- **`search_history` 条目头部 query 截断**：超长 query（多为误粘贴）在展示层截断到 200 字符，库里仍存完整原文、FTS 检索不受影响
-
-## v3.10.0 — 2026-10-24（供应商扩展、GitHub 引擎与 search_history）
-
-> 调研吸收批次（路线图 N 系列）：供应商扩展、可靠性护栏与试验性 `search_history`，经 `feat/provider-eco-absorb` 分支合入 master。提交对照：`bb30253`（LLM deadline）、`a7045b3`（供应商扩展 + 远端抓取链）、`45104d7`（输出契约测试）、`7cf198e`（search_history）、`bf9053d`（dashboard 源面板与设置页）、`067fcf5`（TinyFish 官方额度直读）及后续 roadmap / 文档提交。
+> 调研吸收批次（路线图 N 系列）与发布后审查修复合并交付：`v3.10.0` 曾于 2026-10-24 短暂发布，因发布后审查发现 2 个 P1（`fetch_top_n` 未接 GitHub 站点特判、sitefetch 无配额冷却）与 7 个 P2 而全线回收（GitHub Release / tags / MCP Registry 均已下架），其全部内容与本批修复合并为 `v3.10.1` 一次发布。提交对照：`bb30253`（LLM deadline）、`a7045b3`（供应商扩展 + 远端抓取链）、`45104d7`（输出契约测试）、`7cf198e`（search_history）、`bf9053d`（dashboard 源面板与设置页）、`067fcf5`（TinyFish 官方额度直读）、`c2e5a20`（发布后审查修复）及后续 roadmap / 文档提交。
 
 ### 新增
 - **GitHub 搜索引擎与 cleanfetch 站点特判**：REST API 引擎（零 Key 匿名档 search 10/min，配 PAT 提额 30/min，token 轮转去重 + 429/403 冷却，国内直连可达无需代理），`github.enabled` 默认关闭，参与 engine/hybrid/mcphub；API 失败（限流/403/零结果）自动回退 Bing `site:github.com` 检索；cleanfetch 对 `github.com/<owner>/<repo>` 优先走 API（元数据 + README raw），`blob` 页走 contents API 取源文件（`Accept: application/vnd.github.raw`，绕开国内不可达的 raw.githubusercontent CDN），失败回落常规 webfetch → Jina 链，与引擎共用 `github.api_key` / `token_list`（env `GITHUB_TOKEN`）
@@ -32,7 +18,15 @@
 - **MCP 输出契约测试**：`pkg/search/core/contract_test.go` 固化 MCP 工具输出契约（结果字段/格式），供应商扩展不得破坏既有输出结构
 - **Reddit 接入评审后不做**：官方 2026-09-30 公告进入关停周期（新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 停止支持、公共 Data API 2027-03 终止），OAuth script app 与 RSS 兜底两条候选通道均在死线上，收益期不足 5 个月，整线放弃；调研结论与重开条件留档 `docs/optimization-roadmap.md` N7
 
-### 修复（发版前审查）
+### 修复
+- **smartsearch `fetch_top_n` 接入 GitHub 站点特判（P1）**：github.com 是 JS 渲染页，webfetch 抓不到正文，此前 `fetch_top_n` 对 GitHub 检索结果的正文补抓必然拿到空壳并误标"反爬拦截"。现与 cleanfetch 共用同一特判入口（REST API 优先、失败回落常规链、遥测同源），正文过统一大小截断
+- **cleanfetch GitHub 特判增加配额冷却（P1）**：sitefetch 侧此前无限流无冷却，匿名 core 60/h（每个仓库页 2 次调用）耗尽后持续 403 空转；现 403/429 按 Retry-After / x-ratelimit-reset 进入冷却（封顶 10 分钟，与搜索引擎侧同口径），冷却中快速失败、立即回退 webfetch → Jina 链
+- **GitHub blob 页路径编码**：owner / repo / 文件路径各段改 `PathEscape` 逐段编码（此前畸形段可产生非法请求路径）；`www.github.com` 前缀归一匹配特判，伪造后缀域（`github.com.evil.example`）不接管
+- **畸形 `pushed_at` 不再 panic**：API 返回短于 10 字符的时间戳时裸切片越界会崩掉抓取链，现防御性截取、原样展示
+- **GitHub 引擎超长查询引号感知截断**：截断到 5 子句时引号短语计为一个子句，不再切出不配对引号（GitHub search API 会以 422 拒绝整个查询）
+- **`search_history` 缓存命中也写历史**：工具描述口径是「每次 smartsearch 成功后自动写入」，此前缓存命中路径漏写；现实时与命中路径一致（命中快照解析失败时跳过）
+- **控制中心额度查询并行化**：Tavily 与 TinyFish 官方 `/usage` 端点改并行查询（各 12s 超时，串行最坏 24s 拖慢面板）
+- **`search_history` 条目头部 query 截断**：超长 query（多为误粘贴）在展示层截断到 200 字符，库里仍存完整原文、FTS 检索不受影响
 - **`search_history` FTS5 查询特殊字符兼容**：含引号/括号/星号/`AND`-`OR` 等操作符的检索词此前会触发 FTS5 语法错误，现按空白分词后引号包裹（隐式 AND），简单词组语义不变
 - **`search_history` 库随服务优雅关闭**：此前关闭路径漏掉历史库（清理协程不停、WAL 不落盘），现与 cache/WebFetch 同一关闭序列
 - **LLM 本端超时在调用方 deadline 更晚时生效**：`withDeadline` 此前在调用方带任意 deadline 时完全放弃本端超时，现修正为两者取更早者
