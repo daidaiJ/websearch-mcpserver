@@ -75,6 +75,9 @@ mcp_stateless: false        # Stateless MCP HTTP mode (default false = stateful)
 mcp_resources: true         # MCP Resource observability (default true): search://capabilities and
                             # search://health — read-only, secret-free, no tool slot; false to disable
 log_level: info             # debug / info / warn / error
+language: auto              # auto / zh / en; auto follows the system language (Windows user
+                            # default locale, POSIX LC_ALL/LC_MESSAGES/LANG on Unix) and falls back
+                            # to en when neither Chinese nor English matches; env WEBCRAWLER_LANGUAGE
 mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / yuanbao / hybrid / engine / mcphub
 network: china              # Academic adapter region; not web-source selection or Doubao site scope
 

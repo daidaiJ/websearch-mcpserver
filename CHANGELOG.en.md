@@ -2,6 +2,20 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### Added
+- **Internationalization (i18n) for logs, MCP descriptions and the control center, in Chinese and English**: new main config `language: auto|zh|en` (zero value `auto` follows the system language: the Windows user default locale, or `LC_ALL` / `LC_MESSAGES` / `LANG` on Unix, falling back to `en` when neither Chinese nor English matches; env `WEBCRAWLER_LANGUAGE`). Messages live in `pkg/i18n/locales/<domain>.<lang>.json` (`log` / `mcp` / `dashboard` / `web`), keyed by stable symbolic identifiers with named `{{.Name}}` placeholders and CLDR plural forms. Adding a language means adding one file per domain and appending its tag to `supported` in `pkg/i18n/language.go`; changing wording touches JSON only
+- **Three lifecycles, each resolved appropriately**: logs and MCP tool descriptions/parameter schemas use the process default language (MCP descriptions are fixed at registration, so changing the language needs a restart); the console page and the `/__admin/api/*` responses negotiate per request from the browser's `Accept-Language`, falling back to the resolved config value. The console is correct on the first frame: the server rewrites `<html lang>` and inlines that language's frontend strings into the page, so there is no flash of the wrong language
+- **Catalog audit (guardrail against missing translations)**: `pkg/i18n/catalog_test.go` enforces identical key sets per domain across zh/en, identical `{{.Placeholder}}` sets per key, and a bidirectional match between keys referenced in code and keys present in the catalogs (no missing entries, no dead ones). All four call-site shapes are scanned — `log.*T`, `i18n.T` / `i18n.TCtx`, `jsonschema` tags and frontend `web.*` references — and pass-through wrappers must be listed with a stated reason
+
+### Changed
+- **Log API moved to symbolic keys**: `log.Info/Infof/Warnf/Errf/Error/Debug/Debugf` become `log.InfoT/WarnT/ErrorT/DebugT(key, "name", value, …)`, so log wording no longer lives at the call site. An unregistered key renders as the key itself (easy to spot) and missing registrations are caught by the catalog audit
+- **MCP parameter docs moved to catalog keys**: `jsonschema` tags now hold `mcp.param.*` keys instead of inline Chinese text, and the input schema is rendered in the current language at registration time. This also fixes a pre-existing defect where the tag prefix `description,` was sent to clients as part of the description
+
+### Fixed
+- **MCP parameter descriptions no longer carry a `description,` prefix**: `jsonschema:"description,…"` previously sent `description,` along with the text, so every parameter description in the tool list carried that noise prefix
+
 ## v3.10.1 — 2026-10-25 (Provider expansion, GitHub engine, search_history and post-release review fixes)
 
 > The survey-absorb batch (roadmap N series) and the post-release review fixes delivered together: `v3.10.0` shipped briefly on 2026-10-24 and was withdrawn across all three tracks (GitHub Release / tags / MCP Registry) after the post-release review found 2 P1 issues (`fetch_top_n` missing the GitHub site-specific path, no quota cooldown in sitefetch) and 7 P2 issues. Its full content merges with this fix batch into the single `v3.10.1` release. Commit map: `bb30253` (LLM deadline), `a7045b3` (provider expansion + remote fetch chain), `45104d7` (output contract tests), `7cf198e` (search_history), `bf9053d` (dashboard source panel and settings), `067fcf5` (TinyFish official usage), `c2e5a20` (post-release review fixes), plus follow-up roadmap / docs commits.

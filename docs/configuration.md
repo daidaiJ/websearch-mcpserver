@@ -74,6 +74,9 @@ mcp_stateless: false        # MCP 无状态 HTTP 模式（默认 false = 会话�
                             # 免 initialize 握手与 Mcp-Session-Id 会话，便于反向代理/负载均衡水平扩展；
                             # GET SSE 长连返回 405。本服务工具均为请求-响应式，无状态模式下功能无损
 log_level: info             # debug / info / warn / error
+language: auto              # auto / zh / en；auto 按系统语言适配（Windows 用户默认区域、
+                            # 类 Unix 的 LC_ALL/LC_MESSAGES/LANG），匹配不到中英时回落 en；
+                            # 环境变量 WEBCRAWLER_LANGUAGE
 mode: engine                # baidu / apipool / tavily / exa / anysearch / doubao / yuanbao / hybrid / engine / mcphub
 network: china              # 学术适配区域 china / international；不切换网页来源或豆包站点范围
 

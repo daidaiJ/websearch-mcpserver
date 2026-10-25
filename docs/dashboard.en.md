@@ -271,8 +271,21 @@ The bundled [WebSearch skill](../skills/websearch-mcp/SKILL.md) passes a non-sen
 
 These are search-call counts, not model tokens, monetary spend or remaining account quota. Provider quotas remain in the separate provider quota panel. The requested window is capped by detail retention, reported as `window_days`; incomplete all-time totals are not presented. `GET /__admin/api/clients?days=1|7|30` preserves `clients` and adds `usage` grouped by raw client, project and MCP tool. Provider fan-out is not counted as extra client calls.
 
+## Interface language
+
+The console has no language setting of its own: the language comes from the main config `language` (`auto` / `zh` / `en`) combined with the browser request header.
+
+- **Negotiated per request**: both the console page and the `/__admin/api/*` responses follow the browser's `Accept-Language`; a satisfiable browser language wins, otherwise the resolved `language` value is used (`auto` resolves to the system language and falls back to `en` when neither Chinese nor English matches).
+- **Correct on the first frame**: the server rewrites `<html lang>` to the negotiated language and inlines that language's UI strings into the page, so there is no flash of Chinese before a switch.
+- **Single source of truth**: UI strings live in `pkg/i18n/locales/web.<lang>.json` and share the same catalog mechanism as logs and MCP descriptions (see the i18n section in [developers.md](developers.en.md)).
+- **To force Chinese**: set `language: zh` in the main config (a satisfiable browser language still wins; clear the browser's English preference to pin it completely).
+
+---
+
 ## Environment variables
 
 | Variable | Purpose |
+|---|---|
+| `WEBSEARCH_DASHBOARD_CONFIG` | Path to dashboard.yaml (takes precedence over config_path) |
 |---|---|
 | `WEBSEARCH_DASHBOARD_CONFIG` | Path to dashboard.yaml (takes precedence over config_path) |

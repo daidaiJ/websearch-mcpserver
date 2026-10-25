@@ -271,8 +271,21 @@ HTTP 客户端若只发送通用名称，可在其 WebSearch 配置中添加 `X-
 - `dashboard.db` 建表自动迁移（含 quota_state/client 列），老库升级零操作；回退旧版本时新表/新列被忽略
 - 移除控制中心配置不会撤销已保存的源设置。先按备份恢复流程确认主配置运行值，再按需要停服务并移除控制中心配置/快捷方式；数据库与私密覆盖文件应先备份，不为回滚源设置而删除它们
 
+## 界面语言
+
+控制中心没有独立的语言配置项：语言由主配置的 `language`（`auto` / `zh` / `en`）与浏览器请求头共同决定。
+
+- **每请求协商**：控制台页面与 `/__admin/api/*` 响应都按浏览器 `Accept-Language` 协商；浏览器语言能被满足就用浏览器语言，否则回退 `language` 的解析结果（`auto` 时即系统语言，匹配不到中文或英文时回落 `en`）。
+- **首帧即正确语言**：服务端把 `<html lang>` 改写为本次请求的语言，并把该语言的界面文案内联进页面，不存在先渲染中文再切换的闪烁。
+- **文案唯一来源**：界面文案住在 `pkg/i18n/locales/web.<语言>.json`，与日志、MCP 描述共用同一套目录机制（见 [developers.md](developers.md) 的 i18n 章节）。
+- **想强制中文**：主配置写 `language: zh`（浏览器语言仍会被优先满足；要彻底固定就同时清掉浏览器的英文偏好）。
+
+---
+
 ## 环境变量
 
 | 变量 | 作用 |
+|---|---|
+| `WEBSEARCH_DASHBOARD_CONFIG` | 指定 dashboard.yaml 路径（优先于 config_path） |
 |---|---|
 | `WEBSEARCH_DASHBOARD_CONFIG` | 指定 dashboard.yaml 路径（优先于 config_path） |

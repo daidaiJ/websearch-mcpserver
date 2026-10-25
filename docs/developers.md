@@ -208,3 +208,30 @@ CI 在 `test` job 内跑 10s 短窗口（种子语料始终随 `go test` 执行�
 - **LLM 摘要** → `mcp/tool_summarize.go streamSummarize`（progress 流式）+ `pkg/llm`。
 - **工具注册/schema/描述** → `mcp/server.go`；handler 与参数结构 → `mcp/tool.go`。
 - **服务生命周期/路由/鉴权** → `server/` + `mcp/server.go AuthMiddleware/RegisterRouter`。
+
+## 7. 国际化（i18n）
+
+文案语言有 `zh` / `en` 两档，由主配置 `language: auto|zh|en` 决定（`auto` 按系统语言适配）。三种生命周期各取所需：
+
+| 面 | 语言来源 | 生效时机 |
+|---|---|---|
+| 日志 | 进程默认（`i18n.Configure(conf.Language)`） | 启动时 |
+| MCP 工具描述与参数 Schema | 进程默认 | 工具注册时固化，改语言需重启 |
+| HTTP（控制中心、SearXNG 端点） | `Accept-Language` 协商 → 回退进程默认 | 每请求 |
+
+**目录**：`pkg/i18n/locales/<域>.<语言>.json`，扁平 JSON，key 是符号化稳定标识，值用 go-i18n 模板语法（`{{.Name}}` 占位符，`{"one": …, "other": …}` 复数形态）。加一门语言 = 加一组同域文件并把标签加进 `pkg/i18n/language.go` 的 `supported`；改文案只动 JSON，不动代码。
+
+| 域 | 内容 | 代码侧形态 |
+|---|---|---|
+| `log.*` | 全部日志文案 | `log.InfoT("log.cache.cleanup_started", "interval", d)` |
+| `mcp.*` | 工具描述、参数说明、Resource 描述与正文 | `i18n.T("mcp.tool.smartsearch.desc")`；参数说明写在 `jsonschema` 标签里 |
+| `dashboard.*` | 控制中心 HTTP 响应文案 | `i18n.TCtx(r.Context(), "dashboard.source.baidu.name")` |
+| `web.*` | 控制中心前端文案 | `t('web.nav.overview')`，数据由 `serveIndex` 内联注入 |
+
+**约定与防漏**（`pkg/i18n/catalog_test.go` 是唯一入口，改动后必须跑 `go test ./pkg/i18n/`）：
+
+1. **加文案**：先写 key 再用，不写裸字符串。日志走 `log.*T`；Go 侧走 `i18n.T` / `i18n.TCtx`；MCP 参数说明走 `jsonschema:"mcp.param.<工具>.<字段>"`；前端走 `data-i18n` 或 `t()`。
+2. **审计不变量**：每个域在 zh/en 下 key 集合完全一致；同一 key 的 `{{.占位符}}` 集合一致；代码引用的 key 与目录条目双向一致（既无漏登记，也无死条目）；`{{.}}` 之外的花括号与裸 `%` 动词不再使用。
+3. **新增域**：加 `locales/<域>.<语言>.json` 并同步 `catalog_test.go` 的 `keyDomains`。
+4. **纯转发包装**（key 由调用方给出）要显式登记到 `catalog_test.go` 的 `dynamicKeyAllowlist` 并写清理由，其余任何非字面量 key 都是审计失败。
+5. **分隔符归翻译数据**：拼接的分段文案（如 smartsearch 描述）在英文目录里自带前导空格，代码不写"中文不加空格、英文加空格"这类语言规则。

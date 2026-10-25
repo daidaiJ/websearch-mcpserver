@@ -70,6 +70,7 @@
 | 本地文件检索 | `file_search` 基于 Everything 索引毫秒级定位本地文件，目录白名单防越界，词汇对齐二次过滤防上下文爆炸（需 Everything HTTP Server） |
 | 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改，以及 Prometheus 格式的 `GET /metrics`（默认关闭） |
 | 轻量部署 | 单二进制、无 CGO、引用计数进程管理，可嵌入 Go 模块 |
+| 中文 / 英文 | `language: auto|zh|en` 统一控制日志、MCP 工具描述与参数说明、控制中心界面；`auto` 按系统语言适配，控制中心另按浏览器语言每请求协商 |
 
 ---
 

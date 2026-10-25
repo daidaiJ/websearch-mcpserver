@@ -107,6 +107,13 @@ pkg/
 - 运行测试：`go test ./...`
 - 引擎测试需要对应引擎可用（或 mock）
 
+### 国际化（i18n）
+
+- 用户可见文案一律走 `pkg/i18n` 的符号化 key，**不在调用点写裸字符串**：日志 `log.InfoT("log.<域>.<事件>", "name", v)`、Go 侧 `i18n.T` / `i18n.TCtx`、MCP 参数说明 `jsonschema:"mcp.param.<工具>.<字段>"`、前端 `data-i18n` 或 `t('web.<区域>.<名字>')`
+- 文案数据住 `pkg/i18n/locales/<域>.<语言>.json`（域：`log` / `mcp` / `dashboard` / `web`）；加文案只动 JSON，加语言 = 加一组同域文件 + `pkg/i18n/language.go` 的 `supported`
+- 改完必须跑 `go test ./pkg/i18n/`：目录审计会拦截漏登记、死条目、zh/en key 集合不一致、占位符集合不一致
+- 完整约定与生命周期（日志/MCP 为进程默认语言、HTTP 面按 `Accept-Language` 每请求协商）见 [docs/developers.md](docs/developers.md) 第 7 节
+
 ---
 
 ## 当前系统能力边界（智能体需 aware）
@@ -126,6 +133,7 @@ pkg/
 | 腾讯云元宝搜索（2026-10-24 接入） | API KEY 方式 `POST api.wsa.cloud.tencent.com/SearchPro`，Bearer sk-...，返回 `Response.Pages[]`（JSON 字符串）；每月免费 2000 次，超出按量后付费（约 20 元/千次） | 已注册（`yuanbao.*`，默认不加入 apipool；hybrid 有 Key 时参与）；`yuanbao.monthly_limit` 默认 2000 并在请求前落盘拦截，禁止默认放开 |
 | TinyFish / Keenable 供应商（2026-10-24 接入） | TinyFish 仅 Key 档（免费搜索 12000 次/天、fetch 1000 URL/天，00:00 UTC 重置，国内直连实测无需代理）；Keenable 未配 Key 自动走 public 免 Key 端点（`X-Keenable-Title` 标识，按出口 IP 限流） | 均已注册（`tinyfish.*` / `keenable.*`）；两者默认不进 `apipool.engines`，hybrid 中 TinyFish 有 Key 即参与、Keenable 的 public 档需显式 `enabled: true` 才参与（质量待观察）；fetch 能力并入 cleanfetch 远端抓取链（沿用 `mcp_hub.fetch_mode`） |
 | `search_history` 本地历史（2026-10-24 接入，试验性） | smartsearch 成功后落本地 SQLite（FTS5），`search_history` MCP 工具全文检索；数据不出网，默认保留 30 天 | `search_history.enabled` 零值 = 不建库、不注册工具；实用性待真机确认，确认有价值后再转正式工具 |
+| 国际化（i18n，2026-10-25 治理） | `language: auto|zh|en` 覆盖日志 / MCP 工具描述与参数 Schema / 控制中心三面；文案住 `pkg/i18n/locales/<域>.<语言>.json`，go-i18n + x/text 运行时，审计测试 `pkg/i18n/catalog_test.go` 双向比对代码引用与目录条目 | 新增文案只动 JSON + 用 key，勿在调用点写裸字符串；MCP 描述注册时固化、改语言需重启；HTTP 面按 `Accept-Language` 每请求协商 |
 | GitHub（2026-10-24 接入） | `api.github.com` 国内直连可达无需代理；匿名 search 10/min、core 60/h，PAT 提额 search 30/min、core 5000/h（官方 docs 核对）；github.com HTML 是 JS 渲染抓不到，搜索与 cleanfetch 仓库/blob 特判均优先走 REST API（`blob` 走 contents API 取原文——raw.githubusercontent CDN 国内无代理不可达，勿改回），API 失败自动回退（搜索回 Bing `site:github.com`，抓取回 webfetch → Jina 链）；code search 要求认证不做 | 已注册（`github.enabled`，默认关闭；`github.api_key`/`token_list` 配 PAT，env `GITHUB_TOKEN`）；限流冷却取 Retry-After / x-ratelimit-reset；EngineAdapters.GitHub 收接口类型（typed-nil 陷阱见 InitGithubEngine 注释） |
 | Reddit（2026-10-24 评审后整线放弃） | 浏览器 UA 全拦（HTML/.json/api 均 403），`.rss` 用脚本 UA 可达但 PullPush 被 Cloudflare 挡死；官方 2026-09-30 公告：新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 全线停、未注册 app 2027-01-12 移除、公共 Data API 2027-03 终止 | 两条候选通道（OAuth script app / RSS 兜底）均在死线上，收益期 < 5 个月，不立项；OAuth 调研结论留档 docs/optimization-roadmap.md N7，上游重开（Devvit/普适免费档）再议 |
 
@@ -175,7 +183,8 @@ docker build -t websearch-mcpserver .
 
 ## 本地环境
 
-- **Go 构建临时目录**：`GOTMPDIR=D:	mp`（`go env -w` + 用户环境变量已配置）。卡巴斯基锁定系统 TEMP 会导致 `go build` 偶发 Access denied，构建/测试编译临时目录已统一指向 `D:	mp`，在该目录配置杀软排除即可规避；`go test` 的 `t.TempDir()` 数据目录仍走系统 TEMP（改全局 TMP/TEMP 影响面大，未动）。
+- **Go 构建临时目录**：`GOTMPDIR=D:\tmp`（`go env -w` + 用户环境变量已配置）。卡巴斯基锁定系统 TEMP 会导致 `go build` 偶发 Access denied，构建/测试编译临时目录已统一指向 `D:\tmp`，在该目录配置杀软排除即可规避；`go test` 的 `t.TempDir()` 数据目录仍走系统 TEMP（改全局 TMP/TEMP 影响面大，未动）。
+- **Go 源码行尾已统一 LF（2026-10-25，`f342a4d`）**：`.gitattributes` 钉死 `*.go text eol=lf`，工作树已全量转 LF、gofmt 历史格式债已清——此后 `gofmt -l` 报告皆为真实问题，直接修；勿删 `.gitattributes`，否则 autocrlf 检出 CRLF 会让 gofmt 重新全文件误报。
 
 ## 提交与发布卫生
 
@@ -186,6 +195,15 @@ docker build -t websearch-mcpserver .
 ## 🔄 Handoff 摘要
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
+
+### i18n 治理（日志/MCP 描述/控制中心 语言模式 auto|zh|en）— done（2026-10-25，待发布）
+
+- **当前状态：** 三面（日志 / MCP 描述与参数 Schema / 控制中心）zh-en 双档已分三个提交落地（`d5f7780` 基础设施+日志+MCP、`7b1c246` 控制中心、`8639284` 文档），未打 tag、未推远端；`language: auto|zh|en` 已进配置与样例
+- **实现要点：** `pkg/i18n` 基于 `nicksnyder/go-i18n/v2` + `golang.org/x/text/language`（原设计是 zh 当 key 的 Go map，评审后改为符号化 key + 外置 JSON）；文案住 `pkg/i18n/locales/<域>.<语言>.json`（log/mcp/dashboard/web）；调用形态 `log.*T(key, "name", v)` 与 `i18n.T`/`i18n.TCtx`；MCP 参数说明改为 `jsonschema:"mcp.param.*"` 并在注册时渲染输入 Schema（顺带修掉 `description,` 前缀透出给客户端的既有缺陷）；控制中心按 `Accept-Language` 每请求协商，`serveIndex` 改写 `<html lang>` 并把前端文案内联进页面（首帧即正确语言）
+- **防漏机制：** `pkg/i18n/catalog_test.go` 强制每个域 zh/en key 集合一致、同一 key 占位符集合一致、代码引用与目录条目双向一致；纯转发包装（key 由调用方给出）须显式登记 `dynamicKeyAllowlist` 并写理由
+- **验收：** `go build ./...`、`go vet ./...`、`go test -short ./...`、`go test ./pkg/i18n/`（目录审计）全绿；Windows 真机系统语言探测实测命中 zh-CN
+- **遗留（第四面，未纳入本批）：** 工具**返回内容**仍是中文硬编码——搜索结果 Markdown、工具错误文案、PDF/MinerU 进度提示等；机制已就绪（登记 key 即可），下一批评估是否治理
+- **详情指针：** [`.handoff/i18n-governance.md`](.handoff/i18n-governance.md)
 
 ### v3.10.1 发布后审查修复 — done（2026-10-25，v3.10.0 三线下架回收）
 

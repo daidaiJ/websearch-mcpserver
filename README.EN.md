@@ -70,6 +70,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
 | Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits, plus Prometheus-format `GET /metrics` (off by default) |
 | Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
+| Chinese / English | `language: auto|zh|en` covers logs, MCP tool descriptions and parameter docs, and the console UI in one switch; `auto` follows the system language, and the console additionally negotiates per request from the browser language |
 
 ---
 

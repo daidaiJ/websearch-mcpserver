@@ -195,3 +195,30 @@ CI runs a 10s window inside the `test` job (the seed corpus always runs with pla
 - LLM summaries → `mcp/tool_summarize.go streamSummarize` (streamed progress) + `pkg/llm`.
 - Tool registration/schema/descriptions → `mcp/server.go`; handlers & param structs → `mcp/tool*.go`.
 - Service lifecycle/routing/auth → `server/` + `mcp/server.go AuthMiddleware/RegisterRouter`.
+
+## 7. Internationalization (i18n)
+
+Two languages are supported, `zh` and `en`, selected by the main config `language: auto|zh|en` (`auto` follows the system language). Each surface resolves it differently:
+
+| Surface | Language source | When it applies |
+|---|---|---|
+| Logs | process default (`i18n.Configure(conf.Language)`) | at startup |
+| MCP tool descriptions and parameter schemas | process default | fixed at tool registration; changing it needs a restart |
+| HTTP (control center, SearXNG endpoint) | `Accept-Language` negotiation, falling back to the process default | per request |
+
+**Catalogs**: `pkg/i18n/locales/<domain>.<lang>.json` — flat JSON, symbolic stable keys, values in go-i18n template syntax (`{{.Name}}` placeholders, `{"one": …, "other": …}` plural forms). Adding a language means adding one file per domain and appending its tag to `supported` in `pkg/i18n/language.go`; changing wording touches JSON only, never code.
+
+| Domain | Contents | Call-site shape |
+|---|---|---|
+| `log.*` | every log message | `log.InfoT("log.cache.cleanup_started", "interval", d)` |
+| `mcp.*` | tool descriptions, parameter docs, Resource descriptions and bodies | `i18n.T("mcp.tool.smartsearch.desc")`; parameter docs live in `jsonschema` tags |
+| `dashboard.*` | control-center HTTP response strings | `i18n.TCtx(r.Context(), "dashboard.source.baidu.name")` |
+| `web.*` | control-center frontend strings | `t('web.nav.overview')`, with data inlined by `serveIndex` |
+
+**Conventions and guardrails** (`pkg/i18n/catalog_test.go` is the single entry point; run `go test ./pkg/i18n/` after any change):
+
+1. **Adding a string**: pick a key first, never write a bare literal. Logs use `log.*T`; Go code uses `i18n.T` / `i18n.TCtx`; MCP parameter docs use `jsonschema:"mcp.param.<tool>.<field>"`; the frontend uses `data-i18n` or `t()`.
+2. **Audit invariants**: every domain has identical key sets in zh and en; a key's `{{.Placeholder}}` set is identical across languages; keys referenced by code and keys present in the catalogs match in both directions (no missing entries, no dead ones); no brace syntax other than `{{.}}` and no bare `%` verbs.
+3. **New domain**: add `locales/<domain>.<lang>.json` and extend `keyDomains` in `catalog_test.go`.
+4. **Pass-through wrappers** (where the caller supplies the key) must be listed in `dynamicKeyAllowlist` in `catalog_test.go` with a stated reason; any other non-literal key fails the audit.
+5. **Separators belong to the translation data**: concatenated segments (such as the smartsearch description) carry their own leading space in the English catalog, so the code never encodes "no space in Chinese, space in English" rules.

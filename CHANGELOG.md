@@ -2,6 +2,20 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### 新增
+- **国际化（i18n）治理：日志 / MCP 描述 / 控制中心三面 zh-en 双档**：新增主配置 `language: auto|zh|en`（零值 `auto` 按系统语言适配：Windows 取用户默认区域，类 Unix 取 `LC_ALL` / `LC_MESSAGES` / `LANG`，匹配不到中英时回落 `en`；环境变量 `WEBCRAWLER_LANGUAGE`）。文案数据住 `pkg/i18n/locales/<域>.<语言>.json`（`log` / `mcp` / `dashboard` / `web` 四域），key 为符号化稳定标识，占位符用命名模板 `{{.Name}}`，复数走 CLDR 规则；新增语言 = 新增一组同域文件并把标签加入 `pkg/i18n/language.go` 的 `supported`，改文案只动 JSON
+- **三种生命周期各取所需**：日志与 MCP 工具描述/参数 Schema 取进程默认语言（MCP 描述在注册时固化，改语言需重启）；控制中心页面与 `/__admin/api/*` 响应按浏览器 `Accept-Language` 每请求协商，协商不出回退配置解析结果。控制台首帧即正确语言：服务端改写 `<html lang>` 并把当前语言的前端文案内联进页面，无切换闪烁
+- **文案目录审计（防漏机制）**：`pkg/i18n/catalog_test.go` 强制每个域在 zh/en 下 key 集合一致、同一 key 的 `{{.占位符}}` 集合一致、代码引用的 key 与目录条目双向一致（无漏登记、无死条目）；`log.*T`、`i18n.T` / `i18n.TCtx`、`jsonschema` 标签与前端 `web.*` 引用四类落地形态都在扫描范围内，纯转发包装须显式登记理由
+
+### 变更
+- **日志 API 改为符号化 key**：`log.Info/Infof/Warnf/Errf/Error/Debug/Debugf` 统一为 `log.InfoT/WarnT/ErrorT/DebugT(key, "name", value, …)`，日志文案不再内联在调用点；未登记 key 原样输出 key 本身（便于定位），漏登记由目录审计拦截
+- **MCP 工具参数说明改为目录 key**：`jsonschema` 标签从内联中文文案改为 `mcp.param.*` key，注册时按当前语言渲染输入 Schema；顺带修掉标签前缀 `description,` 被当作描述文本透出给客户端的既有缺陷
+
+### 修复
+- **MCP 参数描述不再带 `description,` 前缀**：此前 `jsonschema:"description,…"` 会把 `description,` 一起当作描述文本发给客户端，工具列表里每条参数说明都带这个噪声前缀
+
 ## v3.10.1 — 2026-10-25（供应商扩展、GitHub 引擎、search_history 与发布后审查修复）
 
 > 调研吸收批次（路线图 N 系列）与发布后审查修复合并交付：`v3.10.0` 曾于 2026-10-24 短暂发布，因发布后审查发现 2 个 P1（`fetch_top_n` 未接 GitHub 站点特判、sitefetch 无配额冷却）与 7 个 P2 而全线回收（GitHub Release / tags / MCP Registry 均已下架），其全部内容与本批修复合并为 `v3.10.1` 一次发布。提交对照：`bb30253`（LLM deadline）、`a7045b3`（供应商扩展 + 远端抓取链）、`45104d7`（输出契约测试）、`7cf198e`（search_history）、`bf9053d`（dashboard 源面板与设置页）、`067fcf5`（TinyFish 官方额度直读）、`c2e5a20`（发布后审查修复）及后续 roadmap / 文档提交。
