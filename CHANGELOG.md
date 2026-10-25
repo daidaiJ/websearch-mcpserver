@@ -2,7 +2,9 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.10.2 — 2026-10-25（国际化治理：日志 / MCP 描述 / 控制中心 zh-en 双档）
+
+> 三面 i18n 一次交付：`d5f7780`（基础设施 + 日志层 + MCP 描述）、`7b1c246`（控制中心后端与前端）、`d51a0ea`（配置样例与文档同步）。
 
 ### 新增
 - **国际化（i18n）治理：日志 / MCP 描述 / 控制中心三面 zh-en 双档**：新增主配置 `language: auto|zh|en`（零值 `auto` 按系统语言适配：Windows 取用户默认区域，类 Unix 取 `LC_ALL` / `LC_MESSAGES` / `LANG`，匹配不到中英时回落 `en`；环境变量 `WEBCRAWLER_LANGUAGE`）。文案数据住 `pkg/i18n/locales/<域>.<语言>.json`（`log` / `mcp` / `dashboard` / `web` 四域），key 为符号化稳定标识，占位符用命名模板 `{{.Name}}`，复数走 CLDR 规则；新增语言 = 新增一组同域文件并把标签加入 `pkg/i18n/language.go` 的 `supported`，改文案只动 JSON

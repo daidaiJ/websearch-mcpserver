@@ -2,7 +2,9 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.10.2 — 2026-10-25 (Internationalization: zh/en for logs, MCP descriptions and the control center)
+
+> All three surfaces delivered together: `d5f7780` (infrastructure + log layer + MCP descriptions), `7b1c246` (control center backend and frontend), `d51a0ea` (config samples and docs).
 
 ### Added
 - **Internationalization (i18n) for logs, MCP descriptions and the control center, in Chinese and English**: new main config `language: auto|zh|en` (zero value `auto` follows the system language: the Windows user default locale, or `LC_ALL` / `LC_MESSAGES` / `LANG` on Unix, falling back to `en` when neither Chinese nor English matches; env `WEBCRAWLER_LANGUAGE`). Messages live in `pkg/i18n/locales/<domain>.<lang>.json` (`log` / `mcp` / `dashboard` / `web`), keyed by stable symbolic identifiers with named `{{.Name}}` placeholders and CLDR plural forms. Adding a language means adding one file per domain and appending its tag to `supported` in `pkg/i18n/language.go`; changing wording touches JSON only

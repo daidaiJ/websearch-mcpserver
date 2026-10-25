@@ -196,12 +196,12 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### i18n 治理（日志/MCP 描述/控制中心 语言模式 auto|zh|en）— done（2026-10-25，待发布）
+### i18n 治理（日志/MCP 描述/控制中心 语言模式 auto|zh|en）— done（2026-10-25，随 v3.10.2 发布）
 
-- **当前状态：** 三面（日志 / MCP 描述与参数 Schema / 控制中心）zh-en 双档已分三个提交落地（`d5f7780` 基础设施+日志+MCP、`7b1c246` 控制中心、`8639284` 文档），未打 tag、未推远端；`language: auto|zh|en` 已进配置与样例
+- **当前状态：** 三面（日志 / MCP 描述与参数 Schema / 控制中心）zh-en 双档已分三个提交落地（`d5f7780` 基础设施+日志+MCP、`7b1c246` 控制中心、`d51a0ea` 文档），并随 `v3.10.2` 发布（Release + GHCR + MCP Registry 三线就绪）；`language: auto|zh|en` 已进配置与样例
 - **实现要点：** `pkg/i18n` 基于 `nicksnyder/go-i18n/v2` + `golang.org/x/text/language`（原设计是 zh 当 key 的 Go map，评审后改为符号化 key + 外置 JSON）；文案住 `pkg/i18n/locales/<域>.<语言>.json`（log/mcp/dashboard/web）；调用形态 `log.*T(key, "name", v)` 与 `i18n.T`/`i18n.TCtx`；MCP 参数说明改为 `jsonschema:"mcp.param.*"` 并在注册时渲染输入 Schema（顺带修掉 `description,` 前缀透出给客户端的既有缺陷）；控制中心按 `Accept-Language` 每请求协商，`serveIndex` 改写 `<html lang>` 并把前端文案内联进页面（首帧即正确语言）
 - **防漏机制：** `pkg/i18n/catalog_test.go` 强制每个域 zh/en key 集合一致、同一 key 占位符集合一致、代码引用与目录条目双向一致；纯转发包装（key 由调用方给出）须显式登记 `dynamicKeyAllowlist` 并写理由
-- **验收：** `go build ./...`、`go vet ./...`、`go test -short ./...`、`go test ./pkg/i18n/`（目录审计）全绿；Windows 真机系统语言探测实测命中 zh-CN
+- **验收：** `go build ./...`、`go vet ./...`、`gofmt -l` 干净；`go test -short -count=1 ./...` 全 44 包绿、`go test ./pkg/i18n/`（目录审计）绿；5 个前端 node 用例全 PASS；真机探针实测 `auto`/空值/未知值在本机（系统区域 zh-CN）解析为 `zh`、`zh`→zh、`en`→en，`Accept-Language: en-US`→en、`fr-FR` 回落配置值
 - **遗留（第四面，未纳入本批）：** 工具**返回内容**仍是中文硬编码——搜索结果 Markdown、工具错误文案、PDF/MinerU 进度提示等；机制已就绪（登记 key 即可），下一批评估是否治理
 - **详情指针：** [`.handoff/i18n-governance.md`](.handoff/i18n-governance.md)
 
@@ -245,4 +245,6 @@ docker build -t websearch-mcpserver .
 ### 待验证
 
 - [ ] tinyfish/keenable 经二进制真网链路长期回归（限流阈值、结果质量；当前仅有 curl 实测 + 单测）
+- [ ] i18n 控制中心真实浏览器走查：166 个 `data-i18n` 标记、`applyI18n` 与 `t()` 渲染在真实页面上的观感与交互（本批只有标记解析校验 + 运行时单测 + 服务端注入冒烟，无浏览器工具）
+- [ ] i18n 第四面（工具返回内容）是否治理待定
 - [ ] 新引擎/新工具真实链路长期回归：验证码页频率、anysearch 匿名档阈值、googlenews 回源失败率、search_history 写入与 FTS 命中率
