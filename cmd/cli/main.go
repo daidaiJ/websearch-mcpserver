@@ -13,6 +13,7 @@ import (
 	mcpserver "websearch/mcp"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -158,5 +159,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
+	// 语言模式须在 Init（工厂播报引擎启停日志）与日志渲染前注入：日志为进程级语言，
+	// HTTP 面（控制中心）另有按 Accept-Language 的每请求协商。
+	i18n.Configure(conf.Language)
 	runStdio(conf)
 }

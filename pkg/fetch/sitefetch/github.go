@@ -268,7 +268,7 @@ func (g *GitHubFetcher) enterCooldown(resp *http.Response) {
 	g.cooldownMu.Lock()
 	g.coolUntil = until
 	g.cooldownMu.Unlock()
-	log.Warnf("github fetch API 限流（HTTP %d），冷却 %.0fs", resp.StatusCode, cd.Seconds())
+	log.WarnT("log.fetch.sitefetch.github_fetch_api_rate_limited_http", "statusCode", resp.StatusCode, "seconds", cd.Seconds())
 }
 
 func (g *GitHubFetcher) cooldownRemaining() time.Duration {

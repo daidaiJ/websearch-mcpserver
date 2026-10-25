@@ -14,9 +14,9 @@ import (
 // SearchHistoryParams search_history 工具参数。
 type SearchHistoryParams struct {
 	projectParams
-	Query  string `json:"query,omitempty" jsonschema:"description,检索自己查过的搜索历史的关键词（FTS5 全文匹配查询与结果标题/摘要）；省略或空 = 返回最近历史（按时间倒序）"`
-	Limit  *int   `json:"limit,omitempty" jsonschema:"description,返回的历史条数上限（默认 10，硬上限 50）"`
-	Offset *int   `json:"offset,omitempty" jsonschema:"description,翻页偏移量（默认 0）"`
+	Query  string `json:"query,omitempty" jsonschema:"mcp.param.history.query"`
+	Limit  *int   `json:"limit,omitempty" jsonschema:"mcp.param.history.limit"`
+	Offset *int   `json:"offset,omitempty" jsonschema:"mcp.param.history.offset"`
 }
 
 // SearchHistoryHandler 检索本服务自己记录的搜索历史（FTS5 全文 + 最近列表），

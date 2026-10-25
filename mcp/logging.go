@@ -20,9 +20,7 @@ func createLoggingMiddleware() mcp.Middleware {
 			sessionID := req.GetSession().ID()
 
 			// Log request details.
-			log.Infof("[REQUEST] Session: %s | Method: %s",
-				sessionID,
-				method)
+			log.InfoT("log.mcp.request_session_method", "sessionID", sessionID, "method", method)
 
 			// Call the actual handler.
 			result, err := next(ctx, method, req)
@@ -31,16 +29,9 @@ func createLoggingMiddleware() mcp.Middleware {
 			duration := time.Since(start)
 
 			if err != nil {
-				log.Infof("[RESPONSE] Session: %s | Method: %s | Status: ERROR | Duration: %v | Error: %v",
-					sessionID,
-					method,
-					duration,
-					err)
+				log.InfoT("log.mcp.response_session_method_status_error_duration", "sessionID", sessionID, "method", method, "duration", duration, "err", err)
 			} else {
-				log.Infof("[RESPONSE] Session: %s | Method: %s | Status: OK | Duration: %v",
-					sessionID,
-					method,
-					duration)
+				log.InfoT("log.mcp.response_session_method_status_ok_duration", "sessionID", sessionID, "method", method, "duration", duration)
 			}
 
 			return result, err

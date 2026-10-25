@@ -121,7 +121,7 @@ func (c *Client) ParseURLWithPages(ctx context.Context, fileURL string, pages []
 	if err != nil {
 		return "", err
 	}
-	log.Infof("MinerU 精准 API 任务已提交: task_id=%s", taskID)
+	log.InfoT("log.fetch.mineru.mineru_precise_api_task_submitted_task", "taskID", taskID)
 
 	zipURL, err := c.pollStandardTask(ctx, taskID)
 	if err != nil {
@@ -196,12 +196,12 @@ func (c *Client) ParseFileWithPages(ctx context.Context, filePath string, pages 
 	if err != nil {
 		return "", err
 	}
-	log.Infof("MinerU Agent API 任务已创建: task_id=%s", taskID)
+	log.InfoT("log.fetch.mineru.mineru_agent_api_task_created_task", "taskID", taskID)
 
 	if err := c.uploadFile(ctx, uploadURL, filePath); err != nil {
 		return "", fmt.Errorf("MinerU 文件上传失败: %w；task_ref=%q", err, "agent:"+taskID)
 	}
-	log.Infof("MinerU 文件上传完成，等待解析: task_id=%s", taskID)
+	log.InfoT("log.fetch.mineru.mineru_file_upload_completed_waiting_for", "taskID", taskID)
 
 	mdURL, err := c.pollAgentTask(ctx, taskID)
 	if err != nil {

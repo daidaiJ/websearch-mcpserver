@@ -199,8 +199,7 @@ func EnhanceAcademicResults(query string, buckets []core.ScoreBucket, threshold 
 		scored = scored[:maxSize]
 	}
 
-	log.Infof("学术评分增强: temporal=%v 去重后=%d 过滤后=%d 返回=%d",
-		temporal, before, len(scored), len(scored))
+	log.InfoT("log.search.enhance.academic_score_enhancement_temporal_after_dedup", "temporal", temporal, "before", before, "len", len(scored), "len2", len(scored))
 	return scored
 }
 

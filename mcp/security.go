@@ -47,7 +47,7 @@ func validateURLSecurity(rawURL string) error {
 	ips, err := net.LookupHost(host)
 	if err != nil {
 		// DNS 解析失败不阻断（可能是临时 DNS 问题，由后续 fetch 报具体错误）
-		log.Infof("DNS 解析失败（跳过安全检查）: %s: %v", host, err)
+		log.InfoT("log.mcp.dns_resolution_failed_skipping_security_checks", "host", host, "err", err)
 		return nil
 	}
 	for _, ipStr := range ips {

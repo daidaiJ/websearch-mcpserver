@@ -15,6 +15,7 @@ import (
 
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 
@@ -74,6 +75,8 @@ func (m *mockAcademic) SearchAcademicRaw(query string, opts ...search.AcademicSe
 
 func initTestLogger() {
 	log.NewLoggerTo(io.Discard, "", config.LogConfig{})
+	// 文案断言以 zh 为基准：固定语言，避免受运行测试机器的系统语言影响。
+	i18n.Configure(i18n.Zh)
 }
 
 func restoreGlobals(t *testing.T) {

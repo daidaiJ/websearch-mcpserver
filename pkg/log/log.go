@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 )
 
 var (
@@ -84,44 +85,31 @@ func SetLoggerLevel(lv string) {
 	defaultlog.Level(level)
 }
 
-func Debug(msg string) {
+// 日志文案走 pkg/i18n 的符号化 key：文案住在 pkg/i18n/locales/log.<语言>.json，
+// 语言取进程默认（入口在 config.Load 之后经 i18n.Configure 注入一次）。
+// kv 是成对出现的模板数据（名称, 值），对应文案里的 {{.名称}}；无占位符时省略。
+// key 漏登记由 pkg/i18n 的目录审计测试拦截，不在运行期兜底。
+
+func DebugT(key string, kv ...any) {
 	if defaultlog != nil {
-		defaultlog.Debug().Msg(msg)
+		defaultlog.Debug().Msg(i18n.Default().T(key, kv...))
 	}
 }
 
-func Debugf(pattern string, v ...any) {
+func InfoT(key string, kv ...any) {
 	if defaultlog != nil {
-		defaultlog.Debug().Msgf(pattern, v...)
+		defaultlog.Info().Msg(i18n.Default().T(key, kv...))
 	}
 }
 
-func Info(msg string) {
+func WarnT(key string, kv ...any) {
 	if defaultlog != nil {
-		defaultlog.Info().Msg(msg)
+		defaultlog.Warn().Msg(i18n.Default().T(key, kv...))
 	}
 }
 
-func Infof(pattern string, v ...any) {
+func ErrorT(key string, kv ...any) {
 	if defaultlog != nil {
-		defaultlog.Info().Msgf(pattern, v...)
-	}
-}
-
-func Warnf(pattern string, v ...any) {
-	if defaultlog != nil {
-		defaultlog.Warn().Msgf(pattern, v...)
-	}
-}
-
-func Errf(pattern string, v ...any) {
-	if defaultlog != nil {
-		defaultlog.Error().Msgf(pattern, v...)
-	}
-}
-
-func Error(msg string) {
-	if defaultlog != nil {
-		defaultlog.Error().Msg(msg)
+		defaultlog.Error().Msg(i18n.Default().T(key, kv...))
 	}
 }

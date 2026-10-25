@@ -105,7 +105,7 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 		SetResult(&resp).
 		Get(fetchURL)
 	if err != nil {
-		log.Errf("jina reader request failed: %s", err.Error())
+		log.ErrorT("log.fetch.jina.jina_reader_request_failed", "error", err.Error())
 		return nil, fmt.Errorf("jina reader 请求失败: %w", err)
 	}
 	if res.StatusCode() != 200 {

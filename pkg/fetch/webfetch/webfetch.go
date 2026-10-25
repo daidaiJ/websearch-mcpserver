@@ -119,7 +119,7 @@ func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, p
 		return nil, fmt.Errorf("webfetch engine init failed: %w", err)
 	}
 
-	log.Infof("WebFetch 引擎已启用 (output_dir=%s, ttl=%s, max_inline_lines=%d, timeout=%s)", outputDir, fileTTL, maxInlineLines, timeout)
+	log.InfoT("log.fetch.webfetch.webfetch_engine_enabled_output_dir_ttl", "outputDir", outputDir, "fileTTL", fileTTL, "maxInlineLines", maxInlineLines, "timeout", timeout)
 
 	f := &Fetcher{
 		engine:          engine,
@@ -145,9 +145,9 @@ func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, p
 			pdfCfg.GetMinerUPageLimit(),
 		)
 		if pdfCfg.MinerUOcr {
-			log.Infof("MinerU OCR 回退已启用 (本地 PDF 库读不到文本时使用, model=%s)", pdfCfg.GetMinerUModel())
+			log.InfoT("log.fetch.webfetch.mineru_ocr_fallback_enabled_used_when", "minerUModel", pdfCfg.GetMinerUModel())
 		} else if pdfCfg.MinerUToken != "" {
-			log.Infof("MinerU 精准解析 API 已启用 (远程 URL, model=%s, page_limit=%d)", pdfCfg.GetMinerUModel(), pdfCfg.GetMinerUPageLimit())
+			log.InfoT("log.fetch.webfetch.mineru_precise_parsing_api_enabled_remote", "minerUModel", pdfCfg.GetMinerUModel(), "minerUPageLimit", pdfCfg.GetMinerUPageLimit())
 		}
 	}
 
@@ -166,7 +166,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 
 	// 远程 URL：仅当配置开启且 URL 指向 PDF 文件、有 Token 时优先尝试 MinerU 精准 API
 	if f.mineru != nil && f.mineru.HasToken() && f.mineruRemotePDF && isPDFURL(rawURL) {
-		log.Infof("MinerU 精准 API 命中 PDF URL: %s", rawURL)
+		log.InfoT("log.fetch.webfetch.mineru_precise_api_matched_a_pdf", "rawURL", rawURL)
 		md, err := f.mineru.ParseURL(ctx, rawURL)
 		if err == nil {
 			return &Result{
@@ -175,7 +175,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 				ParseEngine: "mineru-remote",
 			}, nil
 		}
-		log.Infof("MinerU 精准 API 解析失败(%v)，回退到 webfetch", err)
+		log.InfoT("log.fetch.webfetch.mineru_precise_api_parsing_failed_falling", "err", err)
 	}
 
 	res, err := f.engine.Fetch(ctx, rawURL)
@@ -226,7 +226,7 @@ func (f *Fetcher) ParseMinerUPDFWithPages(ctx context.Context, rawURL string, pa
 	if !f.CanUseMinerURemotePDF(rawURL) {
 		return nil, fmt.Errorf("MinerU precise PDF route is not enabled for this URL")
 	}
-	log.Infof("MinerU 精准 API 命中 PDF URL: %s", rawURL)
+	log.InfoT("log.fetch.webfetch.mineru_precise_api_matched_a_pdf", "rawURL", rawURL)
 	md, err := f.mineru.ParseURLWithPages(ctx, rawURL, pages, maxPages)
 	if err != nil {
 		return nil, err
@@ -309,7 +309,7 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 			return nil, err
 		}
 		mineruErr = err
-		log.Infof("MinerU 精准 API 解析失败(%v)，回退到 webfetch", err)
+		log.InfoT("log.fetch.webfetch.mineru_precise_api_parsing_failed_falling", "err", err)
 	}
 
 	// 其余远程 URL：webfetch 管线按 Content-Type 分流到 PDF 解析，透传页选项
@@ -426,7 +426,7 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 		return nil, fmt.Errorf("%w（可能是扫描件/图片型 PDF，本地库无法提取文本；可在配置中开启 pdf_parser.mineru_ocr 以使用 MinerU OCR）", err)
 	}
 
-	log.Infof("本地 PDF 库未提取到文本，尝试 MinerU OCR: %s", localPath)
+	log.InfoT("log.fetch.webfetch.local_pdf_library_extracted_no_text", "localPath", localPath)
 	md, mineruErr := f.mineru.ParseFileWithPages(ctx, localPath, pages, maxPages)
 	if mineruErr == nil {
 		res := &Result{
@@ -566,9 +566,9 @@ func (f *Fetcher) startFileJanitor(ttl time.Duration) {
 				}
 				n, err := f.CleanExpiredFiles()
 				if err != nil {
-					log.Warnf("webfetch 过期文件清理失败: %v", err)
+					log.WarnT("log.fetch.webfetch.webfetch_expired_file_cleanup_failed", "err", err)
 				} else if n > 0 {
-					log.Infof("webfetch 空闲期清理完成: 删除 %d 个过期文件 (ttl=%s)", n, ttl)
+					log.InfoT("log.fetch.webfetch.webfetch_idle_cleanup_finished_deleted_expired", "n", n, "ttl", ttl)
 				}
 			}
 		}
@@ -599,7 +599,7 @@ func (f *Fetcher) CleanExpiredFiles() (int, error) {
 		if rmErr := os.Remove(filepath.Join(f.outputDir, entry.Name())); rmErr == nil {
 			count++
 		} else {
-			log.Warnf("webfetch 过期文件删除失败: %s: %v", entry.Name(), rmErr)
+			log.WarnT("log.fetch.webfetch.webfetch_expired_file_deletion_failed", "name", entry.Name(), "rmErr", rmErr)
 		}
 	}
 	return count, nil

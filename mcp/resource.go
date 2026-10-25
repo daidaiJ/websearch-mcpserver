@@ -10,6 +10,7 @@ import (
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,7 +42,7 @@ func registerResources(server *mcp.Server, conf config.Config) {
 	server.AddResource(&mcp.Resource{
 		URI:         "search://capabilities",
 		Name:        "capabilities",
-		Description: "服务器能力矩阵：已注册工具、网页引擎、API 供应商（仅 Key 数量）与功能开关（只读，不含密钥）。",
+		Description: i18n.T("mcp.resource.capabilities.desc"),
 		MIMEType:    "text/markdown",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
@@ -54,7 +55,7 @@ func registerResources(server *mcp.Server, conf config.Config) {
 	server.AddResource(&mcp.Resource{
 		URI:         "search://health",
 		Name:        "health",
-		Description: "运行健康状态：引擎冷却/熔断（跨进程落盘共享）、进程运行时长（JSON，不含密钥）。",
+		Description: i18n.T("mcp.resource.health.desc"),
 		MIMEType:    "application/json",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
@@ -63,18 +64,18 @@ func registerResources(server *mcp.Server, conf config.Config) {
 			Text:     renderHealth(),
 		}}}, nil
 	})
-	log.Info("Available resource: search://capabilities, search://health")
+	log.InfoT("log.mcp.available_resource_search_capabilities_search_health")
 }
 
 // renderCapabilities 从运行时注册事实渲染能力矩阵（markdown）。
 // 密钥红线：API 供应商只输出已配置 Key 的数量，任何字段不得出现密钥值。
 func renderCapabilities(conf config.Config) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# websearch-mcpserver\n\n")
-	fmt.Fprintf(&b, "- 版本: %s\n", serverVersion)
-	fmt.Fprintf(&b, "- 搜索模式: %s\n", conf.GetMode())
+	b.WriteString("# websearch-mcpserver\n\n")
+	b.WriteString(i18n.T("mcp.cap.version", "Version", serverVersion))
+	b.WriteString(i18n.T("mcp.cap.mode", "Mode", conf.GetMode()))
 
-	b.WriteString("\n## 工具（已注册）\n\n")
+	b.WriteString(i18n.T("mcp.cap.tools_head"))
 	registered := make(map[string]bool)
 	for _, state := range ToolSnapshot() {
 		registered[state.Name] = state.Registered
@@ -82,50 +83,52 @@ func renderCapabilities(conf config.Config) string {
 	anyTool := false
 	if registered["smartsearch"] {
 		anyTool = true
-		b.WriteString("- `smartsearch`：通用联网检索，多引擎并发编排 + 失败清单透出；支持 intent 摘要与 fetch_top_n 正文补抓\n")
+		b.WriteString(i18n.T("mcp.cap.tool.smartsearch"))
 	}
 	if registered["academicsearch"] && academicSearcher != nil {
 		anyTool = true
-		fmt.Fprintf(&b, "- `academicsearch`：学术检索（引擎: %s）\n", strings.Join(academicSearcher.AcademicEngines(), " / "))
+		b.WriteString(i18n.T("mcp.cap.tool.academicsearch",
+			"Engines", strings.Join(academicSearcher.AcademicEngines(), " / ")))
 	}
 	if registered["cleanfetch"] {
 		anyTool = true
-		fmt.Fprintf(&b, "- `cleanfetch`：result_ref 已保存正文读取始终可用；URL 抓取启用: %v（SSRF 防护，支持批量）\n", conf.CleanFetch.Enabled)
+		b.WriteString(i18n.T("mcp.cap.tool.cleanfetch", "Enabled", conf.CleanFetch.Enabled))
 	}
 	if registered["pdf_parser"] {
 		anyTool = true
-		b.WriteString("- `pdf_parser`：PDF 解析（本地库 + MinerU 增强回退）\n")
+		b.WriteString(i18n.T("mcp.cap.tool.pdf_parser"))
 	}
 	if registered["file_search"] {
 		anyTool = true
-		b.WriteString("- `file_search`：Everything 本地文件索引检索（只读）\n")
+		b.WriteString(i18n.T("mcp.cap.tool.file_search"))
 	}
 	if !anyTool {
-		b.WriteString("- （无已注册工具）\n")
+		b.WriteString(i18n.T("mcp.cap.tools_none"))
 	}
 
-	b.WriteString("\n## 网页引擎（配置开关；不代表联网可用性）\n\n")
+	b.WriteString(i18n.T("mcp.cap.engines_head"))
 	fmt.Fprintf(&b, "- bing: %v\n", conf.Bing.Enabled)
-	fmt.Fprintf(&b, "- baidu_web: %v（默认关闭，实测被 CAPTCHA 识别）\n", conf.Baidu.WebEnabled)
-	fmt.Fprintf(&b, "- so360: %v（国内直连可用）\n", conf.So360.Enabled)
-	fmt.Fprintf(&b, "- wikipedia: %v（需代理）\n", conf.Wikipedia.Enabled)
-	fmt.Fprintf(&b, "- googlenews: %v（需代理，跳转链接回源发布方）\n", conf.GoogleNews.Enabled)
-	fmt.Fprintf(&b, "- google: %v（默认关闭，JS 挑战无法伪装绕过）\n", conf.Google.Enabled)
+	b.WriteString(i18n.T("mcp.cap.engine.baidu_web", "Enabled", conf.Baidu.WebEnabled))
+	b.WriteString(i18n.T("mcp.cap.engine.so360", "Enabled", conf.So360.Enabled))
+	b.WriteString(i18n.T("mcp.cap.engine.wikipedia", "Enabled", conf.Wikipedia.Enabled))
+	b.WriteString(i18n.T("mcp.cap.engine.googlenews", "Enabled", conf.GoogleNews.Enabled))
+	b.WriteString(i18n.T("mcp.cap.engine.google", "Enabled", conf.Google.Enabled))
 	fmt.Fprintf(&b, "- duckduckgo: %v\n", conf.DuckDuckGo.Enabled)
 
-	b.WriteString("\n## API 供应商（已配置 Key 数量，值永不回显）\n\n")
+	b.WriteString(i18n.T("mcp.cap.providers_head"))
 	fmt.Fprintf(&b, "- baidu qianfan: %d\n", len(conf.Baidu.EffectiveSKList()))
 	fmt.Fprintf(&b, "- tavily: %d\n", len(conf.Tavily.EffectiveSKList()))
 	fmt.Fprintf(&b, "- exa: %d\n", len(conf.Exa.EffectiveSKList()))
 	fmt.Fprintf(&b, "- anysearch: %d\n", len(conf.Anysearch.EffectiveSKList()))
 	fmt.Fprintf(&b, "- doubao: %d\n", len(conf.Doubao.EffectiveSKList()))
 
-	b.WriteString("\n## 功能\n\n")
-	fmt.Fprintf(&b, "- LLM 摘要: %v\n", conf.LLMEnabled())
-	fmt.Fprintf(&b, "- SQLite 缓存: %v\n", conf.CacheEnabled())
-	fmt.Fprintf(&b, "- fetch_top_n 默认: %d（0 = 仅标题摘要，agent 显式传参优先）\n", conf.SmartSearch.FetchTopN)
-	fmt.Fprintf(&b, "- MinerU PDF 增强: %v（OCR 回退: %v）\n", conf.PDFParser.MinerUEnabled(), conf.PDFParser.MinerUOCREnabled())
-	b.WriteString("- 引擎冷却落盘: engine_health.json（缓存库同目录，重启后继承冷却避免重撞死引擎）\n")
+	b.WriteString(i18n.T("mcp.cap.features_head"))
+	b.WriteString(i18n.T("mcp.cap.feature.llm", "Enabled", conf.LLMEnabled()))
+	b.WriteString(i18n.T("mcp.cap.feature.cache", "Enabled", conf.CacheEnabled()))
+	b.WriteString(i18n.T("mcp.cap.feature.fetch_top_n", "Default", conf.SmartSearch.FetchTopN))
+	b.WriteString(i18n.T("mcp.cap.feature.mineru",
+		"Enabled", conf.PDFParser.MinerUEnabled(), "OCR", conf.PDFParser.MinerUOCREnabled()))
+	b.WriteString(i18n.T("mcp.cap.feature.engine_health"))
 	return b.String()
 }
 

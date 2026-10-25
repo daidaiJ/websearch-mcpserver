@@ -38,11 +38,11 @@ func NewDuckDuckGo(opts DuckDuckGoOpts) antirobot.Engine {
 	}
 	// 钳制宽松配置：用户/全局 rate_limit 更宽松时以内置上限为准（实测 202 阈值）
 	if perSec > ddgMaxPerSec {
-		log.Warnf("duckduckgo: per_sec=%d 超过内置上限，钳制为 %d（DDG 实测 202 限流阈值）", perSec, ddgMaxPerSec)
+		log.WarnT("log.search.engine.ddg.duckduckgo_per_sec_exceeds_the_built", "perSec", perSec, "ddgMaxPerSec", ddgMaxPerSec)
 		perSec = ddgMaxPerSec
 	}
 	if perMin > ddgMaxPerMin {
-		log.Warnf("duckduckgo: per_min=%d 超过内置上限，钳制为 %d（DDG 实测 202 限流阈值）", perMin, ddgMaxPerMin)
+		log.WarnT("log.search.engine.ddg.duckduckgo_per_min_exceeds_the_built", "perMin", perMin, "ddgMaxPerMin", ddgMaxPerMin)
 		perMin = ddgMaxPerMin
 	}
 	e := &ddgEngine{

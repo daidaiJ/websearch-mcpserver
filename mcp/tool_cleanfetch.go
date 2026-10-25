@@ -130,7 +130,7 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 		okCount++
 		sb.WriteString(it.text)
 	}
-	log.Infof("批量抓取完成: %d/%d 成功", okCount, len(urls))
+	log.InfoT("log.mcp.batch_fetch_finished_succeeded", "okCount", okCount, "len", len(urls))
 	return textResult(sb.String()), nil, nil
 }
 
@@ -164,7 +164,7 @@ func fetchViaGithubAPI(ctx context.Context, rawURL string) (text string, matched
 		Success: err == nil, Duration: time.Since(started), ResultCount: 1, Error: err,
 	})
 	if err != nil {
-		log.Infof("github 站点特判 API 抓取失败(%v)，回落常规抓取链", err)
+		log.InfoT("log.mcp.github_site_specific_api_fetch_failed", "err", err)
 	}
 	return text, true, err
 }
@@ -243,7 +243,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		log.Infof("远端抓取失败(%v)，降级到本地 webfetch/Jina", err)
+		log.InfoT("log.mcp.remote_fetch_failed_degrading_to_local", "err", err)
 		text, localErr := local(ctx, rawURL)
 		if localErr == nil {
 			return text, nil
@@ -257,7 +257,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		log.Infof("本地抓取失败(%v)，尝试远端抓取链", localErr)
+		log.InfoT("log.mcp.local_fetch_failed_trying_the_remote", "localErr", localErr)
 		text, remoteErr := tryRemote()
 		if remoteErr == nil {
 			return text, nil
@@ -296,7 +296,7 @@ func fetchLocalPage(ctx context.Context, rawURL string) (string, error) {
 		if !allowFetchFallback(err) {
 			return "", err
 		}
-		log.Infof("webfetch 抓取失败(%v)，尝试回退到 Jina Reader", err)
+		log.InfoT("log.mcp.webfetch_fetch_failed_trying_fallback_to", "err", err)
 
 		// ── 第二层：Jina Reader（需代理，jinaInst != nil 即表示代理已开启）──
 		if jinaInst != nil {

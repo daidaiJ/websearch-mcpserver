@@ -267,7 +267,7 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 			kind := core.ClassifyFailure(r.err)
 			reason := core.ShortReason(r.err)
 			diag.AddFailures(name, kind, reason)
-			log.Warnf("hybrid: engine %s failed (%s): %s", name, kind, reason)
+			log.WarnT("log.search.hybrid.hybrid_engine_failed", "name", name, "kind", kind, "reason", reason)
 			errSummaries = append(errSummaries, fmt.Sprintf("%s(%s): %s", name, kind, reason))
 			continue // 忽略单个引擎失败，只要有一个成功就行
 		}
@@ -468,13 +468,13 @@ func (h *HybridSearchImpl) offTopicGuard(query string, buckets []engineBucket, d
 			if mode == config.OffTopicGuardShadow {
 				diag.AddFailures(b.name, core.FailureOffTopic,
 					"shadow：整桶结果几乎不包含查询其余词，疑似不相关诱饵页；未丢弃（off_topic_guard=shadow）")
-				log.Warnf("hybrid: engine %s 整桶判为 off-topic（%d 条结果，回声率过低），shadow 模式保留", b.name, len(b.results))
+				log.WarnT("log.search.hybrid.hybrid_engine_bucket_off_topic_shadow_kept", "name", b.name, "len", len(b.results))
 				kept = append(kept, b)
 				continue
 			}
 			diag.AddFailures(b.name, core.FailureOffTopic,
 				"整桶结果几乎不包含查询其余词，疑似不相关诱饵页，已整桶丢弃")
-			log.Warnf("hybrid: engine %s 整桶判为 off-topic（%d 条结果，回声率过低），已丢弃", b.name, len(b.results))
+			log.WarnT("log.search.hybrid.hybrid_engine_bucket_off_topic_dropped", "name", b.name, "len", len(b.results))
 			continue
 		}
 		kept = append(kept, b)

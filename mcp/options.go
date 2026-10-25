@@ -64,7 +64,7 @@ func WithSearchHistory(conf config.Config) ServerOption {
 
 func applySearchHistory(conf config.Config) {
 	if !conf.SearchHistoryEnabled() {
-		log.Info("search_history 默认关闭；需要时配置 search_history.enabled: true")
+		log.InfoT("log.mcp.search_history_disabled_by_default_set")
 		return
 	}
 	retentionDays := conf.SearchHistory.RetentionDays
@@ -73,11 +73,11 @@ func applySearchHistory(conf config.Config) {
 	}
 	h, err := history.New(conf.GetSearchHistoryStoragePath(), retentionDays)
 	if err != nil {
-		log.Errf("搜索历史初始化失败，search_history 不启用: %v", err)
+		log.ErrorT("log.mcp.search_history_initialization_failed_search_history", "err", err)
 		return
 	}
 	historyInst = h
-	log.Infof("搜索历史已启用（%s，保留 %d 天）", conf.GetSearchHistoryStoragePath(), retentionDays)
+	log.InfoT("log.mcp.search_history_enabled_retained_for_days", "searchHistoryStoragePath", conf.GetSearchHistoryStoragePath(), "retentionDays", retentionDays)
 }
 
 // WithEverything 保存 Everything HTTP Server 配置；探测延迟到首个 MCP
@@ -113,7 +113,7 @@ func applySummarizer(conf config.Config) {
 	}
 	summarizerInst = llm.NewSummarizerWithTimeout(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId, conf.LLM.GetTimeout())
 	summaryProgressInterval = conf.LLM.GetSummaryProgressInterval()
-	log.Info("LLM 摘要功能已启用")
+	log.InfoT("log.mcp.llm_summary_enabled")
 }
 
 func applyCache(conf config.Config) {
@@ -135,7 +135,7 @@ func applyCache(conf config.Config) {
 func applyJinaReader(conf config.Config) {
 	jinaInst = jina.NewFromConfig(conf.Jina, conf.Proxy)
 	if jinaInst != nil {
-		log.Info("Jina Reader 已启用")
+		log.InfoT("log.mcp.jina_reader_enabled")
 	}
 }
 
@@ -143,11 +143,11 @@ func applyJinaReader(conf config.Config) {
 // 未配置 url 且非 Windows 时不保存（file_search 永不启用）。
 func applyEverything(conf config.Config) {
 	if conf.Everything.URL == "" {
-		log.Info("everything.url 未配置且当前平台非 Windows，file_search 不启用")
+		log.InfoT("log.mcp.everything_url_not_configured_and_platform")
 		return
 	}
 	if runtime.GOOS != "windows" {
-		log.Warnf("当前平台为 %s：Everything 仅支持 Windows，任何 Linux 发行版都不建议启用 file_search，除非运行在 WSL 且 everything.url 指向 Windows 宿主的 Everything HTTP Server（%s）", runtime.GOOS, conf.Everything.URL)
+		log.WarnT("log.mcp.current_platform_is_everything_only_supports", "gOOS", runtime.GOOS, "uRL", conf.Everything.URL)
 	}
 	everythingLazyCfg = &conf.Everything
 }
@@ -170,7 +170,7 @@ func ensureEverything() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Probe(ctx); err != nil {
-		log.Infof("Everything HTTP Server 探测未通过（%v），file_search 工具不暴露；请确认 Everything 正在运行、已启用 HTTP Server 插件，且 everything.username/password 与服务端一致", err)
+		log.InfoT("log.mcp.everything_http_server_probe_failed_file", "err", err)
 		return false
 	}
 	everythingInst = client
@@ -178,7 +178,7 @@ func ensureEverything() bool {
 	everythingMaxResults = cfg.MaxResults
 	everythingNoise = everything.NoiseDirSet(cfg.NoiseDirs)
 	everythingMinAlign = cfg.MinAlignment
-	log.Infof("Everything HTTP Server 探测通过，file_search 已启用（url: %s, 白名单目录: %d 个）", cfg.URL, len(cfg.Roots))
+	log.InfoT("log.mcp.everything_http_server_probe_passed_file", "uRL", cfg.URL, "len", len(cfg.Roots))
 	return true
 }
 
@@ -223,7 +223,7 @@ func applyMCPHubFetch(conf config.Config) {
 		return
 	}
 	if !conf.CleanFetch.Enabled {
-		log.Info("cleanfetch.enabled=false，MCP 抓取增强不生效")
+		log.InfoT("log.mcp.cleanfetch_enabled_false_mcp_fetch_enhancement")
 		mcpHubFetchMode = config.MCPHubFetchOff
 		return
 	}
@@ -250,21 +250,21 @@ func applyMCPHubFetch(conf config.Config) {
 	}
 	if hub, ok := searchapi.(*mcphub.Hub); ok {
 		mcpHubFetchInst = hub
-		log.Infof("MCP 抓取增强复用搜索 hub（fetch_mode=%s）", mcpHubFetchMode)
+		log.InfoT("log.mcp.mcp_fetch_enhancement_reuses_the_search", "mcpHubFetchMode", mcpHubFetchMode)
 		return
 	}
 	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), nil)
 	if err != nil {
 		if len(providerFetchers) > 0 {
-			log.Infof("MCP hub 不可用(%v)，cleanfetch 远端抓取仅用供应商 fetch API", err)
+			log.InfoT("log.mcp.mcp_hub_unavailable_cleanfetch_remote_fetching", "err", err)
 			return
 		}
-		log.Errf("MCP 抓取增强未启用: %v", err)
+		log.ErrorT("log.mcp.mcp_fetch_enhancement_not_enabled", "err", err)
 		mcpHubFetchMode = config.MCPHubFetchOff
 		return
 	}
 	mcpHubFetchInst = hub
-	log.Infof("MCP 抓取增强已启用（fetch_mode=%s，供应商 fetcher %d 个，server 顺序: %v）", mcpHubFetchMode, len(providerFetchers), hub.RotationNames())
+	log.InfoT("log.mcp.mcp_fetch_enhancement_enabled_fetch_mode", "mcpHubFetchMode", mcpHubFetchMode, "len", len(providerFetchers), "rotationNames", hub.RotationNames())
 }
 
 // ensureWebFetch 确保 webfetch 可用：cleanfetch/pdf_parser 已启用时在 Init 阶段
@@ -286,7 +286,7 @@ func ensureWebFetch() bool {
 	}
 	f, err := webfetch.NewFromConfig(cleanCfg, webfetchLazyCfg.PDFParser, proxyURL)
 	if err != nil {
-		log.Errf("WebFetch 初始化失败: %v", err)
+		log.ErrorT("log.mcp.webfetch_initialization_failed", "err", err)
 		return false
 	}
 	webfetchInst = f
@@ -295,6 +295,6 @@ func ensureWebFetch() bool {
 	pdfMineruPageLimit = webfetchLazyCfg.PDFParser.GetMinerUPageLimit()
 	pdfMineruPageBatch = webfetchLazyCfg.PDFParser.GetMinerUPageBatchSize()
 	pdfMineruPageBudget = webfetchLazyCfg.PDFParser.GetMinerUPageBudget()
-	log.Info("WebFetch 已按需初始化（fetch_top_n）")
+	log.InfoT("log.mcp.webfetch_initialized_on_demand_fetch_top")
 	return true
 }

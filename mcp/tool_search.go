@@ -79,7 +79,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	if requestCache != nil {
 		rec, hitType, err := requestCache.Lookup(cacheQuery, intent, false)
 		if err != nil {
-			log.Errf("缓存查询异常，跳过缓存: %v", err)
+			log.ErrorT("log.mcp.cache_query_error_skipping_cache", "err", err)
 		} else if rec != nil && !rec.Academic {
 			if result, ok := finishCachedWebSearch(ctx, rec, hitType, query, intent, cacheQuery, requestCache); ok {
 				cacheHit = true
@@ -139,7 +139,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	if err != nil {
 		if fallbackSearch != nil && searchapi != fallbackSearch {
 			mainErr := err
-			log.Errf("主搜索引擎失败(%v)，回退到 Bing 引擎", err)
+			log.ErrorT("log.mcp.primary_search_engine_failed_falling_back", "err", err)
 			results, err = fallbackSearch.SearchRawContext(ctx, query)
 			engineName = "bing"
 			haveDiag = false // 回退改用单引擎，主编排的诊断不再归属本次响应
@@ -249,7 +249,7 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 	switch hitType {
 	case "exact_intent":
 		if rec.Summary != "" {
-			log.Infof("缓存命中(exact_intent+summary): query=%s", query)
+			log.InfoT("log.mcp.cache_hit_exact_intent_summary_query", "query", query)
 			// 缓存命中也是一次完成的搜索：写历史与工具描述
 			// 「每次 smartsearch 成功后自动写入」口径一致（快照解析失败时跳过）
 			if parseErr == nil {
@@ -262,7 +262,7 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 		if parseErr != nil {
 			return nil, false
 		}
-		log.Infof("缓存命中(query_only): query=%s", query)
+		log.InfoT("log.mcp.cache_hit_query_only_query", "query", query)
 		recordSearchHistory(query, results)
 		ret, mergeErr := formatRawResults(query, results)
 		if mergeErr != nil {
@@ -283,13 +283,13 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 func asyncSummarize(query, cacheQuery, intent string, results []search.SearchResult, requestCache *cache.Cache) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errf("异步摘要 panic: %v", r)
+			log.ErrorT("log.mcp.async_summary_panic", "r", r)
 		}
 	}()
 	output, sumErr := summarizerInst.Summarize(query, intent, results)
 	if sumErr == nil && requestCache != nil {
 		_ = requestCache.UpdateSummary(cacheQuery, intent, output)
-		log.Infof("后台异步摘要完成: query=%s, intent=%s", query, intent)
+		log.InfoT("log.mcp.background_async_summary_finished_query_intent", "query", query, "intent", intent)
 	}
 }
 
@@ -309,7 +309,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 		if req != nil && req.Session != nil {
 			output, sumErr = streamSummarize(ctx, req, query, intent, results)
 			if sumErr != nil {
-				log.Errf("LLM 流式摘要失败，回退到非流式摘要: %v", sumErr)
+				log.ErrorT("log.mcp.llm_streaming_summary_failed_falling_back", "sumErr", sumErr)
 			}
 		}
 		if sumErr != nil {
@@ -328,7 +328,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 			}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(output, diag, len(results))}}}, nil, nil
 		}
-		log.Errf("LLM 摘要失败，回退到原始结果: %v", sumErr)
+		log.ErrorT("log.mcp.llm_summary_failed_falling_back_to", "sumErr", sumErr)
 	}
 
 	ret, err := formatRawResults(query, results)
@@ -355,7 +355,7 @@ func recordSearchHistory(query string, results []search.SearchResult) {
 		return
 	}
 	if err := historyInst.Insert(query, "web", results); err != nil {
-		log.Errf("搜索历史写入失败: %v", err)
+		log.ErrorT("log.mcp.search_history_write_failed", "err", err)
 	}
 }
 
@@ -432,12 +432,12 @@ func enrichTopN(ctx context.Context, results []search.SearchResult, n int, fetch
 			}
 			body, err := fetch(ctx, u)
 			if err != nil {
-				log.Warnf("fetch_top_n 抓取失败: %s: %v", u, err)
+				log.WarnT("log.mcp.fetch_top_n_fetch_failed", "u", u, "err", err)
 				out[i].Content = annotateFetchFailure(out[i].Content, err)
 				return
 			}
 			if strings.TrimSpace(body.text) == "" {
-				log.Warnf("fetch_top_n 抓取结果为空: %s", u)
+				log.WarnT("log.mcp.fetch_top_n_fetch_returned_no", "u", u)
 				out[i].Content = annotateFetchFailure(out[i].Content, errors.New("页面内容为空(可能被反爬)"))
 				return
 			}
@@ -533,7 +533,7 @@ func truncateFetchContent(body string) string {
 	if len(body) <= limit {
 		return body
 	}
-	log.Warnf("fetch_top_n 正文超过 %dMB，已截断", maxSizeMB)
+	log.WarnT("log.mcp.fetch_top_n_content_exceeds_mb", "maxSizeMB", maxSizeMB)
 	return body[:limit] + "\n\n（正文超过大小上限，已截断）"
 }
 

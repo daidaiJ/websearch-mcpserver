@@ -15,28 +15,28 @@ import (
 // FileSearchParams file_search 工具参数。
 type FileSearchParams struct {
 	projectParams
-	Query string `json:"query" jsonschema:"description,检索词，支持 Everything 搜索语法：如 'factory'、'*.go'、'ext:pdf report'、'dm:lastweek'、'size:>1mb'。不要写 '**/' 前缀，目录范围已由 folder 参数限定；正则请用 match_regex 参数"`
+	Query string `json:"query" jsonschema:"mcp.param.filesearch.query"`
 
 	// 目录范围（白名单约束见 ScopeQuery）
-	Folder string `json:"folder,omitempty" jsonschema:"description,限定检索目录，接受 Windows（D:\\CODE\\ai）或 Git Bash（/d/code/ai）风格路径。配置了目录白名单时必须落在白名单内；省略时在白名单全部目录内检索（未配置白名单则为全盘索引）"`
+	Folder string `json:"folder,omitempty" jsonschema:"mcp.param.filesearch.folder"`
 
 	// Everything 原生过滤参数（透传 HTTP Server 的 i/w/r/m）
-	MatchCase       bool `json:"match_case,omitempty" jsonschema:"description,区分大小写匹配"`
-	WholeWord       bool `json:"whole_word,omitempty" jsonschema:"description,全字匹配"`
-	MatchRegex      bool `json:"match_regex,omitempty" jsonschema:"description,把 query 当正则表达式检索（以 regex: 函数拼入，不影响目录限定；如 '^factory'）"`
-	MatchDiacritics bool `json:"match_diacritics,omitempty" jsonschema:"description,区分变音符号"`
+	MatchCase       bool `json:"match_case,omitempty" jsonschema:"mcp.param.filesearch.match_case"`
+	WholeWord       bool `json:"whole_word,omitempty" jsonschema:"mcp.param.filesearch.whole_word"`
+	MatchRegex      bool `json:"match_regex,omitempty" jsonschema:"mcp.param.filesearch.match_regex"`
+	MatchDiacritics bool `json:"match_diacritics,omitempty" jsonschema:"mcp.param.filesearch.match_diacritics"`
 
 	// 返回控制
-	MaxResults int    `json:"max_results,omitempty" jsonschema:"description,单页返回条数（默认 10，硬上限 20）。按需调小以节省上下文；需要更多结果请用 page 翻页，调大本参数超过 20 会被收敛"`
-	Page       int    `json:"page,omitempty" jsonschema:"description,页码（默认 1，上限 100），每页条数由 max_results 决定。翻页在二次过滤后的结果集上按页连续切片，页与页之间不重复、不跳条"`
-	Sort       string `json:"sort,omitempty" jsonschema:"description,排序字段：name（默认）/ date_modified / size / path。找最近改动用 date_modified 配合 descending"`
-	Descending bool   `json:"descending,omitempty" jsonschema:"description,是否降序（配合 sort 使用）"`
+	MaxResults int    `json:"max_results,omitempty" jsonschema:"mcp.param.filesearch.max_results"`
+	Page       int    `json:"page,omitempty" jsonschema:"mcp.param.filesearch.page"`
+	Sort       string `json:"sort,omitempty" jsonschema:"mcp.param.filesearch.sort"`
+	Descending bool   `json:"descending,omitempty" jsonschema:"mcp.param.filesearch.descending"`
 
 	// 二次过滤定制（覆盖服务端配置默认值）
-	Exclude      []string `json:"exclude,omitempty" jsonschema:"description,排除项（字符串数组，每项一条 Everything NOT 词）：如 [\"\\\\obj\\\\\", \"\\\\node_modules\\\\\"]、\"old backup\"。按字面匹配路径片段或文件名，带首尾反斜杠才不会误伤名字里含该词的文件"`
-	MinAlignment *float64 `json:"min_alignment,omitempty" jsonschema:"description,词汇对齐阈值（0~1）：查询词与文件名+路径对齐率低于该值的结果被丢弃。覆盖服务端 everything.min_alignment；0=只重排不过滤。结果过多时建议 0.3 起步"`
+	Exclude      []string `json:"exclude,omitempty" jsonschema:"mcp.param.filesearch.exclude"`
+	MinAlignment *float64 `json:"min_alignment,omitempty" jsonschema:"mcp.param.filesearch.min_alignment"`
 
-	TimeFormat string `json:"time_format,omitempty" jsonschema:"description,时间显示格式：datetime（默认，2026-01-02 15:04:05）/ iso（ISO 8601 UTC）/ filetime（Windows FILETIME 原始值）"`
+	TimeFormat string `json:"time_format,omitempty" jsonschema:"mcp.param.filesearch.time_format"`
 }
 
 // fileSearchSorts 允许的 sort 取值（Everything 原生排序）。

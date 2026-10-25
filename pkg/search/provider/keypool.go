@@ -49,7 +49,7 @@ func NewKeyPool(keys []string) (*KeyPool, error) {
 		return nil, fmt.Errorf("keypool: 无有效 API Key")
 	}
 	if dup > 0 {
-		log.Infof("keypool: 检测到 %d 个重复 Key，已去重（剩余 %d 个）", dup, len(filtered))
+		log.InfoT("log.search.provider.keypool_detected_duplicate_keys_deduplicated_remaining", "dup", dup, "len", len(filtered))
 	}
 	return &KeyPool{
 		keys:   filtered,

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/i18n"
 	"websearch/pkg/proxy"
 
 	"github.com/spf13/viper"
@@ -46,6 +47,7 @@ type Config struct {
 	MCPResources       *bool               `mapstructure:"mcp_resources"`        // MCP Resource 观测开关（search://capabilities 与 search://health）：只读、结构上不含密钥、不占工具槽位；省略 = 启用，显式 false 关闭
 	UpstreamTimeoutSec int                 `mapstructure:"upstream_timeout_sec"` // API 上游超时（秒），默认 30；显式 0 = 不设超时（有挂起风险）
 	LogLevel           string              `mapstructure:"log_level"`
+	Language           string              `mapstructure:"language"` // 语言模式：auto（默认，按系统语言适配）/ zh / en；作用于日志、MCP 工具描述与 WebUI（环境变量 WEBCRAWLER_LANGUAGE）
 	Mode               string              `mapstructure:"mode"`
 	Network            string              `mapstructure:"network"`         // 学术搜索适配区域: china / international，不是网页来源或豆包过滤
 	BlackListHost      []string            `mapstructure:"black_list_host"` // 全局屏蔽站点
@@ -1283,6 +1285,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("pdf_parser.mineru_token", "MINERU_TOKEN")
 	viper.BindEnv("academic.unpaywall_email", "UNPAYWALL_EMAIL")
 	viper.BindEnv("academic.openalex_api_key", "OPENALEX_API_KEY")
+	viper.BindEnv("language", "WEBCRAWLER_LANGUAGE")
 	var conf Config
 	if err := viper.Unmarshal(&conf); err != nil {
 		return nil, fmt.Errorf("配置解析失败,%w", err)
@@ -1314,6 +1317,10 @@ func Load(configPath string) (*Config, error) {
 	if conf.Log.MaxAge <= 0 {
 		conf.Log.MaxAge = 1
 	}
+
+	// 语言模式：auto / zh / en，空值与未知值回退 auto（零值 = 安全默认，不要求迁移）；
+	// auto 由 pkg/i18n 按系统语言适配，入口在 Load 之后调用 i18n.Configure 注入。
+	conf.Language = i18n.Normalize(conf.Language)
 
 	// Bing 默认开启
 	if !viper.IsSet("bing.enabled") {

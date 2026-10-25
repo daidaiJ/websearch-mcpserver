@@ -19,21 +19,21 @@ import (
 )
 
 type projectParams struct {
-	Project string `json:"project,omitempty" jsonschema:"description,可选项目统计标签：仅填写当前上下文已明确的项目简称（支持中文）；未知则省略，不发送路径，不按查询内容猜测，也不要求用户提供。仅用于统计，不影响检索或抓取"`
+	Project string `json:"project,omitempty" jsonschema:"mcp.param.project"`
 }
 
 // searchBaseParams smartsearch 两个工具定义（LLM 摘要开/关）共用的参数集合，
 // 通过匿名嵌入组合：字段与 jsonschema 描述只在一处维护，SDK 会提升嵌入字段。
 type searchBaseParams struct {
 	projectParams
-	Query     string `json:"query" jsonschema:"description,搜索关键词：需精准凝练地表达核心检索意图（建议 2-6 个关键词或一个短句），只保留最能定位目标的词；不要把同义词、过程词、修饰词一股脑堆砌成关键词列表，否则会稀释相关性。例如用 'Go 泛型 性能' 而非 'Go 泛型 类型参数 编译 运行时 性能 基准 对比 优化 使用方法'"`
-	TimeRange *int   `json:"time_range,omitempty" jsonschema:"description,搜索时间范围（月），限制搜索最近N个月的内容。例如 1=近1个月，3=近3个月，6=近半年，12=近一年。默认3，0表示不限"`
-	FetchTopN *int   `json:"fetch_top_n,omitempty" jsonschema:"description,正文抓取模式：不传时与旧版一致，只返回引擎/供应商自带的内容（服务端 smartsearch.fetch_top_n 可改默认，默认 0 不抓）；传 0 表示只要标题摘要和 URL；传 1-5 表示为前 N 条获取页面原文——支持原文传参的 API 引擎直接走快速路径，其余引擎内部抓取页面。抓取被反爬防护（JS 挑战/WAF）拦截时会在该条结果上标注"`
+	Query     string `json:"query" jsonschema:"mcp.param.search.query"`
+	TimeRange *int   `json:"time_range,omitempty" jsonschema:"mcp.param.search.time_range"`
+	FetchTopN *int   `json:"fetch_top_n,omitempty" jsonschema:"mcp.param.search.fetch_top_n"`
 }
 
 type SearchParamsWithIntent struct {
 	searchBaseParams
-	Intent string `json:"intent" jsonschema:"description,搜索意图，描述你希望通过搜索解决什么问题或获取什么信息。例如 '了解goroutine调度原理' '对比React和Vue的生态差异' '查找某API的用法示例'。提供意图后可获得更精准的结构化摘要"`
+	Intent string `json:"intent" jsonschema:"mcp.param.search.intent"`
 }
 
 // SearchParamsNoIntent LLM 摘要未启用时使用的参数（无 intent，节省上下文 token）。
@@ -44,20 +44,20 @@ type SearchParamsNoIntent struct {
 // AcademicSearchParams 学术搜索参数。
 type AcademicSearchParams struct {
 	projectParams
-	Query     string   `json:"query" jsonschema:"description,学术搜索关键词，例如 'transformer attention mechanism' 或 'CRISPR gene editing'"`
-	Engines   []string `json:"engines,omitempty" jsonschema:"description,指定引擎子集（为空则使用全部已启用引擎）。示例: 医学论文用 [\"pubmed\"], CS预印本用 [\"arxiv\"], 物理/数学用 [\"arxiv\",\"crossref\"]"`
-	TimeRange string   `json:"time_range,omitempty" jsonschema:"description,时间范围过滤。可选值: year（近一年）, month（近一月）, week（近一周）, day（近一天）。为空则不限"`
-	Page      int      `json:"page,omitempty" jsonschema:"description,结果页码（默认 1），每页约 10 条"`
+	Query     string   `json:"query" jsonschema:"mcp.param.academic.query"`
+	Engines   []string `json:"engines,omitempty" jsonschema:"mcp.param.academic.engines"`
+	TimeRange string   `json:"time_range,omitempty" jsonschema:"mcp.param.academic.time_range"`
+	Page      int      `json:"page,omitempty" jsonschema:"mcp.param.academic.page"`
 }
 
 // CleanFetchParams cleanfetch 工具参数。
 type CleanFetchParams struct {
 	projectParams
-	URL       string   `json:"url,omitempty" jsonschema:"description,要抓取的网页 URL，例如 'https://example.com/article'；不能与 result_ref 混用"`
-	URLs      []string `json:"urls,omitempty" jsonschema:"description,可选批量抓取：与 url 合并去重后最多 5 个。每条独立预检与抓取，单条失败不影响其它，结果按 URL 分节返回"`
-	ResultRef string   `json:"result_ref,omitempty" jsonschema:"description,读取本服务已保存正文；仅接受原工具返回的 result_ref，不接受路径或 URL；与 url/urls 互斥"`
-	Offset    *int64   `json:"offset,omitempty" jsonschema:"description,仅用于 result_ref：从 0 开始的 Unicode 字符偏移，续读使用 next_offset"`
-	Limit     *int     `json:"limit,omitempty" jsonschema:"description,仅用于 result_ref：每段字符数，省略或 0 为 4096，上限 8192"`
+	URL       string   `json:"url,omitempty" jsonschema:"mcp.param.cleanfetch.url"`
+	URLs      []string `json:"urls,omitempty" jsonschema:"mcp.param.cleanfetch.urls"`
+	ResultRef string   `json:"result_ref,omitempty" jsonschema:"mcp.param.cleanfetch.result_ref"`
+	Offset    *int64   `json:"offset,omitempty" jsonschema:"mcp.param.cleanfetch.offset"`
+	Limit     *int     `json:"limit,omitempty" jsonschema:"mcp.param.cleanfetch.limit"`
 }
 
 // maxBatchFetchURLs 单次批量抓取的 URL 上限。

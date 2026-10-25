@@ -155,6 +155,51 @@ func TestLoadOrDefault_InvalidYAML(t *testing.T) {
 	}
 }
 
+func TestLoadOrDefault_LanguageNormalization(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"mode: engine\n", "auto"},                 // 零值 = 按系统语言适配
+		{"mode: engine\nlanguage: en\n", "en"},     // 显式 en
+		{"mode: engine\nlanguage: EN \n", "en"},    // 大小写与空白归一
+		{"mode: engine\nlanguage: zh\n", "zh"},     // 显式 zh
+		{"mode: engine\nlanguage: auto\n", "auto"}, // 显式 auto
+		{"mode: engine\nlanguage: fr\n", "auto"},   // 未知值回退 auto
+		{"mode: engine\nlanguage: \"\"\n", "auto"}, // 空值回退 auto
+	}
+	for _, tc := range cases {
+		viper.Reset()
+		t.Setenv("WEBSEARCH_CONFIG", "")
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(path, []byte(tc.in), 0644); err != nil {
+			t.Fatal(err)
+		}
+		conf, err := LoadOrDefault(path)
+		if err != nil {
+			t.Fatalf("Load(%q): %v", tc.in, err)
+		}
+		if conf.Language != tc.want {
+			t.Errorf("config %q: Language = %q, want %q", tc.in, conf.Language, tc.want)
+		}
+	}
+	// 环境变量覆盖：WEBCRAWLER_LANGUAGE
+	viper.Reset()
+	t.Setenv("WEBSEARCH_CONFIG", "")
+	t.Setenv("WEBCRAWLER_LANGUAGE", "en")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("mode: engine\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	conf, err := LoadOrDefault(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conf.Language != "en" {
+		t.Errorf("WEBCRAWLER_LANGUAGE=en: Language = %q, want en", conf.Language)
+	}
+}
+
 func TestLoadOrDefault_FallsBackToDefault(t *testing.T) {
 	viper.Reset()
 	t.Setenv("WEBSEARCH_CONFIG", "")

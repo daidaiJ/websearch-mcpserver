@@ -137,7 +137,7 @@ func New(storagePath string) (*Cache, error) {
 		return nil, fmt.Errorf("创建索引失败: %w", err)
 	}
 
-	log.Infof("缓存层已初始化: %s", storagePath)
+	log.InfoT("log.cache.cache_layer_initialized", "storagePath", storagePath)
 	return &Cache{db: db}, nil
 }
 
@@ -321,7 +321,7 @@ func (c *Cache) Store(query, intent string, academic bool, results []core.Search
 		return nil // The request predates a successful Clear.
 	}
 
-	log.Infof("缓存已存储: query=%q, intent=%q, academic=%v, has_summary=%v, ttl=%v", query, intent, academic, summary != "", ttl)
+	log.InfoT("log.cache.cache_stored_query_intent_academic_has", "query", query, "intent", intent, "academic", academic, "hasSummary", summary != "", "ttl", ttl)
 	return nil
 }
 
@@ -352,7 +352,7 @@ func (c *Cache) EvictStale(maxAge time.Duration) (int64, error) {
 	}
 	affected, _ := result.RowsAffected()
 	if affected > 0 {
-		log.Infof("缓存清理: 删除 %d 条超过 %v 未命中的记录", affected, maxAge)
+		log.InfoT("log.cache.cache_cleanup_deleted_records_not_hit", "affected", affected, "maxAge", maxAge)
 	}
 	return affected, nil
 }

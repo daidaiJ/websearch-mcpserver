@@ -167,7 +167,7 @@ func (e *gnewsEngine) edition() string {
 func (e *gnewsEngine) parseRSS(body []byte) []antirobot.Result {
 	var feed rssFeed
 	if err := xml.Unmarshal(body, &feed); err != nil {
-		log.Warnf("googlenews: RSS 解析失败: %v", err)
+		log.WarnT("log.search.engine.googlenews.googlenews_rss_parsing_failed", "err", err)
 		return nil
 	}
 	results := make([]antirobot.Result, 0, len(feed.Channel.Items))

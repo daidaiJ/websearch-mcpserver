@@ -60,11 +60,11 @@ func NewArxiv(opts antirobot.ArxivOpts, client *http.Client) antirobot.Engine {
 		perMin = arxivMaxPerMin
 	}
 	if perSec > arxivMaxPerSec {
-		log.Warnf("arxiv: per_sec=%d 超过内置上限，钳制为 %d（官方 Tou 1 req/3s）", perSec, arxivMaxPerSec)
+		log.WarnT("log.academic.arxiv_per_sec_exceeds_the_built", "perSec", perSec, "arxivMaxPerSec", arxivMaxPerSec)
 		perSec = arxivMaxPerSec
 	}
 	if perMin > arxivMaxPerMin {
-		log.Warnf("arxiv: per_min=%d 超过内置上限，钳制为 %d（官方 Tou 1 req/3s ≈ 20/min，取保守值）", perMin, arxivMaxPerMin)
+		log.WarnT("log.academic.arxiv_per_min_exceeds_the_built", "perMin", perMin, "arxivMaxPerMin", arxivMaxPerMin)
 		perMin = arxivMaxPerMin
 	}
 	e := &arxivEngine{

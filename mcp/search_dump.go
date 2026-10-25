@@ -48,15 +48,15 @@ func dumpSearchResultsIfOversize(results []search.SearchResult, rendered string)
 	}
 	path, err := writeSearchDump(rendered)
 	if err != nil {
-		log.Errf("smartsearch 超限落盘失败，回退内联返回: %v", err)
+		log.ErrorT("log.mcp.smartsearch_overflow_persist_failed_falling_back", "err", err)
 		return "", false
 	}
 	hint, err := resultFileNotice(path, searchDumpFileTTL)
 	if err != nil {
-		log.Errf("smartsearch 结果引用创建失败，回退内联返回: %v", err)
+		log.ErrorT("log.mcp.smartsearch_result_reference_creation_failed_falling", "err", err)
 		return "", false
 	}
-	log.Infof("smartsearch 渲染结果 %d 字符超过内联上限 %d，已落盘: %s", charCount, limit, path)
+	log.InfoT("log.mcp.smartsearch_rendered_result_of_chars_exceeds", "charCount", charCount, "limit", limit, "path", path)
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "搜索结果渲染后共 %d 条 / %d 字符，超过内联上限（%d 字符），已整体保存到文件\n\n",
 		len(results), charCount, limit)
@@ -132,7 +132,7 @@ func cleanupSearchDumps(dir string) {
 			continue
 		}
 		if rmErr := os.Remove(filepath.Join(dir, e.Name())); rmErr == nil {
-			log.Infof("smartsearch 过期落盘文件已清理: %s", e.Name())
+			log.InfoT("log.mcp.smartsearch_expired_persisted_files_cleaned_up", "name", e.Name())
 		}
 	}
 }

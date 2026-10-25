@@ -66,7 +66,7 @@ func BuildEngineMode(conf config.Config, fallback *adapter.BingSearchAdapter, ad
 		engines = append(engines, ads.DDG)
 	}
 	if len(engines) == 0 {
-		log.Error("engine 模式需要至少一个引擎，请检查 bing 配置")
+		log.ErrorT("log.search.mode.engine_mode_requires_at_least_one")
 		return nil
 	}
 	if len(engines) == 1 {
@@ -109,12 +109,11 @@ func BuildMCPHubMode(conf config.Config, ads EngineAdapters, fallback *adapter.B
 	}
 	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), engines)
 	if err != nil {
-		log.Errf("mode=mcphub 初始化失败: %v", err)
+		log.ErrorT("log.search.mode.mode_mcphub_initialization_failed", "err", err)
 		return nil
 	}
 	fallbacks := hub.FallbackNames()
-	log.Infof("搜索模式: mcphub（轮转: %s；降级: %s；最终回退: Bing）",
-		strings.Join(hub.RotationNames(), " → "), strings.Join(fallbacks, " → "))
+	log.InfoT("log.search.mode.search_mode_mcphub_rotation_fallback_final", "join", strings.Join(hub.RotationNames(), " → "), "join2", strings.Join(fallbacks, " → "))
 	return hub
 }
 
@@ -124,20 +123,20 @@ func BuildBaiduMode(conf config.Config, pool *provider.KeyPool, baiduWeb *adapte
 		primary := newBaiduSearchFromConf(pool, conf)
 		if baiduWeb != nil {
 			if conf.Baidu.EnableAISearch {
-				log.Info("搜索模式: baidu（智能搜索 + 网页搜索回退）")
+				log.InfoT("log.search.mode.search_mode_baidu_ai_search_web")
 			} else {
-				log.Info("搜索模式: baidu（千帆 SK + 网页搜索回退）")
+				log.InfoT("log.search.mode.search_mode_baidu_qianfan_sk_web")
 			}
 			return adapter.NewBaiduWithFallback(primary, baiduWeb)
 		}
 		return primary
 	}
 	if baiduWeb != nil {
-		log.Info("搜索模式: baidu（网页搜索，无需 API Key）")
+		log.InfoT("log.search.mode.search_mode_baidu_web_search_no")
 		return baiduWeb
 	}
 	if conf.Bing.Enabled && fallback != nil {
-		log.Error("mode=baidu API 源不可用且无网页引擎，回退到 Bing")
+		log.ErrorT("log.search.mode.mode_baidu_api_source_unavailable_and")
 		return fallback
 	}
 	return nil
@@ -162,7 +161,7 @@ func exaOptions(conf config.Config) []provider.ExaOption {
 // BuildTavilyMode Tavily 单引擎模式。
 func BuildTavilyMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	if !conf.APISourceEnabled("tavily") || pool == nil {
-		log.Error("mode=tavily API 源已关闭或未配置 Key")
+		log.ErrorT("log.search.mode.mode_tavily_api_source_disabled_or")
 		if conf.Bing.Enabled && fallback != nil {
 			return fallback
 		}
@@ -174,7 +173,7 @@ func BuildTavilyMode(conf config.Config, pool *provider.KeyPool, fallback *adapt
 // BuildExaMode Exa 单引擎模式。
 func BuildExaMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	if !conf.APISourceEnabled("exa") || pool == nil {
-		log.Error("mode=exa API 源已关闭或未配置 Key")
+		log.ErrorT("log.search.mode.mode_exa_api_source_disabled_or")
 		if conf.Bing.Enabled && fallback != nil {
 			return fallback
 		}
@@ -202,7 +201,7 @@ func BuildAnysearchMode(conf config.Config, pool *provider.KeyPool, fallback *ad
 	if pool == nil {
 		// 零 Key 匿名档（P0-2 来源扩充）：上游支持免鉴权匿名 IP 限流档，
 		// 本项目出口实测可用（2026-10-06）；匿名档受 provider 内保守限流钳制
-		log.Info("mode=anysearch 未配置 Key，启用匿名档（免鉴权，按出口 IP 限流）")
+		log.InfoT("log.search.mode.mode_anysearch_no_key_configured_using")
 		return provider.NewAnysearchSearch(nil, conf.Anysearch.NumResults, conf.BlackListHost)
 	}
 	return provider.NewAnysearchSearch(pool, conf.Anysearch.NumResults, conf.BlackListHost)
@@ -211,7 +210,7 @@ func BuildAnysearchMode(conf config.Config, pool *provider.KeyPool, fallback *ad
 // BuildDoubaoMode 豆包联网搜索单引擎模式。
 func BuildDoubaoMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	if !conf.APISourceEnabled("doubao") || pool == nil {
-		log.Error("mode=doubao API 源已关闭或未配置 Key")
+		log.ErrorT("log.search.mode.mode_doubao_api_source_disabled_or")
 		if conf.Bing.Enabled && fallback != nil {
 			return fallback
 		}
@@ -223,7 +222,7 @@ func BuildDoubaoMode(conf config.Config, pool *provider.KeyPool, fallback *adapt
 // BuildYuanbaoMode 腾讯云元宝搜索单引擎模式（API KEY 方式）。
 func BuildYuanbaoMode(conf config.Config, pool *provider.KeyPool, fallback *adapter.BingSearchAdapter) core.SearchInf {
 	if !conf.APISourceEnabled("yuanbao") || pool == nil {
-		log.Error("mode=yuanbao API 源已关闭或未配置 Key")
+		log.ErrorT("log.search.mode.mode_yuanbao_api_source_disabled_or")
 		if conf.Bing.Enabled && fallback != nil {
 			return fallback
 		}
@@ -289,7 +288,7 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 			keenable := provider.NewKeenableSearch(keenablePool, conf.Keenable.IsLive(), 0)
 			providers = append(providers, apipool.NewApipoolProvider("keenable", keenable, keenablePool))
 		default:
-			log.Infof("apipool: 未知供应商 %q，跳过", name)
+			log.InfoT("log.search.mode.apipool_unknown_provider_skipped", "name", name)
 		}
 	}
 	// 百度网页搜索作为最终兜底（无需 Key，始终在末尾）
@@ -297,7 +296,7 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 		providers = append(providers, apipool.NewApipoolProvider("baidu_web", baiduWeb, nil))
 	}
 	if len(providers) == 0 {
-		log.Error("apipool 模式无可用搜索源")
+		log.ErrorT("log.search.mode.apipool_mode_has_no_available_search")
 		return nil
 	}
 	ap := apipool.NewApipoolSearch(conf.Apipool.GetStrategy(), providers...)
@@ -371,7 +370,7 @@ func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, e
 		engines = append(engines, ads.DDG)
 	}
 	if len(engines) == 0 {
-		log.Error("hybrid 模式无可用搜索引擎")
+		log.ErrorT("log.search.mode.hybrid_mode_has_no_available_search")
 		return nil
 	}
 	hs := hybrid.NewHybridSearch(engines...)
@@ -386,7 +385,7 @@ func InitBaiduWebEngine(conf config.Config) *adapter.EngineSearchAdapter {
 	// 失效引擎默认禁用：实测 tn=json 直抓被百度 CAPTCHA 识别（2026-09-03，
 	// 详见 config.BaiduConfig 注释），出口 IP 干净的环境可显式开启。
 	if !conf.Baidu.WebEnabled {
-		log.Info("百度网页搜索引擎已禁用（baidu.web_enabled=false，被反爬识别 CAPTCHA）")
+		log.InfoT("log.search.mode.baidu_web_search_engine_disabled_baidu")
 		return nil
 	}
 	blocked := bing.MergeBlocked(conf.BlackListHost, nil)
@@ -397,14 +396,14 @@ func InitBaiduWebEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		PerMin:  conf.GetRateLimitPerMin(),
 	})
 	a := adapter.NewEngineSearchAdapter("baidu", eng)
-	log.Info("百度网页搜索引擎已启用（tn=json，无需 API Key；注意：可能被反爬拦截）")
+	log.InfoT("log.search.mode.baidu_web_search_engine_enabled_tn")
 	return a
 }
 
 // InitGoogleEngine 初始化 Google 引擎。
 func InitGoogleEngine(conf config.Config) *adapter.EngineSearchAdapter {
 	if !conf.Google.Enabled {
-		log.Info("Google 引擎已禁用（google.enabled=false，被反爬拦截暂不可用）")
+		log.InfoT("log.search.mode.google_engine_disabled_google_enabled_false")
 		return nil
 	}
 	blocked := bing.MergeBlocked(conf.BlackListHost, conf.Google.Blocked)
@@ -416,18 +415,18 @@ func InitGoogleEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		PerMin:       conf.GetRateLimitPerMin(),
 	})
 	a := adapter.NewEngineSearchAdapter("google", eng)
-	log.Info("Google 引擎已启用（注意：可能被反爬拦截）")
+	log.InfoT("log.search.mode.google_engine_enabled_note_may_be")
 	return a
 }
 
 // InitDuckDuckGoEngine 初始化 DuckDuckGo 引擎。
 func InitDuckDuckGoEngine(conf config.Config) *adapter.EngineSearchAdapter {
 	if !conf.DuckDuckGo.Enabled {
-		log.Info("DuckDuckGo 引擎已禁用（duckduckgo.enabled=false）")
+		log.InfoT("log.search.mode.duckduckgo_engine_disabled_duckduckgo_enabled_false")
 		return nil
 	}
 	if conf.Proxy.ProxyResolver() == nil {
-		log.Info("DuckDuckGo 引擎跳过（需要代理）")
+		log.InfoT("log.search.mode.duckduckgo_engine_skipped_proxy_required")
 		return nil
 	}
 	blocked := bing.MergeBlocked(conf.BlackListHost, conf.DuckDuckGo.Blocked)
@@ -439,7 +438,7 @@ func InitDuckDuckGoEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		PerMin:       conf.GetRateLimitPerMin(),
 	})
 	a := adapter.NewEngineSearchAdapter("duckduckgo", eng)
-	log.Info("DuckDuckGo 引擎已启用（代理: 自动检测）")
+	log.InfoT("log.search.mode.duckduckgo_engine_enabled_proxy_auto_detected")
 	return a
 }
 
@@ -457,7 +456,7 @@ func InitSo360Engine(conf config.Config) *adapter.EngineSearchAdapter {
 		SafeSearch: conf.So360.SafeSearch,
 	})
 	a := adapter.NewEngineSearchAdapter("so360", eng)
-	log.Info("360 搜索引擎已启用（直连可用，零 Key）")
+	log.InfoT("log.search.mode.360_search_engine_enabled_direct_connection")
 	return a
 }
 
@@ -467,7 +466,7 @@ func InitWikipediaEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		return nil
 	}
 	if conf.Proxy.ProxyResolver() == nil {
-		log.Info("Wikipedia 引擎跳过（需代理）")
+		log.InfoT("log.search.mode.wikipedia_engine_skipped_proxy_required")
 		return nil
 	}
 	eng := wikipedia.NewWikipedia(wikipedia.WikipediaOpts{
@@ -479,7 +478,7 @@ func InitWikipediaEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		ProxyResolve: conf.Proxy.ProxyResolver(),
 	})
 	a := adapter.NewEngineSearchAdapter("wikipedia", eng)
-	log.Info("Wikipedia 引擎已启用（代理: 自动检测）")
+	log.InfoT("log.search.mode.wikipedia_engine_enabled_proxy_auto_detected")
 	return a
 }
 
@@ -489,7 +488,7 @@ func InitGoogleNewsEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		return nil
 	}
 	if conf.Proxy.ProxyResolver() == nil {
-		log.Info("Google News 引擎跳过（需代理）")
+		log.InfoT("log.search.mode.google_news_engine_skipped_proxy_required")
 		return nil
 	}
 	eng := googlenews.NewGoogleNews(googlenews.GoogleNewsOpts{
@@ -501,7 +500,7 @@ func InitGoogleNewsEngine(conf config.Config) *adapter.EngineSearchAdapter {
 		ProxyResolve: conf.Proxy.ProxyResolver(),
 	})
 	a := adapter.NewEngineSearchAdapter("googlenews", eng)
-	log.Info("Google News 引擎已启用（代理: 自动检测；跳转链接自动回源发布方 URL）")
+	log.InfoT("log.search.mode.google_news_engine_enabled_proxy_auto")
 	return a
 }
 
@@ -511,7 +510,7 @@ func InitGoogleNewsEngine(conf config.Config) *adapter.EngineSearchAdapter {
 // typed-nil，`ads.GitHub != nil` 恒真，禁用的引擎会被装进模式。
 func InitGithubEngine(conf config.Config, bing *adapter.BingSearchAdapter) core.SearchInf {
 	if !conf.GitHub.Enabled {
-		log.Info("GitHub 引擎已禁用（github.enabled=false，默认关闭；REST API 零 Key 可用）")
+		log.InfoT("log.search.mode.github_engine_disabled_github_enabled_false")
 		return nil
 	}
 	eng := github.NewGitHub(github.GitHubOpts{
@@ -526,9 +525,9 @@ func InitGithubEngine(conf config.Config, bing *adapter.BingSearchAdapter) core.
 		fb = bing
 	}
 	if conf.GitHub.HasToken() {
-		log.Info("GitHub 引擎已启用（REST API，PAT 提额 search 30/min；失败回退 Bing site:github.com）")
+		log.InfoT("log.search.mode.github_engine_enabled_rest_api_pat")
 	} else {
-		log.Info("GitHub 引擎已启用（REST API，零 Key 匿名档 search 10/min；配置 github.api_key 可提额 30/min；失败回退 Bing site:github.com）")
+		log.InfoT("log.search.mode.github_engine_enabled_rest_api_anonymous")
 	}
 	return adapter.NewGitHubWithFallback(primary, fb)
 }
@@ -536,7 +535,7 @@ func InitGithubEngine(conf config.Config, bing *adapter.BingSearchAdapter) core.
 // InitBingEngine 根据配置初始化 Bing 引擎适配器（各模式通用兜底）。
 func InitBingEngine(conf config.Config) *adapter.BingSearchAdapter {
 	if !conf.Bing.Enabled {
-		log.Info("Bing 引擎已禁用（bing.enabled=false）")
+		log.InfoT("log.search.mode.bing_engine_disabled_bing_enabled_false")
 		return nil
 	}
 
@@ -548,7 +547,7 @@ func InitBingEngine(conf config.Config) *adapter.BingSearchAdapter {
 	}
 
 	fallback := adapter.NewBingSearchAdapter(bingOpts)
-	log.Infof("Bing 引擎已启用，引擎: %v", fallback.Engines())
+	log.InfoT("log.search.mode.bing_engine_enabled_engines", "engines", fallback.Engines())
 	return fallback
 }
 
@@ -556,7 +555,7 @@ func InitBingEngine(conf config.Config) *adapter.BingSearchAdapter {
 func InitAcademicEngine(conf config.Config) core.AcademicSearcher {
 	acad := conf.Academic
 	if !acad.Enabled {
-		log.Info("学术引擎未启用（academic.enabled=false）")
+		log.InfoT("log.search.mode.academic_engines_not_enabled_academic_enabled")
 		return nil
 	}
 
@@ -586,17 +585,17 @@ func InitAcademicEngine(conf config.Config) core.AcademicSearcher {
 
 	a := adapter.NewAcademicAdapter(acadConf)
 	if a == nil {
-		log.Info("无可用学术引擎")
+		log.InfoT("log.search.mode.no_available_academic_engines")
 		return nil
 	}
 
 	// 学术评分增强（默认开启，配置独立于 smartsearch，属 academicsearch 工具）
 	a.SetEnhance(conf.Academic.Enhance, conf.Academic.Threshold)
 	if conf.Academic.Enhance {
-		log.Infof("学术评分增强已启用（阀值=%.3f）", conf.Academic.Threshold)
+		log.InfoT("log.search.mode.academic_score_enhancement_enabled_threshold", "threshold", conf.Academic.Threshold)
 	}
 
-	log.Infof("学术引擎已启用: %v", a.Engines())
+	log.InfoT("log.search.mode.academic_engines_enabled", "engines", a.Engines())
 	return a
 }
 
@@ -656,17 +655,17 @@ func applySmartSearchFilters(hs *hybrid.HybridSearchImpl, conf config.Config) {
 	enhance := sc.Enhance == nil || *sc.Enhance
 	hs.SetEnhance(enhance, sc.RelevanceThreshold)
 	if enhance {
-		log.Infof("Wigolo 评分增强已启用（阀值=%.3f）", sc.RelevanceThreshold)
+		log.InfoT("log.search.mode.wigolo_score_enhancement_enabled_threshold", "relevanceThreshold", sc.RelevanceThreshold)
 	}
 	// MMR 多样性重排（默认启用）
 	hs.SetMMR(sc.MMR)
 	if enhance && sc.MMR.Enabled {
-		log.Infof("MMR 多样性重排已启用（λ=%.2f）", sc.MMR.Lambda)
+		log.InfoT("log.search.mode.mmr_diversity_re_ranking_enabled_lambda", "lambda", sc.MMR.Lambda)
 	}
 	// off-topic 整桶守卫（P1-7 回查处置：配置省略 = shadow 只记录不丢弃，enforce 须显式开启）
 	guardMode := sc.OffTopicGuardMode()
 	hs.SetOffTopicGuard(guardMode)
-	log.Infof("off-topic 整桶守卫模式: %s", guardMode)
+	log.InfoT("log.search.mode.off_topic_whole_bucket_guard_mode", "guardMode", guardMode)
 	// per-engine 软超时：慢引擎按 timeout 进失败清单，其余引擎结果照常返回
 	if d := sc.EngineTimeout(); d > 0 {
 		hs.SetEngineTimeout(d)

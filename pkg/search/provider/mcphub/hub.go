@@ -193,7 +193,7 @@ func (s *server) callWithKeys(ctx context.Context, tool string, args map[string]
 		if s.keys.Available() == 0 {
 			return toolResult{}, lastErr
 		}
-		log.Infof("mcp_hub: %s 当前 Key 鉴权失败，尝试下一个 Key", s.name)
+		log.InfoT("log.search.provider.mcphub.mcp_hub_current_key_auth_failed", "name", s.name)
 	}
 	return toolResult{}, lastErr
 }
@@ -330,7 +330,7 @@ func newHub(cfg config.MCPHubConfig, resolver proxy.ProxyResolver, caller toolCa
 			return nil, err
 		}
 		if seen[s.name] {
-			log.Infof("mcp_hub: server %q 重复配置，已跳过", s.name)
+			log.InfoT("log.search.provider.mcphub.mcp_hub_server_configured_more_than", "name", s.name)
 			continue
 		}
 		if caller != nil {
@@ -344,7 +344,7 @@ func newHub(cfg config.MCPHubConfig, resolver proxy.ProxyResolver, caller toolCa
 		s.timeout = h.timeout
 		s.fetchTimeout = h.fetchTimeout
 		if s.requiresProxy && !s.Available() {
-			log.Infof("mcp_hub: %s 标记为需代理，当前未检测到可用代理，运行时自动跳过", s.name)
+			log.InfoT("log.search.provider.mcphub.mcp_hub_marked_proxy_required_but", "name", s.name)
 		}
 		h.rotation = append(h.rotation, &backendState{backend: s})
 		seen[s.name] = true
@@ -368,7 +368,7 @@ func buildEngineStates(names []string, engines map[string]core.SearchInf, seen m
 		}
 		eng, ok := engines[name]
 		if !ok || eng == nil || isNilSearchInf(eng) {
-			log.Infof("mcp_hub: engine %q 不可用（未启用或缺少代理条件），跳过", name)
+			log.InfoT("log.search.provider.mcphub.mcp_hub_engine_unavailable_not_enabled", "name", name)
 			continue
 		}
 		seen[name] = true
@@ -569,7 +569,7 @@ func (h *Hub) handleFailure(st *backendState, fetch bool, err error) {
 	}
 	if shouldCooldown(err) {
 		st.markCooldown(fetch, h.cooldown)
-		log.Infof("mcp_hub: %s %s失败，冷却 %s: %v", st.backend.Name(), capabilityWord(fetch), h.cooldown, err)
+		log.InfoT("log.search.provider.mcphub.mcp_hub_failed_cooling_down", "name", st.backend.Name(), "capabilityWord", capabilityWord(fetch), "cooldown", h.cooldown, "err", err)
 	}
 }
 

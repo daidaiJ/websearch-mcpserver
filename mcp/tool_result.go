@@ -24,9 +24,9 @@ const maxResultReadChars = 8192
 
 type ReadResultParams struct {
 	projectParams
-	Ref    string `json:"ref" jsonschema:"description,服务返回的 result_ref；不接受文件路径或 URL"`
-	Offset int64  `json:"offset,omitempty" jsonschema:"description,从 0 开始的 Unicode 字符偏移；续读使用 next_offset"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"description,本段最多字符数；省略或 0 为 4096，上限 8192"`
+	Ref    string `json:"ref" jsonschema:"mcp.param.result.ref"`
+	Offset int64  `json:"offset,omitempty" jsonschema:"mcp.param.result.offset"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"mcp.param.result.limit"`
 }
 
 type ReadResultOutput struct {

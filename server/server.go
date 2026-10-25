@@ -158,7 +158,7 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 	if conf.Dashboard.Enabled {
 		guard, err := dashboardAccessMiddleware(conf)
 		if err != nil {
-			log.Errf("dashboard.allowed_networks 配置非法，控制台回退为仅本机访问: %v", err)
+			log.ErrorT("log.server.invalid_dashboard_allowed_networks_dashboard_falls", "err", err)
 			guard = localOnlyMiddleware
 		}
 		h := dashboard.New(conf, metrics, mcpserver.GetCache(), func() {
@@ -185,10 +185,10 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 			return fmt.Errorf("initialize dashboard telemetry: %w", err)
 		}
 		if p := config.GetDashboardOverlayFile(); p != "" {
-			log.Infof("控制中心独立配置: %s", p)
+			log.InfoT("log.server.dashboard_standalone_config", "p", p)
 		}
 		if !conf.Dashboard.AdminPasswordConfigured() {
-			log.Warnf("管理员口令未配置（dashboard.yaml 的 dashboard.admin_password），控制台写操作已禁用；只读访问不受影响")
+			log.WarnT("log.server.admin_password_not_configured_dashboard_admin")
 		}
 		telemetry.SetDefault(metrics)
 		if policy, err := dashboard.SuspensionPolicy(conf.Dashboard.Suspension); err == nil {
@@ -231,7 +231,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	}
 	addr := net.JoinHostPort(host, strconv.Itoa(conf.Port))
 	if (host == "0.0.0.0" || host == "::") && conf.AuthToken == "" {
-		log.Errf("监听地址 %s 对所有网卡开放且未配置 auth_token，局域网内任意主机可访问业务端点，强烈建议配置 token", addr)
+		log.ErrorT("log.server.listening_address_is_open_on_all", "addr", addr)
 	}
 
 	// 先监听成功再写 PID / Serve，避免端口占用时留下脏 PID 文件
@@ -255,9 +255,9 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Infof("server start on %s", addr)
+		log.InfoT("log.server.server_start_on", "addr", addr)
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Errf("server start failed: %v", err)
+			log.ErrorT("log.server.server_start_failed", "err", err)
 			panic(err)
 		}
 	}()
@@ -265,12 +265,12 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	// 等待关闭信号（信号或引用计数归零）
 	select {
 	case sig := <-quit:
-		log.Infof("received signal: %v", sig)
+		log.InfoT("log.server.received_signal", "sig", sig)
 	case <-s.shutdownCh:
-		log.Info("refcount reached zero, initiating graceful shutdown")
+		log.InfoT("log.server.refcount_reached_zero_initiating_graceful_shutdown")
 	}
 
-	log.Info("shutting down server...")
+	log.InfoT("log.server.shutting_down_server")
 
 	// 停止缓存清理协程
 	if cleanup != nil {
@@ -281,7 +281,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Errf("server shutdown failed: %v", err)
+		log.ErrorT("log.server.server_shutdown_failed", "err", err)
 		return err
 	}
 
@@ -303,7 +303,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	// 清理 PID 文件
 	_ = daemon.RemovePID()
 
-	log.Info("server exited gracefully")
+	log.InfoT("log.server.server_exited_gracefully")
 	return nil
 }
 

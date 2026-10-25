@@ -106,7 +106,7 @@ func (e *semanticScholarEngine) Search(query string, page int, timeRange antirob
 		// 第二次仍限流：降级为匿名模式（engine 为进程级长生命周期单例，
 		// 并发下最坏多打一次带 key 请求，无害）
 		e.keyDisabled.Store(true)
-		log.Warnf("semantic scholar: API key 连续 429，进程内降级为匿名模式（不再回切）")
+		log.WarnT("log.academic.semantic_scholar_repeated_429_on_api")
 		time.Sleep(ssDegradedWait)
 	}
 }

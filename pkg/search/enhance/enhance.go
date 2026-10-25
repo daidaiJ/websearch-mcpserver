@@ -202,8 +202,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 		scored = scored[:maxSize]
 	}
 
-	log.Infof("Wigolo 评分增强: intent=%s error=%v temporal=%v mmr=%v 去重后=%d 过滤后=%d 返回=%d",
-		classifyIntent(query), hasError, temporal, mmr.Enabled, before, len(scored), len(scored))
+	log.InfoT("log.search.enhance.wigolo_score_enhancement_intent_error_temporal", "classifyIntent", classifyIntent(query), "hasError", hasError, "temporal", temporal, "enabled", mmr.Enabled, "before", before, "len", len(scored), "len2", len(scored))
 	return scored
 }
 

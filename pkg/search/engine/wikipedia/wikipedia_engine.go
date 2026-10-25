@@ -143,9 +143,9 @@ func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.Tim
 	}
 	if len(results) == 0 {
 		if query != rawQuery {
-			log.Debugf("wikipedia: %q 无结果（已剥离检索操作符，实际检索串 %q）", rawQuery, query)
+			log.DebugT("log.search.engine.wikipedia.wikipedia_returned_no_results_search_operators", "rawQuery", rawQuery, "query", query)
 		} else {
-			log.Debugf("wikipedia: %q 无结果", query)
+			log.DebugT("log.search.engine.wikipedia.wikipedia_returned_no_results", "query", query)
 		}
 	}
 	return &antirobot.SearchResponse{Engine: "wikipedia", Results: results}, nil

@@ -121,7 +121,7 @@ func (a *ApipoolSearchImpl) searchRaw(ctx context.Context, query string, lookbac
 		if err == nil {
 			return results, nil
 		}
-		log.Infof("apipool: %s 所有 SK 均不可用，切换下一个供应商: %v", p.engine.Name(), err)
+		log.InfoT("log.search.apipool.apipool_all_sks_of_unavailable_switching", "name", p.engine.Name(), "err", err)
 		lastErr = err
 	}
 	return nil, fmt.Errorf("apipool: 所有供应商均失败，最后错误: %w", lastErr)
@@ -222,7 +222,7 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p Apipool
 		if p.pool.Available() == 0 {
 			return nil, fmt.Errorf("%s 所有 SK 均失败: %w", p.engine.Name(), lastErr)
 		}
-		log.Infof("apipool: %s 当前 SK 失败，尝试下一个 SK", p.engine.Name())
+		log.InfoT("log.search.apipool.apipool_current_sk_failed_trying_the", "name", p.engine.Name())
 	}
 }
 

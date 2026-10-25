@@ -113,7 +113,7 @@ func (c *Client) ChatWithContext(ctx context.Context, systemPrompt, userPrompt s
 		SetResult(&resp).
 		Post(url)
 	if err != nil {
-		log.Errf("llm req failed : %s", err.Error())
+		log.ErrorT("log.llm.llm_req_failed", "error", err.Error())
 		return "", fmt.Errorf("llm api 调用失败: %w", err)
 	}
 	if res.StatusCode() != 200 {
@@ -166,7 +166,7 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 		SetResponseDoNotParse(true).
 		Post(url)
 	if err != nil {
-		log.Errf("llm stream req failed : %s", err.Error())
+		log.ErrorT("log.llm.llm_stream_req_failed", "error", err.Error())
 		streamErr = fmt.Errorf("llm api 调用失败: %w", err)
 		return
 	}
@@ -208,7 +208,7 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Errf("llm stream read failed : %s", err.Error())
+		log.ErrorT("log.llm.llm_stream_read_failed", "error", err.Error())
 		streamErr = fmt.Errorf("llm 流式读取失败: %w", err)
 		return
 	}

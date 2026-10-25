@@ -195,7 +195,7 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 	for _, raw := range resp.Response.Pages {
 		var page yuanbaoPage
 		if err := json.Unmarshal([]byte(raw), &page); err != nil {
-			log.Warnf("yuanbao 搜索 API 返回无法解析的结果项: %v", err)
+			log.WarnT("log.search.provider.yuanbao_search_api_returned_unparseable_result", "err", err)
 			continue
 		}
 		rawURL := strings.TrimSpace(page.URL)
@@ -361,13 +361,13 @@ func (b *yuanbaoBudget) load(now time.Time) {
 	data, err := os.ReadFile(b.statePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Warnf("yuanbao 读取月度计数失败（按 0 起算）: %v", err)
+			log.WarnT("log.search.provider.yuanbao_failed_to_read_the_monthly", "err", err)
 		}
 		return
 	}
 	var state yuanbaoBudgetState
 	if err := json.Unmarshal(data, &state); err != nil {
-		log.Warnf("yuanbao 月度计数文件无法解析（按 0 起算）: %v", err)
+		log.WarnT("log.search.provider.yuanbao_monthly_counter_file_unparseable_starting", "err", err)
 		return
 	}
 	if state.Month == b.month && state.Used > 0 {
@@ -385,11 +385,11 @@ func (b *yuanbaoBudget) persistLocked() {
 	}
 	if err := os.MkdirAll(filepath.Dir(b.statePath), 0o755); err != nil {
 		b.persistOK = false
-		log.Warnf("yuanbao 创建月度计数目录失败（本次进程内仍会继续计数）: %v", err)
+		log.WarnT("log.search.provider.yuanbao_failed_to_create_the_monthly", "err", err)
 		return
 	}
 	if err := os.WriteFile(b.statePath, data, 0o600); err != nil {
 		b.persistOK = false
-		log.Warnf("yuanbao 写入月度计数失败（本次进程内仍会继续计数）: %v", err)
+		log.WarnT("log.search.provider.yuanbao_failed_to_write_the_monthly", "err", err)
 	}
 }

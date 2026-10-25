@@ -43,7 +43,7 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 		responseError(w, 5001, fmt.Sprintf("%s", err.Error()))
 		return
 	}
-	log.Infof("search:%s success\n", query)
+	log.InfoT("log.searxng.search_success", "query", query)
 
 	responseJSON(w, query, slice2Any(ret))
 }
@@ -52,7 +52,7 @@ func Init(group *search.SearchGroup) {
 	if group.Primary != nil {
 		defaultInf = group.Primary
 	} else {
-		log.Error("无可用搜索引擎")
+		log.ErrorT("log.searxng.no_available_search_engines")
 	}
 }
 
@@ -70,7 +70,7 @@ func responseJSON(w http.ResponseWriter, query string, data []any) {
 		"number_of_results": len(data),
 	}
 	s, _ := json.Marshal(resp)
-	log.Debugf("raw msg : %s", s)
+	log.DebugT("log.searxng.raw_msg", "s", s)
 	json.NewEncoder(w).Encode(resp)
 }
 

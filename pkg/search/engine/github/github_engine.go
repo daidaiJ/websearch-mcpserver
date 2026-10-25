@@ -184,7 +184,7 @@ func (e *githubEngine) Search(query string, page int, timeRange antirobot.TimeRa
 		results = append(results, r)
 	}
 	if len(results) == 0 {
-		log.Debugf("github: %q 无结果", query)
+		log.DebugT("log.search.engine.github.github_returned_no_results", "query", query)
 	}
 	return &antirobot.SearchResponse{Engine: "github", Results: results}, nil
 }

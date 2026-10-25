@@ -189,18 +189,18 @@ func persistHealth(path string) {
 
 	data, err := json.MarshalIndent(rows, "", " ")
 	if err != nil {
-		log.Warnf("engine health 序列化失败: %v", err)
+		log.WarnT("log.antirobot.engine_health_serialization_failed", "err", err)
 		return
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		log.Warnf("engine health 写盘失败: %v", err)
+		log.WarnT("log.antirobot.engine_health_write_failed", "err", err)
 		return
 	}
 	// Windows 下 rename 不能覆盖已存在文件，先移除旧文件（advisory 文件可接受间隙）
 	_ = os.Remove(path)
 	if err := os.Rename(tmp, path); err != nil {
-		log.Warnf("engine health 落盘失败: %v", err)
+		log.WarnT("log.antirobot.engine_health_persist_failed", "err", err)
 		_ = os.Remove(tmp)
 	}
 }

@@ -27,7 +27,7 @@ func TestHTTPProjectAttribution(t *testing.T) {
 			defer store.Close()
 			server := mcp.NewServer(&mcp.Implementation{Name: "attribution-test", Version: "1"}, nil)
 			server.AddReceivingMiddleware(ClientAttributionMiddleware)
-			mcp.AddTool(server, &mcp.Tool{Name: "probe", Description: "synthetic attribution test"}, func(ctx context.Context, req *mcp.CallToolRequest, args projectParams) (*mcp.CallToolResult, any, error) {
+			addTool(server, &mcp.Tool{Name: "probe", Description: "synthetic attribution test"}, func(ctx context.Context, req *mcp.CallToolRequest, args projectParams) (*mcp.CallToolResult, any, error) {
 				store.RecordContext(ctx, telemetry.Event{Kind: "tool", Tool: "probe", Success: true})
 				store.RecordContext(ctx, telemetry.Event{Kind: "provider", Provider: "synthetic", Success: true})
 				return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil, nil
@@ -142,14 +142,14 @@ func TestToolProjectSchema(t *testing.T) {
 		t.Run(fmt.Sprintf("intent-%t", withIntent), func(t *testing.T) {
 			server := mcp.NewServer(&mcp.Implementation{Name: "schema-test", Version: "1"}, nil)
 			if withIntent {
-				mcp.AddTool(server, &mcp.Tool{Name: "smartsearch"}, WebSearchWithIntent)
+				addTool(server, &mcp.Tool{Name: "smartsearch"}, WebSearchWithIntent)
 			} else {
-				mcp.AddTool(server, &mcp.Tool{Name: "smartsearch"}, WebSearchNoIntent)
+				addTool(server, &mcp.Tool{Name: "smartsearch"}, WebSearchNoIntent)
 			}
-			mcp.AddTool(server, &mcp.Tool{Name: "academicsearch"}, AcademicSearchHandler)
-			mcp.AddTool(server, &mcp.Tool{Name: "cleanfetch"}, CleanFetch)
-			mcp.AddTool(server, &mcp.Tool{Name: "pdf_parser"}, PDFParserHandler)
-			mcp.AddTool(server, &mcp.Tool{Name: "file_search"}, FileSearch)
+			addTool(server, &mcp.Tool{Name: "academicsearch"}, AcademicSearchHandler)
+			addTool(server, &mcp.Tool{Name: "cleanfetch"}, CleanFetch)
+			addTool(server, &mcp.Tool{Name: "pdf_parser"}, PDFParserHandler)
+			addTool(server, &mcp.Tool{Name: "file_search"}, FileSearch)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			t1, t2 := mcp.NewInMemoryTransports()
@@ -241,7 +241,7 @@ func TestHTTPClientAttribution(t *testing.T) {
 		t.Run(map[bool]string{false: "stateful", true: "stateless"}[stateless], func(t *testing.T) {
 			server := mcp.NewServer(&mcp.Implementation{Name: "attribution-test", Version: "1"}, nil)
 			server.AddReceivingMiddleware(ClientAttributionMiddleware)
-			mcp.AddTool(server, &mcp.Tool{Name: "probe", Description: "synthetic attribution test"}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, any, error) {
+			addTool(server, &mcp.Tool{Name: "probe", Description: "synthetic attribution test"}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, any, error) {
 				return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: telemetry.ClientFromContext(ctx)}}}, nil, nil
 			})
 			handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: stateless})

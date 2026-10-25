@@ -74,7 +74,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	switch conf.GetMode() {
 	case config.ModeEngine:
 		g.Primary = mode.BuildEngineMode(conf, g.Fallback, ads)
-		log.Infof("搜索模式: engine（无需 API Key）")
+		log.InfoT("log.search.search_mode_engine_no_api_key")
 
 	case config.ModeTavily:
 		g.Primary = mode.BuildTavilyMode(conf, tavilyPool, g.Fallback)
@@ -93,7 +93,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 
 	case config.ModeApipool:
 		g.Primary = mode.BuildApipoolMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool, baiduWebAdapter)
-		log.Infof("搜索模式: apipool（API Key 池轮转）")
+		log.InfoT("log.search.search_mode_apipool_api_key_pool")
 
 	case config.ModeHybrid:
 		g.Primary = mode.BuildHybridMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool, ads, g.Fallback)
@@ -101,7 +101,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	case config.ModeMCPHub:
 		g.Primary = mode.BuildMCPHubMode(conf, ads, g.Fallback)
 		if g.Primary != nil {
-			log.Infof("搜索模式: mcphub（无需 API Key，托管 MCP 级联）")
+			log.InfoT("log.search.search_mode_mcphub_no_api_key")
 		}
 
 	default: // baidu → 百度千帆 web_search
@@ -111,7 +111,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 		g.Primary = g.Fallback
 	}
 
-	log.Infof("搜索模式: %s", conf.GetMode())
+	log.InfoT("log.search.search_mode", "mode", conf.GetMode())
 
 	// ── 学术搜索引擎（独立于主引擎） ──
 	g.Academic = mode.InitAcademicEngine(conf)
@@ -126,11 +126,11 @@ func newKeyPoolFromList(keys []string, name string) *provider.KeyPool {
 	}
 	pool, err := provider.NewKeyPool(keys)
 	if err != nil {
-		log.Errf("创建 %s provider.KeyPool 失败: %v", name, err)
+		log.ErrorT("log.search.failed_to_create_provider_keypool", "name", name, "err", err)
 		return nil
 	}
 	if pool.Len() > 1 {
-		log.Infof("%s provider.KeyPool: %d 个 Key 轮询", name, pool.Len())
+		log.InfoT("log.search.provider_keypool_keys_rotating", "name", name, "len", pool.Len())
 	}
 	return pool
 }

@@ -38,7 +38,7 @@ func requestSearchCache() *cache.Cache {
 	}
 	view, err := cacheInst.ForRequest(cacheNamespace)
 	if err != nil {
-		log.Errf("缓存代次读取异常，跳过缓存: %v", err)
+		log.ErrorT("log.mcp.cache_generation_read_error_skipping_cache", "err", err)
 		return nil
 	}
 	return view

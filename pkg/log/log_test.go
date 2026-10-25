@@ -11,13 +11,16 @@ import (
 	"websearch/pkg/config"
 )
 
+// 测试用未登记 key：i18n 对未登记 key 原样返回 key 本身（漏登记由 pkg/i18n 的
+// 目录审计拦截），因此这些标记串既能当断言锚点，也顺带钉住该回退行为。
+
 // TestCallerPointsAtCallSite caller 字段必须指向真实调用点，而非 zerolog 内部帧。
 func TestCallerPointsAtCallSite(t *testing.T) {
 	dir := t.TempDir()
 	NewLoggerTo(io.Discard, dir, config.LogConfig{MaxSize: 1, MaxAge: 1})
 	defer func() { _ = CloseFile() }()
 	_, thisFile, _, _ := runtime.Caller(0)
-	Info("caller-check")
+	InfoT("log.test.caller_check")
 	data, err := os.ReadFile(filepath.Join(dir, "websearch.log"))
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +44,7 @@ func TestNewLoggerTo_DoesNotWriteStdout(t *testing.T) {
 
 	var buf bytes.Buffer
 	NewLoggerTo(&buf, "", config.LogConfig{})
-	Info("stdio-safe")
+	InfoT("log.test.stdio_safe")
 
 	_ = w.Close()
 	os.Stdout = old
@@ -49,31 +52,31 @@ func TestNewLoggerTo_DoesNotWriteStdout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(dumped, []byte("stdio-safe")) {
+	if bytes.Contains(dumped, []byte("log.test.stdio_safe")) {
 		t.Fatalf("console logger wrote to stdout: %s", dumped)
 	}
-	if !bytes.Contains(buf.Bytes(), []byte("stdio-safe")) {
+	if !bytes.Contains(buf.Bytes(), []byte("log.test.stdio_safe")) {
 		t.Fatalf("expected log in console writer, got %q", buf.Bytes())
 	}
 }
 
 func TestNewLoggerTo_NilConsoleNoPanic(t *testing.T) {
 	NewLoggerTo(nil, "", config.LogConfig{})
-	Info("discard-ok")
+	InfoT("log.test.discard_ok")
 	SetLoggerLevel("debug")
-	Debug("also-ok")
+	DebugT("log.test.also_ok")
 }
 
 func TestNewLoggerTo_WritesFile(t *testing.T) {
 	dir := t.TempDir()
 	NewLoggerTo(io.Discard, dir, config.LogConfig{MaxSize: 1, MaxAge: 1})
-	Info("file-line")
+	InfoT("log.test.file_line")
 	p := filepath.Join(dir, "websearch.log")
 	data, err := os.ReadFile(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(data, []byte("file-line")) {
+	if !bytes.Contains(data, []byte("log.test.file_line")) {
 		t.Fatalf("log file missing line: %s", data)
 	}
 	if err := CloseFile(); err != nil {
@@ -84,5 +87,5 @@ func TestNewLoggerTo_WritesFile(t *testing.T) {
 func TestSetLoggerLevel_NilSafe(t *testing.T) {
 	defaultlog = nil
 	SetLoggerLevel("debug")
-	Info("no-panic")
+	InfoT("log.test.no_panic")
 }

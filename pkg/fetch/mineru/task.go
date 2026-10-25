@@ -194,7 +194,7 @@ func (c *Client) pollTask(ctx context.Context, ref string) (string, error) {
 		progress := status.progress()
 		if progress != last {
 			last = progress
-			log.Infof("MinerU 任务状态: task_ref=%s %s", ref, progress)
+			log.InfoT("log.fetch.mineru.mineru_task_status_task_ref", "ref", ref, "progress", progress)
 			if report, ok := ctx.Value(taskProgressKey{}).(func(string)); ok {
 				report(progress)
 			}

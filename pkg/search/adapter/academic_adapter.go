@@ -143,7 +143,7 @@ func (a *AcademicAdapter) SearchAcademicRawContext(ctx context.Context, query st
 	var all []antirobot.Result
 	for _, resp := range responses {
 		if resp.Error != "" {
-			log.Warnf("academic: engine %s failed: %v", resp.Engine, resp.Error)
+			log.WarnT("log.search.adapter.academic_engine_failed", "engine", resp.Engine, "error", resp.Error)
 			if engineErrors == nil {
 				engineErrors = make(map[string]string)
 			}

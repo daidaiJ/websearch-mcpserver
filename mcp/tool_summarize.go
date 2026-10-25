@@ -94,6 +94,6 @@ func notifyProgress(ctx context.Context, req *mcp.CallToolRequest, progress, tot
 		Message:       message,
 	}
 	if err := req.Session.NotifyProgress(ctx, params); err != nil {
-		log.Debugf("progress notification 推送失败: %v", err)
+		log.DebugT("log.mcp.progress_notification_push_failed", "err", err)
 	}
 }

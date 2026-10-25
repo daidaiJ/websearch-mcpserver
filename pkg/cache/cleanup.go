@@ -36,19 +36,19 @@ func (s *CleanupScheduler) Start() {
 	s.started.Store(true)
 	go func() {
 		defer close(s.done)
-		log.Infof("缓存清理协程已启动，间隔: %v，淘汰阈值: %v", s.interval, StaleMaxAge)
+		log.InfoT("log.cache.cache_cleanup_goroutine_started_interval_eviction", "interval", s.interval, "staleMaxAge", StaleMaxAge)
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-s.stop:
-				log.Info("缓存清理协程已停止")
+				log.InfoT("log.cache.cache_cleanup_goroutine_stopped")
 				return
 			case <-ticker.C:
 				_, err := s.cache.EvictStale(StaleMaxAge)
 				if err != nil {
-					log.Errf("缓存清理执行失败: %v", err)
+					log.ErrorT("log.cache.cache_cleanup_failed", "err", err)
 				}
 			}
 		}

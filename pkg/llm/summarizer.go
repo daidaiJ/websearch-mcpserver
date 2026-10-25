@@ -30,7 +30,7 @@ func NewSummarizerWithTimeout(baseURL, apiKey, model_id string, timeout time.Dur
 // Summarize 搜索完成后，根据 query + intent + 搜索结果调用 LLM 生成摘要
 func (s *Summarizer) Summarize(query, intent string, results []core.SearchResult) (string, error) {
 	userPrompt := BuildUserPrompt(query, intent, results)
-	log.Infof("调用 LLM 生成摘要, query=%s, intent=%s", query, intent)
+	log.InfoT("log.llm.calling_llm_for_summary_query_intent", "query", query, "intent", intent)
 
 	summary, err := s.llm.Chat(systemPrompt, userPrompt)
 	if err != nil {
@@ -47,6 +47,6 @@ func (s *Summarizer) Summarize(query, intent string, results []core.SearchResult
 // 完整摘要的引用格式化由调用方在流结束后通过 FormatCitation 完成。
 func (s *Summarizer) SummarizeStream(ctx context.Context, query, intent string, results []core.SearchResult, ch chan<- string, errCh chan<- error) {
 	userPrompt := BuildUserPrompt(query, intent, results)
-	log.Infof("调用 LLM 流式生成摘要, query=%s, intent=%s", query, intent)
+	log.InfoT("log.llm.calling_llm_for_streaming_summary_query", "query", query, "intent", intent)
 	s.llm.ChatStream(ctx, systemPrompt, userPrompt, ch, errCh)
 }

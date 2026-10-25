@@ -52,13 +52,13 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 	if requestCache != nil {
 		rec, hitType, err := requestCache.Lookup(cacheKey, "", true)
 		if err != nil {
-			log.Errf("缓存查询异常，跳过缓存: %v", err)
+			log.ErrorT("log.mcp.cache_query_error_skipping_cache", "err", err)
 		} else if rec != nil && rec.Academic && hitType == "query_only" {
 			results, parseErr := rec.GetRawResults()
 			if parseErr == nil {
 				cacheHit = true
 				resultCount = len(results)
-				log.Infof("学术缓存命中: query=%s", query)
+				log.InfoT("log.mcp.academic_cache_hit_query", "query", query)
 				ret, mergeErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results})
 				if mergeErr == nil {
 					// 缓存命中：retrieved_at 为原检索时间，附带 cache_age_seconds
@@ -76,7 +76,7 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 		Engines:   engines,
 	}
 
-	log.Infof("学术搜索: query=%s, engines=%v, timeRange=%s, page=%d", query, engines, timeRange, page)
+	log.InfoT("log.mcp.academic_search_query_engines_timerange_page", "query", query, "engines", engines, "timeRange", timeRange, "page", page)
 	var res search.AcademicSearchResult
 	if ctxSearcher, ok := academicSearcher.(search.ContextAcademicSearcher); ok {
 		res, err = ctxSearcher.SearchAcademicRawContext(ctx, query, opts)

@@ -11,6 +11,7 @@ import (
 	mcpserver "websearch/mcp"
 	"websearch/pkg/config"
 	"websearch/pkg/daemon"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/server"
 
@@ -47,7 +48,7 @@ func runStart(conf *config.Config) {
 	// 监听成功后才写 PID（回调），端口占用时不会留下脏 PID 文件
 	if err := srv.Run(*conf, func() {
 		if err := daemon.WritePID(os.Getpid(), conf.Port); err != nil {
-			log.Errf("failed to write PID file: %v", err)
+			log.ErrorT("log.cmd.failed_to_write_pid_file", "err", err)
 		}
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start server: %v\n", err)
@@ -237,6 +238,7 @@ func main() {
 			}
 		}
 	}
+	i18n.Configure(conf.Language)
 
 	// 默认启用控制台：从未显式配置过控制中心时生成 dashboard.yaml
 	// （随机本机口令）。不需要时改 enabled: false 或删除该文件即回到零开销。
@@ -247,6 +249,7 @@ func main() {
 				fmt.Printf("已生成控制中心配置: %s（默认启用，本机管理员口令在文件内；不需要可删除或改 enabled: false）\n", path)
 				if reloaded, lerr := config.Load(configPath); lerr == nil {
 					conf = reloaded
+					i18n.Configure(conf.Language)
 				}
 			}
 		}

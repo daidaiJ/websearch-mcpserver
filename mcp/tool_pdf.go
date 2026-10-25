@@ -23,10 +23,10 @@ import (
 // PDFParserParams pdf_parser 工具参数。
 type PDFParserParams struct {
 	projectParams
-	Path        string `json:"path,omitempty" jsonschema:"description,新解析任务必填：服务进程可见的本地 PDF 绝对路径（或 file://），或远程 http(s) PDF URL。Docker 中只能读取容器内或已挂载路径，file_search 返回的宿主机路径不能直接通用。学术搜索结果中的 pdf_url 可直接传入；查询已有 task_ref 时省略"`
-	Pages       string `json:"pages,omitempty" jsonschema:"description,可选页码范围（1-based），如 '1-10'、'1,3,5-7'。省略时仅解析前 max_pages 页（默认 20），超长文档会提示已截断"`
-	TaskRef     string `json:"task_ref,omitempty" jsonschema:"description,MinerU 返回的任务引用：standard:<task_id>、batch:<batch_id> 或 agent:<task_id>。查询或取回原任务，不新建任务；与 path/pages 互斥。默认只查一次，仍处理时返回状态与引用"`
-	WaitSeconds *int   `json:"wait_seconds,omitempty" jsonschema:"description,MinerU 每个任务的轮询等待秒数，0-1800。新解析默认300秒，task_ref 默认0（只查一次）；超时保留引用以便续查，不表示上游解析失败"`
+	Path        string `json:"path,omitempty" jsonschema:"mcp.param.pdf.path"`
+	Pages       string `json:"pages,omitempty" jsonschema:"mcp.param.pdf.pages"`
+	TaskRef     string `json:"task_ref,omitempty" jsonschema:"mcp.param.pdf.task_ref"`
+	WaitSeconds *int   `json:"wait_seconds,omitempty" jsonschema:"mcp.param.pdf.wait_seconds"`
 }
 
 // CleanFetch 通过 go-webfetch 抓取网页，失败时回退到 Jina Reader。
