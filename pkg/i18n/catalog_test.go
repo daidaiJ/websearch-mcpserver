@@ -34,7 +34,10 @@ import (
 )
 
 // keyDomains 是允许的域前缀，与 locales/<域>.<语言>.json 的文件名一一对应。
-var keyDomains = []string{"log", "mcp", "dashboard", "web"}
+// 前四域按「面」划分（日志 / MCP 元数据 / 控制中心响应 / 前端页面）；
+// 后四域按「产出子系统」划分，承载会出现在 MCP 工具**返回内容**里的服务端文案
+// （提示、告警、错误、进度）——外部内容（网页正文、供应商返回的结果文本）不在此列。
+var keyDomains = []string{"log", "mcp", "dashboard", "web", "tool", "fetch", "provider", "search"}
 
 // loadCatalog 读取内嵌目录，返回 域 → 语言 → key → 文案文本。
 func loadCatalog(t *testing.T) map[string]map[string]map[string]string {
