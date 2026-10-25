@@ -202,7 +202,10 @@ docker build -t websearch-mcpserver .
 - **实现要点：** `pkg/i18n` 基于 `nicksnyder/go-i18n/v2` + `golang.org/x/text/language`（原设计是 zh 当 key 的 Go map，评审后改为符号化 key + 外置 JSON）；文案住 `pkg/i18n/locales/<域>.<语言>.json`（log/mcp/dashboard/web）；调用形态 `log.*T(key, "name", v)` 与 `i18n.T`/`i18n.TCtx`；MCP 参数说明改为 `jsonschema:"mcp.param.*"` 并在注册时渲染输入 Schema（顺带修掉 `description,` 前缀透出给客户端的既有缺陷）；控制中心按 `Accept-Language` 每请求协商，`serveIndex` 改写 `<html lang>` 并把前端文案内联进页面（首帧即正确语言）
 - **防漏机制：** `pkg/i18n/catalog_test.go` 强制每个域 zh/en key 集合一致、同一 key 占位符集合一致、代码引用与目录条目双向一致；纯转发包装（key 由调用方给出）须显式登记 `dynamicKeyAllowlist` 并写理由
 - **验收：** `go build ./...`、`go vet ./...`、`gofmt -l` 干净；`go test -short -count=1 ./...` 全 44 包绿、`go test ./pkg/i18n/`（目录审计）绿；5 个前端 node 用例全 PASS；真机探针实测 `auto`/空值/未知值在本机（系统区域 zh-CN）解析为 `zh`、`zh`→zh、`en`→en，`Accept-Language: en-US`→en、`fr-FR` 回落配置值
-- **遗留（第四面，未纳入本批）：** 工具**返回内容**仍是中文硬编码——搜索结果 Markdown、工具错误文案、PDF/MinerU 进度提示等；机制已就绪（登记 key 即可），下一批评估是否治理
+- **遗留（第四面，进行中）：** 工具**返回内容**里的服务端文案（提示/告警/错误/进度）。**已落地 `tool` 域**（`mcp/` 9 个文件、121 条 key：参数校验错误、反爬与降级说明、MinerU 分批进度、落盘与续读提示、SSRF/DNS 预检拒绝等，提交 `08ee87c`）。**未落地**：`fetch` / `provider` / `search` 三域（`pkg/fetch/**`、`pkg/search/provider/**`、`pkg/search/{core,hybrid,enhance,apipool,adapter,engine}/**` + `pkg/llm` + `pkg/history`）——域与空目录文件已就位（`f32acdc`），逐文件登记即可；`search` 域已含 `search.academic.no_result_*` 两条
+- **第四面口径（用户 2026-10-25 明确）：** 只治理**本服务自产**的提示/告警/错误文本；**网页正文与 API 供应商返回的结果文本不治理**。结果记录骨架（`pkg/search/core/format_md.go` 的 `## 结果` / `**标题**` / `**url**` 等）属 `contract_test.go` 固化的输出契约，**保持不动**
+- **第四面的坑（改前必读）：** 翻译错误文案会打断三处按关键词判类的逻辑——`mcp/tool_search.go` 的 `isAntiBotFailure`（已改为中英并列）、`pkg/search/core/diagnostics.go` 的 `ClassifyFailure`、`pkg/telemetry/errorkind.go` 的 `ErrorKindNoResult` 等；改对应文案时必须同步补英文关键词或改用哨兵错误。另：`mcp/tool_academic.go` 的 `academicProviderErrorsFromError` 按中文前缀解析上游错误，**该前缀在仓库里无生产者（既有死路径）**，勿据其推断文案来源
+- **未纳入第四面：** `mcp/options.go` 三处 `panic`（启动期 stderr 诊断，非工具返回内容）
 - **详情指针：** [`.handoff/i18n-governance.md`](.handoff/i18n-governance.md)
 
 ### v3.10.1 发布后审查修复 — done（2026-10-25，v3.10.0 三线下架回收）
@@ -246,5 +249,6 @@ docker build -t websearch-mcpserver .
 
 - [ ] tinyfish/keenable 经二进制真网链路长期回归（限流阈值、结果质量；当前仅有 curl 实测 + 单测）
 - [ ] i18n 控制中心真实浏览器走查：166 个 `data-i18n` 标记、`applyI18n` 与 `t()` 渲染在真实页面上的观感与交互（本批只有标记解析校验 + 运行时单测 + 服务端注入冒烟，无浏览器工具）
-- [ ] i18n 第四面（工具返回内容）是否治理待定
+- [ ] i18n 第四面剩余三域：`fetch` / `provider` / `search` 的工具返回文案
+- [ ] `mcp` 包的测试语言依赖顺序：`initTestLogger` 里的 `i18n.Configure(i18n.Zh)` 只在部分测试文件调用，`pdf_task_test.go` / `client_attribution_test.go` 等断言中文文案的用例靠「先跑的文件已把语言钉成 zh」才通过；建议加 `TestMain` 统一钉住
 - [ ] 新引擎/新工具真实链路长期回归：验证码页频率、anysearch 匿名档阈值、googlenews 回源失败率、search_history 写入与 FTS 命中率
