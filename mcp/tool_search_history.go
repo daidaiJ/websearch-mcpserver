@@ -44,19 +44,31 @@ func SearchHistoryHandler(_ context.Context, _ *mcp.CallToolRequest, params *Sea
 // maxHistoryResultLines 单条历史最多展示的结果行数（超出提示已截断）。
 const maxHistoryResultLines = 5
 
+// maxHistoryQueryRunes 历史条目头部展示的 query 截断上限（原文仍完整存库，
+// 检索用 FTS 不受影响；超长 query 多为误粘贴，全量展示只会撑爆响应）。
+const maxHistoryQueryRunes = 200
+
+// truncateHistoryQuery 历史展示用 query 截断。
+func truncateHistoryQuery(q string) string {
+	if runes := []rune(q); len(runes) > maxHistoryQueryRunes {
+		return string(runes[:maxHistoryQueryRunes]) + "…"
+	}
+	return q
+}
+
 func formatHistory(query string, records []history.Record) string {
 	var b strings.Builder
 	if strings.TrimSpace(query) == "" {
 		fmt.Fprintf(&b, "# 搜索历史（最近 %d 条）\n", len(records))
 	} else {
-		fmt.Fprintf(&b, "# 搜索历史匹配 %q（%d 条）\n", query, len(records))
+		fmt.Fprintf(&b, "# 搜索历史匹配 %q（%d 条）\n", truncateHistoryQuery(query), len(records))
 	}
 	if len(records) == 0 {
 		b.WriteString("\n无历史记录。每次 smartsearch 成功后自动写入（search_history.enabled 开启时）。\n")
 		return b.String()
 	}
 	for _, r := range records {
-		fmt.Fprintf(&b, "\n## %s ｜ %s ｜ %d 条结果\n", r.Query, r.Mode, r.ResultCount)
+		fmt.Fprintf(&b, "\n## %s ｜ %s ｜ %d 条结果\n", truncateHistoryQuery(r.Query), r.Mode, r.ResultCount)
 		fmt.Fprintf(&b, "时间: %s\n", r.CreatedAt.Format("2006-01-02 15:04:05"))
 		for i, res := range r.Results {
 			if i >= maxHistoryResultLines {

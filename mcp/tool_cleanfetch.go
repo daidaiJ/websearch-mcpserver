@@ -149,7 +149,27 @@ func mergeFetchURLs(url string, urls []string) []string {
 	return out
 }
 
-// fetchCleanPage 抓取单个 URL：SSRF/HEAD 预检后按 mcp_hub.fetch_mode
+// fetchViaGithubAPI github.com 站点特判公共入口（cleanfetch 与 smartsearch 的
+// fetch_top_n 共用）：匹配则走 REST API 抓取并记遥测。matched=false 表示 URL
+// 不在特判范围；err 非 nil 表示 API 失败，调用方回落常规抓取链——Jina Reader
+// 能渲染 JS 页面，仍有产出可能。内部含 fetcher 的配额冷却（403/429 快速失败）。
+func fetchViaGithubAPI(ctx context.Context, rawURL string) (text string, matched bool, err error) {
+	if siteFetchGitHub == nil || !sitefetch.MatchGitHub(rawURL) {
+		return "", false, nil
+	}
+	started := time.Now()
+	text, err = siteFetchGitHub.Fetch(ctx, rawURL)
+	telemetry.RecordEventContext(ctx, telemetry.Event{
+		Kind: "provider", Provider: "github_api", Query: rawURL,
+		Success: err == nil, Duration: time.Since(started), ResultCount: 1, Error: err,
+	})
+	if err != nil {
+		log.Infof("github 站点特判 API 抓取失败(%v)，回落常规抓取链", err)
+	}
+	return text, true, err
+}
+
+// fetchCleanPage 抓取单个 URL：SSRF 预检后按 mcp_hub.fetch_mode
 // 选择远端抓取链（供应商 fetch API → MCP 托管抓取）与本地 webfetch/Jina 的
 // 顺序，任一层失败自动降级。
 func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
@@ -158,18 +178,9 @@ func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	}
 	// 站点特判：HTML 抓不到的站点（github.com 为 JS 渲染）优先走官方 API，
 	// 不做 headCheck、不进远端/本地降级链；API 失败（限流/403/路径不接管）时
-	// 回落常规抓取链——Jina Reader 能渲染 JS 页面，仍有产出可能。
-	if siteFetchGitHub != nil && sitefetch.MatchGitHub(rawURL) {
-		started := time.Now()
-		text, apiErr := siteFetchGitHub.Fetch(ctx, rawURL)
-		telemetry.RecordEventContext(ctx, telemetry.Event{
-			Kind: "provider", Provider: "github_api", Query: rawURL,
-			Success: apiErr == nil, Duration: time.Since(started), ResultCount: 1, Error: apiErr,
-		})
-		if apiErr == nil {
-			return text, nil
-		}
-		log.Infof("github 站点特判 API 抓取失败(%v)，回落常规抓取链", apiErr)
+	// 回落常规抓取链。
+	if text, matched, apiErr := fetchViaGithubAPI(ctx, rawURL); matched && apiErr == nil {
+		return text, nil
 	}
 	if err := headCheck(ctx, rawURL); err != nil {
 		return "", err

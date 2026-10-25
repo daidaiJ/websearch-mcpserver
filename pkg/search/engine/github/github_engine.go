@@ -209,13 +209,46 @@ func (e *githubEngine) buildURL(query string, page int, timeRange antirobot.Time
 	return searchEndpoint + "?" + q.Encode()
 }
 
-// truncateClauses 保留前 searchClauses 个空格分隔子句（引号短语视为一个子句）。
+// truncateClauses 保留前 searchClauses 个子句（引号短语视为一个子句）。
+// 引号感知分词保证截断不会把配对引号从中间切开——裸 Fields 截断可能产生
+// 不配对引号，GitHub search API 会以 422 拒绝整个查询。
 func truncateClauses(query string) string {
-	fields := strings.Fields(query)
+	fields := splitQuotedFields(query)
 	if len(fields) <= searchClauses {
 		return query
 	}
 	return strings.Join(fields[:searchClauses], " ")
+}
+
+// splitQuotedFields 按空白分词，双引号内的空白不切分（引号保留，维持
+// GitHub 查询语义）；不配对引号按普通字符处理，不额外修补。
+func splitQuotedFields(query string) []string {
+	var fields []string
+	var cur strings.Builder
+	inQuote := false
+	flush := func() {
+		if cur.Len() > 0 {
+			fields = append(fields, cur.String())
+			cur.Reset()
+		}
+	}
+	for _, r := range query {
+		switch r {
+		case '"':
+			inQuote = !inQuote
+			cur.WriteRune(r)
+		case ' ', '\t', '\n', '\r':
+			if inQuote {
+				cur.WriteRune(r)
+			} else {
+				flush()
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	flush()
+	return fields
 }
 
 // nextToken 轮转返回下一个 PAT（无 token 返回空 = 匿名档）。

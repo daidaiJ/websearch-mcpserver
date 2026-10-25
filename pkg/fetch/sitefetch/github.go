@@ -11,8 +11,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"websearch/pkg/antirobot"
+	"websearch/pkg/log"
 )
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
@@ -27,6 +31,9 @@ type GitHubFetcher struct {
 	tokens  []string
 	tokenIx atomic.Uint64
 	client  *http.Client
+
+	cooldownMu sync.Mutex
+	coolUntil  time.Time // 403/429 配额冷却截止（Retry-After / x-ratelimit-reset）
 }
 
 // NewGitHubFetcher tokens 为空时零 Key 匿名档（60/h）。
@@ -40,10 +47,14 @@ func NewGitHubFetcher(tokens []string) *GitHubFetcher {
 	return &GitHubFetcher{tokens: filtered, client: &http.Client{Timeout: 15 * time.Second}}
 }
 
-// MatchGitHub 判断 URL 是否属于 github.com（特判接管范围）。
+// MatchGitHub 判断 URL 是否属于 github.com（特判接管范围，含 www 前缀）。
 func MatchGitHub(rawURL string) bool {
 	u, err := url.Parse(rawURL)
-	return err == nil && strings.EqualFold(u.Host, "github.com")
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return strings.EqualFold(host, "github.com") || strings.EqualFold(host, "www.github.com")
 }
 
 // ghRepo API 元数据（仅取用到的字段）。
@@ -114,7 +125,7 @@ func (g *GitHubFetcher) fetchRepo(ctx context.Context, owner, repo string) (stri
 		metaBits = append(metaBits, meta.License.SPDX)
 	}
 	if meta.PushedAt != "" {
-		metaBits = append(metaBits, "最近推送 "+meta.PushedAt[:10])
+		metaBits = append(metaBits, "最近推送 "+pushedDate(meta.PushedAt))
 	}
 	if len(metaBits) > 0 {
 		fmt.Fprintf(&sb, "%s\n\n", strings.Join(metaBits, " · "))
@@ -130,16 +141,24 @@ func (g *GitHubFetcher) fetchRepo(ctx context.Context, owner, repo string) (stri
 	return sb.String(), nil
 }
 
+// pushedDate 取时间戳的 YYYY-MM-DD 段；畸形短串原样返回（裸切片会越界 panic）。
+func pushedDate(raw string) string {
+	if len(raw) >= 10 {
+		return raw[:10]
+	}
+	return raw
+}
+
 // fetchReadme 取 README raw（Accept: application/vnd.github.raw 即返回原文而非 base64）。
 func (g *GitHubFetcher) fetchReadme(ctx context.Context, owner, repo string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
-		fmt.Sprintf("%s/repos/%s/%s/readme", apiEndpoint, owner, repo), nil)
+		fmt.Sprintf("%s/repos/%s/%s/readme", apiEndpoint, url.PathEscape(owner), url.PathEscape(repo)), nil)
 	if err != nil {
 		return "", err
 	}
 	g.setHeaders(req)
 	req.Header.Set("Accept", "application/vnd.github.raw")
-	resp, err := g.client.Do(req)
+	resp, err := g.do(req)
 	if err != nil {
 		return "", err
 	}
@@ -156,15 +175,21 @@ func (g *GitHubFetcher) fetchReadme(ctx context.Context, owner, repo string) (st
 
 // fetchContents 取 blob 页源文件：contents API + Accept raw 返回原文（消耗 core 配额）。
 func (g *GitHubFetcher) fetchContents(ctx context.Context, owner, repo, branch string, filePath []string) (string, error) {
+	// path 各段逐段 PathEscape：QueryEscape 会把空格编码成 "+"（query 语义，path 中是
+	// 字面加号），裸拼则可能带入未转义的分隔符。
+	esc := make([]string, 0, len(filePath))
+	for _, seg := range filePath {
+		esc = append(esc, url.PathEscape(seg))
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET",
-		fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", apiEndpoint, owner, repo,
-			strings.Join(filePath, "/"), url.QueryEscape(branch)), nil)
+		fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", apiEndpoint, url.PathEscape(owner), url.PathEscape(repo),
+			strings.Join(esc, "/"), url.QueryEscape(branch)), nil)
 	if err != nil {
 		return "", err
 	}
 	g.setHeaders(req)
 	req.Header.Set("Accept", "application/vnd.github.raw")
-	resp, err := g.client.Do(req)
+	resp, err := g.do(req)
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +215,7 @@ func (g *GitHubFetcher) apiGet(ctx context.Context, endpoint string, out any) er
 	}
 	g.setHeaders(req)
 	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := g.client.Do(req)
+	resp, err := g.do(req)
 	if err != nil {
 		return err
 	}
@@ -203,6 +228,65 @@ func (g *GitHubFetcher) apiGet(ctx context.Context, endpoint string, out any) er
 		return fmt.Errorf("github api HTTP %d", resp.StatusCode)
 	}
 	return json.Unmarshal(body, out)
+}
+
+// do 统一执行 API 请求并施加配额冷却：冷却中快速失败（调用方回退常规抓取链），
+// 403/429 进入冷却后再失败——匿名 core 60/h、每个仓库页 2 次调用，配额耗尽后
+// 连打只会持续 403，主动冷却让 cleanfetch/fetch_top_n 立即走 webfetch→Jina 链。
+func (g *GitHubFetcher) do(req *http.Request) (*http.Response, error) {
+	if rest := g.cooldownRemaining(); rest > 0 {
+		return nil, fmt.Errorf("github api 配额冷却中（剩余 %.0fs）", rest.Seconds())
+	}
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		g.enterCooldown(resp)
+		resp.Body.Close()
+		return nil, fmt.Errorf("github api HTTP %d rate-limited", resp.StatusCode)
+	}
+	return resp, nil
+}
+
+// enterCooldown 按 Retry-After / x-ratelimit-reset 进入冷却（封顶 10 分钟），
+// 与搜索引擎侧 github.NewGitHub 同一套口径；本端只做本地冷却，不进全局健康位。
+func (g *GitHubFetcher) enterCooldown(resp *http.Response) {
+	cd := antirobot.ParseRetryAfter(resp.Header.Get("Retry-After"))
+	if cd <= 0 {
+		if reset := parseResetHeader(resp.Header.Get("x-ratelimit-reset")); !reset.IsZero() {
+			cd = time.Until(reset)
+		}
+	}
+	if cd <= 0 {
+		cd = 60 * time.Second
+	}
+	if cd > 10*time.Minute {
+		cd = 10 * time.Minute
+	}
+	until := time.Now().Add(cd)
+	g.cooldownMu.Lock()
+	g.coolUntil = until
+	g.cooldownMu.Unlock()
+	log.Warnf("github fetch API 限流（HTTP %d），冷却 %.0fs", resp.StatusCode, cd.Seconds())
+}
+
+func (g *GitHubFetcher) cooldownRemaining() time.Duration {
+	g.cooldownMu.Lock()
+	defer g.cooldownMu.Unlock()
+	if d := time.Until(g.coolUntil); d > 0 {
+		return d
+	}
+	return 0
+}
+
+// parseResetHeader 解析 x-ratelimit-reset（epoch 秒）。
+func parseResetHeader(v string) time.Time {
+	var sec int64
+	if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &sec); err != nil || sec <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(sec, 0)
 }
 
 // setHeaders 公共头：UA 必填（GitHub API 要求），PAT 轮转提额 5000/h。

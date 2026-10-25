@@ -145,9 +145,18 @@ func (s *Service) Get(ctx context.Context) []Item {
 // 不参与计算），官方失败则回退本地用量。
 func (s *Service) collect(ctx context.Context) []Item {
 	now := s.clock()
+	// 两个官方端点并行查询：各自 12s 超时，串行最坏 24s 会拖慢控制中心面板。
+	var (
+		wg                 sync.WaitGroup
+		tavilyItem, tfItem Item
+	)
+	wg.Add(2)
+	go func() { defer wg.Done(); tavilyItem = s.tavily(ctx) }()
+	go func() { defer wg.Done(); tfItem = s.tinyfish(ctx) }()
+	wg.Wait()
 	official := map[string]Item{
-		providerTavily:   s.tavily(ctx),
-		providerTinyfish: s.tinyfish(ctx),
+		providerTavily:   tavilyItem,
+		providerTinyfish: tfItem,
 	}
 	byName := make(map[string]Item)
 	if s.store != nil {

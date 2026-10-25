@@ -250,6 +250,11 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 	case "exact_intent":
 		if rec.Summary != "" {
 			log.Infof("缓存命中(exact_intent+summary): query=%s", query)
+			// 缓存命中也是一次完成的搜索：写历史与工具描述
+			// 「每次 smartsearch 成功后自动写入」口径一致（快照解析失败时跳过）
+			if parseErr == nil {
+				recordSearchHistory(query, results)
+			}
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + rec.Summary}}}, true
 		}
 		fallthrough
@@ -258,6 +263,7 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 			return nil, false
 		}
 		log.Infof("缓存命中(query_only): query=%s", query)
+		recordSearchHistory(query, results)
 		ret, mergeErr := formatRawResults(query, results)
 		if mergeErr != nil {
 			return nil, false
@@ -468,10 +474,14 @@ func isAntiBotFailure(err error) bool {
 
 // fetchPageContent fetch_top_n 的单条抓取路径：SSRF 预检 + HEAD 体积预检 +
 // webfetch 抓取 + 字节上限截断，与 cleanfetch 的 fetchCleanPage 同一套防线（F4）。
-// webfetch 未就绪时惰性初始化，仍失败则报错（fail closed，F1）。
+// github.com 站点特判与 cleanfetch 同口径（JS 渲染页 webfetch 抓不到正文，
+// 优先 REST API）；webfetch 未就绪时惰性初始化，仍失败则报错（fail closed，F1）。
 func fetchPageContent(ctx context.Context, rawURL string) (pageContent, error) {
 	if err := validateURLSecurity(rawURL); err != nil {
 		return pageContent{}, err
+	}
+	if text, matched, apiErr := fetchViaGithubAPI(ctx, rawURL); matched && apiErr == nil {
+		return pageContent{text: truncateFetchContent(text)}, nil
 	}
 	if err := headCheck(ctx, rawURL); err != nil {
 		return pageContent{}, err

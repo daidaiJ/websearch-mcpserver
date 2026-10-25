@@ -142,3 +142,20 @@ func TestGitHubBuildURLTimeRangeAndPaging(t *testing.T) {
 		t.Fatalf("超长查询应截断到 5 个子句: %s", longURL)
 	}
 }
+
+func TestGitHubTruncateClausesQuoteAware(t *testing.T) {
+	// 引号短语计一个子句：截断保留配对引号，不会切出不配对引号（GitHub 422）
+	q := `"hello world" a b c d e f g`
+	got := truncateClauses(q)
+	if got != `"hello world" a b c d` {
+		t.Fatalf("引号短语应计一个子句: %q", got)
+	}
+	if strings.Count(got, `"`)%2 != 0 {
+		t.Fatalf("截断结果引号不配对: %q", got)
+	}
+	// 未超限原样返回
+	same := `foo "bar baz" qux`
+	if got := truncateClauses(same); got != same {
+		t.Fatalf("未超限不应改动: %q", got)
+	}
+}
