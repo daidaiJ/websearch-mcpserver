@@ -1,13 +1,14 @@
 package adapter
 
 import (
-	"websearch/pkg/search/core"
-
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
+	"websearch/pkg/search/core"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ func (a *EngineSearchAdapter) SearchRawContext(ctx context.Context, query string
 		if len(failures) > 0 {
 			return nil, fmt.Errorf("%s search failed: %s", a.name, strings.Join(failures, "; "))
 		}
-		return nil, fmt.Errorf("%s 搜索无结果", a.name)
+		return nil, errors.New(i18n.T("search.adapter.engine_no_results_named", "Name", a.name))
 	}
 
 	results := make([]core.SearchResult, 0, len(all))
@@ -81,7 +82,7 @@ func (a *EngineSearchAdapter) SearchRawContext(ctx context.Context, query string
 
 func (a *EngineSearchAdapter) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果")
+		return "", errors.New(i18n.T("search.adapter.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))

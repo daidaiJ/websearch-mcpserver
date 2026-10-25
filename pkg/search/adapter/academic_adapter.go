@@ -1,9 +1,6 @@
 package adapter
 
 import (
-	"websearch/pkg/search/core"
-	"websearch/pkg/search/enhance"
-
 	"context"
 	"errors"
 	"fmt"
@@ -16,8 +13,11 @@ import (
 
 	"websearch/pkg/academic"
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
+	"websearch/pkg/search/core"
+	"websearch/pkg/search/enhance"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ func (a *AcademicAdapter) SearchAcademicRawContext(ctx context.Context, query st
 	if len(opt.Engines) > 0 {
 		filtered := a.filterEngines(opt.Engines)
 		if len(filtered) == 0 {
-			return core.AcademicSearchResult{}, fmt.Errorf("指定的引擎均不可用: %v", opt.Engines)
+			return core.AcademicSearchResult{}, errors.New(i18n.T("search.academic.engines_unavailable", "Engines", opt.Engines))
 		}
 		searcher = antirobot.NewSearcher(antirobot.StrategyParallel, filtered)
 	}
@@ -223,9 +223,9 @@ func (a *AcademicAdapter) lookupPaper(ctx context.Context, kind, id string, engi
 	if len(raw) == 0 {
 		result := core.AcademicSearchResult{EngineErrors: engineErrors, AttemptedEngines: attempted}
 		if len(causes) > 0 {
-			return result, fmt.Errorf("精确学术检索失败: %w", errors.Join(causes...))
+			return result, fmt.Errorf("%s: %w", i18n.T("search.academic.exact_failed"), errors.Join(causes...))
 		}
-		return result, fmt.Errorf("学术引擎搜索无结果")
+		return result, errors.New(i18n.T("search.academic.no_results"))
 	}
 	raw = antirobot.DeduplicateResults(raw)
 	results := toSearchResults(raw)
@@ -260,9 +260,9 @@ func (a *AcademicAdapter) enrichOAPDF(ctx context.Context, results []core.Search
 // noResultError 区分正常空结果与包含引擎失败的不可用结果。
 func noResultError(engineErrors map[string]string) error {
 	if len(engineErrors) == 0 {
-		return fmt.Errorf("学术引擎搜索无结果")
+		return errors.New(i18n.T("search.academic.no_results"))
 	}
-	return fmt.Errorf("学术检索未返回可用结果，存在引擎失败（%s）", engineErrorSummary(engineErrors))
+	return errors.New(i18n.T("search.academic.no_usable_results", "Errors", engineErrorSummary(engineErrors)))
 }
 
 // engineErrorSummary 把逐引擎错误拼成单行摘要（引擎名稳定排序）。
@@ -300,7 +300,7 @@ func toSearchResults(all []antirobot.Result) []core.SearchResult {
 // MergeContent 格式化学术搜索结果为 Markdown。
 func (a *AcademicAdapter) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果")
+		return "", errors.New(i18n.T("search.adapter.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))
@@ -334,9 +334,9 @@ func (a *AcademicAdapter) MergeContentWithErrors(query string, results []core.Se
 	}
 	var b strings.Builder
 	b.WriteString(out)
-	b.WriteString("\n> ⚠ 部分引擎本次失败，结果可能不完整：")
+	b.WriteString(i18n.T("search.academic.partial_failure_warning"))
 	for _, n := range slices.Sorted(maps.Keys(engineErrors)) {
-		b.WriteString(fmt.Sprintf("%s (%s)；", n, engineErrors[n]))
+		b.WriteString(i18n.T("search.academic.engine_failure_item", "Name", n, "Err", engineErrors[n]))
 	}
 	return b.String(), nil
 }

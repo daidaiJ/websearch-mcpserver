@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -271,7 +272,7 @@ func (e *ddgEngine) enterCooldown(retryAfter time.Duration) {
 	e.cooldown = cd
 	e.cooldownUntil = until
 	e.mu.Unlock()
-	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, "HTTP 202/429 限流", until, cd)
+	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_202_429"), until, cd)
 }
 
 // adoptPersistedCooldown 收养上一次进程落盘的冷却：未过期则继续避让至截止时间，

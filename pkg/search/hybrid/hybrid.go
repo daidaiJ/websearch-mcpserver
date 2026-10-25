@@ -1,9 +1,6 @@
 package hybrid
 
 import (
-	"websearch/pkg/search/core"
-	"websearch/pkg/search/enhance"
-
 	"context"
 	"errors"
 	"fmt"
@@ -15,7 +12,10 @@ import (
 	"unicode"
 
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
+	"websearch/pkg/search/core"
+	"websearch/pkg/search/enhance"
 	"websearch/pkg/telemetry"
 )
 
@@ -176,7 +176,7 @@ func (h *HybridSearchImpl) run(ctx context.Context, query string, lookbackDays i
 }
 
 // errEngineTimeout 引擎未在软超时内返回（引擎自身仍在后台收尾）。
-var errEngineTimeout = errors.New("引擎响应超时")
+var errEngineTimeout = errors.New("engine response timeout")
 
 // callEngine 调用单个引擎：实现 ContextSearcher / ContextTimeRanger 的引擎直接
 // 接收 ctx；旧实现者由本函数兜底——软超时或请求取消时放弃等待，按 timeout 失败
@@ -275,9 +275,9 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 	}
 	if len(allResults) == 0 {
 		if len(errSummaries) > 0 {
-			return nil, diag, fmt.Errorf("所有搜索引擎均失败: %s", strings.Join(errSummaries, "; "))
+			return nil, diag, errors.New(i18n.T("search.hybrid.all_engines_failed_detail", "Errors", strings.Join(errSummaries, "; ")))
 		}
-		return nil, diag, fmt.Errorf("所有搜索引擎均失败")
+		return nil, diag, errors.New(i18n.T("search.hybrid.all_engines_failed"))
 	}
 
 	// 按 index 排序保证结果顺序稳定
@@ -389,13 +389,13 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 		enhanced := enhance.EnhanceResultsMMR(query, buckets, h.relevanceThreshold, h.maxSize, h.mmr)
 		diag.AddFilterDrop(core.FilterDropEnhance, totalIn-len(enhanced))
 		if len(enhanced) == 0 {
-			return nil, diag, fmt.Errorf("所有搜索引擎均未返回有效结果")
+			return nil, diag, errors.New(i18n.T("search.hybrid.no_valid_results"))
 		}
 		return enhanced, diag, nil
 	}
 
 	if len(merged) == 0 {
-		return nil, diag, fmt.Errorf("所有搜索引擎均未返回有效结果")
+		return nil, diag, errors.New(i18n.T("search.hybrid.no_valid_results"))
 	}
 
 	// 全局 maxsize 截断（按 score 排序后）
@@ -466,14 +466,12 @@ func (h *HybridSearchImpl) offTopicGuard(query string, buckets []engineBucket, d
 		if len(b.results) >= offTopicMinBucket && echoRatio(b.results, other) <= offTopicMaxEchoRatio {
 			suspected = append(suspected, b)
 			if mode == config.OffTopicGuardShadow {
-				diag.AddFailures(b.name, core.FailureOffTopic,
-					"shadow：整桶结果几乎不包含查询其余词，疑似不相关诱饵页；未丢弃（off_topic_guard=shadow）")
+				diag.AddFailures(b.name, core.FailureOffTopic, i18n.T("search.hybrid.off_topic_shadow"))
 				log.WarnT("log.search.hybrid.hybrid_engine_bucket_off_topic_shadow_kept", "name", b.name, "len", len(b.results))
 				kept = append(kept, b)
 				continue
 			}
-			diag.AddFailures(b.name, core.FailureOffTopic,
-				"整桶结果几乎不包含查询其余词，疑似不相关诱饵页，已整桶丢弃")
+			diag.AddFailures(b.name, core.FailureOffTopic, i18n.T("search.hybrid.off_topic_dropped"))
 			log.WarnT("log.search.hybrid.hybrid_engine_bucket_off_topic_dropped", "name", b.name, "len", len(b.results))
 			continue
 		}
@@ -645,7 +643,7 @@ func roundRobin(buckets map[string][]core.SearchResult, order []string, limit in
 
 func (h *HybridSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有结果可合并")
+		return "", errors.New(i18n.T("search.hybrid.nothing_to_merge"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))

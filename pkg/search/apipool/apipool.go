@@ -8,10 +8,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"websearch/pkg/i18n"
+	"websearch/pkg/log"
 	"websearch/pkg/search/core"
 	"websearch/pkg/search/provider"
-
-	"websearch/pkg/log"
 	"websearch/pkg/telemetry"
 )
 
@@ -106,7 +107,7 @@ func (a *ApipoolSearchImpl) searchRaw(ctx context.Context, query string, lookbac
 	}
 	n := len(a.providers)
 	if n == 0 {
-		return nil, fmt.Errorf("apipool: 无可用供应商")
+		return nil, errors.New(i18n.T("search.apipool.no_providers"))
 	}
 
 	start := a.pickStartIndex()
@@ -114,7 +115,7 @@ func (a *ApipoolSearchImpl) searchRaw(ctx context.Context, query string, lookbac
 	var lastErr error
 	for i := 0; i < n; i++ {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("apipool: 请求已取消: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.request_canceled"), err)
 		}
 		p := a.providers[(start+i)%n]
 		results, err := a.callProviderWithRetry(ctx, p, query, lookbackDays)
@@ -124,7 +125,7 @@ func (a *ApipoolSearchImpl) searchRaw(ctx context.Context, query string, lookbac
 		log.InfoT("log.search.apipool.apipool_all_sks_of_unavailable_switching", "name", p.engine.Name(), "err", err)
 		lastErr = err
 	}
-	return nil, fmt.Errorf("apipool: 所有供应商均失败，最后错误: %w", lastErr)
+	return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.all_providers_failed"), lastErr)
 }
 
 // pickStartIndex 确定起始供应商索引。
@@ -204,7 +205,7 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p Apipool
 	var lastErr error
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("apipool: 请求已取消: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.request_canceled"), err)
 		}
 		results, err := a.callSingle(ctx, p, query, lookbackDays)
 		if err == nil {
@@ -220,7 +221,7 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p Apipool
 		}
 		lastErr = err
 		if p.pool.Available() == 0 {
-			return nil, fmt.Errorf("%s 所有 SK 均失败: %w", p.engine.Name(), lastErr)
+			return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.all_keys_failed", "Name", p.engine.Name()), lastErr)
 		}
 		log.InfoT("log.search.apipool.apipool_current_sk_failed_trying_the", "name", p.engine.Name())
 	}
@@ -258,7 +259,7 @@ func (a *ApipoolSearchImpl) callSingle(ctx context.Context, p ApipoolProvider, q
 
 func (a *ApipoolSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))

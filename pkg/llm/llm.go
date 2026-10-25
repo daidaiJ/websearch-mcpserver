@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -100,7 +102,7 @@ func (c *Client) ChatWithContext(ctx context.Context, systemPrompt, userPrompt s
 	}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", fmt.Errorf("llm request marshal 失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("search.llm.marshal_failed"), err)
 	}
 
 	var resp ChatResponse
@@ -114,13 +116,13 @@ func (c *Client) ChatWithContext(ctx context.Context, systemPrompt, userPrompt s
 		Post(url)
 	if err != nil {
 		log.ErrorT("log.llm.llm_req_failed", "error", err.Error())
-		return "", fmt.Errorf("llm api 调用失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("search.llm.call_failed"), err)
 	}
 	if res.StatusCode() != 200 {
-		return "", fmt.Errorf("llm api 返回错误状态码: %d", res.StatusCode())
+		return "", errors.New(i18n.T("search.llm.bad_status", "Status", res.StatusCode()))
 	}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("llm api 返回空结果")
+		return "", errors.New(i18n.T("search.llm.empty_result"))
 	}
 	return resp.Choices[0].Message.Content, nil
 }
@@ -153,7 +155,7 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 	}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
-		streamErr = fmt.Errorf("llm request marshal 失败: %w", err)
+		streamErr = fmt.Errorf("%s: %w", i18n.T("search.llm.marshal_failed"), err)
 		return
 	}
 
@@ -167,13 +169,13 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 		Post(url)
 	if err != nil {
 		log.ErrorT("log.llm.llm_stream_req_failed", "error", err.Error())
-		streamErr = fmt.Errorf("llm api 调用失败: %w", err)
+		streamErr = fmt.Errorf("%s: %w", i18n.T("search.llm.call_failed"), err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode() != 200 {
-		streamErr = fmt.Errorf("llm api 返回错误状态码: %d", resp.StatusCode())
+		streamErr = errors.New(i18n.T("search.llm.bad_status", "Status", resp.StatusCode()))
 		return
 	}
 
@@ -209,7 +211,7 @@ func (c *Client) ChatStream(ctx context.Context, systemPrompt, userPrompt string
 	}
 	if err := scanner.Err(); err != nil {
 		log.ErrorT("log.llm.llm_stream_read_failed", "error", err.Error())
-		streamErr = fmt.Errorf("llm 流式读取失败: %w", err)
+		streamErr = fmt.Errorf("%s: %w", i18n.T("search.llm.stream_read_failed"), err)
 		return
 	}
 }

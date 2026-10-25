@@ -3,6 +3,7 @@ package googlenews
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"websearch/pkg/i18n"
 
 	"websearch/pkg/antirobot"
 )
@@ -179,7 +182,7 @@ func fetchShellAttrs(ctx context.Context, client *http.Client, articleURL string
 	tsM := tsRe.FindStringSubmatch(html)
 	idM := idRe.FindStringSubmatch(html)
 	if sgM == nil || tsM == nil || idM == nil {
-		return "", "", "", fmt.Errorf("shell page 缺少 data-n-a-* 属性（页面结构可能已变化）")
+		return "", "", "", errors.New(i18n.T("search.engine.googlenews_shell_missing_attrs"))
 	}
 	return sgM[1], tsM[1], idM[1], nil
 }
@@ -189,7 +192,7 @@ func fetchShellAttrs(ctx context.Context, client *http.Client, articleURL string
 func postBatchExecute(ctx context.Context, client *http.Client, sg, ts, articleID string) (string, error) {
 	tsNum, err := strconv.ParseInt(ts, 10, 64)
 	if err != nil {
-		return "", fmt.Errorf("ts 非数字: %q", ts)
+		return "", errors.New(i18n.T("search.engine.googlenews_ts_not_numeric", "Value", ts))
 	}
 	inner, err := json.Marshal([]any{
 		"garturlreq",
@@ -227,7 +230,7 @@ func postBatchExecute(ctx context.Context, client *http.Client, sg, ts, articleI
 	}
 	m := garturlRe.FindStringSubmatch(readBounded(resp.Body))
 	if m == nil {
-		return "", fmt.Errorf("batchexecute 响应中无 garturlres")
+		return "", errors.New(i18n.T("search.engine.googlenews_no_garturlres"))
 	}
 	return m[1], nil
 }

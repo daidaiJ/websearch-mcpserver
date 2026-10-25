@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"websearch/pkg/i18n"
 )
 
 // FailureKind 引擎失败类型，与学术搜索逐引擎错误透传统一口径。
@@ -130,7 +132,7 @@ func (d *SearchDiagnostics) FormatFailures() string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n> ⚠ 部分引擎本次失败，结果可能不完整：\n")
+	b.WriteString(i18n.T("search.core.partial_failure_warning"))
 	failures := make([]EngineFailure, len(d.Failures))
 	copy(failures, d.Failures)
 	sort.SliceStable(failures, func(i, j int) bool { return failures[i].Engine < failures[j].Engine })
@@ -159,9 +161,9 @@ func (d *SearchDiagnostics) FormatFilterDrops() string {
 	sort.Strings(names)
 	parts := make([]string, 0, len(names))
 	for _, n := range names {
-		parts = append(parts, fmt.Sprintf("%s 丢弃 %d 条", n, d.FilterDrops[n]))
+		parts = append(parts, i18n.T("search.core.filter_drop_item", "Name", n, "Count", d.FilterDrops[n]))
 	}
-	return fmt.Sprintf("\n> 🔍 过滤诊断（结果稀疏，共过滤掉 %d 条）： %s。可尝试放宽 smartsearch.relevance_threshold / engines.<name>.min_score 后重搜。\n", total, strings.Join(parts, "、"))
+	return i18n.T("search.core.filter_diagnostics", "Total", total, "Parts", strings.Join(parts, i18n.T("search.core.filter_drop_separator")))
 }
 
 // FilterDropMinScore / FilterDropDedup 等为过滤器统计口径的固定命名，

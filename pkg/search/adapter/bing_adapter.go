@@ -1,13 +1,13 @@
 package adapter
 
 import (
-	"websearch/pkg/search/core"
-
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
+	"websearch/pkg/search/core"
 	"websearch/pkg/search/engine/bing"
 )
 
@@ -49,7 +49,7 @@ func (a *BingSearchAdapter) Name() string { return "bing" }
 
 func (a *BingSearchAdapter) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果")
+		return "", errors.New(i18n.T("search.adapter.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))
@@ -85,7 +85,7 @@ func (a *BingSearchAdapter) doSearch(ctx context.Context, query string) ([]core.
 	all = antirobot.DeduplicateResults(all)
 
 	if len(all) == 0 {
-		return nil, fmt.Errorf("引擎搜索无结果")
+		return nil, errors.New(i18n.T("search.adapter.engine_no_results"))
 	}
 
 	results := make([]core.SearchResult, 0, len(all))

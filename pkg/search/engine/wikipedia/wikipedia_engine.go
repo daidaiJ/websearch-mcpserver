@@ -5,6 +5,7 @@ package wikipedia
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
 )
@@ -121,10 +123,10 @@ func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.Tim
 
 	var parsed wikiSearchResp
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, fmt.Errorf("wikipedia API 响应解析失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("search.engine.wikipedia_parse_failed"), err)
 	}
 	if parsed.Error.Code != "" {
-		return nil, fmt.Errorf("wikipedia API 错误: %s", parsed.Error.Info)
+		return nil, errors.New(i18n.T("search.engine.wikipedia_api_error", "Info", parsed.Error.Info))
 	}
 
 	results := make([]antirobot.Result, 0, len(parsed.Query.Search))

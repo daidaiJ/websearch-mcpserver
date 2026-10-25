@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search/core"
 )
@@ -34,7 +35,7 @@ func (s *Summarizer) Summarize(query, intent string, results []core.SearchResult
 
 	summary, err := s.llm.Chat(systemPrompt, userPrompt)
 	if err != nil {
-		return "", fmt.Errorf("LLM 摘要生成失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("search.llm.summarize_failed"), err)
 	}
 
 	output := FormatCitation(query, summary, results)

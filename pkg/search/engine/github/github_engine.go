@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -151,7 +152,7 @@ func (e *githubEngine) Search(query string, page int, timeRange antirobot.TimeRa
 
 	var parsed ghSearchResp
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, fmt.Errorf("github API 响应解析失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("search.engine.github_parse_failed"), err)
 	}
 	results := make([]antirobot.Result, 0, len(parsed.Items))
 	for _, item := range parsed.Items {
@@ -277,7 +278,7 @@ func (e *githubEngine) enterCooldown(resp *http.Response) {
 	e.cooldownMu.Lock()
 	e.coolUntil = until
 	e.cooldownMu.Unlock()
-	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, "HTTP 403/429 限流", until, cd)
+	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_403_429"), until, cd)
 }
 
 func (e *githubEngine) cooldownRemaining() time.Duration {

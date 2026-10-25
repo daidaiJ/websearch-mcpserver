@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 
 	_ "modernc.org/sqlite"
@@ -61,13 +62,13 @@ func New(storagePath string, retentionDays int) (*Store, error) {
 	}
 	dir := filepath.Dir(storagePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("创建历史目录失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("search.history.mkdir_failed"), err)
 	}
 	// PRAGMA 与 cache/telemetry 同口径：WAL 并发读 + busy_timeout 写排队。
 	dsn := storagePath + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("打开 SQLite 失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("search.history.open_failed"), err)
 	}
 	db.SetMaxOpenConns(2)
 	if _, err := db.Exec(`
@@ -93,7 +94,7 @@ func New(storagePath string, retentionDays int) (*Store, error) {
 		END;
 	`); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("建表失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("search.history.create_table_failed"), err)
 	}
 	s := &Store{db: db, retention: time.Duration(retentionDays) * 24 * time.Hour, stopClean: make(chan struct{})}
 	// 启动即清一次过期行，之后周期清理。
@@ -117,14 +118,14 @@ func (s *Store) Insert(query, mode string, results []core.SearchResult) error {
 	snapshot := snapshotResults(results)
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
-		return fmt.Errorf("history 序列化失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("search.history.marshal_failed"), err)
 	}
 	// FTS titles 列复用 results JSON（触发器同步）；FTS 只需可分词文本。
 	_, err = s.db.Exec(
 		`INSERT INTO search_history (query, mode, results, result_count, created_at) VALUES (?, ?, ?, ?, ?)`,
 		query, mode, string(raw), len(snapshot), time.Now().Unix())
 	if err != nil {
-		return fmt.Errorf("history 写入失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("search.history.write_failed"), err)
 	}
 	return nil
 }
@@ -157,7 +158,7 @@ func (s *Store) Search(query string, limit, offset int) ([]Record, error) {
 			 ORDER BY h.created_at DESC, h.id DESC LIMIT ? OFFSET ?`, ftsQuery(query), limit, offset)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("history 检索失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("search.history.query_failed"), err)
 	}
 	defer rows.Close()
 	var out []Record
@@ -185,7 +186,7 @@ func (s *Store) Cleanup() error {
 	cutoff := time.Now().Add(-s.retention).Unix()
 	_, err := s.db.Exec(`DELETE FROM search_history WHERE created_at < ?`, cutoff)
 	if err != nil {
-		return fmt.Errorf("history 清理失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("search.history.cleanup_failed"), err)
 	}
 	return nil
 }

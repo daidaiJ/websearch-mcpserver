@@ -3,6 +3,8 @@ package llm
 import (
 	"fmt"
 	"strings"
+
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -63,7 +65,7 @@ func BuildUserPrompt(query, intent string, results []core.SearchResult) string {
 // FormatCitation 将 LLM 返回的摘要格式化为最终的 Markdown 输出。
 func FormatCitation(query string, summary string, results []core.SearchResult) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "#搜索摘要\n查询: %s\n\n", query)
+	fmt.Fprintf(&sb, "%s", i18n.T("search.llm.summary_header", "Query", query))
 	sb.WriteString(summary)
 	sb.WriteString("\n")
 	return sb.String()

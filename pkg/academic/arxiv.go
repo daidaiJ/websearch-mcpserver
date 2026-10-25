@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
 )
@@ -212,7 +213,7 @@ func (e *arxivEngine) enterCooldown(retryAfter time.Duration) {
 	e.cooldown = cd
 	e.cooldownUntil = until
 	e.mu.Unlock()
-	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, "HTTP 429/503 限流", until, cd)
+	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_429_503"), until, cd)
 }
 
 // cooldownRemaining 返回冷却剩余时长，不在冷却期返回 0。
