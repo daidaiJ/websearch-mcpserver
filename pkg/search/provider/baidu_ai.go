@@ -2,9 +2,12 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -94,7 +97,7 @@ func (b *BaiduAISearchImpl) Name() string { return b.name }
 func (b *BaiduAISearchImpl) Search(query string) (string, error) {
 	results, err := b.SearchRaw(query)
 	if err != nil {
-		return "", fmt.Errorf("百度智能搜索api 调用失败，%w", err)
+		return "", fmt.Errorf("%s, %w", i18n.T("provider.baidu_ai.call_failed"), err)
 	}
 	return b.MergeContent(query, results)
 }
@@ -146,13 +149,13 @@ func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.Se
 		SetResult(&resp).
 		Post("https://qianfan.baidubce.com/v2/ai_search/chat/completions")
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("百度智能搜索api 调用失败，%w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s, %w", i18n.T("provider.baidu_ai.call_failed"), err)}
 	}
 	if res.StatusCode() != 200 {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("百度智能搜索api 返回错误状态码: %d", res.StatusCode())}
+		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.baidu_ai.bad_status", "Status", res.StatusCode()))}
 	}
 	if len(resp.References) == 0 && len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("百度智能搜索api 内容为空")
+		return nil, errors.New(i18n.T("provider.baidu_ai.empty_content"))
 	}
 
 	// 将 AI 回答的 content 存入第一条结果的 Content 字段，便于 MergeContent 使用
@@ -165,7 +168,7 @@ func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.Se
 	// AI 回答作为第一条结果（如果有）
 	if aiAnswer != "" {
 		ret = append(ret, core.SearchResult{
-			Title:   "AI 回答",
+			Title:   i18n.T("provider.baidu_ai.answer_title"),
 			Url:     "",
 			Content: aiAnswer,
 			Engine:  b.name,
@@ -186,7 +189,7 @@ func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.Se
 
 func (b *BaiduAISearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 
 	var buf strings.Builder
@@ -195,10 +198,10 @@ func (b *BaiduAISearchImpl) MergeContent(query string, results []core.SearchResu
 
 	// 第一条如果是 AI 回答，单独格式化
 	startIdx := 0
-	if len(results) > 0 && results[0].Title == "AI 回答" {
-		buf.WriteString("\n## 🤖 AI 回答\n\n")
+	if len(results) > 0 && results[0].Title == i18n.T("provider.baidu_ai.answer_title") {
+		buf.WriteString(i18n.T("provider.baidu_ai.answer_section"))
 		buf.WriteString(results[0].Content)
-		buf.WriteString("\n\n---\n\n## 📚 参考来源\n\n")
+		buf.WriteString(i18n.T("provider.baidu_ai.sources_section"))
 		startIdx = 1
 	}
 

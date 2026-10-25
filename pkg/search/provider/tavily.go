@@ -2,9 +2,12 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -140,13 +143,13 @@ func (t *TavilySearchImpl) search(ctx context.Context, query string) ([]core.Sea
 		SetResult(&resp).
 		Post("https://api.tavily.com/search")
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("tavily 搜索api 调用失败，%w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s, %w", i18n.T("provider.tavily.call_failed"), err)}
 	}
 	if res.StatusCode() != 200 {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("tavily 搜索api 返回错误状态码: %d", res.StatusCode())}
+		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.tavily.bad_status", "Status", res.StatusCode()))}
 	}
 	if len(resp.Results) == 0 {
-		return nil, fmt.Errorf("tavily 搜索api 内容为空")
+		return nil, errors.New(i18n.T("provider.tavily.empty_content"))
 	}
 	ret := make([]core.SearchResult, 0, len(resp.Results))
 	for _, val := range resp.Results {
@@ -165,7 +168,7 @@ func (t *TavilySearchImpl) MergeContent(query string, results []core.SearchResul
 
 	if len(results) == 0 {
 
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 
 	}
 	var buf strings.Builder

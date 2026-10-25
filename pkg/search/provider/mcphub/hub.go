@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
 	"websearch/pkg/search/core"
@@ -144,7 +145,7 @@ func (s *server) Search(ctx context.Context, query string, max int) ([]core.Sear
 		return nil, fmt.Errorf("%s: %w", s.name, err)
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("%s: 空结果", s.name)
+		return nil, fmt.Errorf("%s: %s", s.name, i18n.T("provider.mcphub.empty_results"))
 	}
 	return results, nil
 }
@@ -159,12 +160,12 @@ func (s *server) Fetch(ctx context.Context, rawURL string, maxChars int) (string
 		return "", fmt.Errorf("%s: %w", s.name, err)
 	}
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("%s: 抓取结果为空", s.name)
+		return "", fmt.Errorf("%s: %s", s.name, i18n.T("provider.mcphub.fetch_empty"))
 	}
 	if maxChars > 0 {
 		runes := []rune(text)
 		if len(runes) > maxChars {
-			text = string(runes[:maxChars]) + fmt.Sprintf("\n\n...（已截断，原长度 %d 字符；可调大 mcp_hub.max_fetch_chars）", len(runes))
+			text = string(runes[:maxChars]) + i18n.T("provider.mcphub.fetch_truncated", "Chars", len(runes))
 		}
 	}
 	return text, nil
@@ -228,7 +229,7 @@ func (e *engineBackend) Search(ctx context.Context, query string, max int) ([]co
 		return nil, fmt.Errorf("%s: %w", e.name, err)
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("%s: 空结果", e.name)
+		return nil, fmt.Errorf("%s: %s", e.name, i18n.T("provider.mcphub.empty_results"))
 	}
 	if max > 0 && len(results) > max {
 		results = results[:max]
@@ -242,7 +243,7 @@ func (e *engineBackend) Search(ctx context.Context, query string, max int) ([]co
 }
 
 func (e *engineBackend) Fetch(context.Context, string, int) (string, error) {
-	return "", fmt.Errorf("%s: 不支持网页抓取", e.name)
+	return "", fmt.Errorf("%s: %s", e.name, i18n.T("provider.mcphub.fetch_unsupported"))
 }
 
 type backendState struct {
@@ -308,7 +309,7 @@ func New(cfg config.MCPHubConfig, resolver proxy.ProxyResolver, engines map[stri
 func newHub(cfg config.MCPHubConfig, resolver proxy.ProxyResolver, caller toolCaller, engines map[string]core.SearchInf) (*Hub, error) {
 	cfg.NormalizeMCPHub()
 	if !cfg.IsEnabled() {
-		return nil, fmt.Errorf("mcp_hub 已禁用")
+		return nil, errors.New(i18n.T("provider.mcphub.disabled"))
 	}
 	directBase := proxy.NewUpstreamTransport(nil)
 	proxyBase := proxy.NewUpstreamTransport(resolver)
@@ -354,7 +355,7 @@ func newHub(cfg config.MCPHubConfig, resolver proxy.ProxyResolver, caller toolCa
 		h.fallback = buildEngineStates(cfg.GetFallbackEngines(), engines, seen)
 	}
 	if len(h.rotation) == 0 && len(h.fallback) == 0 {
-		return nil, fmt.Errorf("mcp_hub 无可用后端")
+		return nil, errors.New(i18n.T("provider.mcphub.no_backends"))
 	}
 	return h, nil
 }
@@ -391,7 +392,7 @@ func isNilSearchInf(eng core.SearchInf) bool {
 func buildServer(sc config.MCPHubServerConfig) (*server, error) {
 	p, ok := presets[sc.Name]
 	if !ok {
-		return nil, fmt.Errorf("mcp_hub: 未知 server %q（仅支持 parallel/anysearch/exa/firecrawl；新增上游请在 mcphub 包内添加 preset 与解析器）", sc.Name)
+		return nil, errors.New(i18n.T("provider.mcphub.unknown_server", "Name", sc.Name))
 	}
 	s := &server{
 		name:          sc.Name,
@@ -406,19 +407,19 @@ func buildServer(sc config.MCPHubServerConfig) (*server, error) {
 		s.requiresProxy = *sc.RequiresProxy
 	}
 	if strings.TrimSpace(s.url) == "" {
-		return nil, fmt.Errorf("mcp_hub: server %q 缺少 url", sc.Name)
+		return nil, errors.New(i18n.T("provider.mcphub.server_missing_url", "Name", sc.Name))
 	}
 	u, err := url.Parse(s.url)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("mcp_hub: server %q 的 url 无效: %q", sc.Name, s.url)
+		return nil, errors.New(i18n.T("provider.mcphub.server_bad_url", "Name", sc.Name, "URL", s.url))
 	}
 	if s.searchTool == "" {
-		return nil, fmt.Errorf("mcp_hub: server %q 缺少 tool", sc.Name)
+		return nil, errors.New(i18n.T("provider.mcphub.server_missing_tool", "Name", sc.Name))
 	}
 	if keys := sc.EffectiveKeys(); len(keys) > 0 {
 		pool, err := provider.NewKeyPool(keys)
 		if err != nil {
-			return nil, fmt.Errorf("mcp_hub: server %q 的 Key 配置无效: %w", sc.Name, err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("provider.mcphub.server_bad_keys", "Name", sc.Name), err)
 		}
 		s.keys = pool
 	}
@@ -479,9 +480,9 @@ func (h *Hub) SearchRawContext(ctx context.Context, query string) ([]core.Search
 		return nil, ctx.Err()
 	}
 	if len(errs) == 0 {
-		errs = append(errs, "无可用后端")
+		errs = append(errs, i18n.T("provider.mcphub.no_backend_available"))
 	}
-	return nil, fmt.Errorf("mcp_hub: 所有搜索后端均失败: %s", strings.Join(errs, "; "))
+	return nil, errors.New(i18n.T("provider.mcphub.all_search_failed", "Errors", strings.Join(errs, "; ")))
 }
 
 func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, query string, errs *[]string) ([]core.SearchResult, bool) {
@@ -503,7 +504,7 @@ func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, 
 			return results, true
 		}
 		if err == nil {
-			err = errors.New("空结果")
+			err = errors.New(i18n.T("provider.mcphub.empty_results"))
 		}
 		if ctx.Err() != nil {
 			return nil, false
@@ -540,7 +541,7 @@ func (h *Hub) Fetch(ctx context.Context, rawURL string) (string, error) {
 			return text, nil
 		}
 		if err == nil {
-			err = errors.New("空结果")
+			err = errors.New(i18n.T("provider.mcphub.empty_results"))
 		}
 		if ctx.Err() != nil {
 			return "", ctx.Err()
@@ -550,7 +551,7 @@ func (h *Hub) Fetch(ctx context.Context, rawURL string) (string, error) {
 			Query: rawURL, Success: false, Duration: time.Since(started), Error: err})
 		errs = append(errs, fmt.Sprintf("%s: %v", st.backend.Name(), err))
 	}
-	return "", fmt.Errorf("mcp_hub: 所有托管 MCP 抓取均失败: %s", strings.Join(errs, "; "))
+	return "", errors.New(i18n.T("provider.mcphub.all_fetch_failed", "Errors", strings.Join(errs, "; ")))
 }
 
 func (h *Hub) startIndex(fetch bool) int {
@@ -565,7 +566,7 @@ func (h *Hub) startIndex(fetch bool) int {
 
 func (h *Hub) handleFailure(st *backendState, fetch bool, err error) {
 	if err == nil {
-		err = errors.New("空结果")
+		err = errors.New(i18n.T("provider.mcphub.empty_results"))
 	}
 	if shouldCooldown(err) {
 		st.markCooldown(fetch, h.cooldown)
@@ -575,16 +576,16 @@ func (h *Hub) handleFailure(st *backendState, fetch bool, err error) {
 
 func capabilityWord(fetch bool) string {
 	if fetch {
-		return "抓取"
+		return i18n.T("provider.mcphub.capability_fetch")
 	}
-	return "搜索"
+	return i18n.T("provider.mcphub.capability_search")
 }
 
 // candidates 返回按策略排序且未冷却的后端；全部冷却时直接报错，让上层降级。
 func (h *Hub) candidates(states []*backendState, fetch bool, start int) ([]*backendState, error) {
 	n := len(states)
 	if n == 0 {
-		return nil, fmt.Errorf("mcp_hub: 无可用于%s的后端", capabilityWord(fetch))
+		return nil, errors.New(i18n.T("provider.mcphub.no_backend_for_capability", "Capability", capabilityWord(fetch)))
 	}
 	now := time.Now()
 	out := make([]*backendState, 0, n)
@@ -608,16 +609,16 @@ func (h *Hub) candidates(states []*backendState, fetch bool, start int) ([]*back
 	}
 	if len(out) == 0 {
 		if earliest.IsZero() {
-			return nil, fmt.Errorf("mcp_hub: 无可用于%s的后端", capabilityWord(fetch))
+			return nil, errors.New(i18n.T("provider.mcphub.no_backend_for_capability", "Capability", capabilityWord(fetch)))
 		}
-		return nil, fmt.Errorf("mcp_hub: 所有后端处于冷却中（最早 %s 恢复）", earliest.Format("15:04:05"))
+		return nil, errors.New(i18n.T("provider.mcphub.all_cooling", "Until", earliest.Format("15:04:05")))
 	}
 	return out, nil
 }
 
 func (h *Hub) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 	var b strings.Builder
 	b.Grow(1024 * len(results))

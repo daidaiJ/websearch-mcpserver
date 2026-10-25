@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search/core"
 )
@@ -141,14 +144,14 @@ func (y *YuanbaoSearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, q
 
 func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string) ([]core.SearchResult, error) {
 	if y.keys == nil {
-		return nil, fmt.Errorf("yuanbao 搜索未配置 API Key")
+		return nil, errors.New(i18n.T("provider.yuanbao.no_api_key"))
 	}
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, fmt.Errorf("yuanbao 搜索 query 不能为空")
+		return nil, errors.New(i18n.T("provider.yuanbao.query_empty"))
 	}
 	if ok, used := y.budget.Allow(time.Now()); !ok {
-		return nil, fmt.Errorf("yuanbao 本月已调用 %d 次，达到本地月度上限 %d；为避免超出免费额度产生后付费，已停止调用", used, y.budget.limit)
+		return nil, errors.New(i18n.T("provider.yuanbao.monthly_limit_reached", "Used", used, "Limit", y.budget.limit))
 	}
 
 	req := yuanbaoSearchRequest{
@@ -170,7 +173,7 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		SetResult(&resp).
 		Post(y.endpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("yuanbao 搜索 API 调用失败: %w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.yuanbao.call_failed"), err)}
 	}
 
 	status := res.StatusCode()
@@ -186,9 +189,9 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 	}
 	if len(resp.Response.Pages) == 0 {
 		if msg := strings.TrimSpace(resp.Response.Msg); msg != "" {
-			return nil, fmt.Errorf("yuanbao 搜索 API 无结果: %s", msg)
+			return nil, errors.New(i18n.T("provider.yuanbao.no_results_with_msg", "Message", msg))
 		}
-		return nil, fmt.Errorf("yuanbao 搜索 API 结果为空")
+		return nil, errors.New(i18n.T("provider.yuanbao.empty_results"))
 	}
 
 	results := make([]core.SearchResult, 0, len(resp.Response.Pages))
@@ -213,14 +216,14 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		})
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("yuanbao 搜索 API 结果为空")
+		return nil, errors.New(i18n.T("provider.yuanbao.empty_results"))
 	}
 	return results, nil
 }
 
 func (y *YuanbaoSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))
@@ -277,7 +280,7 @@ func lookbackDaysToYuanbaoFreshness(days int) string {
 }
 
 func yuanbaoAPIErr(key string, status int, code, message string) error {
-	err := fmt.Errorf("yuanbao 搜索 API 返回错误: code=%s message=%s", code, message)
+	err := errors.New(i18n.T("provider.yuanbao.api_error", "Code", code, "Message", message))
 	if isYuanbaoKeyError(status, code) {
 		return &KeyError{Key: key, Err: err}
 	}
@@ -285,7 +288,7 @@ func yuanbaoAPIErr(key string, status int, code, message string) error {
 }
 
 func yuanbaoStatusErr(key string, status int) error {
-	err := fmt.Errorf("yuanbao 搜索 API 返回错误状态码: %d", status)
+	err := errors.New(i18n.T("provider.yuanbao.bad_status", "Status", status))
 	if isYuanbaoKeyError(status, "") {
 		return &KeyError{Key: key, Err: err}
 	}

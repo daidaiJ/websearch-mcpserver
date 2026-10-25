@@ -2,10 +2,12 @@ package mcphub
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -46,7 +48,7 @@ func parseSearch(name string, res toolResult, max int) ([]core.SearchResult, err
 	case "anysearch":
 		return parseAnysearchSearch(res.Text, max)
 	default:
-		return nil, fmt.Errorf("未知 MCP preset: %s", name)
+		return nil, errors.New(i18n.T("provider.mcphub.unknown_preset", "Name", name))
 	}
 }
 
@@ -57,7 +59,7 @@ func parseParallelSearch(res toolResult, max int) ([]core.SearchResult, error) {
 			return nil, err
 		}
 	} else if err := json.Unmarshal([]byte(res.Text), &out); err != nil {
-		return nil, fmt.Errorf("parallel 返回无法解析: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("provider.mcphub.parallel_unparsable"), err)
 	}
 	return parallelResults(out.Results, max), nil
 }
@@ -97,7 +99,7 @@ func parseFirecrawlSearch(res toolResult, max int) ([]core.SearchResult, error) 
 			return nil, err
 		}
 	} else if err := json.Unmarshal([]byte(res.Text), &out); err != nil {
-		return nil, fmt.Errorf("firecrawl 返回无法解析: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("provider.mcphub.firecrawl_unparsable"), err)
 	}
 	results := make([]core.SearchResult, 0, len(out.Data.Web))
 	for _, r := range out.Data.Web {
@@ -173,7 +175,7 @@ func parseExaSearch(text string, max int) ([]core.SearchResult, error) {
 		out = out[:max]
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("exa 返回为空或格式无法识别")
+		return nil, errors.New(i18n.T("provider.mcphub.exa_unrecognized"))
 	}
 	return out, nil
 }
@@ -238,7 +240,7 @@ func parseAnysearchSearch(text string, max int) ([]core.SearchResult, error) {
 		out = out[:max]
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("anysearch 返回为空或格式无法识别")
+		return nil, errors.New(i18n.T("provider.mcphub.anysearch_unrecognized"))
 	}
 	return out, nil
 }
@@ -254,7 +256,7 @@ func parseFetch(name string, res toolResult) (string, error) {
 	case "anysearch":
 		return parseAnysearchFetch(res)
 	default:
-		return "", fmt.Errorf("未知 MCP preset: %s", name)
+		return "", errors.New(i18n.T("provider.mcphub.unknown_preset", "Name", name))
 	}
 }
 
@@ -265,10 +267,10 @@ func parseParallelFetch(res toolResult) (string, error) {
 			return "", err
 		}
 	} else if err := json.Unmarshal([]byte(res.Text), &out); err != nil {
-		return "", fmt.Errorf("parallel 抓取结果无法解析: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("provider.mcphub.parallel_fetch_unparsable"), err)
 	}
 	if len(out.Results) == 0 {
-		return "", fmt.Errorf("parallel 抓取结果为空")
+		return "", errors.New(i18n.T("provider.mcphub.parallel_fetch_empty"))
 	}
 	r := out.Results[0]
 	content := strings.TrimSpace(r.FullContent)
@@ -276,14 +278,14 @@ func parseParallelFetch(res toolResult) (string, error) {
 		content = strings.TrimSpace(strings.Join(r.Excerpts, "\n\n"))
 	}
 	if content == "" {
-		return "", fmt.Errorf("parallel 抓取结果无正文")
+		return "", errors.New(i18n.T("provider.mcphub.parallel_fetch_no_body"))
 	}
 	var b strings.Builder
 	if r.Title != "" {
 		fmt.Fprintf(&b, "# %s\n\n", r.Title)
 	}
 	if r.PublishDate != nil && *r.PublishDate != "" {
-		fmt.Fprintf(&b, "**发布时间**: %s\n\n", *r.PublishDate)
+		fmt.Fprintf(&b, "%s\n\n", i18n.T("provider.mcphub.published_time", "Time", *r.PublishDate))
 	}
 	b.WriteString(content)
 	return b.String(), nil
@@ -294,13 +296,13 @@ func parseFirecrawlFetch(res toolResult) (string, error) {
 	if m == nil {
 		var parsed map[string]any
 		if err := json.Unmarshal([]byte(res.Text), &parsed); err != nil {
-			return "", fmt.Errorf("firecrawl 抓取结果无法解析: %w", err)
+			return "", fmt.Errorf("%s: %w", i18n.T("provider.mcphub.firecrawl_fetch_unparsable"), err)
 		}
 		m = parsed
 	}
 	content := firstNonEmpty(stringField(m, "markdown"), stringField(m, "content"), stringField(m, "text"))
 	if content == "" {
-		return "", fmt.Errorf("firecrawl 抓取结果无正文")
+		return "", errors.New(i18n.T("provider.mcphub.firecrawl_fetch_no_body"))
 	}
 	title := ""
 	if meta, ok := m["metadata"].(map[string]any); ok {
@@ -322,7 +324,7 @@ func parseAnysearchFetch(res toolResult) (string, error) {
 	}
 	content := firstNonEmpty(stringField(m, "content"), stringField(m, "markdown"), stringField(m, "text"), res.Text)
 	if strings.TrimSpace(content) == "" {
-		return "", fmt.Errorf("anysearch 抓取结果为空")
+		return "", errors.New(i18n.T("provider.mcphub.anysearch_fetch_empty"))
 	}
 	title := stringField(m, "title")
 	if title != "" && !strings.HasPrefix(strings.TrimSpace(content), "# ") {
@@ -334,7 +336,7 @@ func parseAnysearchFetch(res toolResult) (string, error) {
 func parseExaFetch(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return "", fmt.Errorf("exa 抓取结果为空")
+		return "", errors.New(i18n.T("provider.mcphub.exa_fetch_empty"))
 	}
 	lines := strings.Split(text, "\n")
 	var out []string

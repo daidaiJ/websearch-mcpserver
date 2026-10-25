@@ -1,12 +1,13 @@
 package provider
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -46,7 +47,7 @@ func NewKeyPool(keys []string) (*KeyPool, error) {
 		filtered = append(filtered, k)
 	}
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("keypool: 无有效 API Key")
+		return nil, errors.New(i18n.T("provider.keypool.no_valid_key"))
 	}
 	if dup > 0 {
 		log.InfoT("log.search.provider.keypool_detected_duplicate_keys_deduplicated_remaining", "dup", dup, "len", len(filtered))

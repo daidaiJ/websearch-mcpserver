@@ -1,15 +1,17 @@
 package provider
 
 import (
-	"websearch/pkg/search/core"
-
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
 	"websearch/pkg/antirobot"
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
+	"websearch/pkg/search/core"
 )
 
 const anysearchAPIEndpoint = "https://api.anysearch.com/v1/search"
@@ -108,30 +110,30 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		call = call.SetHeader("Authorization", fmt.Sprintf("Bearer %s", key))
 	} else if !a.anonLimiter.Allow() {
 		perSec, perMin := a.anonLimiter.Limits()
-		return nil, fmt.Errorf("anysearch 匿名档触发本端限流（%d/s、%d/min 保守钳制，匿名档按出口 IP 限流）", perSec, perMin)
+		return nil, errors.New(i18n.T("provider.anysearch.anon_throttled", "PerSec", perSec, "PerMin", perMin))
 	}
 
 	res, err := call.Post(a.endpoint)
 	if err != nil {
 		if a.keys == nil {
-			return nil, fmt.Errorf("anysearch 搜索 API 调用失败: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err)
 		}
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("anysearch 搜索 API 调用失败: %w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err)}
 	}
 	if res.StatusCode() != 200 {
 		if a.keys == nil {
-			return nil, fmt.Errorf("anysearch 搜索 API 返回错误状态码: %d", res.StatusCode())
+			return nil, errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode()))
 		}
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("anysearch 搜索 API 返回错误状态码: %d", res.StatusCode())}
+		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode()))}
 	}
 	if resp.Code != 0 {
 		if a.keys == nil {
-			return nil, fmt.Errorf("anysearch 搜索 API 返回错误: code=%d message=%s", resp.Code, resp.Message)
+			return nil, errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message))
 		}
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("anysearch 搜索 API 返回错误: code=%d message=%s", resp.Code, resp.Message)}
+		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message))}
 	}
 	if len(resp.Data.Results) == 0 {
-		return nil, fmt.Errorf("anysearch 搜索 API 结果为空")
+		return nil, errors.New(i18n.T("provider.anysearch.empty_results"))
 	}
 
 	ret := make([]core.SearchResult, 0, len(resp.Data.Results))
@@ -177,7 +179,7 @@ func isBlockedHost(rawURL string, blocked []string) bool {
 
 func (a *AnysearchSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))

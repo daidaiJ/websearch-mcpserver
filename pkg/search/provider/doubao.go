@@ -2,10 +2,13 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 
 	"websearch/pkg/client"
@@ -214,14 +217,14 @@ func (d *DoubaoSearchImpl) SearchRaw(query string) ([]core.SearchResult, error) 
 
 func (d *DoubaoSearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	if d.keys == nil {
-		return nil, fmt.Errorf("doubao 搜索未配置 API Key")
+		return nil, errors.New(i18n.T("provider.doubao.no_api_key"))
 	}
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, fmt.Errorf("doubao 搜索 query 不能为空")
+		return nil, errors.New(i18n.T("provider.doubao.query_empty"))
 	}
 	if utf8.RuneCountInString(query) > 100 {
-		return nil, fmt.Errorf("doubao 搜索 query 超过 100 个字符")
+		return nil, errors.New(i18n.T("provider.doubao.query_too_long"))
 	}
 	if d.version == doubaoVersionCustom {
 		return d.searchCustom(ctx, query)
@@ -271,7 +274,7 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		SetResult(&resp).
 		Post(d.globalEndpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("doubao 搜索 API 调用失败: %w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err)}
 	}
 
 	status := res.StatusCode()
@@ -282,13 +285,13 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		return nil, doubaoStatusErr(key, status)
 	}
 	if resp.Result == nil {
-		return nil, fmt.Errorf("doubao 搜索 API 返回空结果体")
+		return nil, errors.New(i18n.T("provider.doubao.empty_body"))
 	}
 	if resp.Result.ErrorCode != 0 {
 		return nil, doubaoAPIErr(key, status, strconv.Itoa(resp.Result.ErrorCode), resp.Result.ErrorMsg)
 	}
 	if len(resp.Result.Documents) == 0 {
-		return nil, fmt.Errorf("doubao 搜索 API 结果为空")
+		return nil, errors.New(i18n.T("provider.doubao.empty_results"))
 	}
 
 	results := make([]core.SearchResult, 0, len(resp.Result.Documents))
@@ -336,7 +339,7 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		SetResult(&resp).
 		Post(d.customEndpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("doubao 搜索 API 调用失败: %w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err)}
 	}
 
 	status := res.StatusCode()
@@ -356,7 +359,7 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		rawResults = resp.WebResults
 	}
 	if len(rawResults) == 0 {
-		return nil, fmt.Errorf("doubao 搜索 API 结果为空")
+		return nil, errors.New(i18n.T("provider.doubao.empty_results"))
 	}
 
 	results := make([]core.SearchResult, 0, len(rawResults))
@@ -387,7 +390,7 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 
 func (d *DoubaoSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))
@@ -444,7 +447,7 @@ func doubaoGlobalContent(doc doubaoGlobalDocument) string {
 }
 
 func doubaoAPIErr(key string, status int, code, message string) error {
-	err := fmt.Errorf("doubao 搜索 API 返回错误: code=%s message=%s", code, message)
+	err := errors.New(i18n.T("provider.doubao.api_error", "Code", code, "Message", message))
 	if isDoubaoKeyError(status, code) {
 		return &KeyError{Key: key, Err: err}
 	}
@@ -452,7 +455,7 @@ func doubaoAPIErr(key string, status int, code, message string) error {
 }
 
 func doubaoStatusErr(key string, status int) error {
-	err := fmt.Errorf("doubao 搜索 API 返回错误状态码: %d", status)
+	err := errors.New(i18n.T("provider.doubao.bad_status", "Status", status))
 	if isDoubaoKeyError(status, "") {
 		return &KeyError{Key: key, Err: err}
 	}

@@ -2,11 +2,13 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -113,17 +115,17 @@ func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackD
 	var resp tinyfishSearchResp
 	res, err := req.SetResult(&resp).Get(t.searchURL)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("tinyfish 搜索api 调用失败: %w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.call_failed"), err)}
 	}
 	if res.StatusCode() != http.StatusOK {
-		err := fmt.Errorf("tinyfish 搜索api 返回错误状态码: %d", res.StatusCode())
+		err := errors.New(i18n.T("provider.tinyfish.bad_status", "Status", res.StatusCode()))
 		if res.StatusCode() == http.StatusUnauthorized {
 			return nil, &KeyError{Key: key, Err: err}
 		}
 		return nil, err
 	}
 	if len(resp.Results) == 0 {
-		return nil, fmt.Errorf("tinyfish 搜索api 内容为空")
+		return nil, errors.New(i18n.T("provider.tinyfish.empty_content"))
 	}
 	ret := make([]core.SearchResult, 0, len(resp.Results))
 	for _, val := range resp.Results {
@@ -155,10 +157,10 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 		SetResult(&resp).
 		Post(t.fetchURL)
 	if err != nil {
-		return "", &KeyError{Key: key, Err: fmt.Errorf("tinyfish fetch api 调用失败: %w", err)}
+		return "", &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.fetch_call_failed"), err)}
 	}
 	if res.StatusCode() != http.StatusOK {
-		err := fmt.Errorf("tinyfish fetch api 返回错误状态码: %d", res.StatusCode())
+		err := errors.New(i18n.T("provider.tinyfish.fetch_bad_status", "Status", res.StatusCode()))
 		if res.StatusCode() == http.StatusUnauthorized {
 			return "", &KeyError{Key: key, Err: err}
 		}
@@ -166,13 +168,13 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 	}
 	if len(resp.Results) == 0 {
 		if len(resp.Errors) > 0 {
-			return "", fmt.Errorf("tinyfish fetch api 抓取失败: %s", resp.Errors[0].Error)
+			return "", errors.New(i18n.T("provider.tinyfish.fetch_failed", "Err", resp.Errors[0].Error))
 		}
-		return "", fmt.Errorf("tinyfish fetch api 结果为空")
+		return "", errors.New(i18n.T("provider.tinyfish.fetch_empty_results"))
 	}
 	text := strings.TrimSpace(resp.Results[0].Text)
 	if text == "" {
-		return "", fmt.Errorf("tinyfish fetch api 正文为空")
+		return "", errors.New(i18n.T("provider.tinyfish.fetch_empty_body"))
 	}
 	if maxChars > 0 {
 		if runes := []rune(text); len(runes) > maxChars {
@@ -187,7 +189,7 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 
 func (t *TinyFishSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 	var buf strings.Builder
 	buf.Grow(1024 * len(results))

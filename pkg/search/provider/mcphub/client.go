@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/i18n"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -63,17 +65,17 @@ func (c *mcpCaller) Call(ctx context.Context, s *server, tool string, args map[s
 		MaxRetries:           -1,
 	}, nil)
 	if err != nil {
-		return toolResult{}, fmt.Errorf("%s: MCP 连接失败: %w", s.name, err)
+		return toolResult{}, fmt.Errorf("%s: %s: %w", s.name, i18n.T("provider.mcphub.connect_failed"), err)
 	}
 	defer func() { _ = session.Close() }()
 
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
-		return toolResult{}, fmt.Errorf("%s: MCP 调用 %s 失败: %w", s.name, tool, err)
+		return toolResult{}, fmt.Errorf("%s: %s %s: %w", s.name, i18n.T("provider.mcphub.call_failed"), tool, err)
 	}
 	text := contentText(res.Content)
 	if res.IsError {
-		return toolResult{}, fmt.Errorf("%s: %s 返回错误: %s", s.name, tool, truncateErr(text))
+		return toolResult{}, fmt.Errorf("%s: %s %s: %s", s.name, tool, i18n.T("provider.mcphub.returned_error"), truncateErr(text))
 	}
 	structured, _ := res.StructuredContent.(map[string]any)
 	return toolResult{Structured: structured, Text: text}, nil

@@ -2,8 +2,11 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
 	"websearch/pkg/client"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -63,7 +66,7 @@ func (b *BaiduSearchImpl) Name() string { return b.name }
 func (b *BaiduSearchImpl) Search(query string) (string, error) {
 	results, err := b.SearchRaw(query)
 	if err != nil {
-		return "", fmt.Errorf("百度搜索api 调用失败，%w", err)
+		return "", fmt.Errorf("%s, %w", i18n.T("provider.baidu.call_failed"), err)
 	}
 	return b.MergeContent(query, results)
 
@@ -118,17 +121,17 @@ func (b *BaiduSearchImpl) search(ctx context.Context, query string) ([]core.Sear
 	key := b.keys.Next()
 	res, err := client.DefaultClient.R().SetContext(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("百度搜索api 调用失败，%w", err)}
+		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s, %w", i18n.T("provider.baidu.call_failed"), err)}
 	}
 	// 非 200 通常意味着鉴权/配额/参数错误，显式暴露状态码与服务端消息，避免误报为“内容为空”
 	if res.StatusCode() != 200 {
 		if rep.Message != "" {
-			return nil, &KeyError{Key: key, Err: fmt.Errorf("百度搜索api 返回错误状态码 %d: %s (code=%s)", res.StatusCode(), rep.Message, rep.Code)}
+			return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.baidu.bad_status_msg_code", "Status", res.StatusCode(), "Message", rep.Message, "Code", rep.Code))}
 		}
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("百度搜索api 返回错误状态码 %d: %s", res.StatusCode(), res.String())}
+		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.baidu.bad_status_body", "Status", res.StatusCode(), "Body", res.String()))}
 	}
 	if len(rep.References) == 0 {
-		return nil, fmt.Errorf("百度搜索api 内容为空")
+		return nil, errors.New(i18n.T("provider.baidu.empty_content"))
 	}
 	ret := make([]core.SearchResult, 0, len(rep.References))
 	for _, val := range rep.References {
@@ -138,7 +141,7 @@ func (b *BaiduSearchImpl) search(ctx context.Context, query string) ([]core.Sear
 }
 func (b *BaiduSearchImpl) MergeContent(query string, results []core.SearchResult) (string, error) {
 	if len(results) == 0 {
-		return "", fmt.Errorf("没有搜索结果可以合并")
+		return "", errors.New(i18n.T("provider.merge.no_results"))
 	}
 
 	buf := core.MDSearchHeader(query, len(results))
