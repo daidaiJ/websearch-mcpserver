@@ -2,14 +2,17 @@ package jina
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
 	"websearch/pkg/config"
 	fetchcontent "websearch/pkg/fetch"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
 
@@ -74,15 +77,15 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 	// 验证 URL 格式和协议
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("无效的 URL: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.jina.invalid_url"), err)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, fmt.Errorf("不支持的协议: %s", parsed.Scheme)
+		return nil, errors.New(i18n.T("fetch.jina.unsupported_scheme", "Scheme", parsed.Scheme))
 	}
 	// 拒绝内网地址
 	host := parsed.Hostname()
 	if isPrivateHost(host) {
-		return nil, fmt.Errorf("不允许访问内网地址")
+		return nil, errors.New(i18n.T("fetch.jina.private_address"))
 	}
 
 	fetchURL := fmt.Sprintf("%s/%s", r.baseURL, rawURL)
@@ -106,20 +109,20 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 		Get(fetchURL)
 	if err != nil {
 		log.ErrorT("log.fetch.jina.jina_reader_request_failed", "error", err.Error())
-		return nil, fmt.Errorf("jina reader 请求失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.jina.request_failed"), err)
 	}
 	if res.StatusCode() != 200 {
-		return nil, fmt.Errorf("jina reader 服务异常，HTTP %d", res.StatusCode())
+		return nil, errors.New(i18n.T("fetch.jina.service_error", "Status", res.StatusCode()))
 	}
 	if resp.Code != 200 {
-		return nil, fmt.Errorf("目标页面: %s", describeHTTPError(resp.Code))
+		return nil, errors.New(i18n.T("fetch.jina.target_page", "Reason", describeHTTPError(resp.Code)))
 	}
 	// Reader can return a successful envelope for a failed target response.
 	if strings.HasPrefix(strings.TrimSpace(resp.Data.Warning), "Target URL returned error ") {
-		return nil, fmt.Errorf("目标页面抓取失败: %s", resp.Data.Warning)
+		return nil, errors.New(i18n.T("fetch.jina.target_fetch_failed", "Reason", resp.Data.Warning))
 	}
 	if !fetchcontent.HasPageBody(resp.Data.Content, resp.Data.Title) {
-		return nil, fmt.Errorf("未获得页面正文(可能需要 JavaScript 渲染)")
+		return nil, errors.New(i18n.T("fetch.jina.empty_body"))
 	}
 	return &resp.Data, nil
 }
@@ -127,23 +130,23 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 func describeHTTPError(code int) string {
 	switch code {
 	case 400:
-		return "请求格式错误(400)"
+		return i18n.T("fetch.jina.http_400")
 	case 401:
-		return "需要登录才能访问(401)"
+		return i18n.T("fetch.jina.http_401")
 	case 403:
-		return "页面拒绝访问(403)"
+		return i18n.T("fetch.jina.http_403")
 	case 404:
-		return "页面不存在(404)"
+		return i18n.T("fetch.jina.http_404")
 	case 408:
-		return "抓取超时(408)"
+		return i18n.T("fetch.jina.http_408")
 	case 410:
-		return "页面已被移除(410)"
+		return i18n.T("fetch.jina.http_410")
 	case 429:
-		return "请求过于频繁，已被限流(429)"
+		return i18n.T("fetch.jina.http_429")
 	case 500, 502, 503:
-		return fmt.Sprintf("目标服务器故障(%d)", code)
+		return i18n.T("fetch.jina.http_5xx", "Status", code)
 	default:
-		return fmt.Sprintf("抓取失败，HTTP %d", code)
+		return i18n.T("fetch.jina.http_other", "Status", code)
 	}
 }
 

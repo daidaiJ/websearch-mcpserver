@@ -6,6 +6,7 @@ package sitefetch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -85,7 +87,7 @@ func (g *GitHubFetcher) Fetch(ctx context.Context, rawURL string) (string, error
 	}
 	segs := splitPath(u.Path)
 	if len(segs) < 2 {
-		return "", fmt.Errorf("sitefetch: github URL 缺少 owner/repo 路径")
+		return "", errors.New(i18n.T("fetch.sitefetch.github_missing_repo"))
 	}
 	owner, repo := segs[0], segs[1]
 	if len(segs) == 2 {
@@ -95,7 +97,7 @@ func (g *GitHubFetcher) Fetch(ctx context.Context, rawURL string) (string, error
 		// blob 页 → contents API 源文件（segs[3]=branch，segs[4:]=文件路径）
 		return g.fetchContents(ctx, owner, repo, segs[3], segs[4:])
 	}
-	return "", fmt.Errorf("sitefetch: github %s 页面不走 API 特判（仅支持仓库根与 blob）", u.Path)
+	return "", errors.New(i18n.T("fetch.sitefetch.github_unsupported_page", "Path", u.Path))
 }
 
 // fetchRepo 仓库根：元数据 + README raw 合并为 Markdown。
@@ -125,18 +127,19 @@ func (g *GitHubFetcher) fetchRepo(ctx context.Context, owner, repo string) (stri
 		metaBits = append(metaBits, meta.License.SPDX)
 	}
 	if meta.PushedAt != "" {
-		metaBits = append(metaBits, "最近推送 "+pushedDate(meta.PushedAt))
+		metaBits = append(metaBits, i18n.T("fetch.sitefetch.pushed_at", "Date", pushedDate(meta.PushedAt)))
 	}
 	if len(metaBits) > 0 {
 		fmt.Fprintf(&sb, "%s\n\n", strings.Join(metaBits, " · "))
 	}
 	if meta.Homepage != "" {
-		fmt.Fprintf(&sb, "主页: %s\n\n", meta.Homepage)
+		fmt.Fprintf(&sb, "%s\n\n", i18n.T("fetch.sitefetch.homepage", "URL", meta.Homepage))
 	}
 	if readme != "" {
 		sb.WriteString(readme)
 	} else {
-		sb.WriteString("_(README 缺失或抓取失败)_\n")
+		sb.WriteString(i18n.T("fetch.sitefetch.readme_missing"))
+		sb.WriteString("\n")
 	}
 	return sb.String(), nil
 }
@@ -203,7 +206,7 @@ func (g *GitHubFetcher) fetchContents(ctx context.Context, owner, repo, branch s
 	}
 	text := strings.TrimSpace(string(body))
 	if text == "" {
-		return "", fmt.Errorf("github contents 正文为空")
+		return "", errors.New(i18n.T("fetch.sitefetch.contents_empty"))
 	}
 	return text, nil
 }
@@ -235,7 +238,7 @@ func (g *GitHubFetcher) apiGet(ctx context.Context, endpoint string, out any) er
 // 连打只会持续 403，主动冷却让 cleanfetch/fetch_top_n 立即走 webfetch→Jina 链。
 func (g *GitHubFetcher) do(req *http.Request) (*http.Response, error) {
 	if rest := g.cooldownRemaining(); rest > 0 {
-		return nil, fmt.Errorf("github api 配额冷却中（剩余 %.0fs）", rest.Seconds())
+		return nil, errors.New(i18n.T("fetch.sitefetch.quota_cooldown", "Seconds", fmt.Sprintf("%.0f", rest.Seconds())))
 	}
 	resp, err := g.client.Do(req)
 	if err != nil {

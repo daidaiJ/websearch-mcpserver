@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"websearch/pkg/i18n"
 )
 
 // 探测/检索失败的分类错误：
@@ -21,10 +23,21 @@ import (
 //   - ErrAuth：鉴权失败（配置的用户名/口令与服务端不一致）
 //
 // 调用方据此决定是否暴露 file_search 工具及给出可行动的提示。
+// 两者是稳定标记（errors.Is 判定用），对外文案由 clientError 按当前语言渲染。
 var (
-	ErrUnavailable = errors.New("everything http server 不可达")
-	ErrAuth        = errors.New("everything http server 鉴权失败")
+	ErrUnavailable = errors.New("everything_unavailable")
+	ErrAuth        = errors.New("everything_auth_failed")
 )
+
+// clientError 携带稳定标记，同时给出调用方已渲染好的本地化文案：
+// 文案由调用点的 i18n.T 字面量 key 生成，wrapper 本身不认识 key（目录审计可静态校验）。
+type clientError struct {
+	msg    string
+	marker error
+}
+
+func (e *clientError) Error() string { return e.msg }
+func (e *clientError) Unwrap() error { return e.marker }
 
 // Client Everything HTTP Server 客户端。
 type Client struct {
@@ -127,7 +140,7 @@ func (c *Client) doQuery(ctx context.Context, q url.Values) (*Result, error) {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/", nil)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return nil, &clientError{msg: i18n.T("fetch.everything.unavailable", "Err", err), marker: ErrUnavailable}
 	}
 	if c.username != "" || c.password != "" {
 		req.SetBasicAuth(c.username, c.password)
@@ -136,25 +149,25 @@ func (c *Client) doQuery(ctx context.Context, q url.Values) (*Result, error) {
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return nil, &clientError{msg: i18n.T("fetch.everything.unavailable", "Err", err), marker: ErrUnavailable}
 	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return nil, fmt.Errorf("%w（请核对 everything.username/password 与 Everything HTTP Server 的凭据）", ErrAuth)
+		return nil, &clientError{msg: i18n.T("fetch.everything.auth_hint"), marker: ErrAuth}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: HTTP %d", ErrUnavailable, resp.StatusCode)
+		return nil, &clientError{msg: i18n.T("fetch.everything.unavailable_http", "Status", resp.StatusCode), marker: ErrUnavailable}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.everything.read_failed"), err)
 	}
 	var result Result
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("%w: 响应不是预期的 JSON 结果（HTTP %d）", ErrUnavailable, resp.StatusCode)
+		return nil, &clientError{msg: i18n.T("fetch.everything.unexpected_response", "Status", resp.StatusCode), marker: ErrUnavailable}
 	}
 	return &result, nil
 }

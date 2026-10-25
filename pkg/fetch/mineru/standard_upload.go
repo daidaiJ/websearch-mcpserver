@@ -2,30 +2,33 @@ package mineru
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"websearch/pkg/i18n"
 )
 
 // ParseStandardFile sends a locally cropped PDF through MinerU's signed upload API.
 func (c *Client) ParseStandardFile(ctx context.Context, filePath string) (string, error) {
 	if c.token == "" {
-		return "", fmt.Errorf("MinerU 精准解析 API 需要 Token")
+		return "", errors.New(i18n.T("fetch.mineru.token_required"))
 	}
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return "", err
 	}
 	if info.Size() > 200*1024*1024 {
-		return "", fmt.Errorf("裁切后的 PDF 仍超过 MinerU 精准 API 的 200MB 限制")
+		return "", errors.New(i18n.T("fetch.mineru.cropped_too_large"))
 	}
 	batchID, uploadURL, err := c.createStandardUpload(ctx, filepath.Base(filePath))
 	if err != nil {
 		return "", err
 	}
 	if err := c.uploadFile(ctx, uploadURL, filePath); err != nil {
-		return "", fmt.Errorf("MinerU 文件上传失败: %w；task_ref=%q", err, "batch:"+batchID)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.upload_failed"), err, "batch:"+batchID)
 	}
 	zipURL, err := c.pollStandardUpload(ctx, batchID)
 	if err != nil {
@@ -33,9 +36,9 @@ func (c *Client) ParseStandardFile(ctx context.Context, filePath string) (string
 	}
 	md, err := c.downloadZIP(ctx, zipURL)
 	if err != nil {
-		return "", fmt.Errorf("MinerU 结果下载失败: %w；task_ref=%q", err, "batch:"+batchID)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, "batch:"+batchID)
 	}
-	return fmt.Sprintf("> **MinerU 完整结果 ZIP（含图片资源）**：%s。Markdown 中的相对图片路径需与 ZIP 内的 images/ 一起使用。\n\n%s", zipURL, md), nil
+	return i18n.T("fetch.mineru.zip_preamble", "URL", zipURL) + "\n\n" + md, nil
 }
 
 type standardUploadResponse struct {
@@ -62,16 +65,16 @@ func (c *Client) createStandardUpload(ctx context.Context, name string) (string,
 		SetBody(body).SetResult(&result).
 		Post(c.endpoint + standardAPIPath + "/file-urls/batch")
 	if err != nil {
-		return "", "", fmt.Errorf("MinerU 服务连接失败: %w", err)
+		return "", "", fmt.Errorf("%s: %w", i18n.T("fetch.mineru.service_connect_failed"), err)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return "", "", fmt.Errorf("MinerU 服务异常 (HTTP %d)", resp.StatusCode())
+		return "", "", errors.New(i18n.T("fetch.mineru.service_error", "Status", resp.StatusCode()))
 	}
 	if result.Code != 0 {
-		return "", "", fmt.Errorf("MinerU 上传任务创建失败: %s", mapAPIError(result.Code, result.Msg))
+		return "", "", fmt.Errorf("%s: %s", i18n.T("fetch.mineru.upload_task_failed"), mapAPIError(result.Code, result.Msg))
 	}
 	if result.Data.BatchID == "" || len(result.Data.FileURLs) != 1 || result.Data.FileURLs[0] == "" {
-		return "", "", fmt.Errorf("MinerU 未返回有效的文件上传链接")
+		return "", "", errors.New(i18n.T("fetch.mineru.no_upload_url"))
 	}
 	return result.Data.BatchID, result.Data.FileURLs[0], nil
 }

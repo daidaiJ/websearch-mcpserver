@@ -2,23 +2,26 @@ package mineru
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"websearch/pkg/i18n"
 )
 
 // PDFPageCount 用 qpdf 读取 PDF 总页数（需安装 qpdf）。
 func PDFPageCount(ctx context.Context, source string) (int, error) {
 	countOutput, err := exec.CommandContext(ctx, "qpdf", "--show-npages", source).CombinedOutput()
 	if err != nil {
-		return 0, fmt.Errorf("读取 PDF 页数失败（文件可能不是有效 PDF；需安装 qpdf）: %w: %s", err, strings.TrimSpace(string(countOutput)))
+		return 0, fmt.Errorf("%s: %w: %s", i18n.T("fetch.mineru.page_count_failed"), err, strings.TrimSpace(string(countOutput)))
 	}
 	total, err := strconv.Atoi(strings.TrimSpace(string(countOutput)))
 	if err != nil || total <= 0 {
-		return 0, fmt.Errorf("PDF 页数无效: %q", strings.TrimSpace(string(countOutput)))
+		return 0, errors.New(i18n.T("fetch.mineru.page_count_invalid", "Out", strings.TrimSpace(string(countOutput))))
 	}
 	return total, nil
 }
@@ -45,12 +48,12 @@ func CropPDF(ctx context.Context, source string, pages []int, maxPages, limit in
 		}
 	}
 	if len(selected) == 0 || len(selected) > limit {
-		return "", total, 0, nil, fmt.Errorf("一次最多裁切 %d 页；请缩小 pages 范围", limit)
+		return "", total, 0, nil, errors.New(i18n.T("fetch.mineru.crop_over_limit", "Limit", limit))
 	}
 	ranges := make([]string, len(selected))
 	for i, page := range selected {
 		if page < 1 || page > total {
-			return "", total, 0, nil, fmt.Errorf("请求第 %d 页，但 PDF 只有 %d 页", page, total)
+			return "", total, 0, nil, errors.New(i18n.T("fetch.mineru.page_out_of_range", "Page", page, "Total", total))
 		}
 		ranges[i] = strconv.Itoa(page)
 	}
@@ -66,7 +69,7 @@ func CropPDF(ctx context.Context, source string, pages []int, maxPages, limit in
 	cmd := exec.CommandContext(ctx, "qpdf", "--empty", "--pages", source, strings.Join(ranges, ","), "--", output)
 	if result, err := cmd.CombinedOutput(); err != nil {
 		cleanup()
-		return "", total, 0, nil, fmt.Errorf("裁切 PDF 失败: %w: %s", err, strings.TrimSpace(string(result)))
+		return "", total, 0, nil, fmt.Errorf("%s: %w: %s", i18n.T("fetch.mineru.crop_failed"), err, strings.TrimSpace(string(result)))
 	}
 	return output, total, len(selected), cleanup, nil
 }

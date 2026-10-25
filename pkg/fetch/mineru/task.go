@@ -3,6 +3,7 @@ package mineru
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -53,11 +55,11 @@ func (c apiCode) number() int {
 
 func (c apiCode) message(msg string) string {
 	if c != "" && c != "0" && c.number() == 0 {
-		return fmt.Sprintf("MinerU 错误 (%s): %s", c, msg)
+		return i18n.T("fetch.mineru.error_wrapped", "Code", string(c), "Msg", msg)
 	}
 	if c.number() == 0 {
 		if msg == "" {
-			return "未知解析错误"
+			return i18n.T("fetch.mineru.unknown_error")
 		}
 		return msg
 	}
@@ -78,12 +80,19 @@ type taskStatus struct {
 }
 
 func (s taskStatus) progress() string {
-	label := map[string]string{"pending": "排队中", "running": "解析中", "converting": "格式转换中", "uploading": "文件下载/上传中", "waiting-file": "等待文件上传"}[s.State]
+	label := map[string]string{
+		"pending":      i18n.T("fetch.mineru.status_pending"),
+		"running":      i18n.T("fetch.mineru.status_running"),
+		"converting":   i18n.T("fetch.mineru.status_converting"),
+		"uploading":    i18n.T("fetch.mineru.status_uploading"),
+		"waiting-file": i18n.T("fetch.mineru.status_waiting_file"),
+	}[s.State]
 	if label == "" {
 		label = s.State
 	}
 	if s.ExtractProgress.TotalPages > 0 {
-		label += fmt.Sprintf("，%d/%d 页", s.ExtractProgress.ExtractedPages, s.ExtractProgress.TotalPages)
+		label = i18n.T("fetch.mineru.progress_pages", "Label", label,
+			"Done", s.ExtractProgress.ExtractedPages, "Total", s.ExtractProgress.TotalPages)
 	}
 	return label
 }
@@ -96,14 +105,14 @@ type TaskPendingError struct {
 }
 
 func (e *TaskPendingError) Error() string {
-	return fmt.Sprintf("MinerU 等待结束（%s），任务尚未完成；最后状态: %s；task_ref=%q。可用 pdf_parser 的 task_ref 继续查询原任务（省略 path/pages），无需重新提交", e.Wait, e.Status, e.TaskRef)
+	return i18n.T("fetch.mineru.wait_ended", "Wait", e.Wait, "Status", e.Status, "Ref", e.TaskRef)
 }
 
 var taskRefPattern = regexp.MustCompile(`^(standard|batch|agent):[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
 
 func splitTaskRef(ref string) (string, string, error) {
 	if !taskRefPattern.MatchString(ref) {
-		return "", "", fmt.Errorf("task_ref 格式无效，应为 standard:<task_id>、batch:<batch_id> 或 agent:<task_id>")
+		return "", "", errors.New(i18n.T("fetch.mineru.taskref_invalid"))
 	}
 	kind, id, _ := strings.Cut(ref, ":")
 	return kind, id, nil
@@ -115,7 +124,7 @@ func (c *Client) queryTask(ctx context.Context, ref string) (taskStatus, error) 
 		return taskStatus{}, err
 	}
 	if kind != "agent" && !c.HasToken() {
-		return taskStatus{}, fmt.Errorf("MinerU 精准解析任务查询需要 Token")
+		return taskStatus{}, errors.New(i18n.T("fetch.mineru.query_token_required"))
 	}
 	route := standardAPIPath + "/extract/task/" + id
 	if kind == "batch" {
@@ -138,26 +147,26 @@ func (c *Client) queryTask(ctx context.Context, ref string) (taskStatus, error) 
 	}
 	resp, err := req.Get(c.endpoint + route)
 	if err != nil {
-		return taskStatus{}, fmt.Errorf("MinerU 查询失败: %w；task_ref=%q", err, ref)
+		return taskStatus{}, fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.query_failed"), err, ref)
 	}
 	if resp.StatusCode() == http.StatusUnauthorized && kind != "agent" {
-		return taskStatus{}, fmt.Errorf("MinerU Token 无效或已过期 (HTTP 401)，请在 https://mineru.net/apiManage 重新获取；task_ref=%q", ref)
+		return taskStatus{}, fmt.Errorf("%s (task_ref=%q)", i18n.T("fetch.mineru.token_invalid"), ref)
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return taskStatus{}, fmt.Errorf("MinerU 服务异常 (HTTP %d)；task_ref=%q", resp.StatusCode(), ref)
+		return taskStatus{}, fmt.Errorf("%s (task_ref=%q)", i18n.T("fetch.mineru.service_error", "Status", resp.StatusCode()), ref)
 	}
 	if result.Code != "" && result.Code != "0" {
 		if kind != "agent" {
 			if err := classifyStandardError(result.Code.number(), result.Msg); err != nil {
-				return taskStatus{}, fmt.Errorf("%w；task_ref=%q", err, ref)
+				return taskStatus{}, fmt.Errorf("%w (task_ref=%q)", err, ref)
 			}
 		}
-		return taskStatus{}, fmt.Errorf("MinerU 查询失败: %s；task_ref=%q", result.Code.message(result.Msg), ref)
+		return taskStatus{}, fmt.Errorf("%s: %s (task_ref=%q)", i18n.T("fetch.mineru.query_failed"), result.Code.message(result.Msg), ref)
 	}
 	status := result.Data.taskStatus
 	if kind == "batch" {
 		if len(result.Data.ExtractResult) != 1 {
-			return taskStatus{}, fmt.Errorf("MinerU 上传任务应返回一个文件结果；task_ref=%q", ref)
+			return taskStatus{}, fmt.Errorf("%s (task_ref=%q)", i18n.T("fetch.mineru.upload_task_single_result"), ref)
 		}
 		status = result.Data.ExtractResult[0]
 	}
@@ -170,7 +179,7 @@ func (c *Client) pollTask(ctx context.Context, ref string) (string, error) {
 		wait = configured
 	}
 	if wait < 0 {
-		return "", fmt.Errorf("MinerU 等待时间不能为负")
+		return "", errors.New(i18n.T("fetch.mineru.wait_negative"))
 	}
 	pollCtx := ctx
 	if wait > 0 {
@@ -178,12 +187,12 @@ func (c *Client) pollTask(ctx context.Context, ref string) (string, error) {
 		pollCtx, cancel = context.WithTimeout(ctx, wait)
 		defer cancel()
 	}
-	last := "尚未取得任务状态"
+	last := i18n.T("fetch.mineru.no_status_yet")
 	interval := 2 * time.Second
 	for {
 		status, err := c.queryTask(pollCtx, ref)
 		if ctx.Err() != nil {
-			return "", fmt.Errorf("%w；task_ref=%q", ctx.Err(), ref)
+			return "", fmt.Errorf("%w (task_ref=%q)", ctx.Err(), ref)
 		}
 		if err != nil {
 			if pollCtx.Err() != nil {
@@ -206,18 +215,18 @@ func (c *Client) pollTask(ctx context.Context, ref string) (string, error) {
 				resultURL = status.MarkdownURL
 			}
 			if resultURL == "" {
-				return "", fmt.Errorf("MinerU 解析完成但未返回结果链接；task_ref=%q", ref)
+				return "", fmt.Errorf("%s (task_ref=%q)", i18n.T("fetch.mineru.no_result_link"), ref)
 			}
 			return resultURL, nil
 		case "failed":
 			if err := classifyStandardError(status.ErrCode.number(), status.ErrMsg); err != nil {
-				return "", fmt.Errorf("%w；task_ref=%q", err, ref)
+				return "", fmt.Errorf("%w (task_ref=%q)", err, ref)
 			}
-			return "", fmt.Errorf("MinerU 解析失败: %s；task_ref=%q", status.ErrCode.message(status.ErrMsg), ref)
+			return "", fmt.Errorf("%s: %s (task_ref=%q)", i18n.T("fetch.mineru.parse_failed"), status.ErrCode.message(status.ErrMsg), ref)
 		case "pending", "running", "converting", "uploading", "waiting-file":
 		default:
 			if status.State == "" {
-				return "", fmt.Errorf("MinerU 未返回任务状态；task_ref=%q", ref)
+				return "", fmt.Errorf("%s (task_ref=%q)", i18n.T("fetch.mineru.no_task_status"), ref)
 			}
 		}
 		if wait == 0 {
@@ -226,7 +235,7 @@ func (c *Client) pollTask(ctx context.Context, ref string) (string, error) {
 		select {
 		case <-pollCtx.Done():
 			if ctx.Err() != nil {
-				return "", fmt.Errorf("%w；task_ref=%q", ctx.Err(), ref)
+				return "", fmt.Errorf("%w (task_ref=%q)", ctx.Err(), ref)
 			}
 			return "", &TaskPendingError{ref, last, wait}
 		case <-time.After(interval):
@@ -251,13 +260,13 @@ func (c *Client) ResumeTask(ctx context.Context, ref string) (string, error) {
 	if kind == "agent" {
 		md, err := c.downloadMarkdown(ctx, resultURL)
 		if err != nil {
-			return "", fmt.Errorf("MinerU 结果下载失败: %w；task_ref=%q", err, ref)
+			return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, ref)
 		}
-		return "> MinerU 轻量结果不包含可下载的图片包。\n\n" + md, nil
+		return i18n.T("fetch.mineru.light_no_images") + "\n\n" + md, nil
 	}
 	md, err := c.downloadZIP(ctx, resultURL)
 	if err != nil {
-		return "", fmt.Errorf("MinerU 结果下载失败: %w；task_ref=%q", err, ref)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, ref)
 	}
-	return fmt.Sprintf("> **MinerU 完整结果 ZIP（含图片资源）**：%s。Markdown 中的相对图片路径需与 ZIP 内的 images/ 一起使用。\n\n%s", resultURL, md), nil
+	return i18n.T("fetch.mineru.zip_preamble", "URL", resultURL) + "\n\n" + md, nil
 }

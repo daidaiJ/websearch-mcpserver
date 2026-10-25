@@ -3,6 +3,8 @@ package webfetch
 import (
 	"strings"
 
+	"websearch/pkg/i18n"
+
 	"github.com/daidaiJ/go-webfetch/store"
 )
 
@@ -27,6 +29,6 @@ func (f *Fetcher) StoreLargePDFResult(result *Result, sourceURL string) error {
 	result.Mode, result.FilePath = "saved_to_file", path
 	result.TotalLines, result.TotalChars = totalLines, totalChars
 	result.Markdown = ""
-	result.AgentHint = "在服务运行环境中按行读取该文件；Docker 路径属于容器，不是宿主机路径。"
+	result.AgentHint = i18n.T("fetch.webfetch.agent_hint_read_file")
 	return nil
 }

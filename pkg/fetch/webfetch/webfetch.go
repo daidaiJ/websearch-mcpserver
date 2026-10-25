@@ -11,9 +11,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
 	"websearch/pkg/config"
 	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/mineru"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 
 	webfetch "github.com/daidaiJ/go-webfetch"
@@ -183,7 +185,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 		return nil, fmt.Errorf("%s: %w", classifyError(err), err)
 	}
 	if res.Mode == "inline" && !fetchcontent.HasPageBody(res.Markdown, res.Title) {
-		return nil, fmt.Errorf("未获得页面正文(可能需要 JavaScript 渲染): %w", &webfetch.EmptyContentError{URL: rawURL, Title: res.Title, CharCount: res.TotalChars})
+		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.webfetch.empty_body_js"), &webfetch.EmptyContentError{URL: rawURL, Title: res.Title, CharCount: res.TotalChars})
 	}
 	return &Result{
 		Title:       res.Title,
@@ -240,7 +242,7 @@ func (f *Fetcher) ParseCroppedPDF(ctx context.Context, path string) (*Result, er
 	f.beginActivity()
 	defer f.endActivity()
 	if f.mineru == nil || !f.mineru.HasToken() {
-		return nil, fmt.Errorf("MinerU 精准解析 API 需要 Token")
+		return nil, errors.New(i18n.T("fetch.webfetch.mineru_token_required"))
 	}
 	md, err := f.mineru.ParseStandardFile(ctx, path)
 	if err != nil {
@@ -254,7 +256,7 @@ func (f *Fetcher) ResumeMinerUTask(ctx context.Context, taskRef string) (*Result
 	f.beginActivity()
 	defer f.endActivity()
 	if f.mineru == nil {
-		return nil, fmt.Errorf("MinerU 未启用，无法查询已有任务")
+		return nil, errors.New(i18n.T("fetch.webfetch.mineru_disabled"))
 	}
 	md, err := f.mineru.ResumeTask(ctx, taskRef)
 	if err != nil {
@@ -265,9 +267,9 @@ func (f *Fetcher) ResumeMinerUTask(ctx context.Context, taskRef string) (*Result
 		engine = "mineru-ocr"
 	}
 	result := &Result{Mode: "inline", Markdown: md, ParseEngine: engine,
-		Preamble: "> 已取回原 MinerU 任务结果；页码范围沿用原任务，上传裁切任务的页码从 1 重新编号。"}
+		Preamble: i18n.T("fetch.webfetch.mineru_task_resumed_preamble")}
 	if err := f.StoreLargePDFResult(result, taskRef); err != nil {
-		return nil, fmt.Errorf("MinerU 结果保存失败: %w；task_ref=%q", err, taskRef)
+		return nil, fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.webfetch.mineru_result_save_failed"), err, taskRef)
 	}
 	return result, nil
 }
@@ -303,7 +305,7 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 			return result, nil
 		}
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("MinerU 解析失败: %w；调用上下文已结束: %w", err, ctx.Err())
+			return nil, fmt.Errorf("%s: %w; %s: %w", i18n.T("fetch.webfetch.mineru_parse_failed"), err, i18n.T("fetch.webfetch.context_ended"), ctx.Err())
 		}
 		if errors.Is(err, mineru.ErrPageLimit) || errors.Is(err, mineru.ErrRemoteURLRejected) {
 			return nil, err
@@ -333,7 +335,7 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 	}
 	if err != nil {
 		if mineruErr != nil {
-			return nil, fmt.Errorf("MinerU 解析失败: %w；PDF 文本回退失败: %s: %w", mineruErr, classifyError(err), err)
+			return nil, fmt.Errorf("%s: %w; %s: %s: %w", i18n.T("fetch.webfetch.mineru_parse_failed"), mineruErr, i18n.T("fetch.webfetch.text_fallback_failed"), classifyError(err), err)
 		}
 		return nil, fmt.Errorf("%s: %w", classifyError(err), err)
 	}
@@ -352,7 +354,7 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 	out.ParsedPages = parsedPDFPageCount(pages, maxPages, out.PageCount)
 	out.Preamble = pdfPagesPreamble(out, pages, maxPages)
 	if mineruErr != nil {
-		out.Preamble = fmt.Sprintf("> MinerU 未取得精准结果（%v），本次返回 PDF 文本提取；图片未随文本返回。\n\n%s", mineruErr, out.Preamble)
+		out.Preamble = i18n.T("fetch.webfetch.mineru_imprecise_preamble", "Err", mineruErr) + "\n\n" + out.Preamble
 	}
 	return out, nil
 }
@@ -362,24 +364,24 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 func mineruPageNote(pages []int, maxPages int, lightweight bool, limit int) string {
 	if lightweight {
 		if len(pages) > 0 {
-			return fmt.Sprintf("> MinerU 轻量 API 已请求 %d 页；单次最多 20 页，较长 PDF 可继续用 pages 读取。", len(pages))
+			return i18n.T("fetch.webfetch.mineru_light_pages", "Count", len(pages))
 		}
 		if maxPages > 0 {
 			if maxPages > limit {
 				maxPages = limit
 			}
-			return fmt.Sprintf("> MinerU 轻量 API 已请求前 %d 页；原文件总页数未知，后续页可用 pages 读取。", maxPages)
+			return i18n.T("fetch.webfetch.mineru_light_first_pages", "Count", maxPages)
 		}
 		return ""
 	}
 	if len(pages) > 0 {
-		return fmt.Sprintf("> MinerU 已请求 %d 页；原 PDF 超过 %d 页时服务会裁切所需页面后上传。", len(pages), limit)
+		return i18n.T("fetch.webfetch.mineru_pages", "Count", len(pages), "Limit", limit)
 	}
 	if maxPages > 0 {
 		if maxPages > limit {
 			maxPages = limit
 		}
-		return fmt.Sprintf("> MinerU 已请求前 %d 页；原文件总页数未知，后续页可用 pages 指定。原 PDF 超过 %d 页时服务会裁切所需页面后上传。", maxPages, limit)
+		return i18n.T("fetch.webfetch.mineru_first_pages", "Count", maxPages, "Limit", limit)
 	}
 	return ""
 }
@@ -393,8 +395,8 @@ func pdfPagesPreamble(result *Result, pages []int, maxPages int) string {
 	if end > result.PageCount {
 		end = result.PageCount
 	}
-	return fmt.Sprintf("> 注：PDF 全文共 %d 页，已按 pdf_parser.max_pages=%d 只解析前 %d 页；后续页请用 pages 参数指定页码（如 \"%d-%d\"）。",
-		result.PageCount, maxPages, maxPages, maxPages+1, end)
+	return i18n.T("fetch.webfetch.pdf_pages_truncated",
+		"Total", result.PageCount, "Max", maxPages, "From", maxPages+1, "To", end)
 }
 
 // parseLocalPDF 本地 PDF：优先 ledongthuc/pdf 文本提取；无文本且开启 mineru_ocr 时回退 MinerU。
@@ -423,7 +425,7 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 	}
 
 	if f.mineru == nil || !f.mineruOCR {
-		return nil, fmt.Errorf("%w（可能是扫描件/图片型 PDF，本地库无法提取文本；可在配置中开启 pdf_parser.mineru_ocr 以使用 MinerU OCR）", err)
+		return nil, fmt.Errorf("%w%s", err, i18n.T("fetch.webfetch.scanned_pdf_hint"))
 	}
 
 	log.InfoT("log.fetch.webfetch.local_pdf_library_extracted_no_text", "localPath", localPath)
@@ -439,9 +441,9 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 		return res, nil
 	}
 	if errors.Is(mineruErr, mineru.ErrFileTooLarge) {
-		return nil, fmt.Errorf("%w；MinerU OCR 回退失败: 文件超过 Agent API 限制(10MB)", err)
+		return nil, fmt.Errorf("%w%s", err, i18n.T("fetch.webfetch.ocr_fallback_too_large"))
 	}
-	return nil, fmt.Errorf("%w；MinerU OCR 回退失败: %w", err, mineruErr)
+	return nil, fmt.Errorf("%w%s: %w", err, i18n.T("fetch.webfetch.ocr_fallback_failed"), mineruErr)
 }
 
 // needsOCRFallback 判断本地解析失败是否因无文本层（扫描件等），适合 OCR 回退。
@@ -463,10 +465,10 @@ func (f *Fetcher) parsePDFFile(ctx context.Context, filePath string) (*Result, e
 func (f *Fetcher) parsePDFFileOpts(ctx context.Context, filePath string, opts []webfetch.PDFOption) (*Result, error) {
 	res, err := f.engine.ParsePDFFile(ctx, filePath, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("PDF 解析失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.webfetch.pdf_parse_failed"), err)
 	}
 	if res.Error != "" {
-		return nil, fmt.Errorf("PDF 解析失败: %s", res.Error)
+		return nil, fmt.Errorf("%s: %s", i18n.T("fetch.webfetch.pdf_parse_failed"), res.Error)
 	}
 	mode := res.Mode
 	if mode == "" && res.Markdown != "" {
@@ -605,7 +607,7 @@ func (f *Fetcher) CleanExpiredFiles() (int, error) {
 	return count, nil
 }
 
-// classifyError 将 go-webfetch 的错误分类为用户友好的错误信息。
+// classifyError 将 go-webfetch 的错误分类为面向用户的错误信息（按当前语言渲染）。
 func classifyError(err error) string {
 	var notFound *webfetch.NotFoundError
 	var waf *webfetch.WAFError
@@ -615,16 +617,16 @@ func classifyError(err error) string {
 
 	switch {
 	case errors.As(err, &notFound):
-		return fmt.Sprintf("页面不存在(%d)", notFound.StatusCode)
+		return i18n.T("fetch.webfetch.err_page_not_found", "Status", notFound.StatusCode)
 	case errors.As(err, &waf):
-		return "被网站反爬机制拦截(WAF)"
+		return i18n.T("fetch.webfetch.err_waf")
 	case errors.As(err, &empty):
-		return "页面内容为空(可能被反爬)"
+		return i18n.T("fetch.webfetch.err_empty_maybe_antibot")
 	case errors.As(err, &ssrf):
-		return "不允许访问内网地址"
+		return i18n.T("fetch.webfetch.err_private_address")
 	case errors.As(err, &timeout):
-		return "请求超时"
+		return i18n.T("fetch.webfetch.err_timeout")
 	default:
-		return fmt.Sprintf("抓取失败: %v", err)
+		return i18n.T("fetch.webfetch.err_fetch_failed", "Err", err)
 	}
 }

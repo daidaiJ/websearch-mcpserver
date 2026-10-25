@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
 
@@ -40,11 +42,21 @@ var ErrFileTooLarge = errors.New("file exceeds MinerU Agent API size limit (10MB
 // shortcut: matches MinerU inline images; expand only if Agent adds other image syntax.
 var ocrNonText = regexp.MustCompile(`(?s)<!--.*?-->|!\[[^]]*\]\([^)]*\)`)
 
-// ErrPageLimit means MinerU rejected the original document's page count.
-var ErrPageLimit = errors.New("MinerU PDF 页数超过接口限制")
+// ErrPageLimit / ErrRemoteURLRejected 是稳定标记（errors.Is 判定用），对外文案按当前语言渲染。
+var ErrPageLimit = errors.New("mineru_page_limit")
 
 // ErrRemoteURLRejected means MinerU cannot fetch a URL that the local service may still read.
-var ErrRemoteURLRejected = errors.New("MinerU 无法直接读取远程 PDF URL")
+var ErrRemoteURLRejected = errors.New("mineru_remote_url_rejected")
+
+// localizedError 携带稳定标记，同时给出调用方已渲染好的本地化文案：
+// 文案由调用点的 i18n.T 字面量 key 生成，wrapper 本身不认识 key（目录审计可静态校验）。
+type localizedError struct {
+	msg    string
+	marker error
+}
+
+func (e *localizedError) Error() string { return e.msg }
+func (e *localizedError) Unwrap() error { return e.marker }
 
 // Client MinerU 文档解析 API 客户端。
 type Client struct {
@@ -110,7 +122,7 @@ func (c *Client) ParseURL(ctx context.Context, fileURL string) (string, error) {
 // ParseURLWithPages 向 MinerU 传递选页范围；省略选页时使用 maxPages。
 func (c *Client) ParseURLWithPages(ctx context.Context, fileURL string, pages []int, maxPages int) (string, error) {
 	if c.token == "" {
-		return "", fmt.Errorf("MinerU 精准解析 API 需要 Token")
+		return "", errors.New(i18n.T("fetch.mineru.token_required"))
 	}
 	pageRanges, err := standardPageRanges(pages, maxPages, c.pageLimit)
 	if err != nil {
@@ -130,9 +142,9 @@ func (c *Client) ParseURLWithPages(ctx context.Context, fileURL string, pages []
 
 	md, err := c.downloadZIP(ctx, zipURL)
 	if err != nil {
-		return "", fmt.Errorf("MinerU 结果下载失败: %w；task_ref=%q", err, "standard:"+taskID)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, "standard:"+taskID)
 	}
-	return fmt.Sprintf("> **MinerU 完整结果 ZIP（含图片资源）**：%s。Markdown 中的相对图片路径需与 ZIP 内的 images/ 一起使用。\n\n%s", zipURL, md), nil
+	return i18n.T("fetch.mineru.zip_preamble", "URL", zipURL) + "\n\n" + md, nil
 }
 
 // standardPageRanges 将已排序的 MCP 页码转成精准 API 的 page_ranges。
@@ -149,7 +161,7 @@ func standardPageRanges(pages []int, maxPages, limit int) (string, error) {
 		return fmt.Sprintf("1-%d", maxPages), nil
 	}
 	if len(pages) > limit || pages[len(pages)-1] > limit {
-		return "", fmt.Errorf("%w：精准 API 单次最多 %d 页", ErrPageLimit, limit)
+		return "", &localizedError{msg: i18n.T("fetch.mineru.page_limit", "Limit", limit), marker: ErrPageLimit}
 	}
 	var parts []string
 	for i := 0; i < len(pages); {
@@ -186,7 +198,7 @@ func (c *Client) ParseFileWithPages(ctx context.Context, filePath string, pages 
 	}
 	info, err := os.Stat(filePath)
 	if err != nil {
-		return "", fmt.Errorf("文件不存在: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("fetch.mineru.file_not_found"), err)
 	}
 	if info.Size() > maxAgentSizeMB*1024*1024 {
 		return "", ErrFileTooLarge
@@ -199,7 +211,7 @@ func (c *Client) ParseFileWithPages(ctx context.Context, filePath string, pages 
 	log.InfoT("log.fetch.mineru.mineru_agent_api_task_created_task", "taskID", taskID)
 
 	if err := c.uploadFile(ctx, uploadURL, filePath); err != nil {
-		return "", fmt.Errorf("MinerU 文件上传失败: %w；task_ref=%q", err, "agent:"+taskID)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.upload_failed"), err, "agent:"+taskID)
 	}
 	log.InfoT("log.fetch.mineru.mineru_file_upload_completed_waiting_for", "taskID", taskID)
 
@@ -210,10 +222,10 @@ func (c *Client) ParseFileWithPages(ctx context.Context, filePath string, pages 
 
 	md, err := c.downloadMarkdown(ctx, mdURL)
 	if err != nil {
-		return "", fmt.Errorf("MinerU 结果下载失败: %w；task_ref=%q", err, "agent:"+taskID)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, "agent:"+taskID)
 	}
 	if strings.Contains(md, "images/") {
-		md = "> 注：MinerU 轻量 API 仅提供 Markdown 链接，未提供可下载的图片包；文中的 images/ 相对路径可能无法读取。需要完整配图时请使用带 Token 的精准 API。\n\n" + md
+		md = i18n.T("fetch.mineru.light_markdown_only_note") + "\n\n" + md
 	}
 	return md, nil
 }
@@ -249,19 +261,19 @@ func (c *Client) createTask(ctx context.Context, fileURL, pageRanges string) (st
 		SetResult(&resp).
 		Post(c.endpoint + standardAPIPath + "/extract/task")
 	if err != nil {
-		return "", fmt.Errorf("MinerU 服务连接失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("fetch.mineru.service_connect_failed"), err)
 	}
 	if res.StatusCode() != http.StatusOK {
 		if res.StatusCode() == http.StatusUnauthorized {
-			return "", fmt.Errorf("MinerU Token 无效或已过期 (HTTP 401)，请在 https://mineru.net/apiManage 重新获取")
+			return "", errors.New(i18n.T("fetch.mineru.token_invalid_hint"))
 		}
-		return "", fmt.Errorf("MinerU 服务异常 (HTTP %d)", res.StatusCode())
+		return "", errors.New(i18n.T("fetch.mineru.service_error", "Status", res.StatusCode()))
 	}
 	if resp.Code != 0 {
 		if err := classifyStandardError(resp.Code, resp.Msg); err != nil {
 			return "", err
 		}
-		return "", fmt.Errorf("MinerU 任务提交失败: %s", mapAPIError(resp.Code, resp.Msg))
+		return "", fmt.Errorf("%s: %s", i18n.T("fetch.mineru.task_submit_failed"), mapAPIError(resp.Code, resp.Msg))
 	}
 	return resp.Data.TaskID, nil
 }
@@ -271,9 +283,9 @@ func (c *Client) createTask(ctx context.Context, fileURL, pageRanges string) (st
 func classifyStandardError(code int, msg string) error {
 	switch code {
 	case -60006:
-		return fmt.Errorf("%w: %s", ErrPageLimit, mapAPIError(code, msg))
+		return &localizedError{msg: i18n.T("fetch.mineru.page_limit_reason", "Err", mapAPIError(code, msg)), marker: ErrPageLimit}
 	case -60023:
-		return fmt.Errorf("%w: %s", ErrRemoteURLRejected, mapAPIError(code, msg))
+		return &localizedError{msg: i18n.T("fetch.mineru.remote_url_rejected", "Err", mapAPIError(code, msg)), marker: ErrRemoteURLRejected}
 	default:
 		return nil
 	}
@@ -311,13 +323,13 @@ func (c *Client) createFileTask(ctx context.Context, fileName string) (taskID, u
 		SetResult(&resp).
 		Post(c.endpoint + agentAPIPath + "/parse/file")
 	if err != nil {
-		return "", "", fmt.Errorf("MinerU 服务连接失败: %w", err)
+		return "", "", fmt.Errorf("%s: %w", i18n.T("fetch.mineru.service_connect_failed"), err)
 	}
 	if res.StatusCode() != http.StatusOK {
-		return "", "", fmt.Errorf("MinerU 服务异常 (HTTP %d)", res.StatusCode())
+		return "", "", errors.New(i18n.T("fetch.mineru.service_error", "Status", res.StatusCode()))
 	}
 	if resp.Code != 0 {
-		return "", "", fmt.Errorf("MinerU 创建任务失败: %s", mapAgentError(resp.Code, resp.Msg))
+		return "", "", fmt.Errorf("%s: %s", i18n.T("fetch.mineru.create_task_failed"), mapAgentError(resp.Code, resp.Msg))
 	}
 	return resp.Data.TaskID, resp.Data.FileURL, nil
 }
@@ -341,7 +353,7 @@ func (c *Client) uploadFile(ctx context.Context, uploadURL, filePath string) err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("上传失败，HTTP %d", resp.StatusCode)
+		return errors.New(i18n.T("fetch.mineru.upload_http_failed", "Status", resp.StatusCode))
 	}
 	return nil
 }
@@ -358,7 +370,7 @@ func (c *Client) downloadZIP(ctx context.Context, zipURL string) (string, error)
 		return "", err
 	}
 	if res.StatusCode() != http.StatusOK {
-		return "", fmt.Errorf("下载失败，HTTP %d", res.StatusCode())
+		return "", errors.New(i18n.T("fetch.mineru.download_http_failed", "Status", res.StatusCode()))
 	}
 	return extractFullMD(res.Bytes())
 }
@@ -369,11 +381,11 @@ func (c *Client) downloadMarkdown(ctx context.Context, mdURL string) (string, er
 		return "", err
 	}
 	if res.StatusCode() != http.StatusOK {
-		return "", fmt.Errorf("下载失败，HTTP %d", res.StatusCode())
+		return "", errors.New(i18n.T("fetch.mineru.download_http_failed", "Status", res.StatusCode()))
 	}
 	md := string(res.Bytes())
 	if c.ocr && strings.TrimSpace(ocrNonText.ReplaceAllString(md, "")) == "" {
-		return "", fmt.Errorf("OCR未提取到可读文本")
+		return "", errors.New(i18n.T("fetch.mineru.ocr_no_text"))
 	}
 	return md, nil
 }
@@ -381,7 +393,7 @@ func (c *Client) downloadMarkdown(ctx context.Context, mdURL string) (string, er
 func extractFullMD(data []byte) (string, error) {
 	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		return "", fmt.Errorf("ZIP 解压失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("fetch.mineru.zip_unzip_failed"), err)
 	}
 	for _, f := range r.File {
 		if strings.HasSuffix(f.Name, "full.md") {
@@ -397,77 +409,77 @@ func extractFullMD(data []byte) (string, error) {
 			return string(content), nil
 		}
 	}
-	return "", fmt.Errorf("ZIP 中未找到 full.md 文件")
+	return "", errors.New(i18n.T("fetch.mineru.zip_full_md_missing"))
 }
 
 // ── 错误映射 ────────────────────────────────────────────────────────────────
 
-// mapAPIError 将精准解析 API 错误码翻译为用户友好的中文提示。
+// mapAPIError 将精准解析 API 错误码翻译为用户友好的提示（按当前语言渲染）。
 func mapAPIError(code int, msg string) string {
 	if code == 0 {
 		return ""
 	}
 	if msg == "" {
-		msg = "未知错误"
+		msg = i18n.T("fetch.mineru.err_unknown")
 	}
 	switch code {
 	case -500:
-		return "请求参数格式错误"
+		return i18n.T("fetch.mineru.err_bad_request")
 	case -10001:
-		return "MinerU 服务暂时不可用，请稍后重试"
+		return i18n.T("fetch.mineru.err_service_unavailable")
 	case -10002:
-		return "请求参数错误"
+		return i18n.T("fetch.mineru.err_bad_params")
 	case -60001:
-		return "MinerU 服务繁忙，请稍后重试"
+		return i18n.T("fetch.mineru.err_busy")
 	case -60002:
-		return "不支持的文件格式"
+		return i18n.T("fetch.mineru.err_unsupported_format")
 	case -60003:
-		return "文件读取失败，请检查文件是否损坏"
+		return i18n.T("fetch.mineru.err_file_read_failed")
 	case -60004:
-		return "文件为空"
+		return i18n.T("fetch.mineru.err_file_empty")
 	case -60005:
-		return "文件超过大小限制 (200MB)"
+		return i18n.T("fetch.mineru.err_file_too_large")
 	case -60006:
-		return "文件页数超过限制 (600页)"
+		return i18n.T("fetch.mineru.err_page_limit")
 	case -60007:
-		return "MinerU 模型服务暂不可用，请稍后重试"
+		return i18n.T("fetch.mineru.err_model_unavailable")
 	case -60008:
-		return "文件 URL 访问超时，请检查链接是否可用"
+		return i18n.T("fetch.mineru.err_url_timeout")
 	case -60009:
-		return "MinerU 任务队列已满，请稍后重试"
+		return i18n.T("fetch.mineru.err_queue_full")
 	case -60010:
-		return "文件解析失败"
+		return i18n.T("fetch.mineru.err_parse_failed")
 	case -60015, -60016:
-		return "文件格式转换失败，建议转为 PDF 后重试"
+		return i18n.T("fetch.mineru.err_format_convert_failed")
 	case -60017:
-		return "MinerU 重试次数已达上限，请稍后重试"
+		return i18n.T("fetch.mineru.err_retry_exhausted")
 	case -60018:
-		return "MinerU 每日解析额度已用完"
+		return i18n.T("fetch.mineru.err_quota_exhausted")
 	case -60022:
-		return "MinerU 无法访问文件 URL，可能是网络限制"
+		return i18n.T("fetch.mineru.err_url_unreachable")
 	default:
 		// A0xxx 系列 Token 错误（API 文档中的错误码格式）
 		if isTokenError(msg) {
-			return "MinerU Token 无效或已过期，请更新配置"
+			return i18n.T("fetch.mineru.err_token_invalid_config")
 		}
-		return fmt.Sprintf("MinerU 错误 (%d): %s", code, msg)
+		return i18n.T("fetch.mineru.err_wrapped", "Code", code, "Msg", msg)
 	}
 }
 
-// mapAgentError 将 Agent 轻量 API 错误码翻译为用户友好的中文提示。
+// mapAgentError 将 Agent 轻量 API 错误码翻译为用户友好的提示（按当前语言渲染）。
 func mapAgentError(code int, msg string) string {
 	if code == 0 {
 		return ""
 	}
 	switch code {
 	case -30001:
-		return "文件超过轻量 API 大小限制 (10MB)"
+		return i18n.T("fetch.mineru.err_agent_too_large")
 	case -30002:
-		return "轻量 API 不支持该文件格式"
+		return i18n.T("fetch.mineru.err_agent_unsupported")
 	case -30003:
-		return "文件页数超过轻量 API 限制 (20页)；可用 pages 指定 20 页以内范围"
+		return i18n.T("fetch.mineru.err_agent_page_limit")
 	case -30004:
-		return "请求参数错误"
+		return i18n.T("fetch.mineru.err_bad_params")
 	default:
 		return mapAPIError(code, msg)
 	}

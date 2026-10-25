@@ -1,8 +1,10 @@
 package everything
 
 import (
-	"fmt"
+	"errors"
 	"strings"
+
+	"websearch/pkg/i18n"
 )
 
 // ScopeQuery 把目录限定项拼进查询串，返回可直接交给 Search 的最终 query。
@@ -54,7 +56,7 @@ func checkRoots(roots []string, dir string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("目录 %s 不在 everything.roots 白名单内", dir)
+	return errors.New(i18n.T("fetch.everything.root_not_allowed", "Dir", dir))
 }
 
 // withinDir 判断 dir 是否等于 root 或位于 root 之下（组件边界比较，
