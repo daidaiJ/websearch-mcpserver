@@ -260,7 +260,7 @@ func buildAcademicToolDescription() string {
 	sb.WriteString(i18n.T("mcp.tool.academicsearch.engines"))
 	sb.WriteString("\n")
 	for _, name := range engines {
-		sb.WriteString(fmt.Sprintf("  - %s: %s\n", name, academicEngineDesc(name)))
+		fmt.Fprintf(&sb, "  - %s: %s\n", name, academicEngineDesc(name))
 	}
 	sb.WriteString("\n")
 	sb.WriteString(i18n.T("mcp.tool.academicsearch.advice"))

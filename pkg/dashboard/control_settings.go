@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
+
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 )
@@ -264,10 +265,6 @@ func validateSourceCombination(c config.Config, loc *i18n.Localizer) error {
 
 func validBackupName(name string) bool {
 	return filepath.Base(name) == name && !strings.ContainsAny(name, `/\\`) && strings.HasPrefix(name, "config-") && strings.HasSuffix(name, ".yaml")
-}
-
-func applySettings(c config.Config, req SettingsRequest, loc *i18n.Localizer) (SettingsResult, error) {
-	return applySettingsFile(c, req, config.GetConfigFile(), nil, loc)
 }
 
 // applySettingsFile 写入配置；loc 决定校验错误等响应文案的语言。

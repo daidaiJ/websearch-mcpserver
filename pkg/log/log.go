@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
+
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 )

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"resty.dev/v3"
+
 	"websearch/pkg/config"
 	"websearch/pkg/proxy"
 )

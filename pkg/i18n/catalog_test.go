@@ -279,11 +279,11 @@ func collectCallKey(fset *token.FileSet, call *ast.CallExpr, rel, logPkg string,
 	if !ok {
 		return
 	}
-	idx := -1
-	switch {
-	case sel.Sel.Name == "T":
+	var idx int
+	switch sel.Sel.Name {
+	case "T":
 		idx = 0
-	case sel.Sel.Name == "TCtx":
+	case "TCtx":
 		// TCtx(ctx, key, data)：key 是第二个实参
 		idx = 1
 	default:
@@ -296,7 +296,7 @@ func collectCallKey(fset *token.FileSet, call *ast.CallExpr, rel, logPkg string,
 		}
 		idx = 0
 	}
-	if idx < 0 || idx >= len(call.Args) {
+	if idx >= len(call.Args) {
 		return
 	}
 	pos := fset.Position(call.Args[idx].Pos())
@@ -400,7 +400,7 @@ func stripJSComments(src string) string {
 			}
 		case src[i] == '/' && i+1 < len(src) && src[i+1] == '*':
 			i += 2
-			for i+1 < len(src) && !(src[i] == '*' && src[i+1] == '/') {
+			for i+1 < len(src) && (src[i] != '*' || src[i+1] != '/') {
 				i++
 			}
 			i += 2
