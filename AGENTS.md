@@ -187,7 +187,14 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### eco-absorb 供应商扩展批 — done（已随 v3.10.0 发布）
+### v3.10.1 发布后审查修复 — done（2026-10-25，v3.10.0 三线下架回收）
+
+- **当前状态：** v3.10.0 发布次日审查发现 2 P1 + 7 P2，修复后以 `v3.10.1` 重发（Release + GHCR + MCP Registry 三线就绪）；v3.10.0 的 GitHub Release×2、远端/本地 tags、MCP Registry 条目（status=deleted）均已下架回收
+- **修复清单：** fetch_top_n 接 sitefetch GitHub 特判（JS 空壳误标反爬）、sitefetch 403/429 配额冷却（Retry-After / x-ratelimit-reset，封顶 10 分钟）、blob 路径逐段 PathEscape + www 前缀归一、pushed_at 越界守卫、GitHub 引擎引号感知截断（422 防护）、search_history 缓存命中补写、quota 双端点并行、历史条目 query 展示截断；提交 `c2e5a20`（fix）+ `548a6f9`（changelog），新增 7 个针对性测试
+- **审查遗留（未做，候选 roadmap）：** 全供应商把传输层错误也包 `KeyError` → `MarkInvalid` 30 分钟冷却，单 Key 供应商一次网络瞬断即 30 分钟不可用（tavily/exa/doubao 等老约定同款，属系统性问题）；smartsearch 统一检索（sources 参数：web/学术/file/wiki 分节聚合）方案已评审，推荐 Phase 1 = web+academic
+- **验收：** `go build`、`go vet`、全量 short 测试（42 包）、`golangci-lint --new-from-rev=v3.10.0` 0 issues
+
+### eco-absorb 供应商扩展批 — done（已随 v3.10.0 发布，后由 v3.10.1 修正接替）
 
 - **当前状态：** 已随 `v3.10.0` 正式发布（2026-10-24，Release + GHCR + MCP Registry 三线就绪）；发版前经两轴审查修复 4 处（LLM withDeadline 取更早者、search_history FTS5 特殊字符、history 优雅关闭、工具描述补试验性）
 - **关键证据：** 分支远端 head `3d78aa1`（本地 worktree 已删除）；TinyFish `/usage` 真机实测（total 随 start_after 过滤）；测试 Key 在 gitignored 的 `config.test.yaml` 与部署 `config.yaml`
@@ -203,15 +210,16 @@ docker build -t websearch-mcpserver .
 - **验收：** `go test ./...`、`go test -race -short -p 1 ./...`、golangci-lint 0 issues
 - **详情指针：** [`.handoff/shortcut-sync.md`](.handoff/shortcut-sync.md)
 
-### github-reddit-access — done（GitHub 已随 v3.10.0 落地；Reddit 整线放弃，N7 归档）
+### github-reddit-access — done（GitHub 已随 v3.10.0 落地、v3.10.1 修正；Reddit 整线放弃，N7 归档）
 
-- **当前状态：** GitHub 引擎 + cleanfetch 仓库/blob 特判 + 失败回退已随 `v3.10.0` 发布；Reddit 经评审整线放弃（官方公告进入关停周期，收益期 < 5 个月），调研结论留档 roadmap N7
+- **当前状态：** GitHub 引擎 + cleanfetch 仓库/blob 特判 + 失败回退已随 `v3.10.0` 发布（v3.10.0 已下架，现行版本 `v3.10.1`）；Reddit 经评审整线放弃（官方公告进入关停周期，收益期 < 5 个月），调研结论留档 roadmap N7
 - **验收结果：** GitHub 零 Key 匿名 + PAT 双模、429/403 冷却（Retry-After / x-ratelimit-reset）、blob 走 contents API、搜索失败回 Bing `site:github.com`、抓取失败回 webfetch→Jina、typed-nil 防护（InitGithubEngine 返回接口类型）——真机全部验证通过
 - **详情指针：** [`.handoff/github-reddit-access.md`](.handoff/github-reddit-access.md)
 
 ### 运维待办
 
-- 本机部署 `D:\Programs\websearch` 已更新到 `v3.10.0`（备份 `websearch-mcpserver.exe.bak-pre-v3.10.0`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`；新供应商已配测试 Key（tinyfish/keenable 进 `apipool.engines`，github PAT 提额，search_history 已开启），`mcp_hub.fetch_mode: prefer` 激活远端抓取链；真网验证全过（tinyfish 搜索/fetch/官方额度、keenable keyed 搜索、cleanfetch github 特判、search_history 写入+FTS）
+- 本机部署 `D:\Programs\websearch` 仍为已下架的 `v3.10.0` 构建（备份 `websearch-mcpserver.exe.bak-pre-v3.10.0`），待升级 `v3.10.1`（下载 base Release 的 `websearch-mcpserver-windows-amd64.exe` 覆盖）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`；新供应商已配测试 Key（tinyfish/keenable 进 `apipool.engines`，github PAT 提额，search_history 已开启），`mcp_hub.fetch_mode: prefer` 激活远端抓取链
+- **v3.10.0 下架记录（2026-10-25）：** GitHub Release `v3.10.0` / `v3.10.0-registry` 已删、远端与本地 tags 已删、MCP Registry 经 `registry-status.yml` 置 `deleted`（工作流日志复核：列表余 3.10.1 无 3.10.0）。GHCR 的 `v3.10.0` 镜像 tag 未删（历史版本镜像一律保留，与 3.9.x 同口径）
 - **发布流程教训（2026-10-24）：** `-registry` tag 推送不可重复——MCP Registry 同版本二次 publish 报 400 duplicate（首次已成功发布即占位）。误发版本用 `mcp-publisher status --status deleted`（已建 `.github/workflows/registry-status.yml` 运维工作流，OIDC 认证）下架；重发同版本 tag 必须钉同一 commit（构建可复现，产物 sha256 与 registry 元数据逐一致时可不重 publish）。registry 约束：`status active` 不允许携带 message
 - 误发的 `v3.10.0-preview.1` 远端与本地 tag 已删除。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
 
