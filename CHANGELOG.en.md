@@ -2,6 +2,20 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.10.1 — 2026-10-25 (Post-release review fixes for v3.10.0)
+
+> Review batch after the three-track v3.10.0 release: 2 P1 issues (`fetch_top_n` missing the GitHub site-specific path, no quota cooldown in sitefetch) plus 7 P2 fixes. The v3.10.0 GitHub Release, remote tags and MCP Registry entry have been withdrawn; this version supersedes it as latest.
+
+### Fixed
+- **smartsearch `fetch_top_n` now goes through the GitHub site-specific path (P1)**: github.com pages are JS-rendered and webfetch cannot extract their body, so body enrichment for GitHub results always came back empty and was mislabeled as "anti-bot blocked". Both paths now share one entry point (REST API first, fall back to the regular chain on failure, same telemetry), with body text going through the unified size truncation
+- **Quota cooldown for the cleanfetch GitHub path (P1)**: the sitefetch side previously had no rate limiting or cooldown — once the anonymous core quota (60/h, two calls per repo page) ran out it kept hitting 403s. It now enters cooldown on 403/429 per Retry-After / x-ratelimit-reset (capped at 10 minutes, same policy as the search engine side) and fails fast during cooldown, immediately falling back to the webfetch → Jina chain
+- **Path encoding for GitHub blob pages**: owner / repo / file-path segments are now percent-encoded per segment with `PathEscape` (malformed segments could previously produce invalid request paths); `www.github.com` prefixes normalize into the site-specific path while spoofed suffix domains (`github.com.evil.example`) are excluded
+- **Malformed `pushed_at` no longer panics**: a timestamp shorter than 10 characters previously caused an out-of-range slice that crashed the fetch chain; it is now defensively truncated and shown as-is
+- **Quote-aware truncation for long GitHub engine queries**: quoted phrases count as one clause when truncating to 5 clauses, so truncation no longer produces unbalanced quotes (the GitHub search API rejects the whole query with 422)
+- **`search_history` also records cache hits**: the tool description says "written after every successful smartsearch", but the cache-hit path previously skipped the write; live and cache-hit paths are now consistent (skipped only when the cached snapshot fails to parse)
+- **Parallel dashboard quota queries**: the Tavily and TinyFish official `/usage` endpoints are queried in parallel (12s timeout each; serial worst case was 24s stalling the panel)
+- **`search_history` header query truncation**: overly long queries (usually accidental pastes) are truncated to 200 characters in the display layer; the full original is still stored and FTS search is unaffected
+
 ## v3.10.0 — 2026-10-24 (Provider expansion, GitHub engine and search_history)
 
 > Survey-absorb batch (roadmap N series): provider expansion, reliability guardrails and the experimental `search_history`, merged into master from the `feat/provider-eco-absorb` branch. Commit map: `bb30253` (LLM deadline), `a7045b3` (provider expansion + remote fetch chain), `45104d7` (output contract tests), `7cf198e` (search_history), `bf9053d` (dashboard source panel and settings), `067fcf5` (TinyFish official usage), plus follow-up roadmap / docs commits.

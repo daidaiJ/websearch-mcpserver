@@ -2,6 +2,20 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.10.1 — 2026-10-25（v3.10.0 发布后审查修复）
+
+> v3.10.0 三线发布后的审查批次：2 个 P1（`fetch_top_n` 未接 GitHub 站点特判、sitefetch 无配额冷却）与 7 个 P2 一并修复。v3.10.0 的 GitHub Release、远端 tags 与 MCP Registry 条目已下架回收，本版接替为最新版。
+
+### 修复
+- **smartsearch `fetch_top_n` 接入 GitHub 站点特判（P1）**：github.com 是 JS 渲染页，webfetch 抓不到正文，此前 `fetch_top_n` 对 GitHub 检索结果的正文补抓必然拿到空壳并误标"反爬拦截"。现与 cleanfetch 共用同一特判入口（REST API 优先、失败回落常规链、遥测同源），正文过统一大小截断
+- **cleanfetch GitHub 特判增加配额冷却（P1）**：sitefetch 侧此前无限流无冷却，匿名 core 60/h（每个仓库页 2 次调用）耗尽后持续 403 空转；现 403/429 按 Retry-After / x-ratelimit-reset 进入冷却（封顶 10 分钟，与搜索引擎侧同口径），冷却中快速失败、立即回退 webfetch → Jina 链
+- **GitHub blob 页路径编码**：owner / repo / 文件路径各段改 `PathEscape` 逐段编码（此前畸形段可产生非法请求路径）；`www.github.com` 前缀归一匹配特判，伪造后缀域（`github.com.evil.example`）不接管
+- **畸形 `pushed_at` 不再 panic**：API 返回短于 10 字符的时间戳时裸切片越界会崩掉抓取链，现防御性截取、原样展示
+- **GitHub 引擎超长查询引号感知截断**：截断到 5 子句时引号短语计为一个子句，不再切出不配对引号（GitHub search API 会以 422 拒绝整个查询）
+- **`search_history` 缓存命中也写历史**：工具描述口径是「每次 smartsearch 成功后自动写入」，此前缓存命中路径漏写；现实时与命中路径一致（命中快照解析失败时跳过）
+- **控制中心额度查询并行化**：Tavily 与 TinyFish 官方 `/usage` 端点改并行查询（各 12s 超时，串行最坏 24s 拖慢面板）
+- **`search_history` 条目头部 query 截断**：超长 query（多为误粘贴）在展示层截断到 200 字符，库里仍存完整原文、FTS 检索不受影响
+
 ## v3.10.0 — 2026-10-24（供应商扩展、GitHub 引擎与 search_history）
 
 > 调研吸收批次（路线图 N 系列）：供应商扩展、可靠性护栏与试验性 `search_history`，经 `feat/provider-eco-absorb` 分支合入 master。提交对照：`bb30253`（LLM deadline）、`a7045b3`（供应商扩展 + 远端抓取链）、`45104d7`（输出契约测试）、`7cf198e`（search_history）、`bf9053d`（dashboard 源面板与设置页）、`067fcf5`（TinyFish 官方额度直读）及后续 roadmap / 文档提交。
