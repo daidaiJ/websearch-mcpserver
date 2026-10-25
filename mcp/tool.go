@@ -2,10 +2,11 @@ package mcpserver
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"sync"
 	"time"
+
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/everything"
@@ -13,6 +14,7 @@ import (
 	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/history"
+	"websearch/pkg/i18n"
 	"websearch/pkg/llm"
 	"websearch/pkg/search"
 	"websearch/pkg/telemetry"
@@ -119,7 +121,7 @@ func Init(conf config.Config, opts ...ServerOption) error {
 	}
 
 	if searchapi == nil {
-		return fmt.Errorf("搜索引擎未初始化，请检查配置")
+		return errors.New(i18n.T("tool.init.search_not_initialized"))
 	}
 	return nil
 }
@@ -159,7 +161,7 @@ func recentAttemptChain(started time.Time, limit int) string {
 	if winner == "" {
 		return strings.Join(attempted, "→")
 	}
-	return strings.Join(attempted, "→") + " · 结果来自 " + winner
+	return i18n.T("tool.chain.result_from", "Chain", strings.Join(attempted, "→"), "Winner", winner)
 }
 
 func withinCall(occurredAt string, started time.Time) bool {

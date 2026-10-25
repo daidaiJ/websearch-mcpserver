@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"websearch/pkg/fetch/mineru"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/i18n"
 	"websearch/pkg/telemetry"
 )
 
@@ -81,7 +83,7 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		}
 	}()
 	if params.WaitSeconds != nil && (*params.WaitSeconds < 0 || *params.WaitSeconds > 1800) {
-		return nil, nil, fmt.Errorf("wait_seconds 必须在 0-1800 秒之间")
+		return nil, nil, errors.New(i18n.T("tool.pdf.wait_seconds_invalid"))
 	}
 	if params.WaitSeconds != nil {
 		ctx = mineru.WithTaskWait(ctx, time.Duration(*params.WaitSeconds)*time.Second)
@@ -91,10 +93,10 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 	})
 	if params.TaskRef != "" {
 		if params.Path != "" || params.Pages != "" {
-			return nil, nil, fmt.Errorf("task_ref 查询沿用原任务页码，请省略 path 和 pages")
+			return nil, nil, errors.New(i18n.T("tool.pdf.taskref_page_hint"))
 		}
 		if webfetchInst == nil {
-			return nil, nil, fmt.Errorf("webfetch 未初始化，请先启用 cleanfetch")
+			return nil, nil, errors.New(i18n.T("tool.pdf.webfetch_not_initialized"))
 		}
 		result, resumeErr := webfetchInst.ResumeMinerUTask(ctx, params.TaskRef)
 		if errors.As(resumeErr, &pending) {
@@ -106,10 +108,10 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 			return nil, nil, resumeErr
 		}
 		parseEngine = result.ParseEngine
-		return textResult(fmt.Sprintf("> PDF 解析器: %s\n\n%s", parseEngine, formatWebFetchResult(result))), nil, nil
+		return textResult(i18n.T("tool.pdf.parser_label", "Engine", parseEngine) + "\n\n" + formatWebFetchResult(result)), nil, nil
 	}
 	if params.Path == "" {
-		return nil, nil, fmt.Errorf("path 参数不能为空")
+		return nil, nil, errors.New(i18n.T("tool.pdf.path_required"))
 	}
 
 	pages, err := parsePagesSpec(params.Pages, pageSpecWidthCap)
@@ -121,11 +123,11 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		maxPages = 20
 	}
 	if len(pages) > maxPages {
-		return nil, nil, fmt.Errorf("pages 指定了 %d 页，超过单次上限 max_pages=%d，请拆分多次调用（如 pages=\"1-%d\"）", len(pages), maxPages, maxPages)
+		return nil, nil, errors.New(i18n.T("tool.pdf.pages_over_limit", "Count", len(pages), "Max", maxPages))
 	}
 
 	if webfetchInst == nil {
-		return nil, nil, fmt.Errorf("webfetch 未初始化，请先启用 cleanfetch")
+		return nil, nil, errors.New(i18n.T("tool.pdf.webfetch_not_initialized"))
 	}
 
 	pdfPath, remote := resolvePDFPath(params.Path)
@@ -156,7 +158,7 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		}
 		errors.As(mineruErr, &pending)
 		if ctx.Err() != nil {
-			return nil, nil, fmt.Errorf("PDF 解析已取消: %w", errors.Join(ctx.Err(), mineruErr))
+			return nil, nil, fmt.Errorf("%s: %w", i18n.T("tool.pdf.cancelled"), errors.Join(ctx.Err(), mineruErr))
 		}
 		if result == nil {
 			maxSizeMB := cleanFetchMaxSizeMB
@@ -175,9 +177,9 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 			}
 			if mineruErr != nil {
 				if err != nil {
-					err = fmt.Errorf("MinerU 解析失败: %w；PDF 文本回退失败: %w", mineruErr, err)
+					err = fmt.Errorf("%s: %w; %s: %w", i18n.T("tool.pdf.mineru_failed"), mineruErr, i18n.T("tool.pdf.text_fallback_failed"), err)
 				} else {
-					result.Preamble = fmt.Sprintf("> MinerU 未取得精准结果（%v），本次返回 PDF 文本提取；图片未随文本返回。\n\n%s", mineruErr, result.Preamble)
+					result.Preamble = i18n.T("tool.pdf.mineru_imprecise_preamble", "Err", mineruErr) + "\n\n" + result.Preamble
 				}
 			}
 		}
@@ -186,15 +188,15 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 	}
 	if err != nil {
 		if !remote {
-			return nil, nil, fmt.Errorf("PDF 解析失败: %w；本地路径须对服务进程可见，Docker 中须使用容器内或已挂载路径，不能直接使用 file_search 的宿主机路径", err)
+			return nil, nil, fmt.Errorf("%s: %w%s", i18n.T("tool.pdf.parse_failed"), err, i18n.T("tool.pdf.local_path_hint"))
 		}
-		return nil, nil, fmt.Errorf("PDF 解析失败: %w", err)
+		return nil, nil, fmt.Errorf("%s: %w", i18n.T("tool.pdf.parse_failed"), err)
 	}
 	parseEngine = result.ParseEngine
 	parsedPages = result.ParsedPages
 	text := formatWebFetchResult(result)
 	if parseEngine != "" {
-		text = fmt.Sprintf("> PDF 解析器: %s\n\n%s", parseEngine, text)
+		text = i18n.T("tool.pdf.parser_label", "Engine", parseEngine) + "\n\n" + text
 	}
 	return textResult(text), nil, nil
 }
@@ -212,7 +214,7 @@ func pdfTaskResult(result *mcp.CallToolResult, pending *mineru.TaskPendingError,
 		if err != nil {
 			message = err.Error()
 		}
-		result = textResult("> 任务状态（尚无正文）\n\n" + message)
+		result = textResult(i18n.T("tool.pdf.task_status_no_body") + "\n\n" + message)
 		result.IsError = true
 		err = nil
 	}
@@ -229,16 +231,16 @@ func pdfTaskResult(result *mcp.CallToolResult, pending *mineru.TaskPendingError,
 // 按需续读，避免一次调用烧掉当天全部 MinerU 额度）。
 // 每批开始/结束经 MCP progress notification 推送进度，agent 无需整批盲等。
 func parseRemotePDFWithCrop(ctx context.Context, req *mcp.CallToolRequest, pdfPath string, pages []int, maxPages int) (*webfetch.Result, error) {
-	notifyProgress(ctx, req, 0, 1, "MinerU 无法直接解析原文件，正在下载原件准备本地裁切…")
+	notifyProgress(ctx, req, 0, 1, i18n.T("tool.pdf.mineru_downloading_for_crop"))
 	source, removeSource, err := downloadPDFForCrop(ctx, pdfPath)
 	if err != nil {
-		return nil, fmt.Errorf("MinerU 远程 PDF 本地裁切准备失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("tool.pdf.crop_prepare_failed"), err)
 	}
 	defer removeSource()
 
 	total, err := mineru.PDFPageCount(ctx, source)
 	if err != nil {
-		return nil, fmt.Errorf("MinerU 远程 PDF 本地裁切失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("tool.pdf.crop_failed"), err)
 	}
 	selected := pages
 	if len(selected) == 0 {
@@ -252,14 +254,14 @@ func parseRemotePDFWithCrop(ctx context.Context, req *mcp.CallToolRequest, pdfPa
 	}
 	batches, truncated := mineru.PlanPageBatches(selected, pdfMineruPageBatch, pdfMineruPageBudget)
 	if len(batches) == 0 {
-		return nil, fmt.Errorf("MinerU 远程 PDF 本地裁切失败: 页预算 %d 内没有可解析的页码", pdfMineruPageBudget)
+		return nil, errors.New(i18n.T("tool.pdf.crop_no_pages", "Budget", pdfMineruPageBudget))
 	}
 
 	var merged strings.Builder
 	parsed := 0
 	for i, batch := range batches {
 		notifyProgress(ctx, req, float64(parsed), float64(len(selected)),
-			fmt.Sprintf("开始第 %d/%d 批：裁切原页码 %d-%d 并上传 MinerU…", i+1, len(batches), batch[0], batch[len(batch)-1]))
+			i18n.T("tool.pdf.batch_start", "Index", i+1, "Total", len(batches), "From", batch[0], "To", batch[len(batch)-1]))
 		cropped, _, _, removeCropped, cropErr := mineru.CropPDF(ctx, source, batch, 0, pdfMineruPageLimit)
 		if cropErr != nil {
 			return nil, cropErr
@@ -274,28 +276,29 @@ func parseRemotePDFWithCrop(ctx context.Context, req *mcp.CallToolRequest, pdfPa
 				var pending *mineru.TaskPendingError
 				if errors.As(err, &pending) {
 					partial := &webfetch.Result{Mode: "inline", Markdown: merged.String(), PageCount: total,
-						ParsedPages: parsed, ParseEngine: "mineru-remote", Preamble: fmt.Sprintf(
-							"> 已取得前 %d 批（%d 页）的精准正文；第 %d/%d 批原页码 %d-%d 尚未完成。续查引用只返回该批，批内页码从 1 编号。\n> %s",
-							i, parsed, i+1, len(batches), batch[0], batch[len(batch)-1], pending.Error())}
+						ParsedPages: parsed, ParseEngine: "mineru-remote", Preamble: i18n.T(
+							"tool.pdf.batch_pending",
+							"DoneBatches", i, "DonePages", parsed, "Index", i+1, "Total", len(batches),
+							"From", batch[0], "To", batch[len(batch)-1], "Message", pending.Error())}
 					if saveErr := webfetchInst.StoreLargePDFResult(partial, pdfPath); saveErr != nil {
-						return nil, fmt.Errorf("保存已完成批次失败: %w；%w", saveErr, err)
+						return nil, fmt.Errorf("%s: %w; %w", i18n.T("tool.pdf.save_batches_failed"), saveErr, err)
 					}
 					return partial, err
 				}
-				return nil, fmt.Errorf("第 %d/%d 批（原页码 %d-%d）解析失败（前 %d 页已成功，可用 pages 续读）: %w",
-					i+1, len(batches), batch[0], batch[len(batch)-1], parsed, err)
+				return nil, fmt.Errorf("%s: %w", i18n.T("tool.pdf.batch_failed",
+					"Index", i+1, "Total", len(batches), "From", batch[0], "To", batch[len(batch)-1], "DonePages", parsed), err)
 			}
 			return nil, err
 		}
 		parsed += len(batch)
 		notifyProgress(ctx, req, float64(parsed), float64(len(selected)),
-			fmt.Sprintf("第 %d/%d 批完成（原页码 %d-%d），累计已解析 %d/%d 页", i+1, len(batches), batch[0], batch[len(batch)-1], parsed, len(selected)))
+			i18n.T("tool.pdf.batch_done", "Index", i+1, "Total", len(batches), "From", batch[0], "To", batch[len(batch)-1], "Parsed", parsed, "Selected", len(selected)))
 		if len(batches) == 1 {
 			merged.WriteString(part.Markdown)
 			continue
 		}
-		fmt.Fprintf(&merged, "\n\n### 原文第 %d-%d 页（第 %d/%d 批，批内页码从 1 重新编号）\n\n%s",
-			batch[0], batch[len(batch)-1], i+1, len(batches), part.Markdown)
+		fmt.Fprintf(&merged, "\n\n%s\n\n%s",
+			i18n.T("tool.pdf.merged_section", "From", batch[0], "To", batch[len(batch)-1], "Index", i+1, "Total", len(batches)), part.Markdown)
 	}
 
 	result := &webfetch.Result{
@@ -307,15 +310,16 @@ func parseRemotePDFWithCrop(ctx context.Context, req *mcp.CallToolRequest, pdfPa
 	}
 	last := batches[len(batches)-1]
 	if len(batches) == 1 {
-		result.Preamble = fmt.Sprintf("> 原 PDF 共 %d 页，已在本地裁切所需的 %d 页后上传 MinerU；结果页码从 1 重新编号。", total, parsed)
+		result.Preamble = i18n.T("tool.pdf.preamble_cropped", "Total", total, "Parsed", parsed)
 	} else {
-		result.Preamble = fmt.Sprintf("> 原 PDF 共 %d 页，已本地裁切并分 %d 批上传 MinerU（每批最多 %d 页，串行提交）；各批页码从 1 重新编号，原页码见各节标题。本次解析原页码 %d-%d（共 %d 页）。",
-			total, len(batches), pdfMineruPageBatch, batches[0][0], last[len(last)-1], parsed)
+		result.Preamble = i18n.T("tool.pdf.preamble_batched",
+			"Total", total, "Batches", len(batches), "BatchSize", pdfMineruPageBatch,
+			"From", batches[0][0], "To", last[len(last)-1], "Pages", parsed)
 	}
 	if truncated {
 		next := last[len(last)-1] + 1
-		result.Preamble += fmt.Sprintf("\n> 单次页预算 %d 页已用完，其余页请再次调用并用 pages 指定（如 \"%d-%d\"）。",
-			pdfMineruPageBudget, next, min(next+pdfMineruPageBatch-1, total))
+		result.Preamble += i18n.T("tool.pdf.page_budget_used",
+			"Budget", pdfMineruPageBudget, "From", next, "To", min(next+pdfMineruPageBatch-1, total))
 	}
 	return result, nil
 }
@@ -342,10 +346,10 @@ func parsePagesSpec(spec string, widthCap int) ([]int, error) {
 			from, err1 := strconv.Atoi(strings.TrimSpace(lo))
 			to, err2 := strconv.Atoi(strings.TrimSpace(hi))
 			if err1 != nil || err2 != nil || from < 1 || to < from {
-				return nil, fmt.Errorf("pages 参数格式非法: %q，示例：1-10 或 1,3,5-7", spec)
+				return nil, errors.New(i18n.T("tool.pdf.pages_spec_invalid", "Spec", spec))
 			}
 			if to-from+1 > widthCap {
-				return nil, fmt.Errorf("pages 区间 %d-%d 展开后超过 %d 页上限，请用 pages 指定具体页码（如 \"1-%d\"）", from, to, widthCap, widthCap)
+				return nil, errors.New(i18n.T("tool.pdf.pages_range_over_limit", "From", from, "To", to, "Cap", widthCap))
 			}
 			for p := from; p <= to; p++ {
 				if !seen[p] {
@@ -357,7 +361,7 @@ func parsePagesSpec(spec string, widthCap int) ([]int, error) {
 		}
 		p, err := strconv.Atoi(part)
 		if err != nil || p < 1 {
-			return nil, fmt.Errorf("pages 参数格式非法: %q，示例：1-10 或 1,3,5-7", spec)
+			return nil, errors.New(i18n.T("tool.pdf.pages_spec_invalid", "Spec", spec))
 		}
 		if !seen[p] {
 			seen[p] = true

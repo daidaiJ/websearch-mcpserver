@@ -9,10 +9,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/telemetry"
 
@@ -55,7 +57,7 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 	}()
 	if params.ResultRef != "" {
 		if params.URL != "" || len(params.URLs) != 0 {
-			return nil, nil, fmt.Errorf("result_ref 不能与 url/urls 混用")
+			return nil, nil, errors.New(i18n.T("tool.cleanfetch.ref_url_conflict"))
 		}
 		read := &ReadResultParams{Ref: params.ResultRef}
 		if params.Offset != nil {
@@ -78,18 +80,18 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 		return result, nil, nil
 	}
 	if params.Offset != nil || params.Limit != nil {
-		return nil, nil, fmt.Errorf("offset/limit 仅用于 result_ref 读取")
+		return nil, nil, errors.New(i18n.T("tool.cleanfetch.offset_requires_ref"))
 	}
 	if !fetchEnabled {
-		return nil, nil, fmt.Errorf("cleanfetch URL 抓取已关闭；仍可用 result_ref 读取已保存正文")
+		return nil, nil, errors.New(i18n.T("tool.cleanfetch.url_fetch_disabled"))
 	}
 	urls := mergeFetchURLs(params.URL, params.URLs)
 	count = len(urls)
 	if len(urls) == 0 {
-		return nil, nil, fmt.Errorf("url 和 urls 参数至少填一个")
+		return nil, nil, errors.New(i18n.T("tool.cleanfetch.url_required"))
 	}
 	if len(urls) > maxBatchFetchURLs {
-		return nil, nil, fmt.Errorf("批量抓取最多 %d 个 URL（当前 %d 个），请拆分多次调用", maxBatchFetchURLs, len(urls))
+		return nil, nil, errors.New(i18n.T("tool.cleanfetch.batch_too_large", "Max", maxBatchFetchURLs, "Count", len(urls)))
 	}
 
 	if len(urls) == 1 {
@@ -124,7 +126,7 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 		}
 		fmt.Fprintf(&sb, "## [%d] %s\n\n", i+1, urls[i])
 		if it.err != nil {
-			fmt.Fprintf(&sb, "**抓取失败**: %v", it.err)
+			sb.WriteString(i18n.T("tool.cleanfetch.item_failed", "Err", it.err))
 			continue
 		}
 		okCount++
@@ -228,11 +230,11 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 				return "", ctx.Err()
 			}
 			if err == nil {
-				err = errors.New("空结果")
+				err = errors.New(i18n.T("tool.cleanfetch.empty_result"))
 			}
 			errs = append(errs, err.Error())
 		}
-		return "", errors.New(strings.Join(errs, "；"))
+		return "", errors.New(strings.Join(errs, i18n.T("tool.cleanfetch.error_separator")))
 	}
 	switch mode {
 	case config.MCPHubFetchPrefer:
@@ -248,7 +250,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		if localErr == nil {
 			return text, nil
 		}
-		return "", fmt.Errorf("远端抓取失败: %w；本地抓取失败: %w", err, localErr)
+		return "", fmt.Errorf("%s: %w; %s: %w", i18n.T("tool.cleanfetch.remote_failed"), err, i18n.T("tool.cleanfetch.local_failed"), localErr)
 	case config.MCPHubFetchFallback:
 		text, localErr := local(ctx, rawURL)
 		if localErr == nil {
@@ -262,7 +264,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		if remoteErr == nil {
 			return text, nil
 		}
-		return "", fmt.Errorf("本地抓取失败: %w；远端抓取失败: %w", localErr, remoteErr)
+		return "", fmt.Errorf("%s: %w; %s: %w", i18n.T("tool.cleanfetch.local_failed"), localErr, i18n.T("tool.cleanfetch.remote_failed"), remoteErr)
 	default:
 		return local(ctx, rawURL)
 	}
@@ -306,9 +308,9 @@ func fetchLocalPage(ctx context.Context, rawURL string) (string, error) {
 				return formatJinaResult(jinaResult), nil
 			}
 			recordProvider(telemetry.Event{Provider: "jina", Success: false, Duration: time.Since(started), Error: jinaErr})
-			return "", fmt.Errorf("webfetch: %v; Jina 兜底: %w", err, jinaErr)
+			return "", fmt.Errorf("webfetch: %w; %s: %w", err, i18n.T("tool.cleanfetch.jina_fallback"), jinaErr)
 		}
-		return "", fmt.Errorf("webfetch 抓取失败: %v", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("tool.cleanfetch.webfetch_failed"), err)
 	}
 
 	// webfetch 未初始化，仅用 Jina（兼容旧模式：仅代理+Jina Key）
@@ -316,13 +318,13 @@ func fetchLocalPage(ctx context.Context, rawURL string) (string, error) {
 		jinaResult, jinaErr := jinaInst.Fetch(rawURL)
 		if jinaErr != nil {
 			recordProvider(telemetry.Event{Provider: "jina", Success: false, Duration: time.Since(started), Error: jinaErr})
-			return "", fmt.Errorf("jina reader 抓取失败: %w", jinaErr)
+			return "", fmt.Errorf("%s: %w", i18n.T("tool.cleanfetch.jina_failed"), jinaErr)
 		}
 		recordProvider(telemetry.Event{Provider: "jina", Success: true, Duration: time.Since(started), ResultCount: 1})
 		return formatJinaResult(jinaResult), nil
 	}
 
-	return "", fmt.Errorf("webfetch 和 jina reader 均未初始化")
+	return "", errors.New(i18n.T("tool.cleanfetch.no_fetcher_initialized"))
 }
 
 func allowFetchFallback(err error) bool {
@@ -347,7 +349,7 @@ func formatJinaResult(result *jina.FetchResult) string {
 		fmt.Fprintf(&sb, "> %s\n\n", result.Description)
 	}
 	if result.PublishedTime != "" {
-		fmt.Fprintf(&sb, "**发布时间**: %s\n\n", result.PublishedTime)
+		fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.cleanfetch.published_time", "Time", result.PublishedTime))
 	}
 	sb.WriteString(result.Content)
 	return sb.String()
@@ -369,8 +371,8 @@ func formatWebFetchResult(result *webfetch.Result) string {
 		if result.Title != "" {
 			fmt.Fprintf(&sb, "# %s\n\n", result.Title)
 		}
-		fmt.Fprintf(&sb, "内容已保存到文件（共 %d 行，%d 字符）\n\n", result.TotalLines, result.TotalChars)
-		fmt.Fprintf(&sb, "**文件路径**: `%s`\n\n", result.FilePath)
+		fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.cleanfetch.saved_to_file", "Lines", result.TotalLines, "Chars", result.TotalChars))
+		fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.cleanfetch.file_path", "Path", result.FilePath))
 		sb.WriteString(savedResultReadNotice(result))
 	}
 	return sb.String()

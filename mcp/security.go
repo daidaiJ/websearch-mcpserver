@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -26,21 +28,21 @@ import (
 func validateURLSecurity(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("URL 格式错误: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("tool.security.url_malformed"), err)
 	}
 	scheme := strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("不支持的协议: %s（仅支持 http/https）", scheme)
+		return errors.New(i18n.T("tool.security.scheme_unsupported", "Scheme", scheme))
 	}
 
 	host := parsed.Hostname()
 	if host == "" {
-		return fmt.Errorf("URL 缺少主机名")
+		return errors.New(i18n.T("tool.security.host_missing"))
 	}
 
 	// 已知内网主机名直接拒绝
 	if isPrivateHostFast(host) {
-		return fmt.Errorf("不允许访问内网地址: %s", host)
+		return errors.New(i18n.T("tool.security.private_host", "Host", host))
 	}
 
 	// DNS 解析后检查 IP（防 DNS rebinding）
@@ -56,7 +58,7 @@ func validateURLSecurity(rawURL string) error {
 			continue
 		}
 		if !isPublicIP(ip) {
-			return fmt.Errorf("不允许访问内网地址: %s → %s", host, ipStr)
+			return errors.New(i18n.T("tool.security.private_ip", "Host", host, "IP", ipStr))
 		}
 	}
 	return nil
@@ -84,7 +86,7 @@ func cropDialContext(ctx context.Context, network, address string) (net.Conn, er
 			return conn, nil
 		}
 	}
-	return nil, fmt.Errorf("无法连接下载地址: %s", host)
+	return nil, errors.New(i18n.T("tool.security.download_dial_failed", "Host", host))
 }
 
 func publicDownloadIPs(ctx context.Context, host string) ([]net.IPAddr, error) {
@@ -93,11 +95,11 @@ func publicDownloadIPs(ctx context.Context, host string) ([]net.IPAddr, error) {
 		return nil, err
 	}
 	if len(addrs) == 0 {
-		return nil, fmt.Errorf("无法解析下载地址: %s", host)
+		return nil, errors.New(i18n.T("tool.security.download_resolve_failed", "Host", host))
 	}
 	for _, addr := range addrs {
 		if !isPublicIP(addr.IP) {
-			return nil, fmt.Errorf("不允许连接内网地址: %s → %s", host, addr.IP)
+			return nil, errors.New(i18n.T("tool.security.private_ip_connect", "Host", host, "IP", addr.IP.String()))
 		}
 	}
 	return addrs, nil
@@ -119,10 +121,10 @@ func (t pdfDownloadTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			switch proxyURL.Scheme {
 			case "http", "https", "socks5", "socks5h":
 			default:
-				return nil, fmt.Errorf("不支持的 PDF 代理协议")
+				return nil, errors.New(i18n.T("tool.security.pdf_proxy_scheme"))
 			}
 			if proxyURL.Hostname() == "" {
-				return nil, fmt.Errorf("PDF 代理地址缺少主机名")
+				return nil, errors.New(i18n.T("tool.security.pdf_proxy_host_missing"))
 			}
 			addrs, err := publicDownloadIPs(req.Context(), req.URL.Hostname())
 			if err != nil {
@@ -172,7 +174,7 @@ func pdfHTTPClient(timeout time.Duration) *http.Client {
 			transport.proxy = func(*http.Request) (*url.URL, error) {
 				u, err := url.Parse(endpoint)
 				if err != nil {
-					return nil, fmt.Errorf("PDF 代理地址格式错误")
+					return nil, errors.New(i18n.T("tool.security.pdf_proxy_malformed"))
 				}
 				return u, nil
 			}
@@ -185,10 +187,10 @@ func pdfHTTPClient(timeout time.Duration) *http.Client {
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirectHops {
-				return fmt.Errorf("重定向跳数超过 %d", maxRedirectHops)
+				return errors.New(i18n.T("tool.security.redirect_hops_exceeded", "Max", maxRedirectHops))
 			}
 			if err := validateURLSecurity(req.URL.String()); err != nil {
-				return fmt.Errorf("%w: %v", errUnsafeRedirect, err)
+				return &unsafeRedirectError{cause: err}
 			}
 			return nil
 		},
@@ -240,7 +242,18 @@ func isCloudMetadata(ip net.IP) bool {
 
 // errUnsafeRedirect 标记重定向目标未通过私网/metadata 安全校验，
 // 与普通网络错误区分：前者必须阻断，后者沿用"HEAD 失败不阻断"的宽松语义。
-var errUnsafeRedirect = errors.New("不安全的重定向目标")
+// 它是稳定哨兵（errors.Is 判定用），对外文案由 unsafeRedirectError 按语言渲染。
+var errUnsafeRedirect = errors.New("unsafe_redirect")
+
+// unsafeRedirectError 把哨兵身份与本地化文案分开：Unwrap 给出 errUnsafeRedirect，
+// Error 给出当前语言的可读描述。
+type unsafeRedirectError struct{ cause error }
+
+func (e *unsafeRedirectError) Error() string {
+	return i18n.T("tool.security.unsafe_redirect", "Err", e.cause.Error())
+}
+
+func (e *unsafeRedirectError) Unwrap() error { return errUnsafeRedirect }
 
 // maxRedirectHops HEAD 预检允许跟随的重定向跳数上限。
 const maxRedirectHops = 5
@@ -267,7 +280,7 @@ func headCheckWithLimit(ctx context.Context, rawURL string, maxSizeMB int) error
 	resp, err := client.Do(req)
 	if err != nil {
 		if errors.Is(err, errUnsafeRedirect) {
-			return fmt.Errorf("HEAD 预检拒绝: %v", err)
+			return fmt.Errorf("%s: %w", i18n.T("tool.security.head_precheck_rejected"), err)
 		}
 		// 其它 HEAD 失败不阻断（某些服务器不支持 HEAD）
 		return nil
@@ -281,8 +294,8 @@ func headCheckWithLimit(ctx context.Context, rawURL string, maxSizeMB int) error
 	if cl := resp.Header.Get("Content-Length"); cl != "" {
 		size, err := strconv.ParseInt(cl, 10, 64)
 		if err == nil && size > int64(maxSizeMB)*1024*1024 {
-			return fmt.Errorf("文件过大（%.1fMB），超过限制（%dMB），如需抓取请调大 cleanfetch.max_fetch_size_mb",
-				float64(size)/1024/1024, maxSizeMB)
+			return errors.New(i18n.T("tool.security.file_too_large",
+				"Size", fmt.Sprintf("%.1f", float64(size)/1024/1024), "Limit", maxSizeMB))
 		}
 	}
 	return nil
@@ -306,14 +319,14 @@ func downloadPDFWithLimit(ctx context.Context, rawURL string, maxBytes int64) (s
 	req.Header.Set("Accept-Encoding", "identity")
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", nil, fmt.Errorf("下载 PDF 失败: %w", err)
+		return "", nil, fmt.Errorf("%s: %w", i18n.T("tool.security.pdf_download_failed"), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", nil, fmt.Errorf("下载 PDF 失败: HTTP %d", resp.StatusCode)
+		return "", nil, errors.New(i18n.T("tool.security.pdf_download_failed_http", "Status", resp.StatusCode))
 	}
 	if resp.ContentLength > maxBytes {
-		return "", nil, fmt.Errorf("PDF 超过下载上限 %dMB", maxBytes/(1024*1024))
+		return "", nil, errors.New(i18n.T("tool.security.pdf_over_download_limit", "Limit", maxBytes/(1024*1024)))
 	}
 	return saveLimitedPDF(resp.Body, maxBytes)
 }
@@ -329,9 +342,9 @@ func saveLimitedPDF(body io.Reader, maxBytes int64) (string, func(), error) {
 	if copyErr != nil || closeErr != nil || n > maxBytes {
 		cleanup()
 		if n > maxBytes {
-			return "", nil, fmt.Errorf("PDF 超过下载上限 %dMB", maxBytes/(1024*1024))
+			return "", nil, errors.New(i18n.T("tool.security.pdf_over_download_limit", "Limit", maxBytes/(1024*1024)))
 		}
-		return "", nil, fmt.Errorf("保存 PDF 失败: %v %v", copyErr, closeErr)
+		return "", nil, errors.New(i18n.T("tool.security.pdf_save_failed", "Err", errors.Join(copyErr, closeErr)))
 	}
 	return file.Name(), cleanup, nil
 }

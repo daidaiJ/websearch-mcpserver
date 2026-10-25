@@ -2,11 +2,14 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
+
 	"websearch/pkg/cache"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 	searchcore "websearch/pkg/search/core"
@@ -42,7 +45,7 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "academicsearch", Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 20)})
 	}()
 	if academicSearcher == nil {
-		return nil, nil, fmt.Errorf("学术搜索引擎未启用，请检查配置 bing.academic 是否为 true")
+		return nil, nil, errors.New(i18n.T("tool.academic.disabled"))
 	}
 
 	// ---- 缓存查询 ----
@@ -98,11 +101,11 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 		if attemptsKnown && len(engineErrors) == 0 {
 			engineErrors = make(map[string]string, len(attempted))
 			for _, name := range attempted {
-				engineErrors[name] = "精确学术检索无结果"
+				engineErrors[name] = i18n.T("tool.academic.exact_no_result")
 			}
 		}
 		recordAcademicProviderEvents(ctx, query, nil, engineErrors, attempted, attemptsKnown, started, requestID)
-		return nil, nil, fmt.Errorf("学术搜索失败: %w", err)
+		return nil, nil, fmt.Errorf("%s: %w", i18n.T("tool.academic.search_failed"), err)
 	}
 	resultCount = len(res.Results)
 	recordAcademicProviderEvents(ctx, query, res.Results, res.EngineErrors, attempted, attemptsKnown, started, requestID)
@@ -126,14 +129,14 @@ func academicProviderErrorsFromError(err error) map[string]string {
 	if err == nil {
 		return nil
 	}
-	const prefix = "学术引擎搜索无结果（"
+	prefix := i18n.T("search.academic.no_result_prefix")
 	msg := err.Error()
 	start := strings.Index(msg, prefix)
 	if start < 0 {
 		return nil
 	}
 	body := msg[start+len(prefix):]
-	body = strings.TrimSuffix(body, "）")
+	body = strings.TrimSuffix(body, i18n.T("search.academic.no_result_suffix"))
 	out := make(map[string]string)
 	for _, part := range strings.Split(body, "; ") {
 		name, detail, ok := strings.Cut(part, ": ")

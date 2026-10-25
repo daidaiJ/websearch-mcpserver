@@ -2,9 +2,10 @@ package mcpserver
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
+
+	"websearch/pkg/i18n"
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
@@ -19,7 +20,7 @@ import (
 // LLM 摘要：流式生成与 MCP progress 推送。
 // 客户端断开（ctx 取消）时自动中止。
 func streamSummarize(ctx context.Context, req *mcp.CallToolRequest, query, intent string, results []search.SearchResult) (string, error) {
-	notifyProgress(ctx, req, 1, 2, fmt.Sprintf("搜索完成，共 %d 条结果，正在生成摘要...", len(results)))
+	notifyProgress(ctx, req, 1, 2, i18n.T("tool.summarize.search_done", "Count", len(results)))
 
 	ch := make(chan string, 64)
 	errCh := make(chan error, 1)

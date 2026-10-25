@@ -8,8 +8,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"websearch/pkg/cache"
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 	searchcore "websearch/pkg/search/core"
@@ -62,14 +64,14 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		}
 	}()
 	if searchapi == nil {
-		return nil, nil, fmt.Errorf("api 初始化未完成")
+		return nil, nil, errors.New(i18n.T("tool.search.api_not_ready"))
 	}
 	engineName = searchapi.Name()
 
 	n := effectiveFetchTopN(fetchTopN)
 
 	if timeRangeMonths < 0 || timeRangeMonths > int(^uint(0)>>1)/30 {
-		return nil, nil, fmt.Errorf("time_range 超出有效范围")
+		return nil, nil, errors.New(i18n.T("tool.search.time_range_invalid"))
 	}
 	lookbackDays := timeRangeMonths * 30
 	cacheQuery := webSearchCacheQuery(query, timeRangeMonths, n)
@@ -145,7 +147,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 			haveDiag = false // 回退改用单引擎，主编排的诊断不再归属本次响应
 			// 回退也失败时，错误信息带上主引擎失败原因，保证空结果可归因
 			if err != nil {
-				return nil, nil, fmt.Errorf("%v（主搜索引擎亦失败: %v）", err, mainErr)
+				return nil, nil, errors.New(i18n.T("tool.search.main_engine_also_failed", "Err", err, "MainErr", mainErr))
 			}
 		}
 		if err != nil {
@@ -160,7 +162,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 
 	// 失败透出统一契约：空结果必须可解释（失败清单 + 过滤诊断），失败不受预算裁剪
 	if len(results) == 0 {
-		msg := "搜索未返回有效结果"
+		msg := i18n.T("tool.search.no_valid_results")
 		if d := responseDiagnostics(diag, haveDiag); d != nil {
 			msg += d.FormatFailures() + d.FormatFilterDrops()
 		}
@@ -438,7 +440,7 @@ func enrichTopN(ctx context.Context, results []search.SearchResult, n int, fetch
 			}
 			if strings.TrimSpace(body.text) == "" {
 				log.WarnT("log.mcp.fetch_top_n_fetch_returned_no", "u", u)
-				out[i].Content = annotateFetchFailure(out[i].Content, errors.New("页面内容为空(可能被反爬)"))
+				out[i].Content = annotateFetchFailure(out[i].Content, errors.New(i18n.T("tool.search.page_empty_maybe_antibot")))
 				return
 			}
 			out[i].Content, out[i].ContentSaved = body.text, body.savedToFile
@@ -457,19 +459,24 @@ func annotateFetchFailure(snippet string, err error) string {
 		sb.WriteString("\n\n")
 	}
 	if isAntiBotFailure(err) {
-		sb.WriteString("> ⚠️ 正文抓取被网站反爬防护拦截（JS 挑战/WAF/验证码）：无法获取该页面全文，仅有以上摘要与 URL。请改用其它来源，或稍后用 cleanfetch 重试该页面。")
+		sb.WriteString(i18n.T("tool.search.antibot_blocked"))
 	} else {
-		fmt.Fprintf(&sb, "> ⚠️ 正文抓取失败（%v）：仅有以上摘要与 URL。如需正文可用 cleanfetch 重试该页面。", err)
+		sb.WriteString(i18n.T("tool.search.fetch_failed", "Err", err))
 	}
 	return sb.String()
 }
 
 // isAntiBotFailure 判断抓取错误是否为反爬防护类。
-// webfetch.Fetch 已把底层错误分类为中文描述（webfetch.go classifyError），这里按关键词识别。
+// webfetch.Fetch 把底层错误分类为人类可读描述（webfetch.go classifyError），这里按关键词识别；
+// 关键词中英并列，文案随语言切换不影响判类。
 func isAntiBotFailure(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "反爬") || strings.Contains(msg, "WAF") ||
-		strings.Contains(msg, "挑战") || strings.Contains(msg, "验证码")
+	msg := strings.ToLower(err.Error())
+	for _, kw := range []string{"反爬", "挑战", "验证码", "waf", "captcha", "challenge", "anti-bot", "antibot"} {
+		if strings.Contains(msg, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchPageContent fetch_top_n 的单条抓取路径：SSRF 预检 + HEAD 体积预检 +
@@ -487,7 +494,7 @@ func fetchPageContent(ctx context.Context, rawURL string) (pageContent, error) {
 		return pageContent{}, err
 	}
 	if !ensureWebFetch() {
-		return pageContent{}, fmt.Errorf("webfetch 未初始化，fetch_top_n 需要 cleanfetch/pdf_parser 至少启用其一")
+		return pageContent{}, errors.New(i18n.T("tool.search.fetch_not_initialized"))
 	}
 	res, err := webfetchInst.Fetch(ctx, rawURL)
 	if err != nil {
@@ -515,8 +522,8 @@ func formatSavedToFileResult(res *webfetch.Result) string {
 		sb.WriteString(res.Title)
 		sb.WriteString("\n\n")
 	}
-	fmt.Fprintf(&sb, "正文较长（共 %d 行，%d 字符），已保存到文件\n\n", res.TotalLines, res.TotalChars)
-	fmt.Fprintf(&sb, "**文件路径**: `%s`", res.FilePath)
+	fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.search.body_saved", "Lines", res.TotalLines, "Chars", res.TotalChars))
+	sb.WriteString(i18n.T("tool.search.body_file_path", "Path", res.FilePath))
 	fmt.Fprintf(&sb, "\n\n%s", savedResultReadNotice(res))
 	sb.WriteString("\n")
 	return sb.String()
@@ -534,7 +541,7 @@ func truncateFetchContent(body string) string {
 		return body
 	}
 	log.WarnT("log.mcp.fetch_top_n_content_exceeds_mb", "maxSizeMB", maxSizeMB)
-	return body[:limit] + "\n\n（正文超过大小上限，已截断）"
+	return body[:limit] + "\n\n" + i18n.T("tool.search.body_truncated")
 }
 
 func enrichFetchedTopN(ctx context.Context, results []search.SearchResult, n int) []search.SearchResult {

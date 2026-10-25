@@ -3,10 +3,12 @@ package mcpserver
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
 
@@ -27,7 +29,7 @@ func searchCacheNamespace(conf config.Config) (string, error) {
 		ProxyAllowed bool
 	}{sources, conf.Proxy.ProxyResolver() != nil})
 	if err != nil {
-		return "", fmt.Errorf("序列化搜索缓存配置失败: %w", err)
+		return "", errors.New(i18n.T("tool.cache.config_serialize_failed"))
 	}
 	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }

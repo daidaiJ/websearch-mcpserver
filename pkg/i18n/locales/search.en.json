@@ -1,2 +1,4 @@
 {
+  "search.academic.no_result_prefix": "academic search returned no results (",
+  "search.academic.no_result_suffix": ")"
 }

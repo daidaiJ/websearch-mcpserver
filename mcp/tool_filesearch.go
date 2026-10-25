@@ -2,11 +2,14 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
 	"websearch/pkg/config"
 	"websearch/pkg/fetch/everything"
+	"websearch/pkg/i18n"
 	"websearch/pkg/telemetry"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -62,20 +65,20 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 	}()
 
 	if everythingInst == nil {
-		return nil, nil, fmt.Errorf("file_search 未启用（Everything HTTP Server 不可用）")
+		return nil, nil, errors.New(i18n.T("tool.filesearch.disabled"))
 	}
 	if strings.TrimSpace(params.Query) == "" {
-		return nil, nil, fmt.Errorf("query 参数不能为空")
+		return nil, nil, errors.New(i18n.T("tool.filesearch.query_required"))
 	}
 	sort := strings.ToLower(strings.TrimSpace(params.Sort))
 	if sort != "" && !fileSearchSorts[sort] {
-		return nil, nil, fmt.Errorf("sort 仅支持 name / path / size / date_modified，收到 %q", params.Sort)
+		return nil, nil, errors.New(i18n.T("tool.filesearch.sort_unsupported", "Value", params.Sort))
 	}
 	timeFmt := fileSearchTimeFormats["datetime"]
 	if params.TimeFormat != "" {
 		f, ok := fileSearchTimeFormats[strings.ToLower(strings.TrimSpace(params.TimeFormat))]
 		if !ok {
-			return nil, nil, fmt.Errorf("time_format 仅支持 datetime / iso / filetime，收到 %q", params.TimeFormat)
+			return nil, nil, errors.New(i18n.T("tool.filesearch.time_format_unsupported", "Value", params.TimeFormat))
 		}
 		timeFmt = f
 	}
@@ -129,7 +132,7 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		Diacritics: params.MatchDiacritics,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("Everything 检索失败: %w", err)
+		return nil, nil, fmt.Errorf("%s: %w", i18n.T("tool.filesearch.search_failed"), err)
 	}
 
 	// sort 显式指定时尊重服务端排序（只做阈值过滤）；默认 name 时才按对齐分重排
@@ -211,12 +214,12 @@ var fileSearchTimeFormats = map[string]fileSearchTimeFormat{
 // 否则尊重服务端排序（含升降序），如实标注避免"按相关性"误标。
 func fileSearchOrderDesc(sort string, descending bool) string {
 	if sort == "" {
-		return "按相关性排序"
+		return i18n.T("tool.filesearch.order_relevance")
 	}
 	if descending {
-		return "按 " + sort + " 降序"
+		return i18n.T("tool.filesearch.order_desc", "Sort", sort)
 	}
-	return "按 " + sort + " 升序"
+	return i18n.T("tool.filesearch.order_asc", "Sort", sort)
 }
 
 // fileSearchPage 分页渲染上下文：本页元信息 + 命中总数与本次候选池规模。
@@ -238,27 +241,27 @@ type fileSearchPage struct {
 func formatFileSearchResult(query string, pg fileSearchPage, items []everything.Item, fmtTime fileSearchTimeFormat) string {
 	var sb strings.Builder
 	if pg.Total == 0 {
-		fmt.Fprintf(&sb, "没有匹配 `%s` 的文件。可放宽关键词、检查目录范围或改用 ext:/dm: 等语法。", query)
+		fmt.Fprintf(&sb, "%s", i18n.T("tool.filesearch.no_match", "Query", query))
 		return sb.String()
 	}
 	if len(items) == 0 {
 		if pg.Capped && pg.Total > int64(pg.Candidate) {
-			fmt.Fprintf(&sb, "共命中 %d 条，第 %d 页没有结果：候选池已达上限 %d 条，更深的页码取不到新候选。请收窄 query 后重查。", pg.Total, pg.Page, fileSearchCandidateHardCap)
+			fmt.Fprintf(&sb, "%s", i18n.T("tool.filesearch.page_capped_empty", "Total", pg.Total, "Page", pg.Page, "Cap", fileSearchCandidateHardCap))
 		} else {
-			fmt.Fprintf(&sb, "共命中 %d 条，第 %d 页没有结果（已到末页）。可回到第 1 页或收窄 query。", pg.Total, pg.Page)
+			fmt.Fprintf(&sb, "%s", i18n.T("tool.filesearch.page_last_empty", "Total", pg.Total, "Page", pg.Page))
 		}
 		return sb.String()
 	}
 	order := pg.Order
 	if order == "" {
-		order = "按相关性排序"
+		order = i18n.T("tool.filesearch.order_relevance")
 	}
-	fmt.Fprintf(&sb, "命中 %d 条，第 %d 页返回 %d 条（每页最多 %d 条，%s）：\n\n", pg.Total, pg.Page, len(items), pg.PageSize, order)
+	fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.filesearch.summary", "Total", pg.Total, "Page", pg.Page, "Count", len(items), "PageSize", pg.PageSize, "Order", order))
 	for _, it := range items {
 		// Everything 的 path 列不带尾分隔符，补上再拼文件名
 		fmt.Fprintf(&sb, "- `%s\\%s`", it.Path, it.Name)
 		if it.Type == "folder" {
-			sb.WriteString(" （目录）")
+			sb.WriteString(i18n.T("tool.filesearch.folder"))
 		}
 		if size := humanSize(it.Size); size != "" {
 			fmt.Fprintf(&sb, " — %s", size)
@@ -269,18 +272,18 @@ func formatFileSearchResult(query string, pg fileSearchPage, items []everything.
 		sb.WriteString("\n")
 	}
 	if pg.MaxResultsClamped {
-		fmt.Fprintf(&sb, "\nmax_results 超过硬上限 %d，已按 %d 处理；需要更多结果请用 page 翻页。", config.EverythingMaxResultsHardCap, pg.PageSize)
+		fmt.Fprintf(&sb, "\n%s", i18n.T("tool.filesearch.max_results_clamped", "Cap", config.EverythingMaxResultsHardCap, "PageSize", pg.PageSize))
 	}
 	if pg.PageClamped {
-		fmt.Fprintf(&sb, "\npage 超过上限 %d，已按第 %d 页处理。", fileSearchMaxPage, pg.Page)
+		fmt.Fprintf(&sb, "\n%s", i18n.T("tool.filesearch.page_clamped", "Max", fileSearchMaxPage, "Page", pg.Page))
 	}
 	switch {
 	case pg.More:
-		fmt.Fprintf(&sb, "\n还有更多结果，可用 page=%d 继续翻页（或收窄 query 减少翻页）。", pg.Page+1)
+		fmt.Fprintf(&sb, "\n%s", i18n.T("tool.filesearch.more_pages", "Next", pg.Page+1))
 	case pg.Capped && pg.Total > int64(pg.Candidate):
-		fmt.Fprintf(&sb, "\n候选池已达上限 %d 条，无法再深翻。请收窄 query（ext:/dm:/size: 或加子目录）后重查。", fileSearchCandidateHardCap)
+		fmt.Fprintf(&sb, "\n%s", i18n.T("tool.filesearch.pool_capped", "Cap", fileSearchCandidateHardCap))
 	case pg.Total > int64(len(items)):
-		fmt.Fprintf(&sb, "\n命中 %d 条、过滤后保留 %d 条（弱匹配与噪声目录已过滤）。可收窄 query 或降低 min_alignment。", pg.Total, len(items))
+		fmt.Fprintf(&sb, "\n%s", i18n.T("tool.filesearch.filtered", "Total", pg.Total, "Count", len(items)))
 	}
 	return sb.String()
 }

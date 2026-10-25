@@ -2,12 +2,14 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"websearch/pkg/history"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -25,7 +27,7 @@ type SearchHistoryParams struct {
 // 试验性（idea）：实用性尚未确认，默认关闭仅供体验；真机使用确认有价值后再转正式工具。
 func SearchHistoryHandler(_ context.Context, _ *mcp.CallToolRequest, params *SearchHistoryParams) (*mcp.CallToolResult, any, error) {
 	if historyInst == nil {
-		return nil, nil, fmt.Errorf("search_history 未启用（search_history.enabled 默认关闭）")
+		return nil, nil, errors.New(i18n.T("tool.history.disabled"))
 	}
 	limit, offset := 0, 0
 	if params.Limit != nil {
@@ -59,26 +61,33 @@ func truncateHistoryQuery(q string) string {
 func formatHistory(query string, records []history.Record) string {
 	var b strings.Builder
 	if strings.TrimSpace(query) == "" {
-		fmt.Fprintf(&b, "# 搜索历史（最近 %d 条）\n", len(records))
+		b.WriteString(i18n.T("tool.history.header_recent", "Count", len(records)))
+		b.WriteString("\n")
 	} else {
-		fmt.Fprintf(&b, "# 搜索历史匹配 %q（%d 条）\n", truncateHistoryQuery(query), len(records))
+		b.WriteString(i18n.T("tool.history.header_match", "Query", truncateHistoryQuery(query), "Count", len(records)))
+		b.WriteString("\n")
 	}
 	if len(records) == 0 {
-		b.WriteString("\n无历史记录。每次 smartsearch 成功后自动写入（search_history.enabled 开启时）。\n")
+		b.WriteString(i18n.T("tool.history.empty"))
 		return b.String()
 	}
 	for _, r := range records {
-		fmt.Fprintf(&b, "\n## %s ｜ %s ｜ %d 条结果\n", truncateHistoryQuery(r.Query), r.Mode, r.ResultCount)
-		fmt.Fprintf(&b, "时间: %s\n", r.CreatedAt.Format("2006-01-02 15:04:05"))
+		b.WriteString("\n")
+		b.WriteString(i18n.T("tool.history.entry_header", "Query", truncateHistoryQuery(r.Query), "Mode", r.Mode, "Count", r.ResultCount))
+		b.WriteString("\n")
+		b.WriteString(i18n.T("tool.history.entry_time", "Time", r.CreatedAt.Format("2006-01-02 15:04:05")))
+		b.WriteString("\n")
 		for i, res := range r.Results {
 			if i >= maxHistoryResultLines {
-				fmt.Fprintf(&b, "  - …另有 %d 条结果未展示\n", len(r.Results)-maxHistoryResultLines)
+				b.WriteString(i18n.T("tool.history.more_results", "Count", len(r.Results)-maxHistoryResultLines))
+				b.WriteString("\n")
 				break
 			}
 			b.WriteString(formatHistoryResult(i+1, res))
 		}
 	}
-	b.WriteString("\n提示：以上为本地历史快照（正文截断）；需要完整正文用 cleanfetch 按 URL 重取。\n")
+	b.WriteString(i18n.T("tool.history.hint"))
+	b.WriteString("\n")
 	return b.String()
 }
 

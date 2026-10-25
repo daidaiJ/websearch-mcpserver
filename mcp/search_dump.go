@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
 )
@@ -58,8 +60,8 @@ func dumpSearchResultsIfOversize(results []search.SearchResult, rendered string)
 	}
 	log.InfoT("log.mcp.smartsearch_rendered_result_of_chars_exceeds", "charCount", charCount, "limit", limit, "path", path)
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "搜索结果渲染后共 %d 条 / %d 字符，超过内联上限（%d 字符），已整体保存到文件\n\n",
-		len(results), charCount, limit)
+	sb.WriteString(i18n.T("tool.dump.overflow_notice", "Results", len(results), "Chars", charCount, "Limit", limit))
+	sb.WriteString("\n\n")
 	for i, candidate := range results {
 		snippet := []rune(strings.TrimSpace(candidate.Content))
 		if len(snippet) > 160 {
@@ -67,11 +69,14 @@ func dumpSearchResultsIfOversize(results []search.SearchResult, rendered string)
 		}
 		fmt.Fprintf(&sb, "%d. %s\n   URL: %s\n", i+1, candidate.Title, candidate.Url)
 		if candidate.Engine != "" {
-			fmt.Fprintf(&sb, "   来源: %s\n", candidate.Engine)
+			sb.WriteString(i18n.T("tool.dump.engine_line", "Engine", candidate.Engine))
+			sb.WriteString("\n")
 		}
-		fmt.Fprintf(&sb, "   摘录: %s\n\n", string(snippet))
+		sb.WriteString(i18n.T("tool.dump.snippet_line", "Snippet", string(snippet)))
+		sb.WriteString("\n\n")
 	}
-	fmt.Fprintf(&sb, "**文件路径**: `%s`\n\n", path)
+	sb.WriteString(i18n.T("tool.dump.file_path", "Path", path))
+	sb.WriteString("\n\n")
 	sb.WriteString(hint)
 	return sb.String(), true
 }
@@ -112,7 +117,7 @@ func writeSearchDump(content string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "", fmt.Errorf("落盘文件创建重试耗尽")
+	return "", errors.New(i18n.T("tool.dump.create_exhausted"))
 }
 
 // cleanupSearchDumps 清理目录中超 TTL 的 search-*.md（只动本程序命名模式的文件，

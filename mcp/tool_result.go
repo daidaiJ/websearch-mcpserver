@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"websearch/pkg/fetch/webfetch"
+	"websearch/pkg/i18n"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -54,7 +55,12 @@ var resultFiles = struct {
 	files map[string]resultFile
 }{files: make(map[string]resultFile)}
 
-var errResultUnavailable = errors.New("result_unavailable: 引用不存在、已过期、服务已重启或文件已清理/变更；请重新调用原工具")
+// errResultUnavailable 是稳定哨兵（errors.Is 可用），对外文案按当前语言渲染。
+var errResultUnavailable = errors.New("result_unavailable")
+
+func resultUnavailableErr() error {
+	return fmt.Errorf("%s: %w", i18n.T("tool.result.unavailable"), errResultUnavailable)
+}
 
 func savedResultReadNotice(result *webfetch.Result) string {
 	ttl := 24 * time.Hour
@@ -63,7 +69,7 @@ func savedResultReadNotice(result *webfetch.Result) string {
 	}
 	notice, err := resultFileNotice(result.FilePath, ttl)
 	if err != nil {
-		return "**MCP 读取失败**: " + err.Error()
+		return i18n.T("tool.result.read_failed", "Err", err.Error())
 	}
 	return notice
 }
@@ -71,19 +77,19 @@ func savedResultReadNotice(result *webfetch.Result) string {
 func resultFileNotice(path string, ttl time.Duration) (string, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
-		return "", errResultUnavailable
+		return "", resultUnavailableErr()
 	}
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() {
-		return "", errResultUnavailable
+		return "", resultUnavailableErr()
 	}
 	expires := info.ModTime().Add(ttl)
 	if !time.Now().Before(expires) {
-		return "", errResultUnavailable
+		return "", resultUnavailableErr()
 	}
 	var token [16]byte
 	if _, err := rand.Read(token[:]); err != nil {
-		return "", fmt.Errorf("生成结果引用失败")
+		return "", errors.New(i18n.T("tool.result.ref_create_failed"))
 	}
 	ref := "result:" + hex.EncodeToString(token[:])
 	resultFiles.Lock()
@@ -94,12 +100,12 @@ func resultFileNotice(path string, ttl time.Duration) (string, error) {
 	}
 	resultFiles.files[ref] = resultFile{path: path, info: info, expires: expires}
 	resultFiles.Unlock()
-	return fmt.Sprintf("**result_ref**: `%s`\n\n**读取提示**: 调用 cleanfetch(result_ref, offset=0)，续读使用 next_offset，直到 eof=true。引用仅用于本服务，服务重启或文件清理后失效；最晚过期时间 %s。", ref, expires.UTC().Format(time.RFC3339)), nil
+	return i18n.T("tool.result.ref_notice", "Ref", ref, "Expires", expires.UTC().Format(time.RFC3339)), nil
 }
 
 func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadResultParams) (result *mcp.CallToolResult, output *ReadResultOutput, err error) {
 	if params.Offset < 0 || params.Limit < 0 || params.Limit > maxResultReadChars {
-		return nil, nil, fmt.Errorf("offset 必须非负，limit 必须在 0-8192 之间")
+		return nil, nil, errors.New(i18n.T("tool.result.offset_invalid"))
 	}
 	limit := params.Limit
 	if limit == 0 {
@@ -109,21 +115,21 @@ func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadRe
 	file, ok := resultFiles.files[params.Ref]
 	resultFiles.Unlock()
 	if !ok || !time.Now().Before(file.expires) {
-		return nil, nil, errResultUnavailable
+		return nil, nil, resultUnavailableErr()
 	}
 	info, err := os.Lstat(file.path)
 	if err != nil || !info.Mode().IsRegular() {
-		return nil, nil, errResultUnavailable
+		return nil, nil, resultUnavailableErr()
 	}
 	// Confine symlink resolution and verify the opened file is the one we issued.
 	f, err := os.OpenInRoot(filepath.Dir(file.path), filepath.Base(file.path))
 	if err != nil {
-		return nil, nil, errResultUnavailable
+		return nil, nil, resultUnavailableErr()
 	}
 	defer f.Close()
 	info, err = f.Stat()
 	if err != nil || !os.SameFile(file.info, info) || info.Size() != file.info.Size() || !info.ModTime().Equal(file.info.ModTime()) {
-		return nil, nil, errResultUnavailable
+		return nil, nil, resultUnavailableErr()
 	}
 	reader := bufio.NewReader(f)
 	var base int64     // 计数起点字节偏移（缓存命中时为缓存点，扫描路径为 0）
@@ -131,7 +137,7 @@ func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadRe
 	if params.Offset == file.cacheChar {
 		// 顺序续读命中缓存（含 offset 0）：直接按字节偏移定位，跳过逐 rune 扫描。
 		if _, err := f.Seek(file.cacheByte, io.SeekStart); err != nil {
-			return nil, nil, errResultUnavailable
+			return nil, nil, resultUnavailableErr()
 		}
 		base = file.cacheByte
 	} else {
@@ -141,10 +147,10 @@ func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadRe
 			}
 			_, size, err := reader.ReadRune()
 			if err == io.EOF {
-				return nil, nil, fmt.Errorf("offset 超过结果字符数")
+				return nil, nil, errors.New(i18n.T("tool.result.offset_beyond_end"))
 			}
 			if err != nil {
-				return nil, nil, errResultUnavailable
+				return nil, nil, resultUnavailableErr()
 			}
 			consumed += int64(size)
 		}
@@ -160,7 +166,7 @@ func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadRe
 			break
 		}
 		if err != nil || (r == utf8.RuneError && size == 1) {
-			return nil, nil, errResultUnavailable
+			return nil, nil, resultUnavailableErr()
 		}
 		body.WriteRune(r)
 		consumed += int64(size)
@@ -168,7 +174,7 @@ func readSavedResult(ctx context.Context, _ *mcp.CallToolRequest, params *ReadRe
 	}
 	_, err = reader.Peek(1)
 	if err != nil && err != io.EOF {
-		return nil, nil, errResultUnavailable
+		return nil, nil, resultUnavailableErr()
 	}
 	if err != io.EOF {
 		// 未到文件尾：记录下一页首字符的字符/字节偏移，供顺序续读 Seek 直达。
