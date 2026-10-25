@@ -264,7 +264,48 @@ jobs:
         run: ./mcp-publisher validate
 
       - name: Publish server to MCP Registry
-        run: ./mcp-publisher publish
+        # registry 的版本号不可复用：同版本二次 publish 必报 400 duplicate，
+        # 且不支持物理删除版本、也不支持更新已发布版本的元数据（fileSha256 等）。
+        # 因此「回收同版本号重发」场景下 publish 注定失败——这里不把它当失败处理：
+        #   - 命中 duplicate 时重新断言 active（回收重发前该版本可能被置过 deleted，
+        #     不恢复的话 registry 会停留在更老的版本上）；
+        #   - 同时把 registry 里存的 fileSha256 与本次 server.json 的逐条比对，
+        #     不一致就发 ::warning::（hash 换不掉，只有换版本号才能刷新）。
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          BASE_TAG="${TAG%-registry}"
+          VERSION="${BASE_TAG#v}"
+          SERVER="io.github.daidaiJ/websearch-mcpserver"
+
+          set +e
+          out=$(./mcp-publisher publish 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+
+          if ! printf '%s' "$out" | grep -q "cannot publish duplicate version"; then
+            exit $rc
+          fi
+
+          echo "::notice::$SERVER@$VERSION already exists in the registry; treating the duplicate as a no-op and re-asserting active status"
+          ./mcp-publisher status --status active "$SERVER" "$VERSION"
+
+          # 比对 registry 现存哈希与本次打包产物的哈希（只警告，不阻断）
+          reg=$(curl -s "https://registry.modelcontextprotocol.io/v0.1/servers/$(printf '%s' "$SERVER" | sed 's|/|%2F|')/versions/$VERSION")
+          local_hashes=$(jq -r '.packages[].fileSha256' server.json | sort)
+          reg_hashes=$(printf '%s' "$reg" | jq -r '.server.packages[].fileSha256' | sort)
+          if [ "$local_hashes" != "$reg_hashes" ]; then
+            echo "::warning::registry metadata for $VERSION still carries the fileSha256 of an earlier build; the downloadable .mcpb bundles have been rebuilt since. Hash verification will mismatch — publish a NEW version number to refresh it."
+            echo "--- local (this build) ---"; echo "$local_hashes"
+            echo "--- registry (stored) ---"; echo "$reg_hashes"
+          else
+            echo "registry fileSha256 matches this build"
+          fi
 
       - name: Verify registration
         run: |
