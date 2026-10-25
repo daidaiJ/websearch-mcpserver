@@ -239,7 +239,7 @@ docker build -t websearch-mcpserver .
 
 ### 运维待办
 
-- 本机部署 `D:\Programs\websearch` 仍为已下架的 `v3.10.0` 构建（备份 `websearch-mcpserver.exe.bak-pre-v3.10.0`），待升级 `v3.10.1`（下载 base Release 的 `websearch-mcpserver-windows-amd64.exe` 覆盖）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`；新供应商已配测试 Key（tinyfish/keenable 进 `apipool.engines`，github PAT 提额，search_history 已开启），`mcp_hub.fetch_mode: prefer` 激活远端抓取链
+- 本机部署 `D:\Programs\websearch` 已升级到 `v3.10.2`（2026-10-25，用 base Release 的 `websearch-mcpserver-windows-amd64.exe` 覆盖，sha256 `beb21986…` 与 Release 一致；上一版 `v3.10.0` 备份为 `websearch-mcpserver.exe.bak-pre-v3.10.2`）；`everything.max_results: 10`；`cleanfetch.auto_proxy: true`；新供应商已配测试 Key（tinyfish/keenable 进 `apipool.engines`，github PAT 提额，search_history 已开启），`mcp_hub.fetch_mode: prefer` 激活远端抓取链；`academic.enabled: false`，故 MCP 工具数为 4（smartsearch / cleanfetch / file_search / search_history）
 - **v3.10.0 下架记录（2026-10-25）：** GitHub Release `v3.10.0` / `v3.10.0-registry` 已删、远端与本地 tags 已删、MCP Registry 经 `registry-status.yml` 置 `deleted`（工作流日志复核：列表余 3.10.1 无 3.10.0）。GHCR 的 `v3.10.0` 镜像 tag 未删（历史版本镜像一律保留，与 3.9.x 同口径）
 - **v3.10.2 回收重发记录（2026-10-25）：** base tag 钉 `d79e853`、`-registry` tag 钉 `9883818`；GitHub Release 16 产物 + GHCR `3.10.2` + registry `3.10.2 active` 三线就绪。**遗留一处不一致**：registry 里 `3.10.2` 存的 `fileSha256` 仍是首次发布（三面版，base `e3936b4`）的 .mcpb 哈希，而 `v3.10.2-registry` Release 里的包已按新构建重打——registry 不支持改已发布版本的元数据，只有换版本号才能刷新（CI 已对这种情况发 `::warning::`）
 - **发布流程教训（2026-10-24）：** `-registry` tag 推送不可重复——MCP Registry 同版本二次 publish 报 400 duplicate（首次已成功发布即占位）。误发版本用 `mcp-publisher status --status deleted`（已建 `.github/workflows/registry-status.yml` 运维工作流，OIDC 认证）下架；重发同版本 tag 必须钉同一 commit（构建可复现，产物 sha256 与 registry 元数据逐一致时可不重 publish）。registry 约束：`status active` 不允许携带 message
@@ -254,6 +254,5 @@ docker build -t websearch-mcpserver .
 
 - [ ] tinyfish/keenable 经二进制真网链路长期回归（限流阈值、结果质量；当前仅有 curl 实测 + 单测）
 - [ ] i18n 控制中心真实浏览器走查：166 个 `data-i18n` 标记、`applyI18n` 与 `t()` 渲染在真实页面上的观感与交互（本批只有标记解析校验 + 运行时单测 + 服务端注入冒烟，无浏览器工具）
-- [ ] i18n 工具返回内容的真机走查：在 `language: en` 下跑一遍 smartsearch / cleanfetch / pdf_parser / file_search / search_history，确认工具输出里无残留中文（本批只有渲染探针 + 目录审计 + 全量单测）
-- [ ] `mcp` 包的测试语言依赖顺序：`initTestLogger` 里的 `i18n.Configure(i18n.Zh)` 只在部分测试文件调用，`pdf_task_test.go` / `client_attribution_test.go` 等断言中文文案的用例靠「先跑的文件已把语言钉成 zh」才通过；建议加 `TestMain` 统一钉住
+- [ ] i18n 工具返回内容的真机走查：在 `language: en` 下跑一遍 smartsearch / cleanfetch / pdf_parser / file_search / search_history，确认工具输出里无残留中文（本批只有渲染探针 + 目录审计 + 全量单测；本机部署 `v3.10.2` 默认 `auto` → zh，只在控制中心端点验过 `Accept-Language: en`）
 - [ ] 新引擎/新工具真实链路长期回归：验证码页频率、anysearch 匿名档阈值、googlenews 回源失败率、search_history 写入与 FTS 命中率
