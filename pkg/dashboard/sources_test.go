@@ -168,7 +168,7 @@ func TestWebSourceCatalogConfiguredAndActivePerMode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conf := fullWebConfig()
 			tc.configure(&conf)
-			sources := webSourceCatalog(conf)
+			sources := webSourceCatalog(conf, testLoc())
 
 			if got := idsWhere(sources, func(s SourceView) bool { return s.Active }); !slices.Equal(got, tc.wantActive) {
 				t.Fatalf("active = %v, want %v", got, tc.wantActive)
@@ -206,7 +206,7 @@ func TestWebSourceCatalogBaiduAliasesFollowMode(t *testing.T) {
 	apipool := webSourceCatalog(config.Config{
 		Mode:  config.ModeApipool,
 		Baidu: config.BaiduConfig{APIKey: "k", WebEnabled: true},
-	})
+	}, testLoc())
 	api := sourceByID(t, apipool, "baidu")
 	if !slices.Contains(api.aliases, "baidu") {
 		t.Errorf("apipool 的百度 API 别名 = %v, 应包含 baidu", api.aliases)
@@ -222,7 +222,7 @@ func TestWebSourceCatalogBaiduAliasesFollowMode(t *testing.T) {
 		sources := webSourceCatalog(config.Config{
 			Mode:  mode,
 			Baidu: config.BaiduConfig{APIKey: "k", WebEnabled: true},
-		})
+		}, testLoc())
 		api := sourceByID(t, sources, "baidu")
 		if !slices.Equal(api.aliases, []string{"baidu_ai", "baidu_api"}) {
 			t.Errorf("%s 模式的百度 API 别名 = %v, want [baidu_ai baidu_api]", mode, api.aliases)
@@ -330,7 +330,7 @@ func TestBuildDashboardOverviewSortsSourcesByState(t *testing.T) {
 	conf := fullWebConfig()
 	conf.Mode = config.ModeEngine
 
-	out := buildDashboardOverview(conf, telemetry.Overview{})
+	out := buildDashboardOverview(conf, telemetry.Overview{}, testLoc())
 
 	var got []string
 	for _, s := range out.Sources {
@@ -345,7 +345,7 @@ func TestBuildDashboardOverviewSortsSourcesByState(t *testing.T) {
 	// 学术表同样分层：国内网络下国际学术源（configured 未 active）排在最后。
 	conf.Academic = config.AcademicConfig{Enabled: true}
 	conf.Network = "china"
-	acadOut := buildDashboardOverview(conf, telemetry.Overview{})
+	acadOut := buildDashboardOverview(conf, telemetry.Overview{}, testLoc())
 	var acad []string
 	for _, s := range acadOut.AcademicSources {
 		acad = append(acad, s.ID)
@@ -368,7 +368,7 @@ func TestBuildDashboardOverviewKeepsAcademicSourcesSeparate(t *testing.T) {
 		{Name: "arxiv", Status: "down", SampleSize: 3, ConsecutiveFailures: 3},
 	}}
 
-	out := buildDashboardOverview(conf, observed)
+	out := buildDashboardOverview(conf, observed, testLoc())
 
 	if got := idsWhere(out.Sources, func(s SourceView) bool { return s.Active }); !slices.Equal(got, []string{"bing"}) {
 		t.Errorf("主表 active = %v, want [bing]", got)
@@ -414,7 +414,7 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 	conf.So360.Enabled, conf.Wikipedia.Enabled, conf.GoogleNews.Enabled = true, true, true
 	conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://127.0.0.1:1"}
 	conf.Academic = config.AcademicConfig{Enabled: true, DisableArxiv: true}
-	catalog := SourceCatalog(conf)
+	catalog := SourceCatalog(conf, testLoc())
 	if len(catalog) != 25 {
 		t.Fatalf("catalog must include 16 web and 9 academic sources: %d", len(catalog))
 	}
@@ -433,7 +433,7 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 		t.Fatalf("academic inverse switch must be separate from configuration: %+v", s)
 	}
 	conf.Mode = config.ModeEngine
-	if s := sourceByID(t, SourceCatalog(conf), "anysearch"); s.Active || !s.Enabled || !s.Configured {
+	if s := sourceByID(t, SourceCatalog(conf, testLoc()), "anysearch"); s.Active || !s.Enabled || !s.Configured {
 		t.Fatalf("mode exclusion must not erase configuration: %+v", s)
 	}
 }
@@ -470,7 +470,7 @@ func TestDoubaoSourceConditionSeparatesVersionAndSiteScope(t *testing.T) {
 		{"custom", true, "ICP 限制不适用"},
 	} {
 		conf.Doubao.Version, conf.Doubao.ICPHostOnly = tc.version, tc.icp
-		if s := sourceByID(t, SourceCatalog(conf), "doubao"); !strings.Contains(s.Condition, tc.want) {
+		if s := sourceByID(t, SourceCatalog(conf, testLoc()), "doubao"); !strings.Contains(s.Condition, tc.want) {
 			t.Fatalf("version %s filter %v: %s", tc.version, tc.icp, s.Condition)
 		}
 	}

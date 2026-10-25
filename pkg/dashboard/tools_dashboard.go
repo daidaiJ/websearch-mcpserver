@@ -3,6 +3,7 @@ package dashboard
 import (
 	mcpserver "websearch/mcp"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 )
 
 // MCPToolView 是控制中心展示的公开 MCP 工具清单条目。它与
@@ -36,32 +37,33 @@ type PDFToolView struct {
 
 // mcpToolCatalog 定义控制中心固定展示的公开 MCP 工具。Enabled 只反映当前
 // 配置开关，不表示已经产生过真实调用；观测状态由遥测事件补充。
-func mcpToolCatalog(conf config.Config) []MCPToolView {
+// loc 决定标签与描述的语言（控制中心按 Accept-Language 每请求协商）。
+func mcpToolCatalog(conf config.Config, loc *i18n.Localizer) []MCPToolView {
 	tools := []MCPToolView{
 		{
 			Name:        "smartsearch",
-			Label:       "智能搜索",
-			Enabled:     len(activeSourceIDs(webSourceCatalog(conf))) > 0,
-			Description: "通用联网检索工具",
+			Label:       loc.T("dashboard.tool.smartsearch.label"),
+			Enabled:     len(activeSourceIDs(webSourceCatalog(conf, loc))) > 0,
+			Description: loc.T("dashboard.tool.smartsearch.desc"),
 		},
 		{
 			Name:        "academicsearch",
-			Label:       "学术检索",
+			Label:       loc.T("dashboard.tool.academicsearch.label"),
 			Enabled:     conf.Academic.Enabled,
-			Description: "多学术数据库并行检索",
+			Description: loc.T("dashboard.tool.academicsearch.desc"),
 		},
 		{
 			Name:         "cleanfetch",
-			Label:        "正文获取",
+			Label:        loc.T("dashboard.tool.cleanfetch.label"),
 			Enabled:      true,
 			FetchEnabled: &conf.CleanFetch.Enabled,
-			Description:  "已保存正文读取始终可用；URL 抓取由配置开关控制",
+			Description:  loc.T("dashboard.tool.cleanfetch.desc"),
 		},
 		{
 			Name:        "pdf_parser",
-			Label:       "PDF 解析",
+			Label:       loc.T("dashboard.tool.pdf_parser.label"),
 			Enabled:     conf.PDFParser.Enabled,
-			Description: "PDF 文本提取与 MinerU 回退",
+			Description: loc.T("dashboard.tool.pdf_parser.desc"),
 			PDF: &PDFToolView{MaxPages: conf.PDFParser.GetMaxPages(),
 				MinerUPageLimit:     conf.PDFParser.GetMinerUPageLimit(),
 				MinerUPageBatchSize: conf.PDFParser.GetMinerUPageBatchSize(),
@@ -69,8 +71,8 @@ func mcpToolCatalog(conf config.Config) []MCPToolView {
 				OCREnabled:          conf.PDFParser.MinerUOCREnabled(), PageProgress: "not_collected"},
 		},
 		{
-			Name: "file_search", Label: "本地文件检索", Enabled: conf.Everything.URL != "",
-			Description: "Everything 本地文件索引检索（只读）",
+			Name: "file_search", Label: loc.T("dashboard.tool.file_search.label"), Enabled: conf.Everything.URL != "",
+			Description: loc.T("dashboard.tool.file_search.desc"),
 			File: &FileToolView{AllowedRootCount: len(conf.Everything.Roots),
 				PathMetadataOnly: true, WhitelistEnforced: len(conf.Everything.Roots) > 0},
 		},

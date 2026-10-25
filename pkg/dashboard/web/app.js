@@ -4,27 +4,83 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+/* ---------- i18n ---------- */
+
+// 文案 key 与词典住在 pkg/i18n/locales/web.<语言>.json，由 serveIndex 按本次请求
+// 协商出的语言内联注入 window.__I18N__；语言同时写在 <html lang> 上。
+// 静态文案用 data-i18n / data-i18n-<attr> 标记，动态文案统一走 t(key, data)。
+const I18N_LANG = (typeof document !== 'undefined' && document.documentElement && document.documentElement.lang || '').toLowerCase().indexOf('en') === 0 ? 'en' : 'zh';
+const I18N = (typeof window !== 'undefined' && window.__I18N__) || {};
+
+// t(key, data)：data 的键对应文案里的 {{.Name}}；含 Count 时按 CLDR 复数形态取值
+// （与 Go 侧 go-i18n 同口径）。词典缺条目时返回 key 本身，漏登记由目录审计拦截。
+function t(key, data) {
+  const value = I18N[key];
+  if (value === undefined || value === null) return key;
+  let text = value;
+  if (typeof value === 'object') {
+    const form = pluralForm(data && data.Count);
+    text = value[form] !== undefined ? value[form] : (value.other !== undefined ? value.other : key);
+  }
+  if (!data) return text;
+  return String(text).replace(/\{\{\s*\.(\w+)\s*\}\}/g, (m, name) => {
+    const v = data[name];
+    return v === undefined || v === null ? '' : String(v);
+  });
+}
+
+function pluralForm(count) {
+  if (typeof Intl === 'undefined' || !Intl.PluralRules) return 'other';
+  try {
+    return new Intl.PluralRules(I18N_LANG === 'en' ? 'en-US' : 'zh-CN').select(Number(count) || 0);
+  } catch (e) {
+    return 'other';
+  }
+}
+
+// firstTextNode 返回元素的首个非空文本子节点（data-i18n 只替换这一个，保留兄弟节点）。
+function firstTextNode(el) {
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const node = el.childNodes[i];
+    if (node.nodeType === 3 && String(node.nodeValue).trim()) return node;
+  }
+  return null;
+}
+
+// applyI18n 把标记过的静态 DOM 文案换成当前语言；zh 模式词典本身就是中文，照常渲染。
+function applyI18n(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  root.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const node = key ? firstTextNode(el) : null;
+    if (node) node.nodeValue = t(key);
+  });
+  ['title', 'aria-label', 'placeholder'].forEach(attr => {
+    root.querySelectorAll('[data-i18n-' + attr + ']').forEach(el => el.setAttribute(attr, t(el.getAttribute('data-i18n-' + attr))));
+  });
+}
+
 const REFRESH_MS = 60000;
 const TZ = { hour12: false, timeZone: 'Asia/Shanghai' };
-const PAGES = { overview: '运行总览', sources: '搜索源', usage: '调用记录', settings: '设置' };
-const HEALTH = { healthy: '正常', degraded: '不稳定', down: '异常', unknown: '未知' };
+const PAGES = { overview: t('web.page.overview'), sources: t('web.page.search_sources'), usage: t('web.page.call_log'), settings: t('web.page.settings') };
+const HEALTH = { healthy: t('web.status.healthy'), degraded: t('web.status.degraded'), down: t('web.status.failing'), unknown: t('web.status.unknown') };
 const ERROR_KINDS = {
-  rate_limit: '限流', captcha: '人机验证', access_denied: '访问被拒', timeout: '超时',
-  parse: '解析失败', no_result: '无结果', network: '网络/服务端', unknown: '未知错误',
+  rate_limit: t('web.status.rate_limited'), captcha: t('web.status.captcha'), access_denied: t('web.status.access_denied'), timeout: t('web.status.timeout'),
+  parse: t('web.status.parse_failed'), no_result: t('web.status.no_results'), network: t('web.status.network_server'), unknown: t('web.status.unknown_error'),
 };
-const SYSTEM = { healthy: '运行正常', degraded: '部分降级', down: '部分异常', waiting: '等待真实调用' };
+const SYSTEM = { healthy: t('web.status.running_normally'), degraded: t('web.status.partially_degraded'), down: t('web.status.partially_failing'), waiting: t('web.status.awaiting_real_calls') };
 const DOT = { healthy: 'healthy', degraded: 'degraded', down: 'down', unknown: 'unknown' };
 const DISPLAY = {
-  smartsearch: '智能搜索', academicsearch: '学术检索', cleanfetch: '正文获取', pdf_parser: 'PDF 解析', file_search: '本地文件检索',
-  anysearch: 'AnySearch', baidu: '百度千帆', tavily: 'Tavily', exa: 'Exa', doubao: '豆包搜索',
-  baidu_web: '百度网页', bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo',
+  smartsearch: t('web.name.smart_search'), academicsearch: t('web.name.academic_search'), cleanfetch: t('web.name.content_fetch'), pdf_parser: t('web.name.pdf_parsing'), file_search: t('web.name.local_file_search'),
+  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), tavily: 'Tavily', exa: 'Exa', doubao: t('web.name.doubao_search'),
+  baidu_web: t('web.name.baidu_web'), bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo',
   arxiv: 'arXiv', crossref: 'Crossref', openalex: 'OpenAlex', pubmed: 'PubMed', europepmc: 'Europe PMC',
   dblp: 'DBLP', doaj: 'DOAJ', semantic_scholar: 'Semantic Scholar', google_scholar: 'Google Scholar',
-  webfetch: '网页抓取器', jina: 'Jina Reader', pdf_pipeline: 'PDF 流水线',
+  webfetch: t('web.name.web_fetcher'), jina: 'Jina Reader', pdf_pipeline: t('web.name.pdf_pipeline'),
 };
 const SECRETS = {
-  BAIDU_SK: '百度千帆', TAVILY_SK: 'Tavily', EXA_API_KEY: 'Exa', ANYSEARCH_API_KEY: 'AnySearch',
-  DOUBAO_SEARCH_API_KEY: '豆包', TENCENTCLOUD_WSA_APIKEY: '元宝', JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU',
+  BAIDU_SK: t('web.name.baidu_qianfan'), TAVILY_SK: 'Tavily', EXA_API_KEY: 'Exa', ANYSEARCH_API_KEY: 'AnySearch',
+  DOUBAO_SEARCH_API_KEY: t('web.name.doubao'), TENCENTCLOUD_WSA_APIKEY: t('web.name.yuanbao'), JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU',
 };
 // 各供应商的官方「获取 Key」入口，配置页一键直达
 const SECRET_LINKS = {
@@ -125,9 +181,9 @@ function icon(name) {
   return `<svg class="control-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 }
 function healthOf(s) {
-  if (!s.last_seen_at) return { dot: 'unknown', label: '尚无调用' };
+  if (!s.last_seen_at) return { dot: 'unknown', label: t('web.status.no_calls_yet') };
   const status = s.observation_status || s.status;
-  return { dot: DOT[status] || 'unknown', label: HEALTH[status] || '未知' };
+  return { dot: DOT[status] || 'unknown', label: HEALTH[status] || t('web.status.unknown') };
 }
 
 /* ---------- transport ---------- */
@@ -141,7 +197,7 @@ async function fetchJSON(path, options = {}) {
     const msg = body && body.error ? body.error : 'HTTP ' + res.status;
     throw new Error(msg);
   }
-  if (body === null) throw new Error('响应不是有效的 JSON');
+  if (body === null) throw new Error(t('web.msg.response_is_not_valid_json'));
   return body;
 }
 
@@ -204,14 +260,14 @@ async function loadQuotas() {
 async function loadSettings() {
   try {
     const data = await fetchJSON('/__admin/api/settings', { signal: AbortSignal.timeout(5000) });
-    if (!data || !data.values) throw new Error('设置响应缺少 values 字段');
+    if (!data || !data.values) throw new Error(t('web.msg.settings_response_is_missing_the_values_field'));
     state.settings = data;
     state.settingsError = null;
     const pending = data.pending_changes || {};
     if (Object.keys(pending).length && !state.applying && !state.saving && (!state.applyResult || !state.applyResult.failed)) {
       state.applyResult = {
         targets: { ...pending }, backup: (data.backups || [])[0]?.name,
-        failed: true, status: '配置已保存，尚未确认生效',
+        failed: true, status: t('web.msg.config_saved_not_yet_confirmed'),
       };
     }
   } catch (e) {
@@ -272,7 +328,7 @@ function anyFailure() {
 function renderUpdated() {
   const el = $('#updated');
   if (!el) return;
-  el.textContent = '更新于 ' + fmtClock() + (anyFailure() ? ' · 部分数据可能已过期' : '');
+  el.textContent = `${t('web.note.updated')} ` + fmtClock() + (anyFailure() ? ` ${t('web.note.some_data_may_be_stale')}` : '');
   el.classList.toggle('warn', anyFailure());
 }
 
@@ -287,18 +343,18 @@ function renderSystem() {
   if (!o) {
     label.textContent = '—';
     d.className = 'dot unknown';
-    setNote(note, state.overviewError ? '读取失败：' + state.overviewError : '正在读取…', state.overviewError ? 'bad' : '');
+    setNote(note, state.overviewError ? t('web.note.read_failed') + state.overviewError : t('web.note.loading_2'), state.overviewError ? 'bad' : '');
   } else if (!sys) {
-    label.textContent = '未知';
+    label.textContent = t('web.status.unknown');
     d.className = 'dot unknown';
-    setNote(note, '数据可能已过期：概览接口未返回系统摘要（system）', 'warn');
+    setNote(note, t('web.note.data_may_be_stale_the_overview_endpoint_returned_no_system_s'), 'warn');
   } else {
-    label.textContent = SYSTEM[sys.status] || '未知';
+    label.textContent = SYSTEM[sys.status] || t('web.status.unknown');
     d.className = 'dot ' + (sys.status === 'waiting' ? 'unknown' : (DOT[sys.status] || 'unknown'));
-    const summary = `参与运行 ${fmtInt(sys.enabled)} 个 · 已观察 ${fmtInt(sys.observed)} 个 · 异常 ${fmtInt(sys.down)} 个` +
-    (num(sys.suspended) > 0 ? ` · 观测告警 ${fmtInt(sys.suspended)} 个` : '');
-    if (state.overviewError) setNote(note, summary + ' · 数据可能已过期：' + state.overviewError, 'warn');
-    else if (sys.status === 'waiting') setNote(note, summary + ' · 尚未观察到近期真实调用', '');
+    const summary = t('web.note.participating_observed_failing', { enabled: fmtInt(sys.enabled), observed: fmtInt(sys.observed), down: fmtInt(sys.down) }) +
+    (num(sys.suspended) > 0 ? ` ${t('web.note.observation_warnings', { count: fmtInt(sys.suspended) })}` : '');
+    if (state.overviewError) setNote(note, summary + ` ${t('web.note.data_may_be_stale')}` + state.overviewError, 'warn');
+    else if (sys.status === 'waiting') setNote(note, summary + ` ${t('web.note.no_recent_real_calls_observed_yet')}`, '');
     else setNote(note, summary, '');
   }
   const has = o && sys;
@@ -314,9 +370,9 @@ function renderToolKpis() {
   const today = raw && raw.day ? raw : null;
   const avg = today && num(today.requests) > 0 ? Math.round(today.duration_ms / today.requests) : null;
   const cards = [
-    ['今日成功调用', today ? fmtInt(today.successes) : '—', today ? `共 ${fmtInt(today.requests)} 次 · 缓存命中 ${fmtInt(today.cache_hits)}` : '暂无工具层调用'],
-    ['今日失败次数', today ? fmtInt(today.failures) : '—', '仅统计 MCP 工具层事件'],
-    ['今日平均响应时间', avg === null ? '—' : fmtMS(avg), today && num(today.requests) > 0 ? '工具层总耗时 ÷ 调用数' : '无调用时不计算'],
+    [t('web.label.successful_calls_today'), today ? fmtInt(today.successes) : '—', today ? t('web.note.calls_cache_hits', { requests: fmtInt(today.requests), cacheHits: fmtInt(today.cache_hits) }) : t('web.note.no_tool_layer_calls_yet')],
+    [t('web.label.failures_today'), today ? fmtInt(today.failures) : '—', t('web.note.counts_mcp_tool_layer_events_only')],
+    [t('web.label.average_response_time_today'), avg === null ? '—' : fmtMS(avg), today && num(today.requests) > 0 ? t('web.note.total_tool_layer_time_calls') : t('web.note.not_computed_without_calls')],
   ];
   const kpis = $('#overview-kpis');
   if (!kpis) return;
@@ -335,40 +391,40 @@ function renderMCPTools() {
   const note = $('#mcp-tools-note');
   const help = $('#mcp-tools-help');
   if (!configured.length) {
-    list.innerHTML = `<p class="empty">${esc(o ? '概览接口未返回工具清单' : '正在读取…')}</p>`;
+    list.innerHTML = `<p class="empty">${esc(o ? t('web.note.the_overview_endpoint_returned_no_tool_list') : t('web.note.loading_2'))}</p>`;
     if (note) note.textContent = '—';
-    if (help) setNote(help, state.overviewError ? '读取失败：' + state.overviewError : '', state.overviewError ? 'bad' : '');
+    if (help) setNote(help, state.overviewError ? t('web.note.read_failed') + state.overviewError : '', state.overviewError ? 'bad' : '');
     return;
   }
   const observed = new Map();
   (Array.isArray(o.tools) ? o.tools : []).forEach(h => h && observed.set(h.name, h));
   const enabledCount = configured.filter(t => t.enabled).length;
-  if (note) note.textContent = enabledCount + ' / ' + configured.length + ' 已启用';
-  if (help) setNote(help, '开关状态来自运行配置；观测状态来自真实调用，尚无调用不会被当成异常', '');
+  if (note) note.textContent = enabledCount + ' / ' + configured.length + ` ${t('web.status.enabled')}`;
+  if (help) setNote(help, t('web.note.switches_come_from_the_running_config_health_comes_from_real'), '');
   list.innerHTML = configured.map(tool => {
     const health = observed.get(tool.name);
     let stateLabel;
     let dotClass;
     if (!tool.enabled) {
-      stateLabel = '配置未启用';
-      if (tool.name === 'file_search' && (tool.registration_state || tool.state) === 'unprobed') stateLabel += ' · 尚未探测';
+      stateLabel = t('web.status.disabled_in_config');
+      if (tool.name === 'file_search' && (tool.registration_state || tool.state) === 'unprobed') stateLabel += ` ${t('web.note.not_probed_yet')}`;
       dotClass = 'unknown';
     } else if (['unprobed', 'pending', 'unavailable', 'disabled'].includes(tool.registration_state || tool.state)) {
-      stateLabel = ({ unprobed: '尚未探测', pending: '等待注册', unavailable: '不可用', disabled: '未注册' })[tool.registration_state || tool.state];
+      stateLabel = ({ unprobed: t('web.status.not_probed'), pending: t('web.status.awaiting_registration'), unavailable: t('web.status.unavailable'), disabled: t('web.status.not_registered') })[tool.registration_state || tool.state];
       dotClass = 'unknown';
     } else if (health && health.last_seen_at) {
-      stateLabel = HEALTH[health.status] || '未知';
+      stateLabel = HEALTH[health.status] || t('web.status.unknown');
       dotClass = DOT[health.status] || 'unknown';
     } else {
-      stateLabel = '可调用 · 尚无观测';
+      stateLabel = t('web.status.callable_no_observations_yet');
       dotClass = 'unknown';
     }
     const stats = health && health.today
-      ? `<small>${fmtInt(health.today.requests)} 次 · ${fmtInt(health.today.successes)} 成功 · ${fmtInt(health.today.failures)} 失败</small>`
-      : '<small>尚未产生工具层事件</small>';
-    const pdf = tool.pdf ? `<small class="pdf-params">默认页数 ${esc(tool.pdf.max_pages)} · 单任务页限 ${esc(tool.pdf.mineru_page_limit)} · 批大小 ${esc(tool.pdf.mineru_page_batch_size)} · 调用预算 ${esc(tool.pdf.mineru_page_budget)} · OCR ${tool.pdf.ocr_enabled ? '开' : '关'}${tool.pdf.page_progress === 'not_collected' ? ' · 页进度未采集' : ''}</small>` : '';
-    const file = tool.file ? `<small class="pdf-params">白名单根目录 ${esc(tool.file.allowed_root_count)} · ${tool.file.whitelist_enforced ? '白名单限制' : '目录未限制'}${tool.file.path_metadata_only ? ' · 仅路径/元数据' : ''}</small>` : '';
-    const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small>已保存正文读取可用 · URL 抓取${tool.fetch_enabled ? '开' : '关'}</small>` : '';
+      ? `<small>${fmtInt(health.today.requests)} ${t('web.note.text')} ${fmtInt(health.today.successes)} ${t('web.note.success')} ${fmtInt(health.today.failures)} ${t('web.status.failure')}</small>`
+      : `<small>${t('web.note.no_tool_layer_events_yet')}</small>`;
+    const pdf = tool.pdf ? `<small class="pdf-params">${t('web.label.default_pages')} ${esc(tool.pdf.max_pages)} ${t('web.note.page_limit_per_task')} ${esc(tool.pdf.mineru_page_limit)} ${t('web.note.batch_size')} ${esc(tool.pdf.mineru_page_batch_size)} ${t('web.note.call_budget')} ${esc(tool.pdf.mineru_page_budget)} · OCR ${tool.pdf.ocr_enabled ? t('web.label.on') : t('web.label.off_2')}${tool.pdf.page_progress === 'not_collected' ? t('web.note.page_progress_not_collected') : ''}</small>` : '';
+    const file = tool.file ? `<small class="pdf-params">${t('web.label.allowlisted_roots')} ${esc(tool.file.allowed_root_count)} · ${tool.file.whitelist_enforced ? t('web.status.allowlist_enforced') : t('web.status.directories_unrestricted')}${tool.file.path_metadata_only ? t('web.note.path_metadata_only') : ''}</small>` : '';
+    const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small>${t('web.note.saved_content_reads_available_url_fetching')}${tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')}</small>` : '';
     return `<div class="tool-row"><span class="tool-head">${dot(dotClass)}` +
       `<b>${esc(tool.label || displayName(tool.name))}</b><small class="mono">${esc(tool.name)}</small></span>` +
       `<span class="tool-state">${esc(stateLabel)}</span>` +
@@ -402,7 +458,7 @@ function tavilyItem() {
 function healthStrip(s) {
   const outcomes = Array.isArray(s.recent_outcomes) ? s.recent_outcomes.slice(-20) : [];
   const cells = Array(Math.max(0, 20 - outcomes.length)).fill(null).concat(outcomes);
-  const title = outcomes.length ? `最近 ${outcomes.length} 次真实调用` : '暂无真实调用';
+  const title = outcomes.length ? t('web.note.last_real_calls', { count: outcomes.length }) : t('web.note.no_real_calls_yet');
   return `<span class="health-strip" title="${esc(title)}" aria-label="${esc(title)}">` +
     cells.map(ok => `<i class="${ok === null ? 'empty' : ok ? 'ok' : 'fail'}"></i>`).join('') + '</span>';
 }
@@ -417,7 +473,7 @@ function sourceRowHtml(s, detailed) {
   const cells = [
     `<td class="src-name"><b>${esc(name)}</b>${detailed && id === 'doubao' ? doubaoVersionControl() : ''}</td>`,
     `<td>${sourceControl(s)}</td>`,
-    `<td><span class="nowrap" title="最近观测：${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}</td>`,
+    `<td><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}</td>`,
     `<td>${healthStrip(s)}</td>`,
     `<td class="num">${today ? fmtInt(today.requests) : '<span class="dim">—</span>'}</td>`,
     `<td class="num">${successRate === null ? '<span class="dim">—</span>' : esc(Math.round(successRate * 100) + '%')}</td>`,
@@ -430,10 +486,10 @@ function sourceRowHtml(s, detailed) {
 
 function suspendBadge(s) {
   if (!s || s.suspended !== true) return '';
-  const reason = s.suspend_reason ? errorKindLabel(s.suspend_reason) : '连续失败';
+  const reason = s.suspend_reason ? errorKindLabel(s.suspend_reason) : t('web.status.repeated_failures');
   const secs = num(s.suspend_countdown_sec);
-  const countdown = secs && secs > 0 ? (secs >= 60 ? Math.ceil(secs / 60) + ' 分' : secs + ' 秒') : '';
-  return `<span class="kind-chip suspend" title="历史观测告警：${esc(reason)}${countdown ? '，' + countdown : ''}">观测告警</span>`;
+  const countdown = secs && secs > 0 ? (secs >= 60 ? Math.ceil(secs / 60) + ` ${t('web.label.min')}` : secs + ` ${t('web.label.seconds')}`) : '';
+  return `<span class="kind-chip suspend" title="${t('web.note.historical_observation_warning')}${esc(reason)}${countdown ? t('web.note.text_2') + countdown : ''}">${t('web.status.observation_warning')}</span>`;
 }
 
 function savedValues() {
@@ -445,7 +501,7 @@ function doubaoVersionControl() {
   const locked = state.settings && state.settings.locked_fields && state.settings.locked_fields[key];
   const value = locked ? state.settings.values[key] : draftValue(key);
   const reason = settingsFieldReason(key);
-  return `<select class="source-version" data-source-setting="${key}" aria-label="豆包接口版本" title="${esc(reason || '豆包接口版本')}" ${reason ? 'disabled' : ''}><option value="global" ${value === 'global' ? 'selected' : ''}>Global</option><option value="custom" ${value === 'custom' ? 'selected' : ''}>Custom</option></select>`;
+  return `<select class="source-version" data-source-setting="${key}" aria-label="${t('web.label.doubao_api_version')}" title="${esc(reason || t('web.label.doubao_api_version'))}" ${reason ? 'disabled' : ''}><option value="global" ${value === 'global' ? 'selected' : ''}>Global</option><option value="custom" ${value === 'custom' ? 'selected' : ''}>Custom</option></select>`;
 }
 
 function draftValue(key) {
@@ -463,11 +519,11 @@ function sourceControl(s) {
   const enabled = s.inverted ? value === false : value === true;
   const locked = key && state.settings && state.settings.locked_fields && state.settings.locked_fields[key];
   const disabled = !key || !writeAllowed() || locked || state.applying || state.saving;
-  return `<div class="form-check form-switch source-toggle" title="${esc(locked || (!writeAllowed() ? writeReason() : ''))}"><input class="form-check-input" type="checkbox" role="switch" id="${esc(inputId)}" data-source-key="${esc(key || '')}" data-inverted="${s.inverted === true}" aria-label="${esc(s.name || s.id)} 配置启用" ${enabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}></div>`;
+  return `<div class="form-check form-switch source-toggle" title="${esc(locked || (!writeAllowed() ? writeReason() : ''))}"><input class="form-check-input" type="checkbox" role="switch" id="${esc(inputId)}" data-source-key="${esc(key || '')}" data-inverted="${s.inverted === true}" aria-label="${esc(s.name || s.id)} ${t('web.status.enabled_in_config')}" ${enabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}></div>`;
 }
 
 function countsLabel(list) {
-  return `已启用 ${list.filter(s => s.enabled).length} / ${list.length}`;
+  return `${t('web.status.enabled')} ${list.filter(s => s.enabled).length} / ${list.length}`;
 }
 
 function renderWebSources() {
@@ -477,15 +533,15 @@ function renderWebSources() {
   if (!body) return;
   const list = webSources();
   if (list === null) {
-    body.innerHTML = emptyRow(8, state.overviewError ? '读取失败' : '正在读取…');
-    setNote(note, state.overviewError ? '读取失败：' + state.overviewError : '', state.overviewError ? 'bad' : '');
+    body.innerHTML = emptyRow(8, state.overviewError ? t('web.status.read_failed') : t('web.note.loading_2'));
+    setNote(note, state.overviewError ? t('web.note.read_failed') + state.overviewError : '', state.overviewError ? 'bad' : '');
     return;
   }
   const active = list.filter(s => s.active === true);
   const shown = active;
-  body.innerHTML = shown.length ? shown.map(s => sourceRowHtml(s, false)).join('') : emptyRow(8, '当前模式没有已启用的 Web 来源');
-  if (state.overviewError) setNote(note, '数据可能已过期：' + state.overviewError, 'warn');
-  else if (!Array.isArray(state.overview.sources)) setNote(note, '数据可能已过期：接口未返回来源清单（sources），按已观测 Provider 展示', 'warn');
+  body.innerHTML = shown.length ? shown.map(s => sourceRowHtml(s, false)).join('') : emptyRow(8, t('web.note.no_web_source_is_enabled_in_the_current_mode'));
+  if (state.overviewError) setNote(note, t('web.note.data_may_be_stale_2') + state.overviewError, 'warn');
+  else if (!Array.isArray(state.overview.sources)) setNote(note, t('web.note.data_may_be_stale_the_endpoint_returned_no_source_catalog_sh'), 'warn');
   else setNote(note, '', '');
 }
 
@@ -496,9 +552,9 @@ function renderSourcePages() {
   groups.forEach(([id, list]) => {
     const body = $('#sources-' + id + '-body');
     if (!body) return;
-    body.innerHTML = list === null ? emptyRow(8, '正在读取…') : list.length ? list.map(s => sourceRowHtml(s, true)).join('') : emptyRow(8, '暂无来源');
+    body.innerHTML = list === null ? emptyRow(8, t('web.note.loading_2')) : list.length ? list.map(s => sourceRowHtml(s, true)).join('') : emptyRow(8, t('web.note.no_sources_yet'));
     setText('#sources-' + id + '-counts', list ? countsLabel(list) : '—');
-    setNote($('#sources-' + id + '-note'), state.overviewError ? '数据可能已过期：' + state.overviewError : '', state.overviewError ? 'warn' : '');
+    setNote($('#sources-' + id + '-note'), state.overviewError ? t('web.note.data_may_be_stale_2') + state.overviewError : '', state.overviewError ? 'warn' : '');
   });
   renderDraftState();
 }
@@ -515,46 +571,46 @@ function renderTavily() {
   const q = tavilyItem();
   const kv = (pairs) => pairs.filter(p => p[1]).map(p => `<div><dt>${esc(p[0])}</dt><dd>${esc(p[1])}</dd></div>`).join('');
   if (state.quotaError && !q) {
-    value.textContent = '查询失败';
+    value.textContent = t('web.status.query_failed');
     dotEl.className = 'dot down';
-    setNote(note, '数据可能已过期：' + state.quotaError, 'warn');
+    setNote(note, t('web.note.data_may_be_stale_2') + state.quotaError, 'warn');
     details.innerHTML = '';
     return;
   }
   if (!q) {
     value.textContent = '—';
     dotEl.className = 'dot unknown';
-    setNote(note, state.quotas ? '官方额度接口未返回 Tavily 条目' : '正在读取…', state.quotas ? 'bad' : '');
+    setNote(note, state.quotas ? t('web.note.the_official_quota_endpoint_returned_no_tavily_entry') : t('web.note.loading_2'), state.quotas ? 'bad' : '');
     details.innerHTML = '';
     return;
   }
   details.innerHTML = kv([
-    ['已用', num(q.used) === null ? '' : fmtInt(q.used) + ' ' + (q.unit || '')],
-    ['上限', num(q.limit) === null ? '' : fmtInt(q.limit) + ' ' + (q.unit || '')],
-    ['套餐', q.plan || ''],
-    ['更新时间', q.updated_at ? fmtAt(q.updated_at) : ''],
-    ['官方接口', q.source || ''],
+    [t('web.label.used'), num(q.used) === null ? '' : fmtInt(q.used) + ' ' + (q.unit || '')],
+    [t('web.label.limit'), num(q.limit) === null ? '' : fmtInt(q.limit) + ' ' + (q.unit || '')],
+    [t('web.label.plan'), q.plan || ''],
+    [t('web.label.updated'), q.updated_at ? fmtAt(q.updated_at) : ''],
+    [t('web.label.official_api'), q.source || ''],
   ]);
   switch (q.status) {
     case 'available':
       value.textContent = `${fmtInt(q.remaining)} / ${fmtInt(q.limit)} ${q.unit || ''}`.trim();
       dotEl.className = 'dot healthy';
-      setNote(note, state.quotaError ? '数据可能已过期：' + state.quotaError : '来自官方额度接口，非本地估算', state.quotaError ? 'warn' : '');
+      setNote(note, state.quotaError ? t('web.note.data_may_be_stale_2') + state.quotaError : t('web.note.from_the_official_quota_endpoint_not_a_local_estimate'), state.quotaError ? 'warn' : '');
       break;
     case 'not_configured':
-      value.textContent = '未配置';
+      value.textContent = t('web.status.not_configured');
       dotEl.className = 'dot unknown';
-      setNote(note, '未配置 Tavily Key，无法查询官方额度', '');
+      setNote(note, t('web.note.tavily_key_not_configured_cannot_query_the_official_quota'), '');
       break;
     case 'query_failed':
-      value.textContent = '查询失败';
+      value.textContent = t('web.status.query_failed');
       dotEl.className = 'dot down';
-      setNote(note, q.error || '官方额度接口未返回可用数据', 'bad');
+      setNote(note, q.error || t('web.note.the_official_quota_endpoint_returned_no_usable_data'), 'bad');
       break;
     default:
-      value.textContent = '未知';
+      value.textContent = t('web.status.unknown');
       dotEl.className = 'dot unknown';
-      setNote(note, q.error || '官方额度接口返回了未识别的状态', 'warn');
+      setNote(note, q.error || t('web.note.the_official_quota_endpoint_returned_an_unrecognized_status'), 'warn');
   }
 }
 
@@ -568,23 +624,23 @@ function renderConfig() {
   if (!s) {
     list.innerHTML = '';
     secrets.textContent = '';
-    setNote(note, state.settingsError ? '读取失败：' + state.settingsError : '正在读取…', state.settingsError ? 'bad' : '');
+    setNote(note, state.settingsError ? t('web.note.read_failed') + state.settingsError : t('web.note.loading_2'), state.settingsError ? 'bad' : '');
     return;
   }
   const v = s.values || {};
-  const yn = value => value === true ? '启用' : value === false ? '关闭' : '未知';
+  const yn = value => value === true ? t('web.label.enabled') : value === false ? t('web.label.off') : t('web.status.unknown');
   const rows = [
-    ['搜索模式', typeof v.mode === 'string' ? v.mode : ''],
-    ['学术搜索网络环境', v.network === 'china' ? '国内网络' : v.network === 'international' ? '国际网络' : ''],
-    ['上游超时', num(v.upstream_timeout_sec) === null ? '' : String(v.upstream_timeout_sec) + ' 秒'],
-    ['缓存', yn(v['cache.enabled'])],
-    ['观测告警暂停窗口', [v['dashboard.suspension.ban_time_on_fail'], v['dashboard.suspension.max_ban_time_on_fail']].filter(Boolean).join(' / ')],
-    ['已启用来源', state.overview && state.overview.system ? fmtInt(state.overview.system.enabled) + ' 个' : ''],
+    [t('web.label.search_mode'), typeof v.mode === 'string' ? v.mode : ''],
+    [t('web.label.academic_search_network'), v.network === 'china' ? t('web.label.china_network') : v.network === 'international' ? t('web.label.international_network') : ''],
+    [t('web.label.upstream_timeout'), num(v.upstream_timeout_sec) === null ? '' : String(v.upstream_timeout_sec) + ` ${t('web.label.seconds')}`],
+    [t('web.label.cache'), yn(v['cache.enabled'])],
+    [t('web.label.observation_warning_pause_window'), [v['dashboard.suspension.ban_time_on_fail'], v['dashboard.suspension.max_ban_time_on_fail']].filter(Boolean).join(' / ')],
+    [t('web.label.enabled_sources'), state.overview && state.overview.system ? fmtInt(state.overview.system.enabled) + ` ${t('web.label.sources')}` : ''],
   ];
   list.innerHTML = rows.filter(r => r[1]).map(r => `<div><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join('');
   secrets.textContent = '';
-  if (state.settingsError) setNote(note, '数据可能已过期：' + state.settingsError, 'warn');
-  else setNote(note, '重启后生效的当前配置', '');
+  if (state.settingsError) setNote(note, t('web.note.data_may_be_stale_2') + state.settingsError, 'warn');
+  else setNote(note, t('web.note.effective_config_after_a_restart'), '');
 }
 
 /* ---------- calls and request details ---------- */
@@ -598,7 +654,7 @@ async function loadRequestEvents(requestId, reload = false) {
   detail.promise = (async () => {
     try {
       const rows = await fetchJSON('/__admin/api/request-events?request_id=' + encodeURIComponent(requestId), { signal: AbortSignal.timeout(10000) });
-      if (!Array.isArray(rows)) throw new Error('请求明细响应格式错误');
+      if (!Array.isArray(rows)) throw new Error(t('web.msg.malformed_request_details_response'));
       detail.rows = rows;
       return rows;
     } catch (e) {
@@ -615,20 +671,20 @@ async function loadRequestEvents(requestId, reload = false) {
 
 function callDetails(e) {
   const metadata = [
-    ['请求', e.request_id], ['应用', applicationLabel(e)], ['客户端', e.client], ['项目', e.project || '未标注项目'],
-    ['缓存', e.cache_hit ? '命中' : '未命中'], ['主题 / 语言', [e.query_topic, e.query_language].filter(Boolean).join(' / ')],
-    ['关键词', e.query_keywords], ['查询哈希', e.query_hash], ['尝试链', e.attempt_chain], ['错误类型', errorKindLabel(e.error_kind)], ['错误摘要', e.error_summary],
+    [t('web.label.request'), e.request_id], [t('web.label.application'), applicationLabel(e)], [t('web.label.client'), e.client], [t('web.label.project'), e.project || t('web.label.untagged_project')],
+    [t('web.label.cache'), e.cache_hit ? t('web.status.hit') : t('web.status.miss')], [t('web.label.topic_language'), [e.query_topic, e.query_language].filter(Boolean).join(' / ')],
+    [t('web.label.keywords'), e.query_keywords], [t('web.label.query_hash'), e.query_hash], [t('web.label.attempt_chain'), e.attempt_chain], [t('web.label.error_kind'), errorKindLabel(e.error_kind)], [t('web.label.error_summary'), e.error_summary],
   ].filter(item => item[1]);
   let html = '<dl class="call-detail-meta">' + metadata.map(([key, value]) =>
     `<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('') + '</dl>';
-  if (!e.request_id) return html + '<p class="panel-note">此历史记录没有请求 ID，无法关联来源明细。</p>';
+  if (!e.request_id) return html + `<p class="panel-note">${t('web.note.this_history_entry_has_no_request_id_so_source_details_canno')}</p>`;
   const detail = state.events.details.get(e.request_id);
-  if (!detail || detail.loading) return html + '<p class="panel-note" role="status">正在读取来源明细…</p>';
-  if (detail.error) return html + `<p class="panel-note bad">读取失败：${esc(detail.error)} <button type="button" class="icon-btn" data-retry-request="${esc(e.request_id)}" aria-label="重试读取来源明细" title="重试读取来源明细">${icon('refresh-cw')}</button></p>`;
+  if (!detail || detail.loading) return html + `<p class="panel-note" role="status">${t('web.note.loading_source_details')}</p>`;
+  if (detail.error) return html + `<p class="panel-note bad">${t('web.note.read_failed')}${esc(detail.error)} <button type="button" class="icon-btn" data-retry-request="${esc(e.request_id)}" aria-label="${t('web.action.retry_loading_source_details')}" title="${t('web.action.retry_loading_source_details')}">${icon('refresh-cw')}</button></p>`;
   const providers = (detail.rows || []).filter(row => row.kind === 'provider');
-  if (!providers.length) return html + '<p class="panel-note">没有已保留的来源明细。</p>';
-  html += '<table class="data-table call-detail-table"><colgroup><col style="width:24%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:40%"></colgroup><thead><tr><th>来源</th><th>状态</th><th>耗时</th><th>结果数</th><th>错误摘要</th></tr></thead><tbody>';
-  html += providers.map(row => `<tr><td title="${esc(row.detail || '')}">${esc(displayName(row.provider))}</td><td class="${row.success ? 'ok-text' : 'bad-text'}">${row.success ? '成功' : '失败'}</td><td>${esc(fmtMS(row.duration_ms))}</td><td>${fmtInt(row.result_count)}</td><td class="wrap-any">${esc([errorKindLabel(row.error_kind), row.error_summary].filter(Boolean).join(' · ') || '—')}</td></tr>`).join('');
+  if (!providers.length) return html + `<p class="panel-note">${t('web.note.no_source_details_were_retained')}</p>`;
+  html += `<table class="data-table call-detail-table"><colgroup><col style="width:24%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:40%"></colgroup><thead><tr><th>${t('web.label.source')}</th><th>${t('web.label.status')}</th><th>${t('web.label.latency')}</th><th>${t('web.label.results')}</th><th>${t('web.label.error_summary')}</th></tr></thead><tbody>`;
+  html += providers.map(row => `<tr><td title="${esc(row.detail || '')}">${esc(displayName(row.provider))}</td><td class="${row.success ? 'ok-text' : 'bad-text'}">${row.success ? t('web.status.success') : t('web.status.failure')}</td><td>${esc(fmtMS(row.duration_ms))}</td><td>${fmtInt(row.result_count)}</td><td class="wrap-any">${esc([errorKindLabel(row.error_kind), row.error_summary].filter(Boolean).join(' · ') || '—')}</td></tr>`).join('');
   return html + '</tbody></table>';
 }
 
@@ -654,21 +710,21 @@ function renderUsage() {
   exportBtn.disabled = !rows || !rows.length || state.events.loading || state.events.exporting || Boolean(state.events.error);
   $('#reload-events').disabled = state.events.loading;
   if (rows === null) {
-    body.innerHTML = emptyRow(8, state.events.error ? '读取失败，请刷新重试' : '正在读取…');
+    body.innerHTML = emptyRow(8, state.events.error ? t('web.note.read_failed_refresh_to_retry') : t('web.note.loading_2'));
   } else {
     body.innerHTML = rows.length ? rows.map(e => {
       const id = String(e.id);
       const open = state.events.expanded.has(id);
-      const buttonLabel = (open ? '收起' : '展开') + displayName(e.tool) + '调用详情';
-      return `<tr class="call-row"><td><button type="button" class="icon-btn call-expand" data-call="${esc(id)}" aria-expanded="${open}" aria-controls="call-detail-${esc(id)}" aria-label="${esc(buttonLabel)}" title="${esc(buttonLabel)}">${icon('chevron-right')}</button></td><td>${esc(fmtAt(e.occurred_at))}</td><td class="source-name">${esc(displayName(e.tool))}</td><td class="call-attribution" title="${esc(e.client || '未知客户端')}"><b>${esc(applicationLabel(e))}</b><small title="自报项目标签，未经系统核验">${esc(e.project || '未标注项目')}</small></td><td class="${e.success ? 'ok-text' : 'bad-text'}">${e.success ? '成功' : '失败'}</td><td data-label="耗时">${esc(fmtMS(e.duration_ms))}</td><td data-label="结果数">${fmtInt(e.result_count)}</td><td class="wrap-any"><span class="call-error" title="${esc(e.error_summary || '')}">${esc(e.error_summary || '—')}</span></td></tr><tr id="call-detail-${esc(id)}" class="call-detail"${open ? '' : ' hidden'}><td colspan="8">${open ? callDetails(e) : ''}</td></tr>`;
-    }).join('') : emptyRow(8, '暂无符合筛选条件的调用记录');
+      const buttonLabel = (open ? t('web.action.collapse') : t('web.action.expand')) + displayName(e.tool) + t('web.label.call_details');
+      return `<tr class="call-row"><td><button type="button" class="icon-btn call-expand" data-call="${esc(id)}" aria-expanded="${open}" aria-controls="call-detail-${esc(id)}" aria-label="${esc(buttonLabel)}" title="${esc(buttonLabel)}">${icon('chevron-right')}</button></td><td>${esc(fmtAt(e.occurred_at))}</td><td class="source-name">${esc(displayName(e.tool))}</td><td class="call-attribution" title="${esc(e.client || t('web.label.unknown_client'))}"><b>${esc(applicationLabel(e))}</b><small title="${t('web.note.self_reported_project_label_not_verified_by_the_system')}">${esc(e.project || t('web.label.untagged_project'))}</small></td><td class="${e.success ? 'ok-text' : 'bad-text'}">${e.success ? t('web.status.success') : t('web.status.failure')}</td><td data-label="${t('web.label.latency')}">${esc(fmtMS(e.duration_ms))}</td><td data-label="${t('web.label.results')}">${fmtInt(e.result_count)}</td><td class="wrap-any"><span class="call-error" title="${esc(e.error_summary || '')}">${esc(e.error_summary || '—')}</span></td></tr><tr id="call-detail-${esc(id)}" class="call-detail"${open ? '' : ' hidden'}><td colspan="8">${open ? callDetails(e) : ''}</td></tr>`;
+    }).join('') : emptyRow(8, t('web.note.no_calls_match_the_current_filters'));
   }
   $$('[data-call]', body).forEach(button => { button.onclick = () => toggleCall(button.dataset.call); });
   $$('[data-retry-request]', body).forEach(button => {
     button.onclick = () => loadRequestEvents(button.dataset.retryRequest, true).catch(() => {});
   });
-  setNote(note, state.events.error ? '读取失败，当前记录可能已过期：' + state.events.error :
-    state.events.loading ? '正在刷新…' : state.events.exporting ? '正在导出调用及来源明细…' : '最近 ' + (rows || []).length + ' 条调用 · 最多 100 条', state.events.error ? 'bad' : '');
+  setNote(note, state.events.error ? t('web.note.read_failed_the_records_shown_may_be_stale') + state.events.error :
+    state.events.loading ? t('web.note.refreshing') : state.events.exporting ? t('web.note.exporting_calls_and_source_details') : `${t('web.label.last')} ` + (rows || []).length + ` ${t('web.note.calls_up_to_100')}`, state.events.error ? 'bad' : '');
   refreshHScroll();
 }
 
@@ -700,30 +756,30 @@ async function exportCSV() {
       rows.push(...details.filter(e => e.kind === 'provider'));
     }
   } catch (e) {
-    toast('导出未完成：来源明细读取失败，' + e.message, true);
+    toast(t('web.msg.export_incomplete_reading_source_details_failed') + e.message, true);
     return;
   } finally {
     state.events.exporting = false;
     renderUsage();
   }
   if (!rows.length) {
-    toast('当前没有可导出的记录', true);
+    toast(t('web.msg.nothing_to_export_right_now'), true);
     return;
   }
-  const head = ['时间', '层级', '工具', '来源', '解析来源', '状态', '错误类型', '耗时(ms)', '结果数', '缓存命中', '主题', '语言', '关键词', '查询哈希', '查询字符数', '错误摘要', '请求 ID', '尝试链', '应用', '客户端', '项目'];
+  const head = [t('web.label.time'), t('web.label.kind'), t('web.label.tool'), t('web.label.source'), t('web.label.parsed_source'), t('web.label.status'), t('web.label.error_kind'), t('web.label.latency_ms'), t('web.label.results'), t('web.label.cache_hits'), t('web.label.theme'), t('web.label.language'), t('web.label.keywords'), t('web.label.query_hash'), t('web.label.query_length'), t('web.label.error_summary'), t('web.label.request_id'), t('web.label.attempt_chain'), t('web.label.application'), t('web.label.client'), t('web.label.project')];
   const lines = [head.map(csvCell).join(',')];
   rows.forEach(e => {
     lines.push([
       fmtAt(e.occurred_at),
-      e.kind === 'provider' ? '来源' : '工具',
+      e.kind === 'provider' ? t('web.label.source') : t('web.label.tool'),
       e.kind === 'tool' ? displayName(e.tool) : '',
       e.provider ? displayName(e.provider) : '',
       e.detail || '',
-      e.success ? '成功' : '失败',
+      e.success ? t('web.status.success') : t('web.status.failure'),
       errorKindLabel(e.error_kind),
       num(e.duration_ms) === null ? '' : e.duration_ms,
       num(e.result_count) === null ? '' : e.result_count,
-      e.cache_hit ? '是' : '否',
+      e.cache_hit ? t('web.label.yes') : t('web.label.no'),
       e.query_topic || '',
       e.query_language || '',
       e.query_keywords || '',
@@ -746,7 +802,7 @@ async function exportCSV() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  toast('已导出 ' + rows.length + ' 条记录（UTF-8 BOM）');
+  toast(`${t('web.msg.exported')} ` + rows.length + ` ${t('web.msg.records_utf_8_bom')}`);
 }
 
 /* ---------- usage filters ---------- */
@@ -779,7 +835,7 @@ function renderFilterSelect(selector, entries, current) {
   const sel = $(selector);
   if (!sel) return;
   const known = new Set(entries.map(e => e[0]));
-  const options = ['<option value="">全部</option>'];
+  const options = [`<option value="">${t('web.label.all')}</option>`];
   if (current && !known.has(current)) {
     options.push(`<option value="${esc(current)}">${esc(displayName(current))}</option>`);
   }
@@ -813,10 +869,10 @@ function settingsFieldReason(key) {
   const locked = state.settings && state.settings.locked_fields && state.settings.locked_fields[key];
   if (locked) return locked;
   if (!writeAllowed()) return writeReason();
-  if (state.applying || state.saving) return '正在应用配置';
+  if (state.applying || state.saving) return t('web.note.applying_configuration');
   const versionLocked = state.settings.locked_fields && state.settings.locked_fields['doubao.version'];
   const version = versionLocked ? state.settings.values['doubao.version'] : draftValue('doubao.version');
-  return key === 'doubao.icp_host_only' && version !== 'global' ? '仅适用于 Global；当前值保留' : '';
+  return key === 'doubao.icp_host_only' && version !== 'global' ? t('web.note.applies_to_global_only_the_current_value_is_kept') : '';
 }
 
 function renderSettingsForm() {
@@ -838,8 +894,8 @@ function renderSettingsForm() {
   $('#secret-list').innerHTML = Object.keys(flags).map(key => {
     const on = flags[key] === true;
     return `<div class="secret-row">${dot(on ? 'healthy' : 'unknown')}` +
-      `<div><b>${esc(SECRETS[key] || key)}</b><small>${on ? '已配置' : '未配置'}</small></div>` +
-      `<button type="button" class="icon-btn" data-secret="${esc(key)}" title="${on ? '替换' : '设置'}${esc(SECRETS[key] || key)}密钥" aria-label="${on ? '替换' : '设置'}${esc(SECRETS[key] || key)}密钥" ${!writeAllowed() || state.applying || state.saving ? 'disabled' : ''}>${icon('key-round')}</button></div>`;
+      `<div><b>${esc(SECRETS[key] || key)}</b><small>${on ? t('web.status.configured') : t('web.status.not_configured')}</small></div>` +
+      `<button type="button" class="icon-btn" data-secret="${esc(key)}" title="${on ? t('web.action.replace') : t('web.page.settings')}${esc(SECRETS[key] || key)}${t('web.label.key')}" aria-label="${on ? t('web.action.replace') : t('web.page.settings')}${esc(SECRETS[key] || key)}${t('web.label.key')}" ${!writeAllowed() || state.applying || state.saving ? 'disabled' : ''}>${icon('key-round')}</button></div>`;
   }).join('');
   $$('[data-secret]').forEach(b => { b.onclick = () => editSecret(b.dataset.secret); });
   state.settingsLoaded = true;
@@ -866,7 +922,7 @@ function renderModeControls() {
   select.disabled = !single || Boolean(reason);
   select.title = reason;
   const info = $('#mode-provider-info');
-  info.setAttribute('aria-label', select.value + ' 模式说明');
+  info.setAttribute('aria-label', select.value + ` ${t('web.mode.mode_help')}`);
   info.setAttribute('aria-describedby', 'mode-note-' + select.value);
   PROVIDER_MODES.forEach(id => $('#mode-note-' + id).classList.toggle('hidden', id !== select.value));
 }
@@ -911,7 +967,7 @@ function renderDraftState() {
   const dirty = count > 0;
   state.settingsDirty = dirty;
   $('#settings-dirty').classList.toggle('hidden', !dirty);
-  setText('#source-draft-count', dirty ? count + ' 项草稿' : '');
+  setText('#source-draft-count', dirty ? count + ` ${t('web.note.draft_items')}` : '');
   ['#save-settings', '#save-sources'].forEach(sel => { const el = $(sel); if (el) el.disabled = !dirty || !writeAllowed() || state.applying || state.saving; });
   ['#undo-settings', '#undo-sources'].forEach(sel => { const el = $(sel); if (el) el.disabled = !dirty || state.applying || state.saving; });
 }
@@ -925,12 +981,12 @@ function discardDraft() {
 }
 
 function writeReason() {
-  if (!state.settings) return '正在读取写入权限';
-  if (state.settingsError) return '只读：权限读取失败，' + state.settingsError;
-  if (state.settings.config_error) return '只读：' + state.settings.config_error;
-  if (!state.settings.revision) return '只读：配置版本不可用';
-  if (!adminConfigured()) return '只读：未配置管理员口令';
-  return state.settings.write_access && state.settings.write_access.reason || '只读：当前连接无写入权限';
+  if (!state.settings) return t('web.note.reading_write_permission');
+  if (state.settingsError) return t('web.note.read_only_reading_permissions_failed') + state.settingsError;
+  if (state.settings.config_error) return t('web.note.read_only') + state.settings.config_error;
+  if (!state.settings.revision) return t('web.note.read_only_config_revision_unavailable');
+  if (!adminConfigured()) return t('web.note.read_only_admin_password_not_configured');
+  return state.settings.write_access && state.settings.write_access.reason || t('web.note.read_only_this_connection_has_no_write_access');
 }
 
 function renderWriteAccess() {
@@ -947,7 +1003,7 @@ function renderWriteAccess() {
   const select = $('#backup-select');
   if (select) {
     const previous = select.value;
-    select.innerHTML = '<option value="">选择备份</option>' + backups.map(b => `<option value="${esc(b.name)}">${esc(fmtAt(b.created_at))} · ${esc(b.name)}</option>`).join('');
+    select.innerHTML = `<option value="">${t('web.action.choose_a_backup')}</option>` + backups.map(b => `<option value="${esc(b.name)}">${esc(fmtAt(b.created_at))} · ${esc(b.name)}</option>`).join('');
     if (backups.some(b => b.name === previous)) select.value = previous;
     else if (state.applyResult && backups.some(b => b.name === state.applyResult.backup)) select.value = state.applyResult.backup;
     select.disabled = !writeAllowed() || state.applying || state.saving;
@@ -1010,12 +1066,12 @@ function cachedAdminUser() {
 async function adminHeaders() {
   if (!writeAllowed()) throw new Error(writeReason());
   if (!adminConfigured()) {
-    throw new Error('管理员口令未配置：请在 dashboard.yaml 设置 dashboard.admin_password 后重启服务');
+    throw new Error(t('web.msg.admin_password_not_configured_set_dashboard_admin_password_i'));
   }
   let pass = cachedAdminPass();
   if (!pass) {
-    pass = prompt('输入管理员口令（dashboard.admin_password）');
-    if (!pass) throw new Error('已取消：本操作需要管理员口令');
+    pass = prompt(t('web.label.enter_the_admin_password_dashboard_admin_password'));
+    if (!pass) throw new Error(t('web.msg.cancelled_this_action_needs_the_admin_password'));
     state.adminPass = pass;
   }
   const headers = { 'X-Admin-Password': pass };
@@ -1023,8 +1079,8 @@ async function adminHeaders() {
   if (usernameConfigured()) {
     let user = cachedAdminUser();
     if (!user) {
-      user = prompt('输入管理员用户名（dashboard.admin_username）');
-      if (!user) throw new Error('已取消：本操作需要管理员用户名');
+      user = prompt(t('web.label.enter_the_admin_username_dashboard_admin_username'));
+      if (!user) throw new Error(t('web.msg.cancelled_this_action_needs_the_admin_username'));
       state.adminUser = user;
     }
     headers['X-Admin-User'] = user;
@@ -1038,8 +1094,8 @@ async function securePost(path, payload) {
   try {
     return await postJSON(path, payload, headers);
   } catch (e) {
-    if (String(e.message).includes('口令')) state.adminPass = '';
-    if (String(e.message).includes('用户名')) state.adminUser = '';
+    if (String(e.message).includes(t('web.label.password'))) state.adminPass = '';
+    if (String(e.message).includes(t('web.label.username'))) state.adminUser = '';
     throw e;
   }
 }
@@ -1050,7 +1106,7 @@ async function saveSettings() {
   const invalid = $$('[data-key]').find(el => Object.hasOwn(diff, el.dataset.key) && !el.reportValidity());
   if (invalid) return;
   if (!Object.keys(diff).length) {
-    toast('没有需要保存的更改');
+    toast(t('web.note.no_changes_to_save'));
     return;
   }
   state.saving = true;
@@ -1061,9 +1117,9 @@ async function saveSettings() {
     const revision = state.draftRevision || state.settings.revision;
     await securePost('/__admin/api/settings', { changes: diff, revision, confirm: false });
     const detail = Object.entries(diff).map(([key, value]) => key + ': ' + JSON.stringify(state.draftBefore[key]) + ' → ' + JSON.stringify(value)).join('\n');
-    if (!(await confirmDialog('保存并重启', '将备份当前配置，保存更改并重启服务。', detail))) return;
+    if (!(await confirmDialog(t('web.action.save_and_restart'), t('web.dialog.the_current_config_is_backed_up_then_changes_are_saved_and_t'), detail))) return;
     const res = await securePost('/__admin/api/settings', { changes: diff, revision, confirm: true });
-    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}), ...diff }, status: '已保存，正在重启…' };
+    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}), ...diff }, status: t('web.msg.saved_restarting') };
     renderApplyResult();
     discardDraft();
     await loadSettings();
@@ -1098,7 +1154,7 @@ async function restartAndVerify() {
   if (!writeAllowed()) {
     if (state.applyResult) {
       state.applyResult.failed = true;
-      state.applyResult.status = '已保存，未确认生效：' + writeReason();
+      state.applyResult.status = t('web.msg.saved_not_confirmed') + writeReason();
       renderApplyResult();
     }
     return;
@@ -1106,7 +1162,7 @@ async function restartAndVerify() {
   if (!state.applyResult) state.applyResult = { targets: { ...(state.settings.pending_changes || {}) } };
   state.applying = true;
   state.applyResult.failed = false;
-  state.applyResult.status = '正在重启并核对运行配置…';
+  state.applyResult.status = t('web.note.restarting_and_verifying_the_effective_config');
   renderApplyResult();
   renderSettingsForm();
   renderSourcePages();
@@ -1129,12 +1185,12 @@ async function restartAndVerify() {
         }
       } catch (e) { /* Restart temporarily disconnects the API. */ }
     }
-    if (!confirmed) throw new Error('已保存，60 秒内未确认生效');
-    state.applyResult.status = '运行配置已确认生效';
+    if (!confirmed) throw new Error(t('web.msg.saved_not_confirmed_within_60_seconds'));
+    state.applyResult.status = t('web.msg.effective_config_confirmed');
     toast(state.applyResult.status);
   } catch (e) {
     state.applyResult.failed = true;
-    state.applyResult.status = '未确认生效：' + e.message;
+    state.applyResult.status = t('web.note.not_confirmed') + e.message;
   } finally {
     state.applying = false;
     renderApplyResult();
@@ -1152,11 +1208,11 @@ async function restoreBackup() {
     const revision = state.settings.revision;
     const preview = await securePost('/__admin/api/settings', { restore_backup: backup, revision, confirm: false });
     const detail = Object.entries(preview.changes || {}).map(([key, value]) => key + ': ' + JSON.stringify(savedValues()[key]) + ' → ' + JSON.stringify(value)).join('\n');
-    if (!(await confirmDialog('恢复备份并重启', backup + '；当前草稿将被撤销。', detail))) return;
+    if (!(await confirmDialog(t('web.action.restore_backup_and_restart'), backup + t('web.note.the_current_draft_will_be_discarded'), detail))) return;
     const res = await securePost('/__admin/api/settings', { restore_backup: backup, revision, confirm: true });
     discardDraft();
     await loadSettings();
-    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}) }, status: '备份已恢复，正在重启…' };
+    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}) }, status: t('web.msg.backup_restored_restarting') };
     await restartAndVerify();
   } catch (e) { toast(e.message, true); }
   finally {
@@ -1171,7 +1227,7 @@ function editSecret(name) {
   if (!writeAllowed()) return;
   const label = SECRETS[name] || name;
   const d = $('#secret-dialog');
-  $('#secret-dialog-title').textContent = '更新 ' + label + ' Key';
+  $('#secret-dialog-title').textContent = `${t('web.action.update')} ` + label + ' Key';
   const link = $('#secret-dialog-link');
   const linkRow = link.closest('.secret-link-row');
   if (SECRET_LINKS[name]) {
@@ -1194,11 +1250,11 @@ function editSecret(name) {
     const value = $('#secret-dialog-input').value;
     const pass = $('#secret-dialog-pass').value.trim();
     if (!adminConfigured()) {
-      toast('管理员口令未配置：请在 dashboard.yaml 设置 dashboard.admin_password 后重启服务', true);
+      toast(t('web.msg.admin_password_not_configured_set_dashboard_admin_password_i'), true);
       return;
     }
     if (!pass) {
-      toast('需要管理员口令', true);
+      toast(t('web.msg.admin_password_required'), true);
       return;
     }
     state.adminPass = pass;
@@ -1206,7 +1262,7 @@ function editSecret(name) {
     if (usernameConfigured()) {
       const user = $('#secret-dialog-user').value.trim();
       if (!user) {
-        toast('需要管理员用户名', true);
+        toast(t('web.msg.admin_username_required'), true);
         return;
       }
       state.adminUser = user;
@@ -1214,11 +1270,11 @@ function editSecret(name) {
     }
     try {
       await postJSON('/__admin/api/secrets', { name: name, value: value, confirm: true }, headers);
-      toast(label + ' 已保存，需要重启服务');
+      toast(label + ` ${t('web.msg.saved_the_service_must_be_restarted')}`);
       await loadSettings();
     } catch (e) {
-      if (String(e.message).includes('口令')) state.adminPass = '';
-      if (String(e.message).includes('用户名')) state.adminUser = '';
+      if (String(e.message).includes(t('web.label.password'))) state.adminPass = '';
+      if (String(e.message).includes(t('web.label.username'))) state.adminUser = '';
       toast(e.message, true);
     } finally {
       $('#secret-dialog-input').value = '';
@@ -1248,7 +1304,7 @@ function applyBrand(brand) {
   } else {
     document.documentElement.style.removeProperty('--accent');
   }
-  const title = brand.title || 'WebSearch 控制中心';
+  const title = brand.title || t('web.page.websearch_control_center');
   document.title = title;
   $('#brand-title').textContent = title.split(/\s+/)[0] || title;
   const about = $('#app-about');
@@ -1277,24 +1333,24 @@ function renderQuotaManage() {
   if (!body || !note) return;
   if (state.quotaError) {
     body.innerHTML = '';
-    setNote(note, '读取失败：' + state.quotaError, 'bad');
+    setNote(note, t('web.note.read_failed') + state.quotaError, 'bad');
     return;
   }
   const rows = (state.quotas || []).filter(q => q.source === 'local');
   if (!rows.length) {
     body.innerHTML = '';
-    setNote(note, '暂无本地用量数据：启用 dashboard 后的真实调用会自动累计（单 Key 上限默认 1000 次/周期，展示上限自动乘以 Key 数；可在 dashboard.yaml 的 dashboard.quotas 调整）。', '');
+    setNote(note, t('web.note.no_local_usage_data_yet_real_calls_accumulate_automatically_'), '');
     return;
   }
-  setNote(note, '用量来自本地真实调用（成功次数）；上限 = 单 Key 上限 × 已配置 Key 数，与 apipool 实际消耗容量对齐。重置与修正需管理员口令，且仅限本机操作。', '');
+  setNote(note, t('web.note.usage_comes_from_local_real_calls_successful_ones_the_limit_'), '');
   body.innerHTML = rows.map(q => {
     const used = q.used == null ? '—' : fmtInt(q.used);
     const limit = q.limit == null ? '—' : fmtInt(q.limit);
-    const reset = q.reset_at ? fmtAt(q.reset_at) : '仅手动';
+    const reset = q.reset_at ? fmtAt(q.reset_at) : t('web.label.manual_only');
     const name = esc(DISPLAY[q.provider] || q.provider);
     return `<tr><td>${name}</td><td class="num">${used} / ${limit}</td><td>${esc(reset)}</td>` +
-      `<td><div class="row-actions"><button type="button" class="icon-btn" title="重置${esc(displayName(q.provider))}用量" aria-label="重置${esc(displayName(q.provider))}用量" data-quota-reset="${esc(q.provider)}">${icon('rotate-ccw')}</button> ` +
-      `<button type="button" class="icon-btn" title="修正${esc(displayName(q.provider))}用量" aria-label="修正${esc(displayName(q.provider))}用量" data-quota-adjust="${esc(q.provider)}" data-used="${q.used || 0}">${icon('pencil')}</button></div></td></tr>`;
+      `<td><div class="row-actions"><button type="button" class="icon-btn" title="${t('web.action.reset')}${esc(displayName(q.provider))}${t('web.label.usage')}" aria-label="${t('web.action.reset')}${esc(displayName(q.provider))}${t('web.label.usage')}" data-quota-reset="${esc(q.provider)}">${icon('rotate-ccw')}</button> ` +
+      `<button type="button" class="icon-btn" title="${t('web.action.adjust')}${esc(displayName(q.provider))}${t('web.label.usage')}" aria-label="${t('web.action.adjust')}${esc(displayName(q.provider))}${t('web.label.usage')}" data-quota-adjust="${esc(q.provider)}" data-used="${q.used || 0}">${icon('pencil')}</button></div></td></tr>`;
   }).join('');
   renderWriteAccess();
 }
@@ -1302,7 +1358,7 @@ function renderQuotaManage() {
 async function quotaReset(provider) {
   try {
     await securePost('/__admin/api/quotas/reset', { provider: provider });
-    toast(DISPLAY[provider] || provider + ' 已重置，从现在重新累计');
+    toast(DISPLAY[provider] || provider + ` ${t('web.msg.reset_counting_again_from_now')}`);
     await loadQuotas();
   } catch (e) {
     toast(e.message, true);
@@ -1310,16 +1366,16 @@ async function quotaReset(provider) {
 }
 
 async function quotaAdjust(provider, current) {
-  const raw = prompt('把「' + (DISPLAY[provider] || provider) + '」的已用次数修正为：', String(current));
+  const raw = prompt(t('web.action.set') + (DISPLAY[provider] || provider) + t('web.note.used_count_corrected_to'), String(current));
   if (raw === null) return;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) {
-    toast('请输入非负数字', true);
+    toast(t('web.msg.enter_a_non_negative_number'), true);
     return;
   }
   try {
     await securePost('/__admin/api/quotas/adjust', { provider: provider, set_used: value });
-    toast(DISPLAY[provider] || provider + ' 用量已修正为 ' + value);
+    toast(DISPLAY[provider] || provider + ` ${t('web.msg.usage_corrected_to')} ` + value);
     await loadQuotas();
   } catch (e) {
     toast(e.message, true);
@@ -1339,7 +1395,7 @@ const APPLICATION_LABELS = {
   kiro: 'Kiro', codebuddy: 'CodeBuddy', proma: 'Proma', catpaw: 'CatPaw', qoder: 'Qoder',
   reasonix: 'Reasonix', lmstudio: 'LM Studio', unsloth: 'Unsloth Studio',
   devin: 'Devin', minimax: 'MiniMax Code', goose: 'Goose',
-  unknown: '未识别应用',
+  unknown: t('web.label.unrecognized_application'),
 };
 
 function applicationLabel(event) {
@@ -1370,14 +1426,14 @@ function renderClientsPanel() {
   if (!groups.some(r => r.key === state.clients.tab)) state.clients.tab = null;
   const selected = rows.filter(r => state.clients.tab === null || (r[state.clients.dimension] || '') === state.clients.tab);
   const agg = clientUsageGroups(selected, 'total')[0] || { requests: 0, successes: 0, failures: 0, duration_ms: 0 };
-  const windowLabel = '最近 ' + state.clients.windowDays + ' 天';
-  $('#client-scope').textContent = '搜索调用 · ' + windowLabel;
-  tabs.innerHTML = '<div class="client-views" role="group" aria-label="用量维度">' +
-    [['application', '应用'], ['project', '项目']].map(([key, label]) =>
+  const windowLabel = `${t('web.label.last')} ` + state.clients.windowDays + ` ${t('web.label.days')}`;
+  $('#client-scope').textContent = `${t('web.note.search_calls')} ` + windowLabel;
+  tabs.innerHTML = `<div class="client-views" role="group" aria-label="${t('web.label.usage_dimension')}">` +
+    [['application', t('web.label.application')], ['project', t('web.label.project')]].map(([key, label]) =>
       `<button type="button" class="client-tab${key === state.clients.dimension ? ' active' : ''}" aria-pressed="${key === state.clients.dimension}" data-client-dimension="${key}">${label}</button>`).join('') +
-    '</div><label>窗口<select id="client-window" aria-label="统计窗口">' +
-    [1, 7, 30].map(days => `<option value="${days}"${days === state.clients.days ? ' selected' : ''}>最近 ${days} 天</option>`).join('') +
-    '</select></label><label>应用<select id="client-application" aria-label="应用筛选"><option value="">全部应用</option>' +
+    `</div><label>${t('web.label.window')}<select id="client-window" aria-label="${t('web.label.statistics_window')}">` +
+    [1, 7, 30].map(days => `<option value="${days}"${days === state.clients.days ? ' selected' : ''}>${t('web.label.last')} ${days} ${t('web.label.days')}</option>`).join('') +
+    `</select></label><label>${t('web.label.application')}<select id="client-application" aria-label="${t('web.label.application_filter')}"><option value="">${t('web.label.all_applications')}</option>` +
     applications.map(r => `<option value="${esc(r.key)}"${r.key === state.clients.application ? ' selected' : ''}>${esc(APPLICATION_LABELS[r.key] || r.key)}</option>`).join('') +
     '</select></label>';
   $$('[data-client-dimension]').forEach(b => b.addEventListener('click', () => {
@@ -1397,37 +1453,37 @@ function renderClientsPanel() {
   });
   if (state.clients.error) {
     stats.innerHTML = '';
-    setNote(note, '读取失败：' + state.clients.error, 'bad');
+    setNote(note, t('web.note.read_failed') + state.clients.error, 'bad');
     return;
   }
   if (state.clients.rows === null || state.clients.loading) {
-    stats.innerHTML = '<p class="muted">读取中...</p>';
+    stats.innerHTML = `<p class="muted">${t('web.note.loading')}</p>`;
     setNote(note, '');
     return;
   }
   const total = rows.reduce((sum, r) => sum + r.requests, 0);
   const tagged = rows.filter(r => r.project).reduce((sum, r) => sum + r.requests, 0);
-  setNote(note, `项目已归属 ${fmtInt(tagged)} / ${fmtInt(total)} 次`);
+  setNote(note, t('web.note.of_calls_attributed_to_projects', { tagged: fmtInt(tagged), total: fmtInt(total) }));
   const avg = agg.requests ? Math.round(agg.duration_ms / agg.requests) : 0;
-  const label = key => state.clients.dimension === 'project' ? key || '未标注项目' : APPLICATION_LABELS[key] || key;
+  const label = key => state.clients.dimension === 'project' ? key || t('web.label.untagged_project') : APPLICATION_LABELS[key] || key;
   const scope = state.clients.tab === null ? windowLabel : label(state.clients.tab) + ' · ' + windowLabel;
   const cards = [
-    ['成功调用', fmtInt(agg.successes), `共 ${fmtInt(agg.requests)} 次 · ${scope}`],
-    ['失败次数', fmtInt(agg.failures), '仅统计 MCP 工具层事件'],
-    ['平均响应时间', agg.requests ? fmtMS(avg) : '—', agg.requests ? '工具层总耗时 ÷ 调用数' : '无调用时不计算'],
+    [t('web.label.successful_calls'), fmtInt(agg.successes), t('web.note.calls', { requests: fmtInt(agg.requests), scope: scope })],
+    [t('web.label.failures'), fmtInt(agg.failures), t('web.note.counts_mcp_tool_layer_events_only')],
+    [t('web.label.average_response_time'), agg.requests ? fmtMS(avg) : '—', agg.requests ? t('web.note.total_tool_layer_time_calls') : t('web.note.not_computed_without_calls')],
   ];
   let html = '<div class="kpi-grid client-kpis">' + cards.map(c =>
     `<article class="kpi"><header><b>${esc(c[0])}</b></header><strong>${esc(c[1])}</strong><small class="dim">${esc(c[2])}</small></article>`).join('') + '</div>';
   html += '<div class="table-scroll"><table class="data-table client-ranking"><thead><tr><th>' +
-    (state.clients.dimension === 'project' ? '项目' : '应用') +
-    '</th><th class="num">调用</th><th>占比</th><th class="num">成功率</th></tr></thead><tbody>';
+    (state.clients.dimension === 'project' ? t('web.label.project') : t('web.label.application')) +
+    `</th><th class="num">${t('web.label.calls')}</th><th>${t('web.label.share')}</th><th class="num">${t('web.label.success_rate')}</th></tr></thead><tbody>`;
   html += groups.map(r => {
     const share = total ? r.requests / total * 100 : 0;
-    return `<tr${state.clients.tab === r.key ? ' class="selected"' : ''}><td><button type="button" class="client-group" data-client-group="${esc(r.key)}" aria-pressed="${state.clients.tab === r.key}">${esc(label(r.key))}</button></td><td class="num">${fmtInt(r.requests)}</td><td><div class="client-share"><meter min="0" max="100" value="${share}" aria-label="${esc(label(r.key))} 调用占比"></meter><span>${share.toFixed(1)}%</span></div></td><td class="num">${(r.requests ? r.successes / r.requests * 100 : 0).toFixed(1)}%</td></tr>`;
-  }).join('') || '<tr><td colspan="4" class="empty">此窗口暂无调用</td></tr>';
+    return `<tr${state.clients.tab === r.key ? ' class="selected"' : ''}><td><button type="button" class="client-group" data-client-group="${esc(r.key)}" aria-pressed="${state.clients.tab === r.key}">${esc(label(r.key))}</button></td><td class="num">${fmtInt(r.requests)}</td><td><div class="client-share"><meter min="0" max="100" value="${share}" aria-label="${esc(label(r.key))} ${t('web.label.share_of_calls')}"></meter><span>${share.toFixed(1)}%</span></div></td><td class="num">${(r.requests ? r.successes / r.requests * 100 : 0).toFixed(1)}%</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="empty">${t('web.note.no_calls_in_this_window_yet')}</td></tr>`;
   html += '</tbody></table></div>';
   const tools = clientUsageGroups(selected, 'tool');
-  if (tools.length) html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>MCP 工具</th><th class="num">调用</th><th class="num">成功</th><th class="num">失败</th><th class="num">平均耗时</th></tr></thead><tbody>' +
+  if (tools.length) html += `<div class="table-scroll"><table class="data-table"><thead><tr><th>${t('web.label.mcp_tool')}</th><th class="num">${t('web.label.calls')}</th><th class="num">${t('web.status.success')}</th><th class="num">${t('web.status.failure')}</th><th class="num">${t('web.label.average_latency')}</th></tr></thead><tbody>` +
     tools.map(t => `<tr><td>${esc(DISPLAY[t.key] || t.key)}</td><td class="num">${fmtInt(t.requests)}</td><td class="num">${fmtInt(t.successes)}</td><td class="num">${fmtInt(t.failures)}</td><td class="num">${fmtInt(Math.round(t.duration_ms / t.requests))} ms</td></tr>`).join('') + '</tbody></table></div>';
   stats.innerHTML = html;
   $$('[data-client-group]').forEach(b => b.addEventListener('click', () => {
@@ -1536,16 +1592,16 @@ function wire() {
     if (v === '') {
       localStorage.removeItem('accent');
       document.documentElement.style.removeProperty('--accent');
-      toast('已恢复主题默认主色');
+      toast(t('web.msg.accent_restored_to_the_theme_default'));
       return;
     }
     if (!/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(v)) {
-      toast('主色格式无效，示例 #14633f', true);
+      toast(t('web.msg.invalid_accent_format_example_14633f'), true);
       return;
     }
     localStorage.setItem('accent', v.toLowerCase());
     document.documentElement.style.setProperty('--accent', v.toLowerCase());
-    toast('已应用自定义主色');
+    toast(t('web.msg.custom_accent_applied'));
   });
 
   // 额度管理操作（事件委托）
@@ -1564,7 +1620,7 @@ function wire() {
     });
   }
   $('#restart-service').addEventListener('click', async () => {
-    if (!(await confirmDialog('重启 WebSearch', '当前请求会短暂中断，Docker 将自动重新启动服务。'))) return;
+    if (!(await confirmDialog(t('web.action.restart_websearch'), t('web.dialog.the_current_request_is_briefly_interrupted_and_docker_restar')))) return;
     try {
       state.applyResult = { targets: { ...(state.settings.pending_changes || {}) } };
       await restartAndVerify();
@@ -1573,10 +1629,10 @@ function wire() {
     }
   });
   $('#clear-cache').addEventListener('click', async () => {
-    if (!(await confirmDialog('清空搜索缓存', '此操作不可撤销，但不会删除监控历史。'))) return;
+    if (!(await confirmDialog(t('web.action.clear_search_cache'), t('web.dialog.this_cannot_be_undone_but_monitoring_history_is_not_deleted')))) return;
     try {
       const res = await securePost('/__admin/api/cache/clear', { confirm: true });
-      toast('已清理 ' + fmtInt(res.cleared) + ' 条缓存');
+      toast(`${t('web.msg.cleared')} ` + fmtInt(res.cleared) + ` ${t('web.note.cached')}`);
     } catch (e) {
       toast(e.message, true);
     }
@@ -1630,6 +1686,7 @@ function applyLocalTheme() {
 // Remove credentials retained by older frontend versions; new credentials live only in memory.
 sessionStorage.removeItem('adminPass');
 sessionStorage.removeItem('adminUser');
+applyI18n(document);
 wire();
 renderWriteAccess();
 applyLocalTheme();

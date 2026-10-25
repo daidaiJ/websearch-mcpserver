@@ -19,7 +19,7 @@ func TestOverviewListsAllMCPToolsWithoutObservedCall(t *testing.T) {
 	conf.Everything.URL = "http://127.0.0.1:9999"
 	conf.Everything.Roots = []string{`D:\private-project`, `E:\private-documents`}
 
-	out := buildDashboardOverview(conf, telemetry.Overview{})
+	out := buildDashboardOverview(conf, telemetry.Overview{}, testLoc())
 	if len(out.ConfiguredTools) != 5 {
 		t.Fatalf("configured tools = %d, want 5", len(out.ConfiguredTools))
 	}
@@ -60,7 +60,7 @@ func TestOverviewListsAllMCPToolsWithoutObservedCall(t *testing.T) {
 }
 
 func TestCleanFetchViewKeepsReadsEnabled(t *testing.T) {
-	tools := mcpToolCatalog(config.Config{})
+	tools := mcpToolCatalog(config.Config{}, testLoc())
 	for _, tool := range tools {
 		if tool.Name == "cleanfetch" && (!tool.Enabled || tool.FetchEnabled == nil || *tool.FetchEnabled) {
 			t.Fatalf("saved reads and URL fetching must have distinct status: %+v", tool)
@@ -73,9 +73,9 @@ func TestFileToolViewReportsBoundaryWithoutSensitivePaths(t *testing.T) {
 	conf.Everything.URL = "http://private-endpoint:9999"
 	conf.Everything.Username = "private-username"
 	conf.Everything.Password = "private-password"
-	before := mcpToolCatalog(conf)
+	before := mcpToolCatalog(conf, testLoc())
 	conf.Everything.Roots = []string{`D:\private-root`, `E:\private-root`}
-	after := mcpToolCatalog(conf)
+	after := mcpToolCatalog(conf, testLoc())
 	for i := range after {
 		if after[i].Name != before[i].Name || after[i].Enabled != before[i].Enabled || after[i].Registered != before[i].Registered || after[i].State != before[i].State {
 			t.Fatalf("root summary changed tool registration: before=%+v after=%+v", before[i], after[i])

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"embed"
@@ -17,6 +18,7 @@ import (
 
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/quota"
 	"websearch/pkg/telemetry"
 )
@@ -70,52 +72,86 @@ func (h *Handler) authorizeWrite(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	if !h.conf.Dashboard.AdminPasswordConfigured() {
-		writeJSON(w, http.StatusForbidden, map[string]any{"error": "管理员口令未配置，写操作已禁用；请在 dashboard.yaml 显式配置 dashboard.admin_password 后重启"})
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.write.no_password_restart")})
 		return false
 	}
 	if user := h.conf.Dashboard.AdminUsername; user != "" {
 		if !secureEquals(r.Header.Get("X-Admin-User"), user) {
-			writeJSON(w, http.StatusForbidden, map[string]any{"error": "管理员用户名错误"})
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.write.bad_user")})
 			return false
 		}
 	}
 	if !h.conf.Dashboard.VerifyAdminPassword(r.Header.Get("X-Admin-Password")) {
-		writeJSON(w, http.StatusForbidden, map[string]any{"error": "管理员口令错误"})
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.write.bad_password")})
 		return false
 	}
 	return true
 }
 
+// Register 挂载控制中心路由。所有端点都经 i18n.HTTP 注入按 Accept-Language
+// 协商出的 Localizer（浏览器语言能被满足就用浏览器语言，否则回退 config.language），
+// handler 内用 i18n.FromContext(r.Context()) 取用。
 func (h *Handler) Register(mux *http.ServeMux, guard func(http.HandlerFunc) http.HandlerFunc) {
 	assets, _ := fs.Sub(webFiles, "web")
 	fileServer := http.FileServer(http.FS(assets))
 	// 内嵌资源禁止启发式缓存：二进制升级后浏览器必须立即取到新资源
-	mux.Handle("/dashboard/", guard(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/dashboard/", guard(i18n.HTTP(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
 		if r.URL.Path == "/dashboard/" {
-			http.ServeFileFS(w, r, assets, "index.html")
+			serveIndex(w, r, assets)
 			return
 		}
 		http.StripPrefix("/dashboard/", fileServer).ServeHTTP(w, r)
-	}))
+	})))
 	mux.HandleFunc("/dashboard", guard(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard/", http.StatusTemporaryRedirect)
 	}))
-	mux.HandleFunc("/__admin/api/overview", guard(h.overview))
-	mux.HandleFunc("/__admin/api/events", guard(h.events))
-	mux.HandleFunc("/__admin/api/calls", guard(h.calls))
-	mux.HandleFunc("/__admin/api/request-events", guard(h.requestEvents))
-	mux.HandleFunc("/__admin/api/quotas", guard(h.quotas))
-	mux.HandleFunc("/__admin/api/quotas/reset", guard(h.quotaReset))
-	mux.HandleFunc("/__admin/api/quotas/adjust", guard(h.quotaAdjust))
-	mux.HandleFunc("/__admin/api/brand/logo", guard(h.brandLogo))
-	mux.HandleFunc("/__admin/api/clients", guard(h.clients))
-	mux.HandleFunc("/__admin/api/providers", guard(h.providers))
-	mux.HandleFunc("/__admin/api/metrics", guard(h.metricsHandler))
-	mux.HandleFunc("/__admin/api/settings", guard(h.settings))
-	mux.HandleFunc("/__admin/api/secrets", guard(h.secrets))
-	mux.HandleFunc("/__admin/api/restart", guard(h.restartService))
-	mux.HandleFunc("/__admin/api/cache/clear", guard(h.clearCache))
+	mux.HandleFunc("/__admin/api/overview", guard(i18n.HTTP(h.overview)))
+	mux.HandleFunc("/__admin/api/events", guard(i18n.HTTP(h.events)))
+	mux.HandleFunc("/__admin/api/calls", guard(i18n.HTTP(h.calls)))
+	mux.HandleFunc("/__admin/api/request-events", guard(i18n.HTTP(h.requestEvents)))
+	mux.HandleFunc("/__admin/api/quotas", guard(i18n.HTTP(h.quotas)))
+	mux.HandleFunc("/__admin/api/quotas/reset", guard(i18n.HTTP(h.quotaReset)))
+	mux.HandleFunc("/__admin/api/quotas/adjust", guard(i18n.HTTP(h.quotaAdjust)))
+	mux.HandleFunc("/__admin/api/brand/logo", guard(i18n.HTTP(h.brandLogo)))
+	mux.HandleFunc("/__admin/api/clients", guard(i18n.HTTP(h.clients)))
+	mux.HandleFunc("/__admin/api/providers", guard(i18n.HTTP(h.providers)))
+	mux.HandleFunc("/__admin/api/metrics", guard(i18n.HTTP(h.metricsHandler)))
+	mux.HandleFunc("/__admin/api/settings", guard(i18n.HTTP(h.settings)))
+	mux.HandleFunc("/__admin/api/secrets", guard(i18n.HTTP(h.secrets)))
+	mux.HandleFunc("/__admin/api/restart", guard(i18n.HTTP(h.restartService)))
+	mux.HandleFunc("/__admin/api/cache/clear", guard(i18n.HTTP(h.clearCache)))
+}
+
+// indexLangAnchor 是 index.html 中 <html lang> 的取值锚点（见 serveIndex）。
+const indexLangAnchor = `lang="zh-CN"`
+
+// indexMessagesAnchor 是 index.html 里内联前端文案的占位注释（见 serveIndex）。
+const indexMessagesAnchor = "<!--i18n-messages-->"
+
+// serveIndex 输出内嵌 index.html，并把 <html lang> 改写为本次请求协商出的语言。
+// 前端据 document.documentElement.lang 选词典并内联当前语言的 web 域文案，
+// 首帧即正确语言，无需二次切换。
+func serveIndex(w http.ResponseWriter, r *http.Request, assets fs.FS) {
+	page, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		http.Error(w, "index.html unavailable", http.StatusInternalServerError)
+		return
+	}
+	code := i18n.FromContext(r.Context()).Code()
+	page = bytes.Replace(page, []byte(indexLangAnchor), []byte(`lang="`+htmlLang(code)+`"`), 1)
+	page = bytes.Replace(page, []byte(indexMessagesAnchor),
+		[]byte(`<script>window.__I18N__ = `+string(i18n.RawMessages(code, "web"))+`;</script>`), 1)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(page)
+}
+
+// htmlLang 把语言代码转成 <html lang> 取值：中文带地区（zh-CN），英文用裸 en。
+func htmlLang(code string) string {
+	if code == i18n.En {
+		return "en"
+	}
+	return "zh-CN"
 }
 
 func (h *Handler) overview(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +168,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, buildDashboardOverview(h.conf, observed))
+	writeJSON(w, http.StatusOK, buildDashboardOverview(h.conf, observed, i18n.FromContext(r.Context())))
 }
 
 // eventLimit accepts the dashboard page sizes 20/50/100; any other value
@@ -294,7 +330,7 @@ func (h *Handler) providers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	view := buildDashboardOverview(h.conf, observed)
+	view := buildDashboardOverview(h.conf, observed, i18n.FromContext(r.Context()))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"generated_at": view.GeneratedAt,
 		"summary":      view.System,
@@ -315,10 +351,10 @@ func (h *Handler) quotas(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		out := settingsFileView(h.conf, config.GetConfigFile())
+		out := settingsFileView(h.conf, config.GetConfigFile(), i18n.FromContext(r.Context()))
 		allowed, reason := h.writeAccess(r)
 		if out["config_error"] != nil {
-			allowed, reason = false, "配置文件不可读取或解析"
+			allowed, reason = false, i18n.TCtx(r.Context(), "dashboard.settings.unreadable")
 		}
 		out["write_access"] = map[string]any{"allowed": allowed, "reason": reason}
 		writeJSON(w, http.StatusOK, out)
@@ -337,7 +373,7 @@ func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err := h.cache.Clear()
 			return err
-		})
+		}, i18n.FromContext(r.Context()))
 		if err != nil {
 			status := http.StatusBadRequest
 			if errors.Is(err, errSettingsConflict) {
@@ -354,14 +390,14 @@ func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) writeAccess(r *http.Request) (bool, string) {
 	if !h.conf.Dashboard.AdminPasswordConfigured() {
-		return false, "管理员口令未配置，写操作已禁用"
+		return false, i18n.TCtx(r.Context(), "dashboard.write.no_password")
 	}
 	if IsLoopbackRemote(r) {
 		return true, ""
 	}
 	networks, err := h.conf.Dashboard.ParseWriteAllowedNetworks()
 	if err != nil {
-		return false, "写访问白名单配置非法"
+		return false, i18n.TCtx(r.Context(), "dashboard.write.bad_allowlist")
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -375,7 +411,7 @@ func (h *Handler) writeAccess(r *http.Request) (bool, string) {
 			}
 		}
 	}
-	return false, "当前连接仅有只读权限"
+	return false, i18n.TCtx(r.Context(), "dashboard.write.readonly")
 }
 
 func (h *Handler) secrets(w http.ResponseWriter, r *http.Request) {

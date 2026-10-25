@@ -17,6 +17,7 @@ function element(selector) {
 let exportedBlob;
 const context = vm.createContext({
   console, AbortSignal, URLSearchParams, Blob, setTimeout: () => {},
+  window: {__I18N__: JSON.parse(fs.readFileSync(path.join(__dirname,'..','i18n','locales','web.zh.json'),'utf8'))},
   URL: { createObjectURL(blob) { exportedBlob = blob; return 'blob:test'; }, revokeObjectURL() {} },
   document: {
     querySelector: element, querySelectorAll: () => [],

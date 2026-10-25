@@ -32,7 +32,7 @@ func settingsFixture(t *testing.T) (config.Config, string, []byte) {
 func TestSettingsSaveConflictReadbackRestore(t *testing.T) {
 	c, path, b := settingsFixture(t)
 	req := SettingsRequest{Changes: map[string]any{"anysearch.enabled": false}, Revision: configRevision(b)}
-	if out, err := applySettingsFile(c, req, path, nil); err != nil || out.Applied {
+	if out, err := applySettingsForTest(c, req, path, nil); err != nil || out.Applied {
 		t.Fatalf("preview: %#v %v", out, err)
 	}
 	check, _ := os.ReadFile(path)
@@ -41,7 +41,7 @@ func TestSettingsSaveConflictReadbackRestore(t *testing.T) {
 	}
 	req.Confirm = true
 	cleared := 0
-	out, err := applySettingsFile(c, req, path, func() error { cleared++; return nil })
+	out, err := applySettingsForTest(c, req, path, func() error { cleared++; return nil })
 	if err != nil || !out.Applied || cleared != 1 {
 		t.Fatalf("save: %#v %v", out, err)
 	}
@@ -49,15 +49,15 @@ func TestSettingsSaveConflictReadbackRestore(t *testing.T) {
 	if !strings.Contains(string(check), "preserved: yes") {
 		t.Fatal("non-target setting lost")
 	}
-	if _, err := applySettingsFile(c, req, path, nil); !errors.Is(err, errSettingsConflict) {
+	if _, err := applySettingsForTest(c, req, path, nil); !errors.Is(err, errSettingsConflict) {
 		t.Fatalf("stale write: %v", err)
 	}
-	view := settingsFileView(c, path)
+	view := settingsFileViewForTest(c, path)
 	if view["pending_changes"].(map[string]any)["anysearch.enabled"] != false {
 		t.Fatal("missing pending state")
 	}
 	restore := SettingsRequest{RestoreBackup: out.Backup, Revision: out.Revision, Confirm: true}
-	if _, err := applySettingsFile(c, restore, path, nil); err != nil {
+	if _, err := applySettingsForTest(c, restore, path, nil); err != nil {
 		t.Fatal(err)
 	}
 	check, _ = os.ReadFile(path)
@@ -76,7 +76,7 @@ func TestSettingsLastSourceAndTrustBoundaries(t *testing.T) {
 		{"dashboard.admin_password": "unsafe"},
 		{"smartsearch.max_size": 1.5},
 	} {
-		if _, err := applySettingsFile(c, SettingsRequest{Changes: changes, Revision: configRevision(b), Confirm: true}, path, nil); err == nil {
+		if _, err := applySettingsForTest(c, SettingsRequest{Changes: changes, Revision: configRevision(b), Confirm: true}, path, nil); err == nil {
 			t.Fatalf("accepted %v", changes)
 		}
 		check, _ := os.ReadFile(path)
@@ -85,17 +85,17 @@ func TestSettingsLastSourceAndTrustBoundaries(t *testing.T) {
 		}
 	}
 	t.Setenv("APP_BING.ENABLED", "true")
-	if _, err := applySettingsFile(c, SettingsRequest{Changes: map[string]any{"bing.enabled": false}}, path, nil); err == nil {
+	if _, err := applySettingsForTest(c, SettingsRequest{Changes: map[string]any{"bing.enabled": false}}, path, nil); err == nil {
 		t.Fatal("environment locked field edited")
 	}
-	if _, err := applySettingsFile(c, SettingsRequest{RestoreBackup: "../config-stolen.yaml"}, path, nil); err == nil {
+	if _, err := applySettingsForTest(c, SettingsRequest{RestoreBackup: "../config-stolen.yaml"}, path, nil); err == nil {
 		t.Fatal("backup traversal accepted")
 	}
 }
 
 func TestSettingsCacheFailureRollsBack(t *testing.T) {
 	c, path, b := settingsFixture(t)
-	_, err := applySettingsFile(c, SettingsRequest{Changes: map[string]any{"anysearch.enabled": false}, Revision: configRevision(b), Confirm: true}, path, func() error { return errors.New("cache unavailable") })
+	_, err := applySettingsForTest(c, SettingsRequest{Changes: map[string]any{"anysearch.enabled": false}, Revision: configRevision(b), Confirm: true}, path, func() error { return errors.New("cache unavailable") })
 	if err == nil {
 		t.Fatal("cache failure reported as success")
 	}
@@ -112,7 +112,7 @@ func TestDoubaoStartupSettingsSaveAndRestoreOmittedDefaults(t *testing.T) {
 	}
 	cleared := 0
 	changes := map[string]any{"doubao.icp_host_only": true, "doubao.version": "custom"}
-	out, err := applySettingsFile(c, SettingsRequest{Changes: changes, Revision: configRevision(b), Confirm: true}, path, func() error { cleared++; return nil })
+	out, err := applySettingsForTest(c, SettingsRequest{Changes: changes, Revision: configRevision(b), Confirm: true}, path, func() error { cleared++; return nil })
 	if err != nil || !out.Applied || cleared != 1 {
 		t.Fatalf("save: %#v %v; cache clears %d", out, err, cleared)
 	}
@@ -120,7 +120,7 @@ func TestDoubaoStartupSettingsSaveAndRestoreOmittedDefaults(t *testing.T) {
 	if err != nil || !saved.Doubao.ICPHostOnly || saved.Doubao.GetVersion() != "custom" {
 		t.Fatalf("candidate: %#v %v", saved.Doubao, err)
 	}
-	if _, err := applySettingsFile(saved, SettingsRequest{RestoreBackup: out.Backup, Revision: out.Revision, Confirm: true}, path, func() error { cleared++; return nil }); err != nil {
+	if _, err := applySettingsForTest(saved, SettingsRequest{RestoreBackup: out.Backup, Revision: out.Revision, Confirm: true}, path, func() error { cleared++; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	check, _ := os.ReadFile(path)
@@ -129,7 +129,7 @@ func TestDoubaoStartupSettingsSaveAndRestoreOmittedDefaults(t *testing.T) {
 		t.Fatalf("restore defaults: %#v %v; cache clears %d", values, err, cleared)
 	}
 	t.Setenv("APP_DOUBAO.ICP_HOST_ONLY", "true")
-	if _, err := applySettingsFile(saved, SettingsRequest{Changes: map[string]any{"doubao.icp_host_only": false}}, path, nil); err == nil {
+	if _, err := applySettingsForTest(saved, SettingsRequest{Changes: map[string]any{"doubao.icp_host_only": false}}, path, nil); err == nil {
 		t.Fatal("environment-controlled ICP filter edited")
 	}
 }
@@ -137,7 +137,7 @@ func TestDoubaoStartupSettingsSaveAndRestoreOmittedDefaults(t *testing.T) {
 func TestSettingsSourceEditPreservesUnsetDashboardDefaults(t *testing.T) {
 	c, path, b := settingsFixture(t)
 	c.Dashboard.Suspension = config.SuspensionConfig{}
-	out, err := applySettingsFile(c, SettingsRequest{Changes: map[string]any{"anysearch.enabled": false}, Revision: configRevision(b), Confirm: true}, path, nil)
+	out, err := applySettingsForTest(c, SettingsRequest{Changes: map[string]any{"anysearch.enabled": false}, Revision: configRevision(b), Confirm: true}, path, nil)
 	if err != nil || !out.Applied {
 		t.Fatalf("source edit with omitted dashboard defaults: %#v %v", out, err)
 	}
@@ -157,11 +157,11 @@ func TestLastSourceRequiresResolvedProxyButDoesNotProbeIt(t *testing.T) {
 	if c.Proxy.GetProxyEndpoint() != "" {
 		t.Skip("a system proxy is configured outside the test environment")
 	}
-	if err := validateSourceCombination(c); err == nil {
+	if err := validateSourceCombinationForTest(c); err == nil {
 		t.Fatal("unresolved proxy counted as the last usable source")
 	}
 	c.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://127.0.0.1:1"}
-	if err := validateSourceCombination(c); err != nil {
+	if err := validateSourceCombinationForTest(c); err != nil {
 		t.Fatalf("candidate validation must not probe upstream availability: %v", err)
 	}
 }

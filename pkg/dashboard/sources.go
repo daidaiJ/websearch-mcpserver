@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/telemetry"
 )
 
@@ -77,11 +77,15 @@ type dashboardOverview struct {
 	ConfiguredTools []MCPToolView `json:"configured_tools"`
 	// Brand 是控制台品牌呈现（标题/主题/主色/logo），允许自托管用户自定义。
 	Brand map[string]any `json:"brand"`
+	// Language 是本响应实际使用的语言（Accept-Language 协商结果）。
+	Language string `json:"language"`
 }
 
-func buildDashboardOverview(conf config.Config, observed telemetry.Overview) dashboardOverview {
-	web := joinSources(webSourceCatalog(conf), observed.Providers)
-	academic := joinSources(academicSourceCatalog(conf), observed.Providers)
+// buildDashboardOverview 组装总览响应；loc 决定来源名称、条件说明与工具标签的语言
+// （控制中心按 Accept-Language 每请求协商）。
+func buildDashboardOverview(conf config.Config, observed telemetry.Overview, loc *i18n.Localizer) dashboardOverview {
+	web := joinSources(webSourceCatalog(conf, loc), observed.Providers)
+	academic := joinSources(academicSourceCatalog(conf, loc), observed.Providers)
 	summary := summarizeSystem(web)
 	// Suspension covers both web and academic providers.
 	summary.Suspended += countSuspended(academic)
@@ -92,8 +96,9 @@ func buildDashboardOverview(conf config.Config, observed telemetry.Overview) das
 		System:          summary,
 		Sources:         web,
 		AcademicSources: academic,
-		ConfiguredTools: mcpToolCatalog(conf),
+		ConfiguredTools: mcpToolCatalog(conf, loc),
 		Brand:           brandView(conf),
+		Language:        loc.Code(),
 	}
 }
 
@@ -296,7 +301,7 @@ func countSuspended(sources []SourceView) int {
 	return count
 }
 
-func webSourceCatalog(conf config.Config) []SourceView {
+func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 	mode := conf.GetMode()
 	proxyAllowed := conf.Proxy.ProxyResolver() != nil
 	proxyResolved := conf.Proxy.GetProxyEndpoint() != ""
@@ -388,18 +393,18 @@ func webSourceCatalog(conf config.Config) []SourceView {
 	}
 	out := []SourceView{
 		{ID: "anysearch", Name: "AnySearch", Group: "web", Configured: apiConfigured["anysearch"], Active: active["anysearch"], aliases: []string{"anysearch"}},
-		{ID: "baidu", Name: "百度千帆", Group: "web", Configured: apiConfigured["baidu"], Active: active["baidu"], aliases: baiduAPIAliases},
+		{ID: "baidu", Name: loc.T("dashboard.source.baidu.name"), Group: "web", Configured: apiConfigured["baidu"], Active: active["baidu"], aliases: baiduAPIAliases},
 		{ID: "tavily", Name: "Tavily", Group: "web", Configured: apiConfigured["tavily"], Active: active["tavily"], QuotaQueryable: true, aliases: []string{"tavily", "tavily_api"}},
 		{ID: "exa", Name: "Exa", Group: "web", Configured: apiConfigured["exa"], Active: active["exa"], aliases: []string{"exa"}},
-		{ID: "doubao", Name: "豆包搜索", Group: "web", Configured: apiConfigured["doubao"], Active: active["doubao"], aliases: []string{"doubao"}},
-		{ID: "yuanbao", Name: "元宝搜索", Group: "web", Configured: apiConfigured["yuanbao"], Active: active["yuanbao"], aliases: []string{"yuanbao", "tencent_yuanbao"}},
+		{ID: "doubao", Name: loc.T("dashboard.source.doubao.name"), Group: "web", Configured: apiConfigured["doubao"], Active: active["doubao"], aliases: []string{"doubao"}},
+		{ID: "yuanbao", Name: loc.T("dashboard.source.yuanbao.name"), Group: "web", Configured: apiConfigured["yuanbao"], Active: active["yuanbao"], aliases: []string{"yuanbao", "tencent_yuanbao"}},
 		{ID: "tinyfish", Name: "TinyFish", Group: "web", Configured: apiConfigured["tinyfish"], Active: active["tinyfish"], QuotaQueryable: true, aliases: []string{"tinyfish", "tinyfish_api"}},
 		{ID: "keenable", Name: "Keenable", Group: "web", Configured: apiConfigured["keenable"], Active: active["keenable"], aliases: []string{"keenable", "keenable_api"}},
-		{ID: "baidu_web", Name: "百度网页", Group: "web", Configured: engineConfigured["baidu_web"], Active: active["baidu_web"], aliases: baiduWebAliases},
+		{ID: "baidu_web", Name: loc.T("dashboard.source.baidu_web.name"), Group: "web", Configured: engineConfigured["baidu_web"], Active: active["baidu_web"], aliases: baiduWebAliases},
 		{ID: "bing", Name: "Bing", Group: "web", Configured: engineConfigured["bing"], Active: active["bing"], aliases: []string{"bing"}},
 		{ID: "google", Name: "Google", Group: "web", Configured: engineConfigured["google"], Active: active["google"], aliases: []string{"google"}},
 		{ID: "duckduckgo", Name: "DuckDuckGo", Group: "web", Configured: engineConfigured["duckduckgo"], Active: active["duckduckgo"], aliases: []string{"duckduckgo"}},
-		{ID: "so360", Name: "360 搜索", Group: "web", Configured: true, Active: active["so360"], aliases: []string{"so360"}},
+		{ID: "so360", Name: loc.T("dashboard.source.so360.name"), Group: "web", Configured: true, Active: active["so360"], aliases: []string{"so360"}},
 		{ID: "wikipedia", Name: "Wikipedia", Group: "web", Configured: true, Active: active["wikipedia"], aliases: []string{"wikipedia"}},
 		{ID: "googlenews", Name: "Google News", Group: "web", Configured: true, Active: active["googlenews"], aliases: []string{"googlenews", "google_news"}},
 		{ID: "github", Name: "GitHub", Group: "web", Configured: true, Active: active["github"], aliases: []string{"github", "github_api"}},
@@ -410,51 +415,51 @@ func webSourceCatalog(conf config.Config) []SourceView {
 		if _, engine := engineEnabled[s.ID]; engine {
 			s.Category, s.Enabled = "engine", engineEnabled[s.ID]
 			s.ControlPath = s.ID + ".enabled"
-			s.Condition = "参与 engine/hybrid 模式"
+			s.Condition = loc.T("dashboard.condition.engine")
 			switch s.ID {
 			case "baidu_web":
 				s.ControlPath = "baidu.web_enabled"
-				s.Condition = "参与 engine/hybrid；baidu/apipool 可作为网页回退"
+				s.Condition = loc.T("dashboard.condition.baidu_web")
 			case "bing":
-				s.Condition = "各模式的失败回退；engine/hybrid 同时参与主检索"
+				s.Condition = loc.T("dashboard.condition.bing")
 			case "googlenews":
 				s.ControlPath = "google_news.enabled"
 				fallthrough
 			case "duckduckgo", "wikipedia":
-				s.Condition = "参与 engine/hybrid；需要代理解析器；未探测连接"
+				s.Condition = loc.T("dashboard.condition.proxy_engine")
 				if !proxyResolved {
-					s.Condition += "；代理端点当前未解析"
+					s.Condition += loc.T("dashboard.suffix.proxy_unresolved")
 				}
 			case "github":
-				s.Condition = "参与 engine/hybrid；REST API 零 Key 匿名档（search 10/min），配 PAT 提额 30/min；直连可达无需代理；cleanfetch 仓库/blob 页复用同批 token"
+				s.Condition = loc.T("dashboard.condition.github")
 			}
 		} else {
 			s.Category, s.Enabled = "api", conf.APISourceEnabled(s.ID)
 			s.ControlPath = s.ID + ".enabled"
-			s.Condition = "需要已配置 Key；参与对应单源/hybrid 或 apipool.engines"
+			s.Condition = loc.T("dashboard.condition.api_key")
 			if s.ID == "anysearch" {
-				s.Condition = "无 Key 可用匿名档；参与 anysearch/hybrid 或 apipool.engines"
+				s.Condition = loc.T("dashboard.condition.anysearch")
 			}
 			if s.ID == "tinyfish" {
-				s.Condition = "需要已配置 Key；参与 hybrid 或 apipool.engines"
+				s.Condition = loc.T("dashboard.condition.api_key_hybrid")
 			}
 			if s.ID == "keenable" {
-				s.Condition = "有 Key 走 keyed 档；无 Key 需显式 enabled: true 或加入 apipool.engines（public 免 Key 档按 IP 限流，默认不自动参与 hybrid）"
+				s.Condition = loc.T("dashboard.condition.keenable")
 			}
 			if s.ID == "doubao" {
 				if conf.Doubao.GetVersion() == "custom" {
-					s.Condition += "；Custom；ICP 限制不适用"
+					s.Condition += loc.T("dashboard.suffix.doubao_custom")
 				} else if conf.Doubao.ICPHostOnly {
-					s.Condition += "；Global；仅国内 ICP 备案站点"
+					s.Condition += loc.T("dashboard.suffix.doubao_global_icp")
 				} else {
-					s.Condition += "；Global；不限制 ICP 备案"
+					s.Condition += loc.T("dashboard.suffix.doubao_global")
 				}
 			}
 			if s.ID == "yuanbao" {
 				if limit := conf.Yuanbao.GetMonthlyLimit(); limit < 0 {
-					s.Condition += "；本地月上限已关闭，超出免费额度会产生后付费"
+					s.Condition += loc.T("dashboard.suffix.yuanbao_no_cap")
 				} else {
-					s.Condition += fmt.Sprintf("；本地月上限 %d 次，达到后停止调用", limit)
+					s.Condition += loc.T("dashboard.suffix.yuanbao_cap", "Limit", limit)
 				}
 			}
 		}
@@ -462,7 +467,7 @@ func webSourceCatalog(conf config.Config) []SourceView {
 	return out
 }
 
-func academicSourceCatalog(conf config.Config) []SourceView {
+func academicSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 	enabled := conf.Academic.Enabled
 	proxyAllowed := conf.Proxy.ProxyResolver() != nil
 	proxyResolved := conf.Proxy.GetProxyEndpoint() != ""
@@ -485,11 +490,11 @@ func academicSourceCatalog(conf config.Config) []SourceView {
 	out := make([]SourceView, 0, len(defs))
 	for _, d := range defs {
 		active := enabled && !d.disabled && (!d.intlOnly || (conf.IsInternational() && proxyAllowed))
-		condition := "需要 academic.enabled；无需 Key"
+		condition := loc.T("dashboard.condition.academic")
 		if d.intlOnly {
-			condition += "；需要 international 网络与代理解析器；未探测连接"
+			condition += loc.T("dashboard.suffix.academic_intl")
 			if !proxyResolved {
-				condition += "；代理端点当前未解析"
+				condition += loc.T("dashboard.suffix.proxy_unresolved")
 			}
 		}
 		out = append(out, SourceView{ID: d.id, Name: d.name, Group: "academic", Category: "academic",
@@ -500,8 +505,8 @@ func academicSourceCatalog(conf config.Config) []SourceView {
 }
 
 // SourceCatalog returns configuration/routing conditions without health probes.
-func SourceCatalog(conf config.Config) []SourceView {
-	return append(webSourceCatalog(conf), academicSourceCatalog(conf)...)
+func SourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
+	return append(webSourceCatalog(conf, loc), academicSourceCatalog(conf, loc)...)
 }
 
 func activeSourceIDs(sources []SourceView) []string {

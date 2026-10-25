@@ -10,6 +10,7 @@ const element = selector => {
 };
 const context = vm.createContext({
  document: {querySelector: element, querySelectorAll: () => []},
+ window: {__I18N__: JSON.parse(fs.readFileSync(path.join(__dirname,'..','i18n','locales','web.zh.json'),'utf8'))},
  console, setTimeout,
 });
 const source = fs.readFileSync(path.join(__dirname,'web/app.js'),'utf8');

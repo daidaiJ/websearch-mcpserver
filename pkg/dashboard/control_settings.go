@@ -17,6 +17,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 )
 
 var settingsMu sync.Mutex
@@ -31,14 +32,14 @@ func backupDirectory(c config.Config) string {
 	return filepath.Join(filepath.Dir(c.GetDashboardStoragePath()), "dashboard-backups")
 }
 
-func lockedSettings(c config.Config) map[string]string {
+func lockedSettings(c config.Config, loc *i18n.Localizer) map[string]string {
 	out := map[string]string{}
 	for path := range settingsView(c)["values"].(map[string]any) {
 		if _, exists := os.LookupEnv("APP_" + strings.ToUpper(path)); exists {
-			out[path] = "由环境变量覆盖"
+			out[path] = loc.T("dashboard.locked.env")
 		}
 		if strings.HasPrefix(path, "dashboard.") && config.GetDashboardOverlayFile() != "" {
-			out[path] = "由独立 dashboard.yaml 管理"
+			out[path] = loc.T("dashboard.locked.overlay")
 		}
 	}
 	return out
@@ -80,7 +81,8 @@ func settingsFromDocument(c config.Config, b []byte) (map[string]any, error) {
 	for path, value := range values {
 		values[path] = canonicalValue(value)
 	}
-	for _, source := range SourceCatalog(c) {
+	// 这里只要来源的 ID 与开关事实，不消费名称/条件文案，故用进程默认语言即可。
+	for _, source := range SourceCatalog(c, i18n.Default()) {
 		// Missing source switches retain loader defaults, not a pending runtime value.
 		values[source.ControlPath] = source.Category == "api" || source.ID == "bing" || source.ID == "duckduckgo"
 		if source.ID == "keenable" && len(c.Keenable.EffectiveSKList()) == 0 {
@@ -105,7 +107,8 @@ func settingsFromDocument(c config.Config, b []byte) (map[string]any, error) {
 			values[path] = canonicalValue(value)
 		}
 	}
-	for path := range lockedSettings(c) {
+	// 只要锁定字段的路径集合，不消费原因文案，故用进程默认语言即可。
+	for path := range lockedSettings(c, i18n.Default()) {
 		values[path] = settingsView(c)["values"].(map[string]any)[path]
 	}
 	return values, nil
@@ -138,11 +141,11 @@ func settingsDifference(before, after map[string]any) map[string]any {
 	return out
 }
 
-func settingsFileView(c config.Config, path string) map[string]any {
+func settingsFileView(c config.Config, path string, loc *i18n.Localizer) map[string]any {
 	settingsMu.Lock()
 	defer settingsMu.Unlock()
 	out := settingsView(c)
-	out["locked_fields"] = lockedSettings(c)
+	out["locked_fields"] = lockedSettings(c, loc)
 	out["pending_changes"] = map[string]any{}
 	out["saved_values"] = out["values"]
 	out["revision"] = ""
@@ -162,12 +165,12 @@ func settingsFileView(c config.Config, path string) map[string]any {
 	out["backups"] = backups
 	b, err := os.ReadFile(path)
 	if err != nil {
-		out["config_error"] = "无法读取生效配置文件"
+		out["config_error"] = loc.T("dashboard.config_error.unreadable")
 		return out
 	}
 	values, err := settingsFromDocument(c, b)
 	if err != nil {
-		out["config_error"] = "配置文件解析失败"
+		out["config_error"] = loc.T("dashboard.config_error.parse")
 		return out
 	}
 	out["revision"] = configRevision(b)
@@ -235,10 +238,10 @@ func configWithSettings(c config.Config, values map[string]any) (config.Config, 
 	return c, nil
 }
 
-func validateSourceCombination(c config.Config) error {
+func validateSourceCombination(c config.Config, loc *i18n.Localizer) error {
 	web, academic := 0, 0
 	proxyResolved := c.Proxy.GetProxyEndpoint() != ""
-	for _, source := range SourceCatalog(c) {
+	for _, source := range SourceCatalog(c, loc) {
 		if !proxyResolved && (source.ID == "duckduckgo" || source.ID == "wikipedia" || source.ID == "googlenews" || source.ID == "semantic_scholar" || source.ID == "google_scholar") {
 			continue
 		}
@@ -251,10 +254,10 @@ func validateSourceCombination(c config.Config) error {
 		}
 	}
 	if web == 0 {
-		return fmt.Errorf("当前模式至少保留一个可参与的网页搜索源")
+		return errors.New(loc.T("dashboard.validate.need_web_source"))
 	}
 	if c.Academic.Enabled && academic == 0 {
-		return fmt.Errorf("学术检索至少保留一个可参与的搜索源")
+		return errors.New(loc.T("dashboard.validate.need_academic_source"))
 	}
 	return nil
 }
@@ -263,11 +266,12 @@ func validBackupName(name string) bool {
 	return filepath.Base(name) == name && !strings.ContainsAny(name, `/\\`) && strings.HasPrefix(name, "config-") && strings.HasSuffix(name, ".yaml")
 }
 
-func applySettings(c config.Config, req SettingsRequest) (SettingsResult, error) {
-	return applySettingsFile(c, req, config.GetConfigFile(), nil)
+func applySettings(c config.Config, req SettingsRequest, loc *i18n.Localizer) (SettingsResult, error) {
+	return applySettingsFile(c, req, config.GetConfigFile(), nil, loc)
 }
 
-func applySettingsFile(c config.Config, req SettingsRequest, path string, clearCache func() error) (SettingsResult, error) {
+// applySettingsFile 写入配置；loc 决定校验错误等响应文案的语言。
+func applySettingsFile(c config.Config, req SettingsRequest, path string, clearCache func() error, loc *i18n.Localizer) (SettingsResult, error) {
 	settingsMu.Lock()
 	defer settingsMu.Unlock()
 	out := SettingsResult{Changes: req.Changes, RestartRequired: true}
@@ -311,7 +315,7 @@ func applySettingsFile(c config.Config, req SettingsRequest, path string, clearC
 		}
 		out.Changes = settingsDifference(values, oldValues)
 	}
-	locked := lockedSettings(c)
+	locked := lockedSettings(c, loc)
 	for key, value := range out.Changes {
 		if reason := locked[key]; reason != "" {
 			return out, fmt.Errorf("%s: %s", key, reason)
@@ -325,7 +329,7 @@ func applySettingsFile(c config.Config, req SettingsRequest, path string, clearC
 	if err != nil {
 		return out, err
 	}
-	if err := validateSourceCombination(candidate); err != nil {
+	if err := validateSourceCombination(candidate, loc); err != nil {
 		return out, err
 	}
 	if !req.Confirm {
@@ -381,7 +385,8 @@ func applySettingsFile(c config.Config, req SettingsRequest, path string, clearC
 		return rollback(err)
 	}
 	sourceChange := false
-	for _, source := range SourceCatalog(c) {
+	// 这里只要来源的 ID 与开关事实，不消费名称/条件文案，故用进程默认语言即可。
+	for _, source := range SourceCatalog(c, i18n.Default()) {
 		if _, exists := out.Changes[source.ControlPath]; exists {
 			sourceChange = true
 		}

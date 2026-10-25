@@ -11,6 +11,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 )
 
 type SettingsRequest struct {
@@ -67,7 +68,8 @@ func settingsView(c config.Config) map[string]any {
 		},
 	}
 	values := out["values"].(map[string]any)
-	for _, source := range SourceCatalog(c) {
+	// 只要来源的 ControlPath/Enabled/Inverted 事实，不消费名称/条件文案。
+	for _, source := range SourceCatalog(c, i18n.Default()) {
 		value := source.Enabled
 		if source.Inverted {
 			value = !value

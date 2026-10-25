@@ -22,6 +22,8 @@ function element(selector) {
 let now = 0;
 const context = vm.createContext({
   console, AbortSignal,
+  // 前端文案词典由服务端内联注入；测试按 zh 目录注入，与真实渲染同口径。
+  window: {__I18N__: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'i18n', 'locales', 'web.zh.json'), 'utf8'))},
   document: {
     querySelector: element,
     querySelectorAll: selector => selector === '[data-key]' ? fields : selector === 'input[name="mode"]' ? fields.filter(field => field.name === 'mode') : [],
@@ -42,8 +44,8 @@ for (const id of ['apply-note', 'apply-recovery', 'retry-apply', 'backup-select'
 assert.match(settingsPage, /外观与维护[\s\S]*配置恢复[\s\S]*id="restore-backup"/);
 const sourcesPage = html.match(/<section id="page-sources"[\s\S]*?<\/section>/)[0];
 assert.doesNotMatch(sourcesPage, /运行 \/ 条件|参与运行|未参与/, 'source controls must not duplicate runtime participation');
-assert.equal((sourcesPage.match(/<th>启用<\/th>/g) || []).length, 3);
-assert.equal((sourcesPage.match(/<th>最近 20 次<\/th>/g) || []).length, 3);
+assert.equal((sourcesPage.match(/<th data-i18n="web.label.enabled">启用<\/th>/g) || []).length, 3);
+assert.equal((sourcesPage.match(/<th data-i18n="web.label.last_20">最近 20 次<\/th>/g) || []).length, 3);
 assert.equal((sourcesPage.match(/<th(?:\s|>)/g) || []).length, 24);
 assert.doesNotMatch(sourcesPage, /实际冷却|失败构成|成功 \/ 失败|P95|最近观测|<th>额度/);
 assert.doesNotMatch(html, /bootstrap-switch|cdn\.|unpkg|jsdelivr/i);
@@ -53,7 +55,8 @@ assert.deepEqual(modeInputs,
 for (const mode of modeInputs) {
   assert.match(html, new RegExp('value="' + mode + '" data-key="mode"><span>' + mode + '</span>'));
   assert.match(html, new RegExp('aria-label="' + mode + ' 模式说明" aria-describedby="mode-note-' + mode + '"'));
-  assert.match(html, new RegExp('id="mode-note-' + mode + '" role="tooltip">[^<]+'));
+  assert.match(html, new RegExp('data-i18n-aria-label="web.mode.' + mode + '_mode_help"'));
+  assert.match(html, new RegExp('id="mode-note-' + mode + '" role="tooltip" data-i18n="web.mode.[^"]+">[^<]+'));
 }
 assert.match(html, /round-robin、priority、weighted/);
 assert.match(html, /无 Key 时走按出口 IP 限流的匿名档/);
@@ -62,17 +65,17 @@ assert.match(html, /已启用的网页引擎并发，无需 Key；代理依赖�
 assert.match(html, /百度网页启用时兜底/);
 assert.match(html, /失败回退已启用的百度网页；无 SK 时使用已启用的百度网页/);
 for (const mode of ['tavily', 'exa', 'doubao']) {
-  const note = html.match(new RegExp('id="mode-note-' + mode + '" role="tooltip">([^<]+)'))[1];
+  const note = html.match(new RegExp('id="mode-note-' + mode + '" role="tooltip" data-i18n="[^"]+">([^<]+)'))[1];
   assert.match(note, /回退已启用的 Bing/);
 }
 assert.doesNotMatch(html, /混合检索（API与网页）|网页引擎并行|API调度池（失败换源）/);
 assert.match(html, /<details[^>]*>[\s\S]*?学术搜索网络环境<select name="network"/);
 assert.doesNotMatch(html, /熔断首次暂停|熔断暂停上限|网络区域/);
-assert.match(html, /value="provider" id="mode-single"><span>单供应商/);
+assert.match(html, /value="provider" id="mode-single"><span data-i18n="web.status.single_provider">单供应商/);
 const providerOptions = Array.from(html.match(/id="mode-provider">([\s\S]*?)<\/select>/)[1].matchAll(/value="([^"]+)"/g), match => match[1]);
-assert.deepEqual(providerOptions, ['baidu', 'tavily', 'exa', 'anysearch', 'doubao']);
+assert.deepEqual(providerOptions, ['baidu', 'tavily', 'exa', 'anysearch', 'doubao', 'yuanbao']);
 assert.doesNotMatch(html, /data-key="doubao\.(version|icp_host_only)"/, 'Doubao parameters must not remain on Settings');
-assert.match(source, /data-source-setting="\$\{key\}" aria-label="豆包接口版本"/);
+assert.match(source, /data-source-setting="\$\{key\}" aria-label="\$\{t\('web.label.doubao_api_version'\)\}"/);
 assert.match(source, /detailed && id === 'doubao' \? doubaoVersionControl\(\)/, 'version control belongs to the Doubao source row only');
 const settingsColumns = html.slice(html.indexOf('<section id="page-settings"')).split('<div class="settings-column">').slice(1);
 assert.equal(settingsColumns.length, 2);
