@@ -4,7 +4,7 @@
 
 ## v3.10.3 — 2026-10-31 (Hosted MCP fetching: keyless endpoints actually take part in fetch)
 
-> Making hosted MCP fetching a real optimization source for cleanfetch: `f835d60` (upstream response-header fallback timeout raised to 60s), `f935776` (proxy demoted from admission requirement to reachability optimization), `e335777` (search / configuration docs and config samples synced).
+> Making hosted MCP fetching a real optimization source for cleanfetch: `f835d60` (upstream response-header fallback timeout raised to 60s), `f935776` (proxy demoted from admission requirement to reachability optimization), `4886046` (remote fetch chain prefers hosted MCP), `e335777` / `0315e06` (search / configuration / roadmap docs and config samples synced).
 
 ### Changed
 - **The proxy is a reachability optimization for hosted MCP servers, no longer an admission requirement**: the `exa` and `firecrawl` presets use the proxy when one is detected and connect directly otherwise, so a missing proxy no longer drops them from the rotation (`parallel` and `anysearch` always connect directly). `requires_proxy` remains an explicit override: `true` = hard requirement, skipped without a proxy; `false` = always direct. Two egress checks (2026-10-20 and 2026-10-31) found all four endpoints reachable without a proxy, so the hard skip only kept keyless hosted fetching out of the picture.
