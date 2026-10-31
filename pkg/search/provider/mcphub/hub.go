@@ -26,16 +26,26 @@ import (
 	"websearch/pkg/telemetry"
 )
 
+// proxyMode 决定托管 server 如何使用代理。
+// 代理只是可达性优化：能直连的端点不该因为「没检测到代理」被整轮跳过。
+type proxyMode int
+
+const (
+	proxyDirect  proxyMode = iota // 直连，不使用代理
+	proxyPrefer                   // 有代理则走代理，无代理直连
+	proxyRequire                  // 必须走代理，无代理则本轮跳过
+)
+
 // preset 内置 server 的端点、工具与鉴权约定。
 type preset struct {
-	url           string
-	searchTool    string
-	fetchTool     string
-	authHeader    string
-	authPrefix    string
-	requiresProxy bool
-	searchArgs    func(query string, max int) map[string]any
-	fetchArgs     func(rawURL string) map[string]any
+	url        string
+	searchTool string
+	fetchTool  string
+	authHeader string
+	authPrefix string
+	proxy      proxyMode
+	searchArgs func(query string, max int) map[string]any
+	fetchArgs  func(rawURL string) map[string]any
 }
 
 var presets = map[string]preset{
@@ -53,11 +63,11 @@ var presets = map[string]preset{
 		},
 	},
 	"exa": {
-		url:           "https://mcp.exa.ai/mcp",
-		searchTool:    "web_search_exa",
-		fetchTool:     "web_fetch_exa",
-		authHeader:    "x-api-key",
-		requiresProxy: true,
+		url:        "https://mcp.exa.ai/mcp",
+		searchTool: "web_search_exa",
+		fetchTool:  "web_fetch_exa",
+		authHeader: "x-api-key",
+		proxy:      proxyPrefer,
 		searchArgs: func(query string, max int) map[string]any {
 			return map[string]any{"query": query, "numResults": max}
 		},
@@ -82,12 +92,12 @@ var presets = map[string]preset{
 		},
 	},
 	"firecrawl": {
-		url:           "https://mcp.firecrawl.dev/v2/mcp",
-		searchTool:    "firecrawl_search",
-		fetchTool:     "firecrawl_scrape",
-		authHeader:    "Authorization",
-		authPrefix:    "Bearer ",
-		requiresProxy: true,
+		url:        "https://mcp.firecrawl.dev/v2/mcp",
+		searchTool: "firecrawl_search",
+		fetchTool:  "firecrawl_scrape",
+		authHeader: "Authorization",
+		authPrefix: "Bearer ",
+		proxy:      proxyPrefer,
 		searchArgs: func(query string, max int) map[string]any {
 			return map[string]any{"query": query, "limit": max}
 		},
@@ -119,17 +129,17 @@ type server struct {
 	timeout      time.Duration
 	fetchTimeout time.Duration
 
-	requiresProxy bool
+	proxy         proxyMode
 	proxyResolver proxy.ProxyResolver
 }
 
 func (s *server) Name() string        { return "mcp_hub_" + s.name }
 func (s *server) SupportsFetch() bool { return s.fetchTool != "" }
 
-// Available 在 requires_proxy=true 时按当前代理解析结果动态判断；
-// 代理稍后才可用时，下一次请求即可重新启用，无需重启。
+// Available 只在硬性要求代理（proxyRequire）且当前解析不到代理时为 false；
+// 代理稍后才可用时，下一次请求即可自动恢复，无需重启。
 func (s *server) Available() bool {
-	if !s.requiresProxy {
+	if s.proxy != proxyRequire {
 		return true
 	}
 	return s.proxyResolver != nil && s.proxyResolver() != ""
@@ -336,15 +346,17 @@ func newHub(cfg config.MCPHubConfig, resolver proxy.ProxyResolver, caller toolCa
 		}
 		if caller != nil {
 			s.caller = caller
-		} else if s.requiresProxy {
-			s.caller = &mcpCaller{base: proxyBase}
-		} else {
+		} else if s.proxy == proxyDirect {
 			s.caller = &mcpCaller{base: directBase}
+		} else {
+			// proxyPrefer / proxyRequire 都走动态代理 transport：
+			// 解析到代理就用代理，解析不到就直连（proxyRequire 由 Available 先挡住）。
+			s.caller = &mcpCaller{base: proxyBase}
 		}
 		s.proxyResolver = resolver
 		s.timeout = h.timeout
 		s.fetchTimeout = h.fetchTimeout
-		if s.requiresProxy && !s.Available() {
+		if s.proxy == proxyRequire && !s.Available() {
 			log.InfoT("log.search.provider.mcphub.mcp_hub_marked_proxy_required_but", "name", s.name)
 		}
 		h.rotation = append(h.rotation, &backendState{backend: s})
@@ -395,16 +407,21 @@ func buildServer(sc config.MCPHubServerConfig) (*server, error) {
 		return nil, errors.New(i18n.T("provider.mcphub.unknown_server", "Name", sc.Name))
 	}
 	s := &server{
-		name:          sc.Name,
-		url:           p.url,
-		searchTool:    p.searchTool,
-		fetchTool:     p.fetchTool,
-		authHeader:    p.authHeader,
-		authPrefix:    p.authPrefix,
-		requiresProxy: p.requiresProxy,
+		name:       sc.Name,
+		url:        p.url,
+		searchTool: p.searchTool,
+		fetchTool:  p.fetchTool,
+		authHeader: p.authHeader,
+		authPrefix: p.authPrefix,
+		proxy:      p.proxy,
 	}
+	// requires_proxy 是显式覆盖：true = 硬性要求代理（无代理则跳过），false = 强制直连。
 	if sc.RequiresProxy != nil {
-		s.requiresProxy = *sc.RequiresProxy
+		if *sc.RequiresProxy {
+			s.proxy = proxyRequire
+		} else {
+			s.proxy = proxyDirect
+		}
 	}
 	if strings.TrimSpace(s.url) == "" {
 		return nil, errors.New(i18n.T("provider.mcphub.server_missing_url", "Name", sc.Name))

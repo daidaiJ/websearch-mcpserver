@@ -493,8 +493,8 @@ log:
 #                             # 未配置 api_key/sk_list 走匿名档；鉴权失败换下一把 Key，连接/超时冷却并级联
 #     - name: parallel
 #     - name: anysearch
-#     - name: exa             # 默认需代理；requires_proxy: false 可强制直连
-#     - name: firecrawl       # 默认需代理；requires_proxy: false 可强制直连
+#     - name: exa             # 有代理则走代理、无代理直连；requires_proxy: true 可硬性要求
+#     - name: firecrawl       # 有代理则走代理、无代理直连；requires_proxy: true 可硬性要求
 
 # ==============================================
 # Apipool 模式配置（可选，mode=apipool 时生效）

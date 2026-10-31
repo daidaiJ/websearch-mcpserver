@@ -8,7 +8,21 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 )
+
+// TestDefaultBaseTransport_HeaderTimeoutOutlastsCallers 验证响应头兜底超时不先于调用方预算打断请求。
+// 调用方自带预算：mcphub 抓取默认 45s、mcphub 搜索默认 20s、pkg/client 默认 30s。
+func TestDefaultBaseTransport_HeaderTimeoutOutlastsCallers(t *testing.T) {
+	tr := defaultBaseTransport()
+	if tr.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
+		t.Fatalf("ResponseHeaderTimeout = %v, want %v", tr.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
+	}
+	const callerBudget = 45 * time.Second // mcp_hub.fetch_timeout_sec 默认值
+	if tr.ResponseHeaderTimeout <= callerBudget {
+		t.Errorf("ResponseHeaderTimeout = %v，必须大于调用方预算 %v，否则会先于调用方超时", tr.ResponseHeaderTimeout, callerBudget)
+	}
+}
 
 // TestDynamicProxyTransport_CachesByEndpoint 验证 transport 按 endpoint 缓存复用。
 func TestDynamicProxyTransport_CachesByEndpoint(t *testing.T) {

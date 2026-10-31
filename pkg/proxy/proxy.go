@@ -54,6 +54,14 @@ func (t *dynamicProxyTransport) transportFor(endpoint string) *http.Transport {
 	return tr
 }
 
+// defaultResponseHeaderTimeout 上游等待响应头的兜底上限。
+//
+// 每个调用方都自带更小的预算（pkg/client 默认 30s、mcphub 抓取默认 45s、
+// mcphub 搜索默认 20s），这一层只做兜底：取值必须大于这些预算，否则会先于
+// 调用方超时打断请求。托管 MCP 抓取是服务端渲染，偶发十几秒才出响应头，
+// 15s 曾把它误判为超时并触发 server 冷却（见 CHANGELOG Unreleased）。
+const defaultResponseHeaderTimeout = 60 * time.Second
+
 // defaultBaseTransport 返回带合理超时的默认 transport。
 func defaultBaseTransport() *http.Transport {
 	return &http.Transport{
@@ -63,7 +71,7 @@ func defaultBaseTransport() *http.Transport {
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 15 * time.Second,
+		ResponseHeaderTimeout: defaultResponseHeaderTimeout,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},

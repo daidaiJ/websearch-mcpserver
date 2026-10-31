@@ -2,6 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### Changed
+- **The proxy is a reachability optimization for hosted MCP servers, no longer an admission requirement**: the `exa` and `firecrawl` presets use the proxy when one is detected and connect directly otherwise, so a missing proxy no longer drops them from the rotation (`parallel` and `anysearch` always connect directly). `requires_proxy` remains an explicit override: `true` = hard requirement, skipped without a proxy; `false` = always direct. Two egress checks (2026-10-20 and 2026-10-31) found all four endpoints reachable without a proxy, so the hard skip only kept keyless hosted fetching out of the picture.
+
+### Fixed
+- **The upstream response-header fallback timeout no longer cuts requests short before the caller's own budget**: the default transport in `pkg/proxy` now uses a 60s `ResponseHeaderTimeout` instead of 15s. The old value sat below every caller's own budget (`pkg/client` default 30s, `mcp_hub.fetch_timeout_sec` default 45s, `mcp_hub.timeout_sec` default 20s), so hosted MCP fetches — server-side rendering that occasionally needs tens of seconds before sending headers — were misread as timeouts, which put the server into its 60s cooldown and pushed the whole remote fetch chain down to local webfetch, surfacing as empty bodies flagged "may require JavaScript rendering" or `extract_failed`. Each caller's own timeout now decides when a request fails, and the fallback value only acts as a ceiling.
+
 ## v3.10.2 — 2026-10-25 (Internationalization: zh/en for logs, MCP metadata, the control center and tool results)
 
 > All four surfaces delivered together: `d5f7780` (infrastructure + log layer + MCP descriptions), `7b1c246` (control center backend and frontend), `d51a0ea` (config samples and docs), `0268707` (tool domain), `2f18a0d` (fetch domain), `7e16572` (provider domain), `1fac4e9` (search domain).
