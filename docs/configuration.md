@@ -444,8 +444,8 @@ pdf_parser:
 #                           # 未配置 api_key/sk_list 走匿名档；鉴权失败换下一把 Key，连接/超时冷却并级联
 #     - name: parallel      # 可选 Key: https://platform.parallel.ai/
 #     - name: anysearch     # 可选 Key: https://www.anysearch.com/console/api-keys
-#     - name: exa           # 默认需代理；可选 Key: https://dashboard.exa.ai/api-keys
-#     - name: firecrawl     # 默认需代理；可选 Key: https://www.firecrawl.dev/app/api-keys
+#     - name: exa           # 有代理则走代理、无代理直连；可选 Key: https://dashboard.exa.ai/api-keys
+#     - name: firecrawl     # 有代理则走代理、无代理直连；可选 Key: https://www.firecrawl.dev/app/api-keys
 
 # Apipool 模式配置（可选，mode=apipool 时生效）
 # apipool:
