@@ -364,12 +364,20 @@ func TestBuildServerRejectsUnknownPreset(t *testing.T) {
 
 func TestBuildServerProxyDefaults(t *testing.T) {
 	s, err := buildServer(config.MCPHubServerConfig{Name: "exa"})
-	if err != nil || !s.requiresProxy {
-		t.Fatalf("exa preset should require proxy: %+v err=%v", s, err)
+	if err != nil || s.proxy != proxyPrefer {
+		t.Fatalf("exa preset should prefer proxy (use it when available, direct otherwise): %+v err=%v", s, err)
+	}
+	if !s.Available() {
+		t.Fatal("proxy-preferred server must stay available without a proxy")
+	}
+	required := true
+	s, err = buildServer(config.MCPHubServerConfig{Name: "exa", RequiresProxy: &required})
+	if err != nil || s.proxy != proxyRequire {
+		t.Fatalf("explicit true should hard-require a proxy: %+v err=%v", s, err)
 	}
 	disabled := false
 	s, err = buildServer(config.MCPHubServerConfig{Name: "exa", RequiresProxy: &disabled})
-	if err != nil || s.requiresProxy {
+	if err != nil || s.proxy != proxyDirect {
 		t.Fatalf("explicit override should win: %+v err=%v", s, err)
 	}
 }
@@ -403,8 +411,8 @@ func TestHubProxyGating(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h.rotation[1].backend.Available() {
-		t.Fatal("exa must be unavailable without a proxy")
+	if !h.rotation[1].backend.Available() {
+		t.Fatal("proxy-preferred server must stay available without a proxy")
 	}
 	if _, err := h.SearchRaw("q"); err != nil {
 		t.Fatal(err)
@@ -413,22 +421,34 @@ func TestHubProxyGating(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := fake.snapshot()
-	if len(calls) != 2 || calls[0].server != "parallel" || calls[1].server != "parallel" {
-		t.Fatalf("proxy-required server must be skipped: %+v", calls)
+	if len(calls) != 2 || calls[0].server != "parallel" || calls[1].server != "exa" {
+		t.Fatalf("proxy-preferred server must take part in rotation without a proxy: %+v", calls)
 	}
 
-	proxyOn := ""
-	resolver := func() string { return proxyOn }
-	h, err = newHub(cfg, resolver, fake, nil)
+	// 显式 requires_proxy: true 时恢复旧行为：无代理则跳过，代理出现后自动恢复。
+	required := true
+	cfgHard := testConfig("parallel")
+	cfgHard.Servers = append(cfgHard.Servers, config.MCPHubServerConfig{Name: "exa", RequiresProxy: &required})
+	cfgHard.Strategy = "round-robin"
+	h, err = newHub(cfgHard, nil, fake, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if h.rotation[1].backend.Available() {
-		t.Fatal("exa should start unavailable")
+		t.Fatal("hard proxy requirement must be unavailable without a proxy")
+	}
+	proxyOn := ""
+	resolver := func() string { return proxyOn }
+	h, err = newHub(cfgHard, resolver, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.rotation[1].backend.Available() {
+		t.Fatal("hard proxy requirement should start unavailable")
 	}
 	proxyOn = "http://127.0.0.1:7897"
 	if !h.rotation[1].backend.Available() {
-		t.Fatal("exa should become available when the resolver reports a proxy")
+		t.Fatal("hard proxy requirement should become available when the resolver reports a proxy")
 	}
 }
 
