@@ -167,7 +167,7 @@ yuanbao:
 # TinyFish Search/Fetch API（mode=apipool 需显式加入 engines；hybrid 有 Key 自动参与）
 # 免费额度：搜索 12000 次/天（30 请求/分钟）、fetch 1000 URL/天（150 URL/分钟，
 # 按成功抓取的 URL 计数），均 00:00 UTC 重置。仅 Key 档，无匿名档。
-# fetch 能力接入 cleanfetch 远端抓取链（mcp_hub.fetch_mode 非 off 时优先消耗，按 URL 计数）。
+# fetch 能力接入 cleanfetch 远端抓取链（mcp_hub.fetch_mode 非 off 时作为托管 MCP 之后的兜底，按 URL 计数）。
 tinyfish:
   enabled: true             # API 源开关；false 保留 api_key/sk_list
   api_key: ""               # TinyFish API Key（https://docs.tinyfish.ai）
@@ -426,9 +426,11 @@ pdf_parser:
 #       weight: 1.0
 
 # MCP Hub 零 Key 级联（可选，mode=mcphub 时作为搜索引擎）
-# fetch_mode 非 off 时，cleanfetch 远端抓取链按「供应商 fetch API（tinyfish/keenable，
-# 优先消耗按 URL 计数的免费额度）→ 同一批 MCP server」顺序抓取
+# fetch_mode 非 off 时，cleanfetch 远端抓取链按「同一批 MCP server（会渲染 JS，优先）、
+# 再供应商 fetch API（tinyfish/keenable，纯 HTTP 抓取）」顺序抓取
 # （需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
+# 注意：托管 MCP 的 exa/anysearch 与 apipool 的同名供应商指向同一上游服务的不同入口
+# （前者多走匿名档、按出口 IP 限流；后者用你配置的 Key），两者额度口径独立但共用出口 IP。
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）

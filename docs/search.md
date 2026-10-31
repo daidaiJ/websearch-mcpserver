@@ -299,8 +299,8 @@ mcp_hub:
 | 值 | 行为 |
 |----|------|
 | `off`（默认） | 保持原有 cleanfetch：webfetch → Jina Reader；不使用 MCP |
-| `fallback` | 先走 webfetch → Jina；两者都失败后，再按级联顺序尝试 MCP 抓取 |
-| `prefer` | 先按级联顺序尝试 MCP 抓取；失败后降级到 webfetch → Jina |
+| `fallback` | 先走 webfetch → Jina；两者都失败后，再按级联顺序尝试远端链（托管 MCP → 供应商 fetch API） |
+| `prefer` | 先按级联顺序尝试远端链（托管 MCP → 供应商 fetch API）；失败后降级到 webfetch → Jina |
 
 降级与安全约束：
 
@@ -308,6 +308,8 @@ mcp_hub:
 - **PDF 不走 MCP**：URL 以 `.pdf` 结尾时始终走本地 PDF/MinerU 链路，避免丢失分页与 OCR 能力。
 - **预检不跳过**：MCP 抓取前仍执行 `validateURLSecurity`（私网/DNS rebinding）与 `headCheck`（大小上限）。
 - **输出上限**：单个网页最多返回 `mcp_hub.max_fetch_chars` 字符，超出截断并注明原长度。
+- **远端链顺序**：`mcphub` 托管 MCP（服务端渲染，能拿到 JS 页面正文）→ 供应商 fetch API（TinyFish/Keenable，纯 HTTP 抓取）→ 本地 webfetch/Jina，任一层成功即返回。托管 MCP 排在前面是因为供应商 fetch API 对客户端渲染页面只返回应用外壳（实测 TinyFish 对纯 SPA 返回 56 字符空壳），排后面等于把渲染能力挡在门外。
+- **与 apipool 供应商的重合**：托管 MCP 的 `exa` / `anysearch` 与 apipool / hybrid 的同名供应商指向同一上游服务的不同入口（前者多走匿名档、按出口 IP 限流，后者用你配置的 Key），两者额度口径独立但共用出口 IP，抓取改用托管优先后会先消耗匿名档。
 - **独立冷却**：搜索与抓取的冷却状态分开记录；抓取站点级错误不会让该 server 的搜索一起冷却。`mode=mcphub` 且 `fetch_mode` 非 off 时，cleanfetch 复用搜索 Hub，Key 池与冷却表共用。
 - **抓取需要 `cleanfetch.enabled=true`**；`fetch_mode` 仅增强 URL 抓取，不影响 `result_ref` 读取。
 
