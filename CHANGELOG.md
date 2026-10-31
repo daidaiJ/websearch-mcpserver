@@ -8,6 +8,7 @@
 
 ### 变更
 - **托管 MCP 的代理从「准入条件」改为「可达性优化」**：`exa`、`firecrawl` 预设默认「有代理则走代理、无代理直连」，不再因为未检测到代理被整轮跳过（`parallel`、`anysearch` 恒直连）；`requires_proxy` 保留为显式覆盖——`true` = 硬性要求代理、无代理则跳过，`false` = 强制直连。两轮出口实测（2026-10-20、2026-10-31）四个端点均可直连，硬性跳过只会让免 Key 托管抓取白白缺席
+- **cleanfetch 远端抓取链改为托管 MCP 优先**：`fetch_mode` 非 off 时远端链顺序由「供应商 fetch API（TinyFish/Keenable）→ mcphub 托管 MCP」反转为「mcphub 托管 MCP → 供应商 fetch API → 本地 webfetch/Jina」。`tryRemote` 取第一个非空结果即返回，而供应商 fetch API 只做纯 HTTP 抓取：实测 TinyFish 对纯客户端渲染的 `open.spotify.com` 返回 56 字符应用外壳，排在前面等于把会渲染的托管 MCP 挡在门外（parallel / anysearch / exa 对同一 URL 分别返回 8906 / 29553 / 2085 字符渲染正文）。注意托管 MCP 的 `exa` / `anysearch` 与 apipool / hybrid 的同名供应商指向同一上游服务的不同入口（前者多走匿名档、按出口 IP 限流，后者用配置的 Key），额度口径独立但共用出口 IP
 
 ### 修复
 - **上游响应头兜底超时不再先于调用方预算打断请求**：`pkg/proxy` 默认 transport 的 `ResponseHeaderTimeout` 由 15s 放宽到 60s。该值此前低于每个调用方自带的预算（`pkg/client` 默认 30s、`mcp_hub.fetch_timeout_sec` 默认 45s、`mcp_hub.timeout_sec` 默认 20s），托管 MCP 抓取是服务端渲染、偶发十几秒才出响应头，被误判为超时并触发该 server 60s 冷却，整条远端抓取链随即降级到本地 webfetch，表现为「可能需要 JavaScript 渲染」的空正文或 `extract_failed`；放宽后由各调用方自身的超时决定失败时机，兜底值只作上限

@@ -170,7 +170,7 @@ yuanbao:
 # TinyFish Search/Fetch API (mode=apipool requires explicit engines entry; hybrid auto-joins when keyed)
 # Free allowance: search 12,000/day (30 req/min), fetch 1,000 URLs/day (150 URLs/min,
 # counted per successfully fetched URL), reset at 00:00 UTC. Keyed tier only, no anonymous tier.
-# Its fetch capability joins the cleanfetch remote-fetch chain (preferred when mcp_hub.fetch_mode is on, per-URL counting).
+# Its fetch capability joins the cleanfetch remote-fetch chain as a fallback behind hosted MCP (per-URL counting).
 tinyfish:
   enabled: true             # API source switch; false keeps api_key/sk_list stored
   api_key: ""               # TinyFish API key (https://docs.tinyfish.ai)
@@ -417,9 +417,12 @@ pdf_parser:
 #       weight: 1.0
 
 # Keyless MCP Hub cascade (optional; search engine when mode=mcphub)
-# When fetch_mode is not off, the cleanfetch remote-fetch chain tries provider fetch APIs first
-# (tinyfish/keenable, consuming their per-URL free allowances), then the same MCP servers
+# When fetch_mode is not off, the cleanfetch remote-fetch chain tries the MCP servers first
+# (they render JS), then provider fetch APIs (tinyfish/keenable, plain HTTP fetching)
 # (requires cleanfetch.enabled=true; in mode=mcphub it reuses the search hub)
+# Note: the hosted MCP exa/anysearch and the same-named apipool providers point at different
+# entrances of the same upstream (the former usually the anonymous per-egress-IP tier, the
+# latter your configured key); allowances are separate but share the egress IP.
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority (default, stability first) / round-robin

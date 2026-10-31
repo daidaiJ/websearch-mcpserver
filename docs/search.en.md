@@ -299,8 +299,8 @@ mcp_hub:
 | Value | Behavior |
 |-------|----------|
 | `off` (default) | Keep the existing cleanfetch path: webfetch → Jina Reader |
-| `fallback` | Run webfetch → Jina first; only if both fail, try the MCP cascade |
-| `prefer` | Try the MCP cascade first; on failure degrade to webfetch → Jina |
+| `fallback` | Run webfetch → Jina first; only if both fail, try the remote chain (hosted MCP → provider fetch APIs) |
+| `prefer` | Try the remote chain first (hosted MCP → provider fetch APIs); on failure degrade to webfetch → Jina |
 
 Degradation and safety:
 
@@ -308,6 +308,8 @@ Degradation and safety:
 - **PDF stays local**: URLs ending in `.pdf` always use the local PDF/MinerU pipeline, preserving page ranges and OCR.
 - **Preflight still runs**: `validateURLSecurity` (private IP/DNS rebinding) and `headCheck` (size cap) execute before any MCP fetch.
 - **Output cap**: at most `mcp_hub.max_fetch_chars` characters per page; truncation reports the original length.
+- **Remote chain order**: hosted MCP (server-side rendering, so it gets the body of JS pages) → provider fetch APIs (TinyFish/Keenable, plain HTTP fetching) → local webfetch/Jina; the first success returns. Hosted MCP comes first because provider fetch APIs only return the app shell for client-rendered pages (TinyFish returns a 56-character shell for a plain SPA in our test), so putting them first would shut the renderers out.
+- **Overlap with apipool providers**: the hosted MCP `exa` / `anysearch` and the same-named apipool / hybrid providers point at different entrances of the same upstream (the former usually the anonymous per-egress-IP tier, the latter your configured key). Allowances are accounted separately but share the egress IP, so preferring hosted MCP consumes the anonymous tier first.
 - **Separate cooldowns**: search and fetch track failures independently, so a site-level fetch error does not cool down search. When `mode=mcphub` and `fetch_mode` is not off, cleanfetch reuses the search hub, sharing its key pool and cooldown tables.
 - **Requires `cleanfetch.enabled=true`**; `fetch_mode` only affects URL fetching, not `result_ref` reads.
 

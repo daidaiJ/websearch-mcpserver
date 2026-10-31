@@ -197,14 +197,19 @@ func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	return fetchPageWithFallback(ctx, rawURL, mcpHubFetchMode, remoteFetchChain(), local)
 }
 
-// remoteFetchChain 返回远端抓取链：供应商 fetch API（优先消耗按 URL
-// 计数的免费额度）→ mcphub 托管 MCP。均未启用时返回 nil，走本地。
+// remoteFetchChain 返回远端抓取链：mcphub 托管 MCP（服务端渲染，能拿到 JS 页面正文）
+// → 供应商 fetch API（纯 HTTP 抓取，速度快、按 URL 计免费额度）。
+//
+// 托管 MCP 排在前面是因为它会渲染：供应商 fetch API 对客户端渲染页面只返回应用外壳
+// （实测 TinyFish 对 open.spotify.com 返回 56 字符的 “Something went wrong” 空壳），
+// 而 tryRemote 取第一个非空结果就返回，排后面等于把渲染能力挡在门外。托管 MCP 不可用
+// 或被限流时，仍会级联到供应商 fetch API。均未启用时返回 nil，走本地。
 func remoteFetchChain() []mcpHubFetcher {
 	chain := make([]mcpHubFetcher, 0, len(providerFetchers)+1)
-	chain = append(chain, providerFetchers...)
 	if mcpHubFetchInst != nil {
 		chain = append(chain, mcpHubFetchInst)
 	}
+	chain = append(chain, providerFetchers...)
 	if len(chain) == 0 {
 		return nil
 	}

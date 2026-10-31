@@ -63,29 +63,54 @@ func TestFetchPageWithFallback(t *testing.T) {
 }
 
 func TestFetchPageWithFallbackChainOrder(t *testing.T) {
-	// 远端链顺序：供应商 fetch API → mcphub；前者成功则后者不消耗调用。
+	// 远端链顺序：mcphub 托管 MCP（会渲染）→ 供应商 fetch API；前者成功则后者不消耗调用。
 	localErr := func(context.Context, string) (string, error) { return "", errors.New("local failed") }
 	providerOK := &fakeHubFetcher{text: "provider"}
 	hubOK := &fakeHubFetcher{text: "hub"}
 
 	got, err := fetchPageWithFallback(context.Background(), "https://example.com",
-		config.MCPHubFetchPrefer, []mcpHubFetcher{providerOK, hubOK}, localErr)
-	if err != nil || got != "provider" {
-		t.Fatalf("got %q err %v, want provider", got, err)
-	}
-	if providerOK.calls != 1 || hubOK.calls != 0 {
-		t.Fatalf("provider calls=%d hub calls=%d, want 1/0", providerOK.calls, hubOK.calls)
-	}
-
-	// 供应商失败 → 级联到 mcphub，不再走本地。
-	providerErr := &fakeHubFetcher{err: errors.New("quota exhausted")}
-	got, err = fetchPageWithFallback(context.Background(), "https://example.com",
-		config.MCPHubFetchPrefer, []mcpHubFetcher{providerErr, hubOK}, localErr)
+		config.MCPHubFetchPrefer, []mcpHubFetcher{hubOK, providerOK}, localErr)
 	if err != nil || got != "hub" {
 		t.Fatalf("got %q err %v, want hub", got, err)
 	}
-	if providerErr.calls != 1 || hubOK.calls != 1 {
-		t.Fatalf("provider calls=%d hub calls=%d, want 1/1", providerErr.calls, hubOK.calls)
+	if hubOK.calls != 1 || providerOK.calls != 0 {
+		t.Fatalf("hub calls=%d provider calls=%d, want 1/0", hubOK.calls, providerOK.calls)
+	}
+
+	// 托管 MCP 失败 → 级联到供应商 fetch API，不再走本地。
+	hubErr := &fakeHubFetcher{err: errors.New("quota exhausted")}
+	got, err = fetchPageWithFallback(context.Background(), "https://example.com",
+		config.MCPHubFetchPrefer, []mcpHubFetcher{hubErr, providerOK}, localErr)
+	if err != nil || got != "provider" {
+		t.Fatalf("got %q err %v, want provider", got, err)
+	}
+	if hubErr.calls != 1 || providerOK.calls != 1 {
+		t.Fatalf("hub calls=%d provider calls=%d, want 1/1", hubErr.calls, providerOK.calls)
+	}
+}
+
+// TestRemoteFetchChainOrder 锁住远端抓取链的拼装顺序：托管 MCP 在供应商 fetch API 之前。
+func TestRemoteFetchChainOrder(t *testing.T) {
+	prevHub, prevProviders := mcpHubFetchInst, providerFetchers
+	t.Cleanup(func() { mcpHubFetchInst, providerFetchers = prevHub, prevProviders })
+
+	hub := &fakeHubFetcher{text: "hub"}
+	prov := &fakeHubFetcher{text: "provider"}
+	mcpHubFetchInst, providerFetchers = hub, []mcpHubFetcher{prov}
+
+	chain := remoteFetchChain()
+	if len(chain) != 2 || chain[0] != mcpHubFetcher(hub) || chain[1] != mcpHubFetcher(prov) {
+		t.Fatalf("托管 MCP 必须排在供应商 fetch API 之前，实际 %d 项", len(chain))
+	}
+
+	mcpHubFetchInst = nil
+	if chain = remoteFetchChain(); len(chain) != 1 || chain[0] != mcpHubFetcher(prov) {
+		t.Fatalf("托管 MCP 不可用时应只剩供应商 fetch API，实际 %d 项", len(chain))
+	}
+
+	providerFetchers = nil
+	if chain = remoteFetchChain(); chain != nil {
+		t.Fatalf("两条链都不可用时应返回 nil，实际 %d 项", len(chain))
 	}
 }
 

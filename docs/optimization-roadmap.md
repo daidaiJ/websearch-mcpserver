@@ -18,8 +18,8 @@
   免费额度：搜索 12000 次/天（30 req/min）、fetch 1000 URL/天（150 URL/min，按成功 URL 计数），00:00 UTC 重置；仅 Key 档无匿名档。`pkg/search/provider/tinyfish.go`：GET `api.search.tinyfish.ai`（X-API-Key）+ POST `api.fetch.tinyfish.ai`；接入 apipool/hybrid 供应商池与 source switch（`tinyfish.enabled`）；fetch 能力接入 cleanfetch 远端抓取链。国内直连实测 200（1.8s），无需代理。
 - [x] **N2. Keenable Search/Fetch REST provider（拍板并落地，测试 Key 实测通过）**
   免费 10 req/s；keyed 端点 + public 免 Key 端点（X-Keenable-Title，按 IP 限流不耗 credits，anysearch 匿名档同模式）。POST `api.keenable.ai/v1/search`（`mode: pro`、`max_results` 1-50）+ GET `/v1/fetch`（仅索引页，`live=true` 实抓）；接入供应商池、source switch（`keenable.enabled`）与 cleanfetch 远端抓取链；public 档默认不自动参与 hybrid（`PublicTierOptedIn`）。国内直连实测 200（3.0s）。
-- [x] **N3. cleanfetch 远端抓取链扩展：供应商 fetch API 优先（拍板并落地）**
-  `fetch_mode` 非 off 时远端链按「供应商 fetch API（TinyFish/Keenable，优先消耗按 URL 计数的免费额度）→ mcphub 托管 MCP → 本地 webfetch/Jina」顺序级联；`fetchPageWithFallback` 改链式逐级失败切换。
+- [x] **N3. cleanfetch 远端抓取链扩展（拍板并落地；v3.10.3 顺序反转）**
+  `fetch_mode` 非 off 时远端链按「mcphub 托管 MCP（会渲染 JS）→ 供应商 fetch API（TinyFish/Keenable）→ 本地 webfetch/Jina」顺序级联；`fetchPageWithFallback` 改链式逐级失败切换。初版把供应商 fetch API 排在前面（理由：优先消耗按 URL 计数的免费额度），实测其对客户端渲染页面只返回应用外壳（TinyFish 对 open.spotify.com 返回 56 字符空壳），而 `tryRemote` 取第一个非空结果即返回，等于把渲染能力挡在门外，故反转。
 - [x] **N4. `search_history` FTS5 查询史工具（拍板并落地）**：`pkg/history` SQLite FTS5 虚表 + 触发器同步；独立保留期默认 30 天可配，每小时后台清理；MCP 只读工具 `search_history`（query/limit/offset）；**独立配置开关** `search_history.enabled` 默认关闭（不建库、不注册工具）；隐私红线：只存 query 与结果快照，不含密钥、不出网。
 - [x] **N5. 输出契约测试（拍板并落地）**：`pkg/search/core/contract_test.go` 固化字段顺序、「空结果≠合法输入隐藏该行」、易变字段集中在 ProvenanceHeader；不改 ProvenanceHeader 置顶设计。
 - [x] **N6. quota 多供应商额度感知（拍板并落地，2026-10-24 真机实测）**：仅接入有官方用量端点的供应商——TinyFish 接入 `pkg/quota`：官方 `GET api.search.tinyfish.ai/usage` 与 `api.fetch.tinyfish.ai/usage`（X-API-Key），`limit=1 + start_after=当日 00:00 UTC` 直读响应 `total`（真机实测 total 随过滤条件返回，无需翻页聚合），免费档上限按官方文档取值（搜索 12000/天、fetch 1000/天）；搜索主指标不受 fetch 查询失败影响，官方查询整体失败回退本地用量。智谱/Keenable 无公开用量端点不探测。
