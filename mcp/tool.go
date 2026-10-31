@@ -84,7 +84,8 @@ var (
 	// （HTML 是 JS 渲染抓不到），与 GitHub 引擎共用 conf.GitHub 的 token 提额。
 	siteFetchGitHub *sitefetch.GitHubFetcher
 	// providerFetchers 供应商自带 fetch API 的远端抓取链（TinyFish/Keenable 等），
-	// 排在 mcphub 托管 MCP 之前：优先消耗供应商按 URL 计数的免费 fetch 额度。
+	// 排在 mcphub 托管 MCP 之后：托管 MCP 会渲染 JS 页面，供应商 fetch API 只做
+	// 纯 HTTP 抓取，先者的正文质量更高；托管 MCP 不可用/被限流时再级联到它们。
 	providerFetchers     []mcpHubFetcher
 	historyInst          *history.Store
 	academicSearcher     search.AcademicSearcher
