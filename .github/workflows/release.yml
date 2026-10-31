@@ -293,7 +293,21 @@ jobs:
           fi
 
           echo "::notice::$SERVER@$VERSION already exists in the registry; treating the duplicate as a no-op and re-asserting active status"
-          ./mcp-publisher status --status active "$SERVER" "$VERSION"
+          # 版本已经是 active 时，registry 会拒绝「状态无变化」的变更请求
+          # （400 No changes to apply），这属于幂等成功，不能当作失败中断；
+          # 只有其它错误才让 job 失败。
+          set +e
+          status_out=$(./mcp-publisher status --status active "$SERVER" "$VERSION" 2>&1)
+          status_rc=$?
+          set -e
+          printf '%s\n' "$status_out"
+          if [ $status_rc -ne 0 ]; then
+            if printf '%s' "$status_out" | grep -q "No changes to apply"; then
+              echo "::notice::$SERVER@$VERSION is already active; no status change needed"
+            else
+              exit $status_rc
+            fi
+          fi
 
           # 比对 registry 现存哈希与本次打包产物的哈希（只警告，不阻断）
           reg=$(curl -s "https://registry.modelcontextprotocol.io/v0.1/servers/$(printf '%s' "$SERVER" | sed 's|/|%2F|')/versions/$VERSION")
