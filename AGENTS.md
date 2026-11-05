@@ -164,7 +164,7 @@ docker build -t websearch-mcpserver .
 2. **新增配置项时**，同步更新 `pkg/config/config.go`、两个 `config.example.yaml`，以及 `docs/configuration.md` / `docs/configuration.en.md`（搜索/工具参数还要改 `docs/search.md`、`docs/api.md`、README）
 3. **涉及反检测/限流**，修改应在 `pkg/antirobot/` 层进行，不要在各引擎包中重复实现
 4. **学术搜索与通用搜索是独立模块**，学术引擎在 `pkg/academic/`，通用引擎在 `pkg/engine/baidu/` `pkg/engine/bing/` 等，不要混淆
-5. **发布矩阵拆分，不要合成一套 6 平台**：GitHub Release = linux/windows amd64 + darwin amd64/arm64；GHCR = linux/amd64+arm64；MCP Registry mcpb 走 `vX.Y.Z-registry` tag 的**独立 Release 页**（`--expect-packages 4`，server.json 下载链接指向该页，base Release 只放二进制，两类产物分开）。**先打普通 tag（`vX.Y.Z`）发 Release 并推 GHCR 镜像**；**发完、Release 产物就绪后再单独打 `-registry` 后缀 tag 发 MCP Registry**（不推镜像，不要和版本 tag 一起推）。后补的 `vX.Y.Z-registry` 钉同一 commit（重跑工作流时需钉到含新 workflow 的 commit——打包原料从 base Release 下载，不重编译）。linux-arm64 走 GHCR，不要把 linux-arm64 / windows-arm64 加回 Release 来对齐 Docker 或旧版 v3.1.1 MCP
+5. **发布矩阵拆分，不要合成一套 6 平台**：GitHub Release = linux/windows amd64 + darwin amd64/arm64；GHCR = linux/amd64+arm64；MCP Registry mcpb 走 `vX.Y.Z-registry` tag 的**独立 Release 页**（`--expect-packages 4`，server.json 下载链接指向该页，base Release 只放裸二进制与每平台整包（含 `skills/`），不放 mcpb，两类产物分开）。**先打普通 tag（`vX.Y.Z`）发 Release 并推 GHCR 镜像**；**发完、Release 产物就绪后再单独打 `-registry` 后缀 tag 发 MCP Registry**（不推镜像，不要和版本 tag 一起推）。后补的 `vX.Y.Z-registry` 钉同一 commit（重跑工作流时需钉到含新 workflow 的 commit——打包原料从 base Release 下载，不重编译）。linux-arm64 走 GHCR，不要把 linux-arm64 / windows-arm64 加回 Release 来对齐 Docker 或旧版 v3.1.1 MCP
 6. **README 顶部配图有渲染源**：`docs/images/src/`（HTML + Playwright 脚本，`python docs/images/src/render.py` 直接覆写 `docs/images/*.png`），改图改 HTML、不要手工编辑 PNG；源与用法见 `docs/images/src/README.md`
 
 ---
@@ -195,6 +195,14 @@ docker build -t websearch-mcpserver .
 ## 🔄 Handoff 摘要
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
+
+### 发布整包（含 Skill）+ log_level 生效 / 并发失败留痕 + SQLite 连接池上限 — done（2026-11-05，随 v3.10.4 发布；本次未发 MCP Registry）
+
+- **当前状态：** 三项随 `v3.10.4` 交付（base Release 含 4 平台整包 + GHCR 镜像）；按用户要求本次**不打 `-registry` tag**，MCP Registry 停在 `3.10.3`
+- **实现要点：** ① `release.yml` 的 release job 新增 `Package platform archives`：用 checkout 到的源码把 dist 里的裸二进制打成本平台整包（Windows `zip -9`、Linux/macOS `tar -czf` gzip -9，tar 带 `--sort=name --owner=0 --group=0 --numeric-owner`），包内为 `websearch-mcpserver-<平台>/`（两个二进制 + 两个 config 样例 + LICENSE + 中英 README + `skills/`）；中间目录 `pkg/` 落在 `dist/` 之外，避免被 `gh release create dist/websearch-mcpserver-*` 通配带进 Release；既有校验和步骤的通配顺带覆盖整包。② `publish-registry` 的 base 下载通配 `websearch-mcpserver-*` 现在也会命中整包与 `.sha256`，加 `find dist -maxdepth 1 -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.sha256' \) -delete` 只留裸二进制封 `.mcpb`。③ `pkg/log.SetLoggerLevel` 改为 `*defaultlog = defaultlog.Level(level)`（原实现丢弃返回值，级别一直停在 trace，`log_level: error` 也照打 info/debug 与每次搜索的响应 dump），改用 `zerolog.ParseLevel` 支持文档承诺的 debug/info/warn/error，空串（ParseLevel 返回 NoLevel = 全静音）与未知值回落 info。④ `/searxng/search` 失败分支补 `log.searxng.search_failed`（原来只回 500 不写日志），`doWebSearch` 的 defer 补 `log.mcp.smartsearch_failed`。⑤ 连接池上限默认调低并配置化：`cache.max_open_conns` 2（原 4）、`search_history.max_open_conns` 1（原 2）、`dashboard.max_open_conns` 1，0/负值取包内默认、硬顶 32；新增 `cache.NewWithMaxOpenConns` / `history.NewWithMaxOpenConns` / `telemetry.OpenWithMaxOpenConns`（旧构造器保留，既有测试零改动）
+- **验收：** `go build ./...`、`go vet ./...` 干净；`go test -short -count=1 ./...` 与 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` 复跑全绿；`go test ./pkg/i18n/`（新增 2 条 log key）绿；本次改动的 Go 文件在 LF 化副本上 `gofmt -l` 干净；整包步骤用假 dist 树本地干跑（4 平台产物名、包内清单、tar owner/mtime 均核对），`actionlint@v1.7.12` 0 findings；`SetLoggerLevel` 回归测试在改回旧实现时确认失败（级别停在 trace）
+- **开口项：** 上游限流导致的并发失败本身未治理（本次只补日志可见性，入口侧并发上限待评估）；`cache.ConnMaxIdleTime`/`MaxIdleConns` 未调（空闲连接的页缓存仍常驻）
+- **详情指针：** 本批无独立 `.handoff/` 文件（改动集中在 CI 与三处小修）
 
 ### 本机环境收口（部署 v3.10.2 + grok 子代理模型）— done（2026-10-25）
 
@@ -263,3 +271,5 @@ docker build -t websearch-mcpserver .
 - [ ] i18n 控制中心真实浏览器走查：166 个 `data-i18n` 标记、`applyI18n` 与 `t()` 渲染在真实页面上的观感与交互（本批只有标记解析校验 + 运行时单测 + 服务端注入冒烟，无浏览器工具）
 - [ ] i18n 工具返回内容的真机走查：在 `language: en` 下跑一遍 smartsearch / cleanfetch / pdf_parser / file_search / search_history，确认工具输出里无残留中文（本批只有渲染探针 + 目录审计 + 全量单测；本机部署 `v3.10.2` 默认 `auto` → zh，只在控制中心端点验过 `Accept-Language: en`）
 - [ ] 新引擎/新工具真实链路长期回归：验证码页频率、anysearch 匿名档阈值、googlenews 回源失败率、search_history 写入与 FTS 命中率
+- [ ] v3.10.4 整包真机走查：从 Release 下载对应平台压缩包、解压、按包内 README 启动、把 `skills/websearch-mcp` 装进宿主 Skill 目录（本批只有本地干跑 + 内容清单核对，CI 侧未见真实运行结果）
+- [ ] `log_level` 与失败留痕真机复验：`log_level: error` 下确认无 info/debug 落盘、并发失败时 `search_failed` / `smartsearch_failed` 有行（本批只有单测与旧实现对照）

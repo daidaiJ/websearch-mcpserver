@@ -2,6 +2,18 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.10.4 — 2026-11-05 (Platform archives, log-level and concurrent-failure observability, SQLite pool caps)
+
+### Added
+
+- **One release archive per platform (skills included)**: alongside the bare binaries the Release now ships four archives — `.zip` on Windows, `.tar.gz` on Linux/macOS — containing both `websearch-mcpserver` and `websearch-mcp-cli`, `config.example.yaml` / `dashboard.example.yaml`, LICENSE, both READMEs and `skills/` (`websearch-mcp` + `everything-http-server`). Each archive carries its own `.sha256`, and the bare binaries stay published for single-file downloads. Packing uses gzip -9 / zip -9 on the plain Go build output (no UPX or other packers): measured on the server binary, gzip -9 takes 26.8 MiB down to 10.6 MiB (−61%)
+- **Configurable SQLite pool caps**: new `cache.max_open_conns` (default 2, was 4), `search_history.max_open_conns` (default 1, was 2) and `dashboard.max_open_conns` (default 1, unchanged). Zero/negative values fall back to each package default; the hard ceiling is 32. Every connection keeps its own page cache (SQLite default 2 MB), so lowering the defaults lowers resident memory; raise them if you need more concurrency
+
+### Fixed
+
+- **`log_level` never took effect**: `SetLoggerLevel` in `pkg/log` discarded the value returned by `zerolog.Logger.Level()` (that method returns a copy and leaves the original untouched), so the level stayed at trace — `log_level: error` still emitted info/debug lines, and every `/searxng/search` wrote the whole response JSON to the log as a debug line. It now writes the level back to the package logger and honours debug/info/warn/error as documented (case-insensitive); an unset (empty) or unknown value falls back to info instead of risking silence
+- **Concurrent search failures were invisible in the log**: the failure branch of `/searxng/search` returned HTTP 500 without logging anything, so the mass failures under upstream rate limiting could only be diagnosed by reproducing them. Failures now leave a `search_failed` line (with the query and the error), and the `smartsearch` tool boundary logs `smartsearch_failed` as well. The upstream throttling itself still needs entry-side concurrency control; this release only adds the missing observability
+
 ## v3.10.3 — 2026-10-31 (Hosted MCP fetching: keyless endpoints actually take part in fetch)
 
 > Making hosted MCP fetching a real optimization source for cleanfetch: `f835d60` (upstream response-header fallback timeout raised to 60s), `f935776` (proxy demoted from admission requirement to reachability optimization), `4886046` (remote fetch chain prefers hosted MCP), `e335777` / `0315e06` (search / configuration / roadmap docs and config samples synced).

@@ -2,6 +2,18 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## v3.10.4 — 2026-11-05（发布整包、日志级别与并发失败可观测性、SQLite 连接池上限）
+
+### 新增
+
+- **每平台发布整包（含 Skill）**：Release 除裸二进制外新增四个平台压缩包——Windows 用 `.zip`、Linux/macOS 用 `.tar.gz`，解压即得 `websearch-mcpserver` 与 `websearch-mcp-cli` 两个二进制、`config.example.yaml` / `dashboard.example.yaml`、LICENSE、中英 README 与 `skills/`（`websearch-mcp` + `everything-http-server`）。整包同样附 `.sha256`；裸二进制继续单独发布，要单文件仍可直接取。压缩走 gzip -9 / zip -9（Go 直出二进制，未做 UPX 等加壳），实测服务端单二进制 gzip -9 由 26.8 MiB 压到 10.6 MiB（−61%）
+- **SQLite 连接池上限可配置**：新增 `cache.max_open_conns`（默认 2，原 4）、`search_history.max_open_conns`（默认 1，原 2）、`dashboard.max_open_conns`（默认 1，原 1）；0/负值取各自默认，上限 32。每条连接自带一份页缓存（SQLite 默认 2 MB），调低默认即压低常驻内存；需要更高并发可自行调回
+
+### 修复
+
+- **`log_level` 一直不生效**：`pkg/log` 的 `SetLoggerLevel` 丢弃了 `zerolog.Logger.Level()` 的返回值（该方法返回副本、不修改原 logger），级别始终停在 trace——配 `log_level: error` 仍会输出 info/debug，且每次 `/searxng/search` 都把整份响应 JSON 当 debug 落盘。改为写回包级 logger，并按文档承诺支持 debug/info/warn/error（大小写不敏感）；未配置（空串）与未知值回落 info，不再有静默风险
+- **并发搜索失败在日志里不可见**：`/searxng/search` 的失败分支只回 HTTP 500 不写日志，并发限流下成片失败只能靠复现定位；现在失败留一行 `search_failed`（含 query 与错误原因），`smartsearch` 工具边界的失败同样补一行 `smartsearch_failed`。上游限流本身仍需靠入口侧并发控制缓解，本次只补可观测性
+
 ## v3.10.3 — 2026-10-31（托管 MCP 抓取：免 Key 端点真正参与 fetch）
 
 > 让托管 MCP 抓取真正成为 cleanfetch 的优化来源：`f835d60`（上游响应头兜底超时放宽到 60s）、`f935776`（代理由准入条件改为可达性优化）、`4886046`（远端抓取链托管 MCP 优先）、`e335777` / `0315e06`（search / configuration / roadmap 文档与配置样例同步）。
