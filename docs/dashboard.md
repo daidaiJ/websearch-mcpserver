@@ -76,6 +76,7 @@ dashboard:
   shortcut: desktop             # 快捷方式落位（Windows）：desktop / start / both / off
   storage_path: "./data/dashboard.db"      # 遥测 SQLite 数据库
   retention_days: 30            # 调用明细保留天数；每日汇总长期保留
+  max_open_conns: 1             # 遥测库 SQLite 连接池上限（默认 1，上限 32）
   secrets_path: "./data/dashboard-secrets.json"  # API Key 私密覆盖文件（接口永不回显）
   config_path: ""               # dashboard.yaml 自身路径；空 = 主配置同目录
 
@@ -127,6 +128,7 @@ dashboard:
 | `shortcut` | string | `desktop` | 快捷方式落位，详见下节 |
 | `storage_path` | path | `./data/dashboard.db` | 遥测库；相对主配置目录 |
 | `retention_days` | int | `30` | 明细滚动清理周期（每 6 小时执行）；日聚合不受影响 |
+| `max_open_conns` | int | `1` | 遥测库 SQLite 连接池上限；0/负值取默认，上限 32。每连接自带一份页缓存（SQLite 默认 2 MB） |
 | `client_projects` | map<string,string> | `{}` | 精确客户端名到项目简称的显式映射；仅用于缺少项目头时的统计归属 |
 | `secrets_path` | path | `./data/dashboard-secrets.json` | WebUI 写入的 Key 存这里，接口只返回「已配置」状态 |
 | `config_path` | path | 空 | dashboard.yaml 的自定义位置（也可用环境变量） |

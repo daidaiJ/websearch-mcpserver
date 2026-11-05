@@ -76,6 +76,7 @@ dashboard:
   shortcut: desktop             # shortcut placement (Windows): desktop / start / both / off
   storage_path: "./data/dashboard.db"      # telemetry SQLite database
   retention_days: 30            # call-detail retention; daily aggregates kept long-term
+  max_open_conns: 1             # telemetry SQLite pool cap (default 1, hard ceiling 32)
   secrets_path: "./data/dashboard-secrets.json"  # private key overlay (never echoed)
   config_path: ""               # path of dashboard.yaml itself; empty = next to config.yaml
 
@@ -128,6 +129,7 @@ dashboard:
 | `shortcut` | string | `desktop` | Shortcut placement, see below |
 | `storage_path` | path | `./data/dashboard.db` | Telemetry DB; relative to the config directory |
 | `retention_days` | int | `30` | Detail retention (cleanup runs every 6h); daily aggregates unaffected |
+| `max_open_conns` | int | `1` | Telemetry SQLite pool cap; 0/negative uses the default, hard ceiling 32. Each connection keeps its own page cache (SQLite default 2 MB) |
 | `client_projects` | map<string,string> | `{}` | Explicit exact-client-name to project-label mapping for calls without a project header |
 | `secrets_path` | path | `./data/dashboard-secrets.json` | Keys written via the WebUI live here; APIs only expose configured/not |
 | `config_path` | path | empty | Custom location of dashboard.yaml (env var also works) |
