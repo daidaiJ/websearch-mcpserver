@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+
+	"github.com/rs/zerolog"
 
 	"websearch/pkg/config"
 )
@@ -88,4 +91,52 @@ func TestSetLoggerLevel_NilSafe(t *testing.T) {
 	defaultlog = nil
 	SetLoggerLevel("debug")
 	InfoT("log.test.no_panic")
+}
+
+// TestSetLoggerLevel_FiltersOutput 级别必须真的生效：zerolog 的 Level() 返回副本，
+// 丢弃返回值会让进程一直按 debug 输出（含每次搜索的响应 dump）。
+func TestSetLoggerLevel_FiltersOutput(t *testing.T) {
+	var buf bytes.Buffer
+	NewLoggerTo(&buf, "", config.LogConfig{})
+	t.Cleanup(func() { defaultlog = nil })
+
+	SetLoggerLevel("error")
+	if got := defaultlog.GetLevel(); got != zerolog.ErrorLevel {
+		t.Fatalf("log_level=error 后 level = %v, want %v", got, zerolog.ErrorLevel)
+	}
+	InfoT("log.test.level_info_filtered")
+	DebugT("log.test.level_debug_filtered")
+	ErrorT("log.test.level_error_kept")
+
+	out := buf.String()
+	if strings.Contains(out, "log.test.level_info_filtered") || strings.Contains(out, "log.test.level_debug_filtered") {
+		t.Fatalf("info/debug 未被 error 级别过滤: %s", out)
+	}
+	if !strings.Contains(out, "log.test.level_error_kept") {
+		t.Fatalf("error 行被误过滤: %s", out)
+	}
+}
+
+// TestSetLoggerLevel_ParsesDocumentedLevels 配置文档承诺 debug/info/warn/error 四档，
+// 且未配置（空串）必须落到 info —— ParseLevel("") 返回 NoLevel，等于全静音。
+func TestSetLoggerLevel_ParsesDocumentedLevels(t *testing.T) {
+	for lv, want := range map[string]zerolog.Level{
+		"debug":   zerolog.DebugLevel,
+		"DEBUG":   zerolog.DebugLevel,
+		"info":    zerolog.InfoLevel,
+		"warn":    zerolog.WarnLevel,
+		"WARN":    zerolog.WarnLevel,
+		"error":   zerolog.ErrorLevel,
+		"":        zerolog.InfoLevel, // 未配置 = info，不能静音
+		"verbose": zerolog.InfoLevel, // 未知值回落 info
+	} {
+		t.Run(lv, func(t *testing.T) {
+			NewLoggerTo(io.Discard, "", config.LogConfig{})
+			t.Cleanup(func() { defaultlog = nil })
+			SetLoggerLevel(lv)
+			if got := defaultlog.GetLevel(); got != want {
+				t.Fatalf("log_level=%q → %v, want %v", lv, got, want)
+			}
+		})
+	}
 }

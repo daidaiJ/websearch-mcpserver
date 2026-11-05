@@ -58,6 +58,11 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		ctx = telemetry.WithRequestID(ctx, requestID)
 	}
 	defer func() {
+		// 失败留痕：并发下上游限流会让 smartsearch 成片失败，此前只有遥测
+		// （控制台可见）而日志里查不到，排障只能靠复现。
+		if err != nil {
+			log.ErrorT("log.mcp.smartsearch_failed", "query", query, "engine", engineName, "err", err)
+		}
 		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "smartsearch", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 12)})
 		if !cacheHit && engineName != "" && engineName != "hybrid" && engineName != "apipool" {
 			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: resultCount, Error: err, RequestID: requestID})

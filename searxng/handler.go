@@ -2,7 +2,6 @@ package searxng
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	mcpserver "websearch/mcp"
@@ -40,7 +39,9 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 		ret, err = defaultInf.SearchRaw(query)
 	}
 	if err != nil {
-		responseError(w, 5001, fmt.Sprintf("%s", err.Error()))
+		// 失败必须留痕：此前只回 500 不写日志，并发限流下的失败在日志里完全不可见。
+		log.ErrorT("log.searxng.search_failed", "query", query, "err", err)
+		responseError(w, 5001, err.Error())
 		return
 	}
 	log.InfoT("log.searxng.search_success", "query", query)

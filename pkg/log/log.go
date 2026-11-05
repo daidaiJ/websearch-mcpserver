@@ -72,18 +72,21 @@ func CloseFile() error {
 	return err
 }
 
+// SetLoggerLevel 按 log_level 调整包级 logger 的级别；无法识别的值回落到 info。
+// zerolog 的 Level() 返回带级别过滤器的副本（不修改原 logger），必须写回
+// defaultlog 才生效；NewLogger/NewLoggerTo 已把同一个指针交给调用方，写回对
+// 所有持有者一致。
 func SetLoggerLevel(lv string) {
 	if defaultlog == nil {
 		return
 	}
-	level := zerolog.InfoLevel
-	switch lv {
-	case "DEBUG", "debug":
-		level = zerolog.DebugLevel
-	default:
-
+	level, err := zerolog.ParseLevel(lv)
+	// 空串会被 ParseLevel 解析成 NoLevel（= 高于 panic，等于全静音），
+	// 未配置 log_level 的零值必须落到 info 而不是把日志关掉。
+	if err != nil || level == zerolog.NoLevel {
+		level = zerolog.InfoLevel
 	}
-	defaultlog.Level(level)
+	*defaultlog = defaultlog.Level(level)
 }
 
 // 日志文案走 pkg/i18n 的符号化 key：文案住在 pkg/i18n/locales/log.<语言>.json，
