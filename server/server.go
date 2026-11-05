@@ -180,7 +180,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	var metrics *telemetry.Store
 	if conf.Dashboard.Enabled {
 		var err error
-		metrics, err = telemetry.Open(conf.GetDashboardStoragePath(), conf.Dashboard.RetentionDays)
+		metrics, err = telemetry.OpenWithMaxOpenConns(conf.GetDashboardStoragePath(), conf.Dashboard.RetentionDays, conf.Dashboard.GetMaxOpenConns())
 		if err != nil {
 			return fmt.Errorf("initialize dashboard telemetry: %w", err)
 		}

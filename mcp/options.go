@@ -71,7 +71,7 @@ func applySearchHistory(conf config.Config) {
 	if retentionDays <= 0 {
 		retentionDays = history.DefaultRetentionDays
 	}
-	h, err := history.New(conf.GetSearchHistoryStoragePath(), retentionDays)
+	h, err := history.NewWithMaxOpenConns(conf.GetSearchHistoryStoragePath(), retentionDays, conf.SearchHistory.GetMaxOpenConns())
 	if err != nil {
 		log.ErrorT("log.mcp.search_history_initialization_failed_search_history", "err", err)
 		return
@@ -124,7 +124,7 @@ func applyCache(conf config.Config) {
 	if err != nil {
 		panic(fmt.Sprintf("缓存命名空间初始化失败: %v", err))
 	}
-	c, err := cache.New(conf.GetCacheStoragePath())
+	c, err := cache.NewWithMaxOpenConns(conf.GetCacheStoragePath(), conf.Cache.GetMaxOpenConns())
 	if err != nil {
 		panic(fmt.Sprintf("缓存初始化失败: %v", err))
 	}

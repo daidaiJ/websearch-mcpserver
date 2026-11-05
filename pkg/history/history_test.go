@@ -161,3 +161,26 @@ func TestNilStoreSafe(t *testing.T) {
 	}
 	s.Close() // nil 接收者不得 panic
 }
+
+// TestNewWithMaxOpenConns 连接池上限按参数生效，0/负值取包内默认。
+func TestNewWithMaxOpenConns(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   int
+		want int
+	}{
+		{"explicit", 2, 2},
+		{"zero_falls_back_to_default", 0, DefaultMaxOpenConns},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := NewWithMaxOpenConns(filepath.Join(t.TempDir(), "h", "search-history.db"), 30, tc.in)
+			if err != nil {
+				t.Fatalf("NewWithMaxOpenConns 失败: %v", err)
+			}
+			defer s.Close()
+			if got := s.db.Stats().MaxOpenConnections; got != tc.want {
+				t.Fatalf("MaxOpenConnections = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}

@@ -17,6 +17,11 @@ import (
 // DefaultTTL 缓存记录默认存活时长（写入时未指定 TTL 时的安全默认）。
 const DefaultTTL = 6 * time.Hour
 
+// DefaultMaxOpenConns 缓存库连接池默认上限。
+// WAL 下读并发、写由 SQLite 锁串行化，2 条足够让读写重叠；每个连接自带一份
+// 页缓存（SQLite 默认 2 MB），上限越大常驻内存越高。可用 cache.max_open_conns 调整。
+const DefaultMaxOpenConns = 2
+
 // TTLForFreshness 按 freshness 档位返回缓存 TTL：
 // day → 1h、week → 6h（默认）、month → 24h，未指定/其它取默认。
 // 时效敏感查询（day）命中陈旧缓存会给出错误时效，故分桶收紧。
@@ -51,8 +56,16 @@ type Cache struct {
 	generation *int64
 }
 
-// New 创建缓存实例，自动建表
+// New 创建缓存实例，自动建表（连接池上限取 DefaultMaxOpenConns）。
 func New(storagePath string) (*Cache, error) {
+	return NewWithMaxOpenConns(storagePath, DefaultMaxOpenConns)
+}
+
+// NewWithMaxOpenConns 同 New，但显式指定连接池上限（<=0 取 DefaultMaxOpenConns）。
+func NewWithMaxOpenConns(storagePath string, maxOpenConns int) (*Cache, error) {
+	if maxOpenConns <= 0 {
+		maxOpenConns = DefaultMaxOpenConns
+	}
 	dir := filepath.Dir(storagePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("创建缓存目录失败: %w", err)
@@ -65,7 +78,7 @@ func New(storagePath string) (*Cache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("打开 SQLite 失败: %w", err)
 	}
-	db.SetMaxOpenConns(4) // WAL 支持多读单写；写事务本身由 SQLite 锁串行化
+	db.SetMaxOpenConns(maxOpenConns) // WAL 支持多读单写；写事务本身由 SQLite 锁串行化
 
 	// 先建表（首次运行时表不存在）
 	_, err = db.Exec(`

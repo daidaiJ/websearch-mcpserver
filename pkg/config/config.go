@@ -718,6 +718,30 @@ type CacheConfig struct {
 	Enabled         *bool  `mapstructure:"enabled"`          // 缓存总开关（默认 nil = 关闭；显式 true 启用并按 storage_path 或默认路径建库）
 	StoragePath     string `mapstructure:"storage_path"`     // SQLite 数据库文件存储路径（空 = exe 同目录 cache/websearch-cache.db）
 	CleanupInterval int    `mapstructure:"cleanup_interval"` // 清理间隔（分钟），默认30分钟，最大360分钟
+	// MaxOpenConns SQLite 连接池上限，默认 2；<=0 取默认，超过 32 按 32 处理。
+	// 每条连接自带一份页缓存（SQLite 默认 2 MB），调大等于放宽常驻内存。
+	MaxOpenConns int `mapstructure:"max_open_conns"`
+}
+
+// GetMaxOpenConns 返回缓存库连接池上限（0/负值 = 用 cache 包内默认）。
+func (c CacheConfig) GetMaxOpenConns() int { return normalizeMaxOpenConns(c.MaxOpenConns) }
+
+// maxSQLiteOpenConns SQLite 连接池上限的硬顶。三个库（cache / search_history /
+// dashboard 遥测）各按需取值，这里只防误配把文件句柄与页缓存打满；
+// 正常部署远达不到，用户仍可在 1..32 内自由调整。
+const maxSQLiteOpenConns = 32
+
+// normalizeMaxOpenConns 归一化连接池上限：0/负值统一为 0（由各库按自身默认解析），
+// 超过硬顶按硬顶截断，其余原样透传。
+func normalizeMaxOpenConns(n int) int {
+	switch {
+	case n <= 0:
+		return 0
+	case n > maxSQLiteOpenConns:
+		return maxSQLiteOpenConns
+	default:
+		return n
+	}
 }
 
 // DashboardConfig controls the local-only observability dashboard. It does not
@@ -726,6 +750,9 @@ type DashboardConfig struct {
 	Enabled       bool   `mapstructure:"enabled"`
 	StoragePath   string `mapstructure:"storage_path"`
 	RetentionDays int    `mapstructure:"retention_days"`
+	// MaxOpenConns 遥测库（dashboard storage_path）连接池上限，默认 1；
+	// <=0 取默认，超过 32 按 32 处理。
+	MaxOpenConns int `mapstructure:"max_open_conns"`
 	// ClientProjects supplies explicit project labels for clients without per-request headers.
 	ClientProjects map[string]string `mapstructure:"client_projects"`
 	SecretsPath    string            `mapstructure:"secrets_path"`
@@ -923,6 +950,9 @@ func (q QuotasConfig) NextReset(now time.Time) time.Time {
 func (d DashboardConfig) AdminPasswordConfigured() bool {
 	return d.AdminPassword != "" || d.AdminPasswordSHA256 != ""
 }
+
+// GetMaxOpenConns 返回遥测库连接池上限（0/负值 = 用 telemetry 包内默认）。
+func (d DashboardConfig) GetMaxOpenConns() int { return normalizeMaxOpenConns(d.MaxOpenConns) }
 
 // GetShortcut 归一化快捷方式落位配置：desktop（默认）/ start / both / off。
 // 非法值回退 desktop（向后兼容：旧配置无该字段 = 桌面快捷方式）。
@@ -1172,7 +1202,12 @@ type SearchHistoryConfig struct {
 	Enabled       *bool  `mapstructure:"enabled"`        // 显式 true 启用并注册 search_history 工具
 	StoragePath   string `mapstructure:"storage_path"`   // 默认 exe 同目录 history/search-history.db
 	RetentionDays int    `mapstructure:"retention_days"` // 保留天数，默认 30；负值按默认处理
+	// MaxOpenConns SQLite 连接池上限，默认 1；<=0 取默认，超过 32 按 32 处理。
+	MaxOpenConns int `mapstructure:"max_open_conns"`
 }
+
+// GetMaxOpenConns 返回历史库连接池上限（0/负值 = 用 history 包内默认）。
+func (c SearchHistoryConfig) GetMaxOpenConns() int { return normalizeMaxOpenConns(c.MaxOpenConns) }
 
 // SearchHistoryEnabled 返回搜索历史总开关，默认关闭。
 func (c Config) SearchHistoryEnabled() bool {

@@ -724,3 +724,30 @@ func TestInlineMaxCharsOrDefault(t *testing.T) {
 		t.Error("负数应禁用落盘")
 	}
 }
+
+// TestSQLiteMaxOpenConns 连接池上限：0/负值原样返回（由各库按自身默认解析），
+// 超过硬顶按硬顶截断，中间值原样透传。
+func TestSQLiteMaxOpenConns(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   int
+		want int
+	}{
+		{"zero_keeps_package_default", 0, 0},
+		{"negative_keeps_package_default", -5, 0},
+		{"passthrough", 4, 4},
+		{"clamped_to_ceiling", maxSQLiteOpenConns + 100, maxSQLiteOpenConns},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (CacheConfig{MaxOpenConns: tc.in}).GetMaxOpenConns(); got != tc.want {
+				t.Errorf("cache: %d → %d, want %d", tc.in, got, tc.want)
+			}
+			if got := (SearchHistoryConfig{MaxOpenConns: tc.in}).GetMaxOpenConns(); got != tc.want {
+				t.Errorf("search_history: %d → %d, want %d", tc.in, got, tc.want)
+			}
+			if got := (DashboardConfig{MaxOpenConns: tc.in}).GetMaxOpenConns(); got != tc.want {
+				t.Errorf("dashboard: %d → %d, want %d", tc.in, got, tc.want)
+			}
+		})
+	}
+}

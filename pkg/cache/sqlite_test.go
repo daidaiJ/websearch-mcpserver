@@ -201,3 +201,27 @@ func TestNewDedupesLegacyDuplicates(t *testing.T) {
 		t.Fatal("唯一索引应拒绝重复插入")
 	}
 }
+
+// TestNewWithMaxOpenConns 连接池上限按参数生效，0/负值取包内默认（调低默认值后仍可配置放大）。
+func TestNewWithMaxOpenConns(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   int
+		want int
+	}{
+		{"explicit", 3, 3},
+		{"zero_falls_back_to_default", 0, DefaultMaxOpenConns},
+		{"negative_falls_back_to_default", -1, DefaultMaxOpenConns},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := NewWithMaxOpenConns(filepath.Join(t.TempDir(), "cache.db"), tc.in)
+			if err != nil {
+				t.Fatalf("NewWithMaxOpenConns 失败: %v", err)
+			}
+			defer c.Close()
+			if got := c.db.Stats().MaxOpenConnections; got != tc.want {
+				t.Fatalf("MaxOpenConnections = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}

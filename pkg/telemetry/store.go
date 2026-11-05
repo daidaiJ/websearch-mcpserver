@@ -155,7 +155,20 @@ type Store struct {
 	retentionDays int
 }
 
+// DefaultMaxOpenConns 遥测库连接池默认上限。
+// 事件写入串行、查询都是短聚合，1 条连接足够；每连接自带一份页缓存
+// （SQLite 默认 2 MB），可用 dashboard.max_open_conns 调整。
+const DefaultMaxOpenConns = 1
+
 func Open(path string, retentionDays int) (*Store, error) {
+	return OpenWithMaxOpenConns(path, retentionDays, DefaultMaxOpenConns)
+}
+
+// OpenWithMaxOpenConns 同 Open，但显式指定连接池上限（<=0 取 DefaultMaxOpenConns）。
+func OpenWithMaxOpenConns(path string, retentionDays, maxOpenConns int) (*Store, error) {
+	if maxOpenConns <= 0 {
+		maxOpenConns = DefaultMaxOpenConns
+	}
 	if retentionDays <= 0 {
 		retentionDays = defaultRetentionDays
 	}
@@ -166,7 +179,7 @@ func Open(path string, retentionDays int) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open telemetry database: %w", err)
 	}
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(maxOpenConns)
 	if _, err = db.Exec(`
 		PRAGMA journal_mode=WAL;
 		PRAGMA busy_timeout=5000;

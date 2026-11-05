@@ -285,6 +285,7 @@ cache:
   # enabled: true            # Unset → disabled by default (since v3.5.0); set true to enable
   # storage_path: ""         # Unset → exe sibling dir cache/websearch-cache.db
   cleanup_interval: 30      # Cleanup interval (minutes), max 360
+  max_open_conns: 2         # SQLite pool cap (default 2, hard ceiling 32); each connection keeps its own ~2 MB page cache
 
 # Search history (disabled by default; FTS5 full-text over "what you already searched")
 # When enabled, every successful smartsearch writes the query + result snapshot
@@ -294,6 +295,7 @@ cache:
 #   enabled: true             # explicit true to enable; when off no DB is created and the tool is not registered
 #   storage_path: ""          # Unset → exe sibling dir history/search-history.db
 #   retention_days: 30        # retention days, default 30; expired rows are cleaned hourly
+#   max_open_conns: 1         # SQLite pool cap (default 1, hard ceiling 32)
 
 # Local control center (off by default; passive real-call telemetry only, no active probes,
 # raw queries/URLs are never stored). Prefer a separate dashboard.yaml next to the main config
@@ -305,6 +307,7 @@ cache:
 #   enabled: false
 #   storage_path: "./data/dashboard.db"
 #   retention_days: 30       # Detail retention; daily aggregates are retained
+#   max_open_conns: 1        # telemetry SQLite pool cap (default 1, hard ceiling 32)
 #   secrets_path: "./data/dashboard-secrets.json" # Private overlay; keys are never returned
 #   config_path: ""          # Overlay file path; empty = dashboard.yaml next to the main config
 #   admin_password: ""       # Write-operation password (plaintext); or use the SHA-256 form
@@ -685,6 +688,7 @@ dashboard:
 | `smartsearch.mmr.lambda` | 0.7 | Relevance-diversity tradeoff |
 | `cache.enabled` | false | Unset → disabled by default (since v3.5.0); set true to enable (storage_path defaults to exe sibling dir cache/websearch-cache.db) |
 | `cache.cleanup_interval` | 30 (min) | Max 360 |
+| `cache.max_open_conns` | 2 | SQLite pool cap; <=0 uses the default, hard ceiling 32. Each connection keeps its own page cache (SQLite default 2 MB) |
 | Cache expiry | 6 hours | Based on last hit time, hardcoded |
 | `log.max_size` | 1 (MB) | |
 | `log.max_age` | 1 (day) | |

@@ -282,6 +282,7 @@ cache:
   # enabled: true            # 不设置时默认关闭（v3.5.0 起）；显式 true 启用
   # storage_path: ""         # 未配置时默认 exe 同目录 cache/websearch-cache.db
   cleanup_interval: 30      # 清理间隔（分钟），最大 360
+  max_open_conns: 2         # SQLite 连接池上限（默认 2，上限 32）；每条连接自带约 2 MB 页缓存
 
 # 搜索历史（默认关闭；FTS5 全文检索「自己查过的东西」）
 # 启用后每次 smartsearch 成功自动写入 query + 结果快照（标题/URL/截断摘要，最多 20 条/次），
@@ -290,6 +291,7 @@ cache:
 #   enabled: true             # 显式 true 启用；关闭时不建库、不注册工具
 #   storage_path: ""          # 未配置时默认 exe 同目录 history/search-history.db
 #   retention_days: 30        # 保留天数，默认 30；过期行每小时自动清理
+#   max_open_conns: 1         # SQLite 连接池上限（默认 1，上限 32）
 
 # 本机控制中心（默认关闭；仅被动记录真实调用，不主动探测，不保存完整查询或 URL）
 # 推荐用独立配置文件 dashboard.yaml 管理（主配置同目录，样例见 dashboard.example.yaml）：
@@ -300,6 +302,7 @@ cache:
 #   enabled: false
 #   storage_path: "./data/dashboard.db"
 #   retention_days: 30       # 明细保留天数；每日汇总长期保留
+#   max_open_conns: 1        # 遥测库 SQLite 连接池上限（默认 1，上限 32）
 #   secrets_path: "./data/dashboard-secrets.json" # 私密覆盖文件，不回显 Key
 #   config_path: ""          # 独立配置文件路径；空 = 主配置同目录 dashboard.yaml
 #   admin_password: ""       # 写操作口令（明文）；与 admin_password_sha256 二选一
@@ -678,6 +681,7 @@ dashboard:
 | `smartsearch.mmr.lambda` | 0.7 | 相关性-多样性权衡系数 |
 | `cache.enabled` | false | 不设置时默认关闭（v3.5.0 起）；显式 true 启用（storage_path 默认 exe 同目录 cache/websearch-cache.db） |
 | `cache.cleanup_interval` | 30 (min) | 最大 360 |
+| `cache.max_open_conns` | 2 | SQLite 连接池上限；<=0 取默认，上限 32。每条连接自带一份页缓存（SQLite 默认 2 MB） |
 | 缓存过期 | 6 小时 | 基于最近命中时间，硬编码不可配置 |
 | `log.max_size` | 1 (MB) | |
 | `log.max_age` | 1 (day) | |

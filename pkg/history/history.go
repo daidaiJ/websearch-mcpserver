@@ -28,6 +28,8 @@ import (
 const (
 	// DefaultRetentionDays 历史默认保留天数。
 	DefaultRetentionDays = 30
+	// DefaultMaxOpenConns 历史库连接池默认上限（写入低频、读取按需，1 条足够）。
+	DefaultMaxOpenConns = 1
 	// maxResultsPerRecord 单条历史最多保存的结果数（快照截断，控制库体积）。
 	maxResultsPerRecord = 20
 	// maxSnippetRunes 单结果正文快照最大字符数。
@@ -55,8 +57,18 @@ type Store struct {
 	stopClean chan struct{}
 }
 
-// New 打开（并按需创建）历史库，启动保留期清理协程。
+// New 打开（并按需创建）历史库，启动保留期清理协程（连接池上限取 DefaultMaxOpenConns）。
 func New(storagePath string, retentionDays int) (*Store, error) {
+	return NewWithMaxOpenConns(storagePath, retentionDays, DefaultMaxOpenConns)
+}
+
+// NewWithMaxOpenConns 同 New，但显式指定连接池上限（<=0 取 DefaultMaxOpenConns）。
+// 写入发生在每次成功搜索之后、读取只在 search_history 工具调用时，1 条连接足够；
+// 每连接自带一份页缓存（SQLite 默认 2 MB），可用 search_history.max_open_conns 调整。
+func NewWithMaxOpenConns(storagePath string, retentionDays, maxOpenConns int) (*Store, error) {
+	if maxOpenConns <= 0 {
+		maxOpenConns = DefaultMaxOpenConns
+	}
 	if retentionDays <= 0 {
 		retentionDays = DefaultRetentionDays
 	}
@@ -70,7 +82,7 @@ func New(storagePath string, retentionDays int) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("search.history.open_failed"), err)
 	}
-	db.SetMaxOpenConns(2)
+	db.SetMaxOpenConns(maxOpenConns)
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS search_history (
 			id           INTEGER PRIMARY KEY AUTOINCREMENT,

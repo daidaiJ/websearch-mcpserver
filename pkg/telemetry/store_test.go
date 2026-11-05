@@ -384,3 +384,26 @@ func TestRawQueryIsNeverStored(t *testing.T) {
 		t.Fatal("expected irreversible query hash")
 	}
 }
+
+// TestOpenWithMaxOpenConns 连接池上限按参数生效，0/负值取包内默认。
+func TestOpenWithMaxOpenConns(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   int
+		want int
+	}{
+		{"explicit", 4, 4},
+		{"zero_falls_back_to_default", 0, DefaultMaxOpenConns},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := OpenWithMaxOpenConns(filepath.Join(t.TempDir(), "telemetry.db"), 30, tc.in)
+			if err != nil {
+				t.Fatalf("OpenWithMaxOpenConns 失败: %v", err)
+			}
+			defer func() { _ = s.Close() }()
+			if got := s.db.Stats().MaxOpenConnections; got != tc.want {
+				t.Fatalf("MaxOpenConnections = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
