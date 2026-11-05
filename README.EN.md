@@ -95,7 +95,8 @@ The full project motivation, a dimension-by-dimension comparison with existing s
 ## Quick Start
 
 ```bash
-# 1. Download a binary: https://github.com/daidaiJ/websearch-mcpserver/releases
+# 1. Download: https://github.com/daidaiJ/websearch-mcpserver/releases
+#    Prefer the platform archive (Windows .zip / Linux+macOS .tar.gz): both binaries, config samples and skills/
 # 2. Start (no hand-written config, no API keys)
 #    Windows auto-start on boot (optional)
 ./websearch-mcpserver.exe install

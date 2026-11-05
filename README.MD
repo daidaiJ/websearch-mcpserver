@@ -95,7 +95,8 @@
 ## 快速开始
 
 ```bash
-# 1. 下载二进制: https://github.com/daidaiJ/websearch-mcpserver/releases
+# 1. 下载: https://github.com/daidaiJ/websearch-mcpserver/releases
+#    推荐整包（Windows .zip / Linux+macOS .tar.gz）：含两个二进制、样例配置与 skills/
 # 2. 启动（无需手写配置，无需 API Key）
 # Windows 开机自启动 可选
 ./websearch-mcpserver.exe install

@@ -29,7 +29,33 @@
 
 ### Binary Download
 
-Download from the [Release page](https://github.com/daidaiJ/websearch-mcpserver/releases); each binary ships with a matching `.sha256` checksum.
+Download from the [Release page](https://github.com/daidaiJ/websearch-mcpserver/releases); every artifact ships with a matching `.sha256` checksum.
+
+**Platform archive (recommended)**: one archive per platform, holding both binaries, the config samples, LICENSE, the READMEs and `skills/` (the WebSearch skill plus the Everything setup guide) — no need to download file by file:
+
+| Platform | Archive |
+|----------|---------|
+| Linux x86_64 | `websearch-mcpserver-linux-amd64.tar.gz` |
+| Windows x86_64 | `websearch-mcpserver-windows-amd64.zip` |
+| macOS Intel | `websearch-mcpserver-darwin-amd64.tar.gz` |
+| macOS Apple Silicon | `websearch-mcpserver-darwin-arm64.tar.gz` |
+
+Layout inside (`<platform>` is e.g. `windows-amd64`; both binaries carry `.exe` on Windows):
+
+```
+websearch-mcpserver-<platform>/
+├── websearch-mcpserver[.exe]   # HTTP daemon (listens on /mcp after start)
+├── websearch-mcp-cli[.exe]     # stdio CLI
+├── config.example.yaml
+├── dashboard.example.yaml
+├── LICENSE
+├── README.MD / README.EN.md
+└── skills/                     # websearch-mcp + everything-http-server
+```
+
+After unpacking, run `./websearch-mcpserver[.exe] start` as in [Quick Start](../README.EN.md#quick-start); skill setup is covered under [Skill / Application/Project Attribution](#skill--applicationproject-attribution).
+
+**Single-file download** (when you only need one binary):
 
 **HTTP daemon** (`start`, then listen on `/mcp`):
 

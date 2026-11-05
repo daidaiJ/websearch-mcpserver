@@ -16,6 +16,10 @@
 #   - injects the tag name as the binary version (-X main.version=<tag>)
 #   - release notes = the annotated tag message (read via GitHub API)
 #   - attaches every binary with its own .sha256 checksum
+#   - additionally packs one archive per platform (windows .zip, linux/darwin
+#     .tar.gz) holding both binaries, the config samples, LICENSE, both
+#     READMEs and the skills/ directory; each archive gets its own .sha256.
+#     Bare binaries stay published for users who want a single file.
 #   - plain tags (v3.4.0) only build the Release here: no MCPB packaging
 #   - GHCR 镜像在独立工作流 docker.yml 中随普通 tag 推送，不与本流程互相阻塞
 #   - a follow-up tag with the "-registry" suffix (e.g. v3.4.0-registry),
@@ -138,6 +142,45 @@ jobs:
           merge-multiple: true
           pattern: websearch-*
 
+      # 每平台整包：两个二进制 + 配置样例 + LICENSE + README + skills/。
+      # Windows 出 .zip（资源管理器可直接解压），linux/darwin 出 .tar.gz（gzip -9）。
+      # 打包在 workspace 根目录做（dist/ 里的裸二进制不带源码文件），
+      # 中间目录用 pkg/ 并落在 dist/ 之外，避免被下面的 dist/* 通配带进 Release。
+      - name: Package platform archives
+        run: |
+          set -euo pipefail
+          rm -rf pkg
+          mkdir -p pkg
+          for bin in dist/websearch-mcpserver-*; do
+            [ -f "$bin" ] || continue
+            case "$bin" in
+              *.sha256|*.zip|*.tar.gz) continue ;;
+            esac
+            osarch="${bin#dist/websearch-mcpserver-}"
+            ext=""
+            case "$osarch" in
+              *.exe) ext=".exe"; osarch="${osarch%.exe}" ;;
+            esac
+            os="${osarch%-*}"
+            cli="dist/websearch-mcp-cli-${osarch}${ext}"
+            if [ ! -f "$cli" ]; then
+              echo "::error::missing $cli next to $bin"
+              exit 1
+            fi
+            stage="pkg/websearch-mcpserver-${osarch}"
+            mkdir -p "$stage"
+            cp "$bin" "$cli" config.example.yaml dashboard.example.yaml LICENSE README.MD README.EN.md "$stage/"
+            cp -R skills "$stage/skills"
+            if [ "$os" = "windows" ]; then
+              (cd pkg && zip -q -9 -r "../dist/websearch-mcpserver-${osarch}.zip" "websearch-mcpserver-${osarch}")
+            else
+              tar -cf - --sort=name --owner=0 --group=0 --numeric-owner -C pkg "websearch-mcpserver-${osarch}" \
+                | gzip -9 > "dist/websearch-mcpserver-${osarch}.tar.gz"
+            fi
+          done
+          rm -rf pkg
+          ls -l dist
+
       - name: Generate checksums
         run: |
           cd dist
@@ -197,6 +240,11 @@ jobs:
           mkdir -p dist mcpb-assets
           gh release download "$BASE_TAG" \
             --pattern "websearch-mcpserver-*" --dir dist
+
+          # base Release 的 websearch-mcpserver-* 现在同时命中每平台整包与校验和，
+          # 但只有裸平台二进制参与 .mcpb 封包，其余先剔除。
+          find dist -maxdepth 1 -type f \
+            \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.sha256' \) -delete
 
           # go install 产物在 GOPATH/bin（不在 runner PATH），且二进制名为 mcpb-tool-cli
           MCPB="$(go env GOPATH)/bin/mcpb-tool-cli"

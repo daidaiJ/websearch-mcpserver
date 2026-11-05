@@ -29,7 +29,33 @@
 
 ### 二进制下载
 
-从 [Release 页面](https://github.com/daidaiJ/websearch-mcpserver/releases) 下载，每个二进制旁附带对应 `.sha256` 校验文件。
+从 [Release 页面](https://github.com/daidaiJ/websearch-mcpserver/releases) 下载，每个产物旁附带对应 `.sha256` 校验文件。
+
+**整包（推荐）**：每个平台一个压缩包，解压即得两个二进制、样例配置、LICENSE、README 与 `skills/`（WebSearch Skill + Everything 接入指导），不必逐个下载：
+
+| 平台 | 整包 |
+|------|------|
+| Linux x86_64 | `websearch-mcpserver-linux-amd64.tar.gz` |
+| Windows x86_64 | `websearch-mcpserver-windows-amd64.zip` |
+| macOS Intel | `websearch-mcpserver-darwin-amd64.tar.gz` |
+| macOS Apple Silicon | `websearch-mcpserver-darwin-arm64.tar.gz` |
+
+包内结构（`<平台>` 形如 `windows-amd64`；Windows 下两个二进制带 `.exe`）：
+
+```
+websearch-mcpserver-<平台>/
+├── websearch-mcpserver[.exe]   # HTTP daemon（start 后监听 /mcp）
+├── websearch-mcp-cli[.exe]     # stdio CLI
+├── config.example.yaml
+├── dashboard.example.yaml
+├── LICENSE
+├── README.MD / README.EN.md
+└── skills/                     # websearch-mcp + everything-http-server
+```
+
+解压后按[快速开始](../README.MD#快速开始)运行 `./websearch-mcpserver[.exe] start`；Skill 的安装见 [Skill / 应用项目归属](#skill--应用项目归属)。
+
+**单文件下载**（只想拿一个二进制时）：
 
 **HTTP daemon**（`start` 后监听 `/mcp`）：
 
