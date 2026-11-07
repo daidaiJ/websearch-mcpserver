@@ -43,6 +43,11 @@ on:
         required: false
         default: false
         type: boolean
+      verbose:
+        description: 'Verbose npm logs + OIDC identity claims (troubleshooting only)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -87,10 +92,36 @@ jobs:
       - name: Credential leak guard
         run: bash npm/scripts/check-credentials.sh
 
+      # 只在排障时开：npm 的 OIDC token exchange 失败会静默退回 token 认证，
+      # 表面只报 ENEEDAUTH。这里解码并打印 OIDC claims（不打印 token 本身），
+      # 用来核对 repo / workflow filename / environment 与 npm 侧配置是否一致。
+      - name: Diagnose OIDC identity
+        if: ${{ inputs.verbose }}
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.parse, urllib.request
+          url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
+          url += ('&' if '?' in url else '?') + urllib.parse.urlencode({'audience': 'npm:registry.npmjs.org'})
+          req = urllib.request.Request(url, headers={
+              'Accept': 'application/json',
+              'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN'],
+          })
+          with urllib.request.urlopen(req) as r:
+              token = json.load(r)['value']
+          part = token.split('.')[1]
+          claims = json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+          for key in ('iss', 'aud', 'sub', 'repository', 'repository_owner', 'workflow',
+                      'workflow_ref', 'job_workflow_ref', 'environment', 'ref',
+                      'event_name', 'repository_visibility'):
+              print('OIDC %-22s %s' % (key + ':', claims.get(key)))
+          PY
+
       - name: Pack and publish
         env:
           GH_TOKEN: ${{ github.token }}
           # push 事件没有 inputs，用触发的 tag；dispatch 用填写的 tag。
           TAG: ${{ inputs.tag || github.ref_name }}
           DRY_RUN: ${{ inputs.dry_run || false }}
+          NPM_CONFIG_LOGLEVEL: ${{ inputs.verbose && 'verbose' || 'notice' }}
         run: bash npm/scripts/publish.sh
