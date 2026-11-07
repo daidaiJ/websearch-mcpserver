@@ -33,6 +33,45 @@ storage pressure, a new dependency hash, or an unseeded/expired entry can cause 
 miss. Release jobs retain ordinary Go download behavior on misses; caching does
 not eliminate module-proxy/network failures. No download retries are added.
 
+## CI build cache
+
+`ci.yml` disables the `setup-go` built-in cache and restores the two caches
+explicitly. The built-in cache keeps its exact key after a hit and never writes
+back, which froze `~/.cache/go-build` at its first build: the coverage-instrumented
+binaries that `-fuzz` requires were recompiled from scratch on every run (~70s).
+The module cache reuses the producer key above at the same path, restore-only. The
+build cache uses a rolling key — `go-build-<os>-<hash(go.sum)>-<run_number>` with a
+restore-key prefix of `go-build-<os>-<hash(go.sum)>-` — so each master push appends
+one entry that the next run restores. Saves happen only on master; pull requests
+restore read-only, and a re-run skips its own existing key. The entry is roughly
+700MB–1GB against the 10GB repository quota, so history is bounded by LRU. Keep the
+key prefix stable when editing, and keep the save guarded by `github.ref ==
+'refs/heads/master'` and the `cache-hit != 'true'` check.
+
+`ci.yml` also skips docs-only pushes through `paths-ignore` (a YAML anchor shared
+by the `push` and `pull_request` triggers). Patterns are deliberately broad so new
+documents do not require workflow edits: `**.md` / `**.MD`, `docs/**`, `skills/**`,
+and root-level `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt`.
+Two constraints apply when extending the list. First, image globs must stay
+root-anchored: `*` does not cross directories, while `cmd/assets/*.ico` and
+`pkg/dashboard/web/logo-*.png` are `go:embed` compressor inputs — adding `**/*.png`
+would let an icon change skip the rebuild that embeds it. Second, `**.md` covers the
+`npm/*.md` files that `check-credentials.sh` scans, so a markdown-only push skips
+that PR guard; it is acceptable because `npm-plugin.yml` reruns the same script
+before publishing, so a plaintext credential still cannot reach a published tarball.
+GitHub cannot re-include a path under `paths-ignore` (negation requires the `paths`
+form), and path filtering is per file rather than per job, so the `lint`, `actionlint`
+and `npm-plugin-check` jobs share this filter and cannot be skipped selectively.
+Those three finish well inside the test job's runtime; they are not on the critical
+path. Skipped runs leave their checks `Pending`, which matters only if branch
+protection is later enabled on master.
+
+`docker.yml` caches builds with `type=registry` against
+`ghcr.io/<repo>:buildcache`. `type=gha` never hit here — tag runs cannot see each
+other's caches and master does not build images — while still consuming about
+2.4GB of the repository cache quota across 69 buildkit entries. The registry
+backend is shared across tags and leaves the Actions cache quota to Go.
+
 ## Docker tag filters and validation
 
 Docker accepts `v*`, then excludes `v*-registry` and `v*-preview*` at trigger time.
@@ -42,7 +81,8 @@ Release continues to handle both base and registry tags.
 
 Run `actionlint .github/workflows/*.yml` after workflow edits. Check stable,
 preview, registry, rc and beta tag examples; check the shared module cache path,
-key and default-branch scope; and preserve the four binary/MCPB targets. A normal
+key and default-branch scope; check the CI build-cache key prefix and its
+master-only save condition; and preserve the four binary/MCPB targets. A normal
 pull request does not execute these tag-triggered publishing workflows. Static
 validation does not prove a GitHub cache hit, remote runner compilation, or a
 successful registry/Docker publication. Verify the cache scope/hits and final

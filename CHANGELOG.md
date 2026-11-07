@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+### 修复
+
+- **CI 构建缓存不再冻结（`-fuzz` 插桩重编）**：`setup-go` 内置缓存命中 primary key 后不再回写，`~/.cache/go-build` 冻结在首次构建，导致 `-fuzz` 所需的覆盖率插桩二进制每次运行从零重编（实测约 70 秒，约占该步 105 秒的三分之二）。`ci.yml` 关闭内置缓存，改为显式恢复：模块缓存沿用 `go-module-cache.yml` 的路径与键（只恢复、不重复上传），构建缓存改用滚动键 `go-build-<os>-<hash(go.sum)>-<run_number>` + 前缀回退，仅 master 推送回写、PR 只读恢复
+- **Docker 缓存后端改为镜像仓库**：`type=gha` 在本仓库从未命中——该工作流只由 tag 触发，而 gha 缓存按 ref 隔离、tag 之间互不可见（master 不构建镜像），实测连续三个 tag 导入的 cache manifest 各不相同、`CACHED` 零出现，同时 69 个 buildkit 条目白占约 2.4GB 缓存配额。改用 `type=registry` 指向 `ghcr.io/<repo>:buildcache`，跨 tag 共享且不占 Actions 缓存配额
+- **纯文档推送不再跑全量构建**：`ci.yml` 的 `push` / `pull_request` 增加共享的 `paths-ignore`（YAML 锚点），用宽通配而非逐文件白名单——`**.md` / `**.MD`、`docs/**`、`skills/**`，加仓库根目录的 `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt`，新增文档目录或根目录配图都不必再改清单。只有全部改动路径都命中才跳过，混合提交照常触发。图片只忽略根目录（`*` 不跨目录）：`cmd/assets/*.ico` 与 `pkg/dashboard/web/logo-*.png` 是 `go:embed` 的编译输入，加 `**/*.png` 会让改图标不重编二进制
+
 ## v3.10.6 — 2026-11-07（新增 npm 分发方式、安装与配置引导、后续改进参考）
 
 > 纯分发链路与文档版本，**不含 Go 代码改动**；同时用于完成 npm Trusted Publisher 的首次 OIDC 验证。本次不发 MCP Registry。
