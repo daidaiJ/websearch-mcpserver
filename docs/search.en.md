@@ -122,7 +122,7 @@ smartsearch:
   mmr:
     enabled: true      # Master switch (default true)
     lambda: 0.7        # Relevance weight [0,1]; higher = more relevance, lower = more diversity (default 0.7)
-    target_count: 0    # Target count after MMR; 0 = no extra truncation (max_size applies)
+    target_count: 0    # Target count after MMR; 0 = follow max_size (capped at max_size by default; no extra truncation when max_size is unlimited)
 ```
 
 ### Academic Search Scoring
@@ -186,7 +186,7 @@ smartsearch:
   mmr:                       # MMR diversity re-ranking (breaks up same-topic similar results)
     enabled: true            # Master switch (default true)
     lambda: 0.7              # Relevance weight [0,1]; higher = more relevance, lower = more diversity (default 0.7)
-    target_count: 0          # Target count after MMR; 0 = no extra truncation (max_size applies)
+    target_count: 0          # Target count after MMR; 0 = follow max_size (capped at max_size by default; no extra truncation when max_size is unlimited)
   engines:
     tavily_api:        # Tavily API (returns score, supports min_score)
       min_score: 0.5   # Minimum relevance score threshold, 0 = no filter

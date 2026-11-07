@@ -132,10 +132,54 @@ func TestConsensusBoost(t *testing.T) {
 }
 
 func TestNormalizeURLKey(t *testing.T) {
-	a := normalizeURLKey("https://www.example.com/path/")
-	b := normalizeURLKey("http://example.com/path")
+	// core.NormalizeURL 保留 host（含 www 前缀，仅小写）；末尾斜杠归一化相同
+	a := normalizeURLKey("https://example.com/path/")
+	b := normalizeURLKey("https://example.com/path")
 	if a != b {
-		t.Errorf("scheme/www/末尾斜杠应归一化相同: %q vs %q", a, b)
+		t.Errorf("末尾斜杠应归一化相同: %q vs %q", a, b)
+	}
+	// 与 hybrid 的 core.NormalizeURL 键完全一致（统一去重语义）
+	if a != core.NormalizeURL("https://example.com/path/") {
+		t.Errorf("normalizeURLKey 应与 core.NormalizeURL 一致: %q vs %q", a, core.NormalizeURL("https://example.com/path/"))
+	}
+}
+
+// TestNormalizeURLKeyDelegatesToCore 固定统一后的去重语义：
+//   - uts 追踪参数不同 → 同一页，合并为一条（键相同）
+//   - 查询参数不同 / 路径不同 → 不同页，不合并（键不同）
+//   - 空 URL 返回空
+func TestNormalizeURLKeyDelegatesToCore(t *testing.T) {
+	// uts 追踪参数（utm_*）不同 → 同一页
+	withUtm := normalizeURLKey("https://example.com/page?utm_source=x&utm_campaign=y")
+	withoutUtm := normalizeURLKey("https://example.com/page")
+	if withUtm != withoutUtm {
+		t.Errorf("utm_* 追踪参数应被剥离合并: %q vs %q", withUtm, withoutUtm)
+	}
+	// 其他白名单追踪参数同理（fbclid/gclid/ref/spm）
+	if normalizeURLKey("https://example.com/page?fbclid=abc") != withoutUtm {
+		t.Errorf("fbclid 应被剥离: %q", normalizeURLKey("https://example.com/page?fbclid=abc"))
+	}
+	// 查询参数不同 → 不合并
+	q1 := normalizeURLKey("https://example.com/page?id=1")
+	q2 := normalizeURLKey("https://example.com/page?id=2")
+	if q1 == q2 {
+		t.Errorf("不同查询参数不应合并: %q", q1)
+	}
+	// 查询参数顺序不同 → 合并（排序归一）
+	q3 := normalizeURLKey("https://example.com/page?a=1&b=2")
+	q4 := normalizeURLKey("https://example.com/page?b=2&a=1")
+	if q3 != q4 {
+		t.Errorf("查询参数顺序不同应合并（排序归一）: %q vs %q", q3, q4)
+	}
+	// 路径不同 → 不合并
+	p1 := normalizeURLKey("https://example.com/a")
+	p2 := normalizeURLKey("https://example.com/b")
+	if p1 == p2 {
+		t.Errorf("不同路径不应合并: %q", p1)
+	}
+	// 空 URL 返回空
+	if normalizeURLKey("") != "" {
+		t.Errorf("空 URL 应返回空, got %q", normalizeURLKey(""))
 	}
 }
 

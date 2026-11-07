@@ -376,7 +376,7 @@ pdf_parser:
 #   mmr:                       # MMR diversity re-ranking (breaks up same-topic similar results)
 #     enabled: true            # Master switch (default true)
 #     lambda: 0.7              # Relevance-diversity tradeoff [0,1], higher = more relevance (default 0.7)
-#     target_count: 0          # Target count after MMR, 0 = no extra truncation
+#     target_count: 0          # Target count after MMR, 0 = follow max_size (capped at max_size by default; no extra truncation when max_size is unlimited)
 #   engines:              # Per-engine config (names: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao, yuanbao)
 #     tavily_api:
 #       min_score: 0.5    # Tavily API minimum relevance score threshold (0 = no filter)

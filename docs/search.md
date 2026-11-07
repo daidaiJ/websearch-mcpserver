@@ -122,7 +122,7 @@ smartsearch:
   mmr:
     enabled: true      # 总开关（默认 true）
     lambda: 0.7        # 相关性权重 [0,1]，越高越偏相关性，越低越偏多样性（默认 0.7）
-    target_count: 0    # MMR 后目标条数，0 = 不额外截断（由 max_size 统一截断）
+    target_count: 0    # MMR 后目标条数，0 = 跟随 max_size（默认 max_size 上限；max_size 不限时不额外截断）
 ```
 
 ### 学术搜索评分
@@ -186,7 +186,7 @@ smartsearch:
   mmr:                       # MMR 多样性重排（打散同主题高相似结果）
     enabled: true            # 总开关（默认 true）
     lambda: 0.7              # 相关性权重 [0,1]，越高越偏相关性，越低越偏多样性（默认 0.7）
-    target_count: 0          # MMR 后目标条数，0 = 不额外截断（由 max_size 统一截断）
+    target_count: 0          # MMR 后目标条数，0 = 跟随 max_size（默认 max_size 上限；max_size 不限时不额外截断）
   engines:
     tavily_api:        # Tavily API（回传 score，可设 min_score）
       min_score: 0.5   # 最低相关性分数阈值，0 = 不过滤
