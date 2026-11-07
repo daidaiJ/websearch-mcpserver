@@ -13,6 +13,7 @@
   - [Qwen Code](#qwen-code)
   - [Cursor / 其他客户端](#cursor--其他客户端)
 - [stdio CLI 接入](#stdio-cli-接入)
+- [npm / dsh 插件分发](#npm--dsh-插件分发)
 - [Agent 快速部署](#agent-快速部署)
 - [运维](#运维)
   - [子命令](#子命令)
@@ -295,6 +296,121 @@ qwen mcp add websearch /path/to/websearch-mcp-cli -c /path/to/config.yaml
 CLI 子命令：无参数 = stdio；`init` 写示例配置；`version` 显示版本。
 
 配置与 HTTP 共用同一 YAML；`port` 等差异见 [configuration.md#stdio-cli-配置说明](configuration.md#stdio-cli-配置说明)。
+
+---
+
+## npm / dsh 插件分发
+
+不想手动管二进制就用 npm：每个 Release tag 同步发布一组 6 个包，版本与 tag 同源（`v3.10.5` → `3.10.5`）。四个平台二进制包按 `os` / `cpu` 由 `optionalDependencies` 自动挑选；**没有 postinstall / prepare 脚本**，不会触发 pnpm 10+ 的 `allowBuilds` 门禁，也不在安装时联网下载。
+
+| 包 | 用途 |
+|----|------|
+| `dsh-websearch-mcpserver` | DeepSeek Harness 的 config-only Cordis bundle（插件壳 + 启动 shim） |
+| `websearch-mcp-cli` | 通用 MCP 客户端用的 stdio CLI 包装包 |
+| `websearch-mcp-cli-<os>-<arch>` × 4 | 预编译 Go 二进制 + `.sha256` |
+
+### 安装
+
+**dsh（web profile）**：
+
+```bash
+dsh plugin --profile web add dsh-websearch-mcpserver
+dsh --profile web --dump-config       # 应出现 id: mcp-websearch 的行
+dsh web                               # web bundle 无 HMR，必须重启
+```
+
+默认镜像报 404 时指定官方源：`dsh plugin --profile web add dsh-websearch-mcpserver --registry=https://registry.npmjs.org`。工具名形如 `mcp__websearch__smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`。卸载用 `dsh plugin --profile web remove dsh-websearch-mcpserver`。
+
+**其他 MCP 客户端**：
+
+```bash
+npm i -g websearch-mcp-cli
+```
+
+```json
+{
+  "mcpServers": {
+    "websearch": {
+      "command": "websearch-mcp-cli",
+      "env": { "WEBSEARCH_MCP_CONFIG": "/abs/path/to/config.yaml" }
+    }
+  }
+}
+```
+
+不用插件也能在 dsh 里达到同样效果：往 `.mcp.json` / `~/.dsh/mcp.json` 加上面这段 `mcpServers` 即可（工具名同样是 `mcp__websearch__*`）。
+
+### 个性化配置（重要，别跳过）
+
+零配置时 Go 二进制只跑内存默认值（`mode: engine`），**能搜但远非最佳体验**：零 Key 托管 MCP 级联、多供应商 Key 池、学术源权重、抓取回退、代理适配、语言与结果预算都不生效。
+
+请二选一：
+
+- **自己读**：[HUMAN_GUIDE.md](HUMAN_GUIDE.md) 的调优路线 → [configuration.md](configuration.md) 完整字段 → `config.example.yaml`。
+- **让 agent 代读**（推荐）：把下面这段发给 agent，让它按你的实际环境生成配置。
+
+```text
+请阅读本项目 docs/AGENT_GUIDE.md、docs/configuration.md 和 config.example.yaml，
+先问清我的网络环境（是否需要代理）、有哪些可用的 API Key、主要用途
+（中文网页 / 学术论文 / 代码资料 / 深度调研），然后为我生成一份
+~/.config/websearch/config.yaml：只写必要的覆盖项，逐条解释为什么这样选，
+不要开启我不用的引擎，不要把密钥明文写进文件。
+```
+
+生成后启动 dsh 前导出（**绝对路径**）：
+
+```bash
+export WEBSEARCH_MCP_CONFIG=/abs/path/to/config.yaml
+dsh web
+```
+
+shim 会把它转成 `-c <path>`。Go 侧原生的 `WEBSEARCH_CONFIG` 也可用，但优先级高于 `-c`，两者同时设置时别写不一样的值；`WEBSEARCH_MCP_CONFIG` 指向不存在的文件会直接报错，不会静默回落默认值。
+
+优先调整：`mode`（零 Key `mcphub` / 有 Key `apipool` / 纯本地 `engine`）、`mcp_hub.preset` 与 `fallback_engines`、`sk_list` 多 Key 轮换、系统代理、`language`、`fetch_mode`、学术引擎开关、结果条数与超时预算、`cache`、`dashboard.enabled`。完整字段以 [configuration.md](configuration.md) 为准，别照抄别人的配置。
+
+### 平台矩阵与校验
+
+与 [Release 四平台](../.github/workflows/release.yml) 一致：`linux-amd64`、`windows-amd64`、`darwin-amd64`、`darwin-arm64`。`linux-arm64` 走 GHCR 镜像、`windows-arm64` 需手动下载 Release 二进制，再用 `WEBSEARCH_MCP_CLI_BINARY=/abs/path/to/websearch-mcp-cli` 指过去。
+
+每个平台包内 `bin/websearch-mcp-cli*.sha256` 的哈希与该 tag 的 GitHub Release 附带校验和一致：
+
+```bash
+cd $(npm root -g)/websearch-mcp-cli-linux-amd64/bin && sha256sum -c websearch-mcp-cli.sha256
+```
+
+### 非 web profile / 自定义 args
+
+`cordis.patch.yml` 的 shim 路径按 `$DSH_HOME/profiles/web/` 拼。装到别的 profile 时，启动前 `export DSH_PROFILE=<name>`；或在该 profile 自己的 `cordis.patch.yml` 覆盖整行（后应用层**整体替换** `config`，字段必须写全）：
+
+```yaml
+- insert:
+    - id: mcp-websearch
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: websearch
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js ((process.env.DSH_HOME || ((process.env.USERPROFILE || process.env.HOME) + '/.dsh')) + '/profiles/my-profile/node_modules/dsh-websearch-mcpserver/bin/websearch-mcp-cli.cjs')
+          - '-c'
+          - '/abs/path/to/config.yaml'
+```
+
+### 权限与信任边界
+
+npm 壳只有启动 shim，不发网络请求、不写文件；实际 Go 二进制**会**发网络请求（搜索引擎 / 网页抓取 / 可选托管 MCP 上游）、**会**落 SQLite 缓存与日志，`file_search` **会**读本地目录索引。服务端自带 SSRF / DNS rebinding 防护、目录白名单与隐私默认（查询原文与密钥不落库）；启用 `file_search` 前请自行确认白名单。stdio 子进程日志写 stderr，不开端口、不需要 `auth_token`。
+
+### 排障
+
+| 现象 | 处理 |
+|------|------|
+| `dsh plugin add` 报 404 | 镜像未同步，加 `--registry=https://registry.npmjs.org` 重试 |
+| 装上了但工具不出现 | `dsh --profile web --dump-config` 查 `mcp-websearch` 行；没有说明 patch 没挂载，重启 `dsh web` |
+| `platform package ... is not installed` | 平台不在矩阵内或镜像缺包，用官方源重装；或设 `WEBSEARCH_MCP_CLI_BINARY` |
+| 搜索质量差 / 没有学术结果 | 多半是零配置只跑了 `mode: engine`，按上一节做个性化配置 |
+| `WEBSEARCH_MCP_CONFIG` 不生效 | 检查是否同时设了优先级更高的 `WEBSEARCH_CONFIG`，且路径为绝对路径 |
+
+维护者视角的包结构、发布顺序与本地 dry-run 见 [npm/README.md](../npm/README.md)。
 
 ---
 

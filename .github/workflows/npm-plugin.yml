@@ -1,0 +1,89 @@
+# npm / dsh 插件发布。
+#
+# 两种触发方式：
+#   1. release.yml 的 publish-npm job 用 workflow_call 调用（正式 tag 发完
+#      GitHub Release 后自动跑，二进制从该 tag 的 Release 下载并校验 sha256）；
+#   2. Actions 手动 workflow_dispatch，补发 / 重跑 / dry_run（npm 版本不可复用，
+#      publish.sh 已对已存在的版本做跳过，重跑是安全的）。
+#
+# 六个包按「4 平台二进制包 -> websearch-mcp-cli -> dsh-websearch-mcpserver」
+# 顺序发布，版本一律取自 tag（v3.10.5 -> 3.10.5），预发布版本走 --tag next。
+# 前置条件：仓库 Secret NPM_TOKEN（npm granular/automation token）。
+# 安全约定（改本文件时不要破坏）：
+#   - NPM_TOKEN 只以 Actions secret 形式存在，值不写入仓库任何文件；
+#     调用方用显式 secrets: 映射传递，绝不用 secrets: inherit。
+#   - NODE_AUTH_TOKEN 只注入到「Pack and publish」这一个 step 的 env，
+#     由 setup-node 写成 ${NODE_AUTH_TOKEN} 变量引用（不落明文），job 结束自动清理。
+#   - 不启用 set -x / bash -x，不打印 env，不上传 workspace 为 artifact；
+#     npm 日志里若出现 secret，GitHub 会自动打码，但打进 tarball 就是永久公开。
+#   - 发布前有 Credential leak guard + publish.sh 的二次扫描兜底。
+# 不要在 -registry / -preview tag 上跑：release.yml 的调用方已经过滤。
+
+name: npm / dsh plugin
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to package, e.g. v3.10.5'
+        required: true
+        type: string
+      dry_run:
+        description: 'Pack only, do not publish'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      NPM_TOKEN:
+        description: 'npm granular token with publish rights on the six packages'
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to package, e.g. v3.10.5'
+        required: true
+        type: string
+      dry_run:
+        description: 'Pack only, do not publish'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pack and publish 6 npm packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read      # gh release download
+      id-token: write     # npm publish --provenance (OIDC)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Structural checks
+        run: bash npm/scripts/check.sh
+
+      # npm tarballs 是公开且不可撤回的：token 一旦被打进包里，GitHub 的
+      # 日志打码救不回来。这个 step 不接触 secret，只查仓库里有没有明文凭据，
+      # 且只报文件名、不回显命中行（避免把误提交的 token 再打进 CI 日志）。
+      - name: Credential leak guard
+        run: bash npm/scripts/check-credentials.sh
+
+      # NODE_AUTH_TOKEN 只在这一步可见；不开 xtrace、不打印 env、不传 artifact。
+      - name: Pack and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash npm/scripts/publish.sh

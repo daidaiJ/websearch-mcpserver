@@ -13,6 +13,7 @@
   - [Qwen Code](#qwen-code)
   - [Cursor / Other Clients](#cursor--other-clients)
 - [stdio CLI](#stdio-cli)
+- [npm / dsh Plugin Distribution](#npm--dsh-plugin-distribution)
 - [Agent Quick Deploy](#agent-quick-deploy)
 - [Operations](#operations)
   - [Subcommands](#subcommands)
@@ -295,6 +296,118 @@ Omit `args` when running with defaults. Logs go to stderr and `websearch.log` un
 CLI commands: no args = stdio; `init` writes an example config; `version` prints the version.
 
 Config shares the same YAML as HTTP; see [configuration.en.md#stdio-cli-configuration-notes](configuration.en.md#stdio-cli-configuration-notes) for differences such as `port`.
+
+---
+
+## npm / dsh Plugin Distribution
+
+Use npm if you do not want to manage Release binaries by hand. Every release tag publishes six packages at the same version (`v3.10.5` -> `3.10.5`). Four platform packages are selected automatically through `optionalDependencies` by `os` / `cpu`; there are **no postinstall / prepare scripts**, so pnpm 10+ `allowBuilds` gating and install-time downloads are both avoided.
+
+| Package | Purpose |
+|---|---|
+| `dsh-websearch-mcpserver` | DeepSeek Harness config-only Cordis bundle (plugin shell + launcher shim) |
+| `websearch-mcp-cli` | Generic stdio CLI wrapper for any MCP client |
+| `websearch-mcp-cli-<os>-<arch>` x 4 | Prebuilt Go binary + `.sha256` |
+
+### Install
+
+**dsh (web profile)**:
+
+```bash
+dsh plugin --profile web add dsh-websearch-mcpserver
+dsh --profile web --dump-config       # the mcp-websearch row should appear
+dsh web                               # web bundles have no HMR; restart required
+```
+
+If a mirror returns 404, use the official registry: `dsh plugin --profile web add dsh-websearch-mcpserver --registry=https://registry.npmjs.org`. Tools appear as `mcp__websearch__smartsearch` / `academicsearch` / `cleanfetch` / `pdf_parser` / `file_search`. Remove with `dsh plugin --profile web remove dsh-websearch-mcpserver`.
+
+**Other MCP clients**:
+
+```bash
+npm i -g websearch-mcp-cli
+```
+
+```json
+{
+  "mcpServers": {
+    "websearch": {
+      "command": "websearch-mcp-cli",
+      "env": { "WEBSEARCH_MCP_CONFIG": "/abs/path/to/config.yaml" }
+    }
+  }
+}
+```
+
+The same `mcpServers` block in `.mcp.json` / `~/.dsh/mcp.json` gives dsh the same tools without installing the plugin.
+
+### Personalize the config (important, do not skip)
+
+With no config file the Go binary runs in-memory defaults (`mode: engine`): search works, but the zero-key hosted-MCP cascade, multi-provider key pools, academic weighting, fetch fallbacks, proxy handling, language and result budgets are all off. **A fresh install gets you "it runs", not the best experience.**
+
+Either read the docs yourself — tuning path in [HUMAN_GUIDE.en.md](HUMAN_GUIDE.en.md), full reference in [configuration.en.md](configuration.en.md), plus `config.example.yaml` — or have your agent do it (recommended):
+
+```text
+Read docs/AGENT_GUIDE.en.md, docs/configuration.en.md and config.example.yaml.
+First ask me about my network (do I need a proxy), which API keys I have, and my
+main use case (Chinese web / academic papers / code docs / deep research). Then
+generate ~/.config/websearch/config.yaml with only the necessary overrides,
+explain each choice, skip engines I do not use, and never write secrets in plain text.
+```
+
+Then export an **absolute** path before launching dsh:
+
+```bash
+export WEBSEARCH_MCP_CONFIG=/abs/path/to/config.yaml
+dsh web
+```
+
+The shim forwards it as `-c <path>`. The Go binary's native `WEBSEARCH_CONFIG` also works but has higher priority than `-c`; do not point both at different files. A missing `WEBSEARCH_MCP_CONFIG` target fails loudly instead of silently falling back to defaults.
+
+Tune first: `mode` (`mcphub` zero key / `apipool` with keys / `engine` fully local), `mcp_hub.preset` and `fallback_engines`, `sk_list`, system proxy, `language`, `fetch_mode`, academic engine switches, result count and timeout budgets, `cache`, `dashboard.enabled`. The full field list lives in [configuration.en.md](configuration.en.md); do not copy someone else's config verbatim.
+
+### Platform matrix and verification
+
+Same four platforms as the GitHub Release: `linux-amd64`, `windows-amd64`, `darwin-amd64`, `darwin-arm64`. `linux-arm64` uses the GHCR image; `windows-arm64` needs a manually downloaded Release binary plus `WEBSEARCH_MCP_CLI_BINARY=/abs/path/to/websearch-mcp-cli`.
+
+The hash in each platform package's `bin/websearch-mcp-cli*.sha256` matches the checksum attached to the same tag's GitHub Release:
+
+```bash
+cd $(npm root -g)/websearch-mcp-cli-linux-amd64/bin && sha256sum -c websearch-mcp-cli.sha256
+```
+
+### Non-web profiles / custom args
+
+`cordis.patch.yml` builds the shim path from `$DSH_HOME/profiles/web/`. For another profile, `export DSH_PROFILE=<name>` before launching dsh, or override the whole row in that profile's own `cordis.patch.yml` (later layers **replace the entire config object**, so restate every key):
+
+```yaml
+- insert:
+    - id: mcp-websearch
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: websearch
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js ((process.env.DSH_HOME || ((process.env.USERPROFILE || process.env.HOME) + '/.dsh')) + '/profiles/my-profile/node_modules/dsh-websearch-mcpserver/bin/websearch-mcp-cli.cjs')
+          - '-c'
+          - '/abs/path/to/config.yaml'
+```
+
+### Permissions and trust boundary
+
+The npm shell is only a launcher shim: no network, no file writes. The Go binary **does** make network requests (search engines / web fetch / optional hosted MCP upstreams), **does** write a SQLite cache and logs, and `file_search` **does** read a local directory index. SSRF / DNS rebinding guards, a directory allowlist and privacy defaults (no raw queries or secrets in the database) are built in; review the allowlist before enabling `file_search`. The stdio child logs to stderr, opens no port and needs no `auth_token`.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `dsh plugin add` returns 404 | Mirror has not synced; retry with `--registry=https://registry.npmjs.org` |
+| Installed but no tools | `dsh --profile web --dump-config` to check the `mcp-websearch` row, then restart `dsh web` |
+| `platform package ... is not installed` | Unsupported platform or incomplete mirror; reinstall from the official registry or set `WEBSEARCH_MCP_CLI_BINARY` |
+| Poor results / no academic results | Usually the zero-config `mode: engine` default — personalize the config as above |
+| `WEBSEARCH_MCP_CONFIG` ignored | Check whether higher-priority `WEBSEARCH_CONFIG` is also set, and that the path is absolute |
+
+Maintainer notes on package layout, publish order and local dry-runs: [npm/README.md](../npm/README.md).
 
 ---
 

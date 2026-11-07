@@ -1,0 +1,28 @@
+{
+  "name": "websearch-mcp-cli-darwin-amd64",
+  "version": "0.0.0",
+  "description": "Prebuilt websearch-mcp-cli (Go, zero-API-key MCP search server) binary for darwin-amd64.",
+  "license": "MIT",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daidaiJ/websearch-mcpserver.git",
+    "directory": "npm/platform/darwin-amd64"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

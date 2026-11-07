@@ -1,0 +1,56 @@
+{
+  "name": "dsh-websearch-mcpserver",
+  "version": "0.0.0",
+  "description": "DeepSeek Harness config-only bundle: registers the zero-API-key websearch-mcpserver MCP server (Go stdio binary) as mcp__websearch__* tools.",
+  "type": "module",
+  "main": "./index.js",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "mcp",
+    "web-search",
+    "search",
+    "stdio"
+  ],
+  "homepage": "https://github.com/daidaiJ/websearch-mcpserver#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daidaiJ/websearch-mcpserver.git",
+    "directory": "npm/plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/daidaiJ/websearch-mcpserver/issues"
+  },
+  "files": [
+    "index.js",
+    "bin/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./bin/*": "./bin/*"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "optionalDependencies": {
+    "websearch-mcp-cli-linux-amd64": "0.0.0",
+    "websearch-mcp-cli-windows-amd64": "0.0.0",
+    "websearch-mcp-cli-darwin-amd64": "0.0.0",
+    "websearch-mcp-cli-darwin-arm64": "0.0.0"
+  }
+}

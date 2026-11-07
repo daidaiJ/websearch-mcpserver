@@ -1,0 +1,38 @@
+# dsh-websearch-mcpserver —— config-only Cordis bundle 层
+#
+# 作用：把 websearch-mcp-cli（Go 单二进制、零 API Key 的 MCP 搜索服务）注册进
+# dsh 内置的 @deepseek-ai/dsh-mcp-client。装好并重启 `dsh web` 后，工具名形如
+#   mcp__websearch__smartsearch / academicsearch / cleanfetch / pdf_parser / file_search
+#
+# 工作机制：本 bundle 不实现任何 Cordis 插件（无 apply(ctx)），只贡献一层配置，
+# 借用宿主自带的 MCP client 起一个 stdio 子进程。serverName 即命名空间。
+#
+# 为什么用 process.execPath 而不是 `command: websearch-mcp-cli`：
+# dsh 的 MCP client 不保证把 profile 的 node_modules/.bin 放进 PATH，Windows 的
+# .cmd shim 也不一定可 spawn。这里直接用 dsh 当前的 Node 启动本包内的 JS shim，
+# 由 shim 通过 optionalDependencies 解析对应平台的预编译 Go 二进制。
+#
+# 路径假设：插件装在 $DSH_HOME/profiles/<profile>/node_modules/ 下，默认 profile
+# 为 web。装到别的 profile 时，启动 dsh 前导出 DSH_PROFILE=<name>；也可以按
+# npm/plugin/README.md 在本 profile 的 cordis.patch.yml 里覆盖 mcp-websearch 行。
+#
+# ── 个性化配置（强烈建议，见 README）────────────────────────────────────
+# 无配置文件时 Go 二进制只跑 mode: engine 内存默认值，能搜但远非最佳体验。
+# 写好自己的 config.yaml 后，启动 dsh 前导出（必须绝对路径）：
+#   WEBSEARCH_MCP_CONFIG=/abs/path/to/config.yaml
+# shim 会把它转成 `-c <path>`。Go 侧原生的 WEBSEARCH_CONFIG 环境变量也可用，
+# 但优先级高于 -c，两者同时设置时以 WEBSEARCH_CONFIG 为准。
+# 后应用层会整体替换本行的 config 对象，若要覆盖 args / env 请把下面的
+# serverName / transport / command / args 全部重述一遍（patch 不做深合并）。
+
+- insert:
+    - id: mcp-websearch
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: websearch
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js ((process.env.DSH_HOME || ((process.env.USERPROFILE || process.env.HOME) + '/.dsh')) + '/profiles/' + (process.env.DSH_PROFILE || 'web') + '/node_modules/dsh-websearch-mcpserver/bin/websearch-mcp-cli.cjs')
+        # env:
+        #   WEBSEARCH_MCP_CONFIG: !!js process.env.WEBSEARCH_MCP_CONFIG

@@ -1,6 +1,7 @@
 # PR / push 级验证：构建、vet、短测、race 检测、静态检查与工作流 lint。
 # 网络集成测试由 -short 跳过（详见 AGENTS.md 测试约定）；
 # tag 发布走 release.yml / docker.yml / go-module-cache.yml，与本工作流互不影响。
+# npm-plugin-check 只做模板结构与占位二进制的 npm pack --dry-run，不发布。
 name: CI
 
 on:
@@ -84,3 +85,34 @@ jobs:
 
       - name: actionlint
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+  npm-plugin-check:
+    name: npm / dsh plugin templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # PR 也拦一次：这个 job 本身不接触任何 secret，只确保没人把明文
+      # token / .npmrc 混进会被发布的包模板里。
+      - name: Credential leak guard
+        run: bash npm/scripts/check-credentials.sh
+
+      # 模板结构 + 占位二进制走完整 npm pack --dry-run：不发网络请求、不发布，
+      # 但能提前抓到 files 漏 cordis.patch.yml、平台 os/cpu 写错、生命周期脚本
+      # 混进来、shim 语法错这类「只有发版当天才发现」的问题。
+      - name: Structural checks
+        run: bash npm/scripts/check.sh
+
+      - name: Dry-run pack
+        env:
+          TAG: v0.0.0
+          DRY_RUN: 'true'
+          FAKE_BINARIES: 'true'
+        run: bash npm/scripts/publish.sh

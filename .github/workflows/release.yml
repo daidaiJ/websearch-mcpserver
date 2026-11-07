@@ -22,6 +22,10 @@
 #     Bare binaries stay published for users who want a single file.
 #   - plain tags (v3.4.0) only build the Release here: no MCPB packaging
 #   - GHCR 镜像在独立工作流 docker.yml 中随普通 tag 推送，不与本流程互相阻塞
+#   - publish-npm job：Release 产物就绪后从本 tag 的 Release 下载并校验
+#     websearch-mcp-cli-*，发布 4 个平台 npm 包 + websearch-mcp-cli +
+#     dsh-websearch-mcpserver（dsh config-only bundle），见 npm-plugin.yml。
+#     -registry / -preview tag 跳过；失败可手动跑 npm-plugin.yml 的 workflow_dispatch 补发。
 #   - a follow-up tag with the "-registry" suffix (e.g. v3.4.0-registry),
 #     pushed only after the base Release exists:
 #     downloads the base release binaries, packages them as .mcpb bundles
@@ -205,6 +209,23 @@ jobs:
             $PRERELEASE_FLAG \
             --title "${{ github.ref_name }}" \
             --notes-file notes.md
+
+  publish-npm:
+    name: Publish npm / dsh plugin
+    needs: release
+    # -registry tag 只发 MCP Registry；-preview 是 webui 分支的预览版，
+    # 不进 npm 正式/next 通道。需要补发时手动跑 npm-plugin.yml。
+    if: ${{ !endsWith(github.ref_name, '-registry') && !contains(github.ref_name, '-preview') }}
+    uses: ./.github/workflows/npm-plugin.yml
+    with:
+      tag: ${{ github.ref_name }}
+    # 只把发布需要的那一个 secret 传给被调用工作流，不用 secrets: inherit：
+    # 后者会把仓库里所有 secret 暴露给 npm-plugin.yml 的每一个 step。
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    permissions:
+      contents: read
+      id-token: write
 
   publish-registry:
     name: Publish to MCP Registry

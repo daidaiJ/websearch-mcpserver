@@ -1,0 +1,28 @@
+{
+  "name": "websearch-mcp-cli-windows-amd64",
+  "version": "0.0.0",
+  "description": "Prebuilt websearch-mcp-cli (Go, zero-API-key MCP search server) binary for windows-amd64.",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daidaiJ/websearch-mcpserver.git",
+    "directory": "npm/platform/windows-amd64"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

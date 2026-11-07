@@ -61,3 +61,13 @@ pkg/dashboard/web/*.html
 *.log
 /.codegraph/
 /.playwright-mcp/
+
+# 凭据与打包产物：.npmrc 常含 _authToken，.env 常含各类 token；
+# NPM_TOKEN 只放 GitHub Actions Secret，绝不写进这里的任何文件。
+.npmrc
+.env
+.env.*
+*.tgz
+
+# 本机工作留档（会话记忆等），不入库
+/.workbuddy/

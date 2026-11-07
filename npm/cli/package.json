@@ -1,0 +1,42 @@
+{
+  "name": "websearch-mcp-cli",
+  "version": "0.0.0",
+  "description": "Cross-platform npm distribution of websearch-mcp-cli, a zero-API-key MCP search server (Go stdio binary) with per-platform prebuilt binaries.",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "web-search",
+    "search",
+    "stdio",
+    "go"
+  ],
+  "homepage": "https://github.com/daidaiJ/websearch-mcpserver#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daidaiJ/websearch-mcpserver.git",
+    "directory": "npm/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/daidaiJ/websearch-mcpserver/issues"
+  },
+  "bin": {
+    "websearch-mcp-cli": "bin/websearch-mcp-cli.cjs"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "websearch-mcp-cli-linux-amd64": "0.0.0",
+    "websearch-mcp-cli-windows-amd64": "0.0.0",
+    "websearch-mcp-cli-darwin-amd64": "0.0.0",
+    "websearch-mcp-cli-darwin-arm64": "0.0.0"
+  }
+}

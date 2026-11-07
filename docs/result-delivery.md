@@ -4,7 +4,7 @@
 
 修复长搜索、网页和 PDF 保存结果只返回服务端路径、客户端无法取得正文的问题。沿用现有保存阈值与短响应行为，不改变默认检索内容模式。常规读取仅使用 MCP，不要求客户端文件系统或 Docker 权限。
 
-测试边界已由用户确认：真实 MCP 客户端 -> 原工具 -> 分段正文读取。审查基线为 `96062d46a495b2b0f032c6b3564bbaa1bf391c88`。协议测试不证明 Codex、DSH 或 WorkBuddy 自动发现并选择工具；这些宿主和生产入口需另行真实验收。
+测试边界已由用户确认：真实 MCP 客户端 -> 原工具 -> 分段正文读取。审查基线为 `96062d46a495b2b0f032c6b3564bbaa1bf391c88`。协议测试不证明 Codex、DSH 或 WorkBuddy 自动发现并选择工具；这些宿主和生产入口需另行真实验收。2026-11-07 起仓库已具备 dsh 插件分发链路（npm config-only bundle，见 `npm/README.md` 与 `docs/installation.md#npm--dsh-插件分发`）。本机已用本地 tgz 在 dsh CLI `0.2.2-rc.1` 上验过 bundle 装载、`!!js` 路径求值与 MCP `initialize` / `tools/list` 握手（3 个工具），详见 `npm/README.md` 的验收结果表；但**尚未做 dsh 真实会话里的长结果分段读回**，也尚未走 npm registry 安装，这两项仍按验收清单实测后再结论。
 
 ## 交付要求
 

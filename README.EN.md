@@ -123,6 +123,45 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 }
 ```
 
+### Install via npm (dsh plugin / any MCP client)
+
+Every release tag also publishes a set of npm packages: prebuilt per-platform binaries are selected automatically via `os` / `cpu`, with no postinstall, no runtime download and no API key. The Go binary ships in platform subpackages; the Node side is a ~90-line launcher shim.
+
+```bash
+# DeepSeek Harness: install as a one-line plugin (web profile)
+dsh plugin --profile web add dsh-websearch-mcpserver
+dsh --profile web --dump-config       # the mcp-websearch row should appear
+dsh web                               # web bundles have no HMR; restart required
+
+# Any other MCP client (Claude Code / Cursor / Qwen Code / ...): generic stdio CLI
+npm i -g websearch-mcp-cli
+```
+
+```json
+{
+  "mcpServers": {
+    "websearch": { "command": "websearch-mcp-cli" }
+  }
+}
+```
+
+> **Important: a fresh install only gets you "it runs". Getting the best results requires a personalized config.**
+> With no config file the stdio binary uses in-memory defaults (`mode: engine`): search works, but you miss the zero-key hosted-MCP cascade, multi-provider key pools, academic-source weighting, fetch fallbacks, proxy handling, language and result budgets — the parts that actually decide result quality. The same server behaves very differently with a scenario-tuned config.
+
+**Read the docs yourself, or have your agent read them** (recommended, saves time): humans start with the tuning path in [docs/HUMAN_GUIDE.en.md](docs/HUMAN_GUIDE.en.md) and the full reference in [docs/configuration.en.md](docs/configuration.en.md); agents should read [docs/AGENT_GUIDE.en.md](docs/AGENT_GUIDE.en.md) plus `docs/configuration.en.md` and `config.example.yaml`. You can paste this prompt:
+
+```text
+Read docs/AGENT_GUIDE.en.md, docs/configuration.en.md and config.example.yaml.
+First ask me about my network (do I need a proxy), which API keys I have, and my
+main use case (Chinese web / academic papers / code docs / deep research). Then
+generate ~/.config/websearch/config.yaml with only the necessary overrides,
+explain each choice, skip engines I do not use, and never write secrets in plain text.
+```
+
+Then export `WEBSEARCH_MCP_CONFIG=/abs/path/to/config.yaml` before launching dsh (the plugin shim turns it into `-c`); other clients can set the same variable under `mcpServers.websearch.env`, or pass `args: ["-c", "/abs/path/config.yaml"]`. Tune first: `mode` (`mcphub` for zero key / `apipool` with keys / `engine` fully local), `mcp_hub.preset` and `fallback_engines`, `sk_list`, system proxy, `language`, `fetch_mode`, academic engine switches, result count and timeout budgets, `cache`.
+
+Non-`web` profiles, the platform matrix, checksums, permission disclosure and troubleshooting: [docs/installation.en.md](docs/installation.en.md#npm--dsh-plugin-distribution). Packaging and release notes: [npm/README.md](npm/README.md).
+
 ---
 
 ## Search Modes at a Glance

@@ -123,6 +123,45 @@ autostart.vbs
 }
 ```
 
+### 通过 npm 安装（dsh 插件 / 通用 MCP 客户端）
+
+每个 Release tag 同步发一组 npm 包：四平台预编译二进制按 `os` / `cpu` 自动挑选，无 postinstall、无运行时下载、无需 API Key。Go 二进制随平台子包分发，Node 侧只有一个轻量的启动 shim。
+
+```bash
+# DeepSeek Harness：一行装成 dsh 插件（web profile）
+dsh plugin --profile web add dsh-websearch-mcpserver
+dsh --profile web --dump-config       # 应能看到 mcp-websearch 行
+dsh web                               # web bundle 没有 HMR，必须重启
+
+# 其他 MCP 客户端（Claude Code / Cursor / Qwen Code / ...）：装通用 stdio CLI
+npm i -g websearch-mcp-cli
+```
+
+```json
+{
+  "mcpServers": {
+    "websearch": { "command": "websearch-mcp-cli" }
+  }
+}
+```
+
+> **重要：装完只是「能跑」，最佳体验必须做个性化配置。**
+> 零配置时 stdio 二进制只跑内存默认值（`mode: engine`）：能搜，但拿不到零 Key 托管 MCP 级联、多供应商 Key 池、学术源权重、抓取回退、代理适配、语言与结果预算这些真正决定质量的部分。同一个服务，默认配置和按场景调过的配置，体验差距很大。
+
+**请自己读，或者让 agent 代读**（推荐后者，省时间）：人类看 [docs/HUMAN_GUIDE.md](docs/HUMAN_GUIDE.md) 的调优路线 + [docs/configuration.md](docs/configuration.md) 的完整字段；agent 看 [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) + `docs/configuration.md` + `config.example.yaml`。可以直接把下面这段发给 agent：
+
+```text
+请阅读本项目 docs/AGENT_GUIDE.md、docs/configuration.md 和 config.example.yaml，
+先问清我的网络环境（是否需要代理）、有哪些可用的 API Key、主要用途
+（中文网页 / 学术论文 / 代码资料 / 深度调研），然后为我生成一份
+~/.config/websearch/config.yaml：只写必要的覆盖项，逐条解释为什么这样选，
+不要开启我不用的引擎，不要把密钥明文写进文件。
+```
+
+配置写好后，dsh 启动前导出 `WEBSEARCH_MCP_CONFIG=/abs/path/to/config.yaml`（插件 shim 会转成 `-c`）；通用客户端可在 `mcpServers.websearch.env` 里设同一个变量，或直接写 `args: ["-c", "/abs/path/config.yaml"]`。优先调：`mode`（零 Key `mcphub` / 有 Key `apipool` / 纯本地 `engine`）、`mcp_hub.preset` 与 `fallback_engines`、`sk_list`、系统代理、`language`、`fetch_mode`、学术引擎开关、结果条数与超时预算、`cache`。
+
+非 `web` profile、平台矩阵、校验和、权限声明与排障见 [docs/installation.md#npm--dsh-插件分发](docs/installation.md#npm--dsh-插件分发)；发布与打包口径见 [npm/README.md](npm/README.md)。
+
 ---
 
 ## 搜索模式速览
