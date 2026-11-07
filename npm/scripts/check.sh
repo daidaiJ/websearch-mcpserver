@@ -98,6 +98,32 @@ grep -q "optionalDependencies\|websearch-mcp-cli-\${os}-\${arch}" npm/shared/bin
   || fail "shim must resolve a platform package at runtime"
 ok "single shim reused by cli + plugin"
 
+echo "== OIDC release contract =="
+node - <<'NODE'
+const fs = require('node:fs');
+const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
+const npm = fs.readFileSync('.github/workflows/npm-plugin.yml', 'utf8');
+const release = fs.readFileSync('.github/workflows/release.yml', 'utf8');
+
+// npm Trusted Publishing 校验的是「调用方」工作流文件名。一旦把发布 job
+// 改回 release.yml 的 workflow_call，npm 侧绑定的 npm-plugin.yml 就再也匹配
+// 不上，发布会在 OIDC 交换凭据时失败——所以这里把契约钉成 PR 级护栏。
+for (const [label, text] of [['npm-plugin.yml', npm], ['release.yml', release]]) {
+  if (/^\s*workflow_call\s*:/m.test(text)) {
+    fail(`${label}: workflow_call breaks Trusted Publishing identity (npm validates the CALLER workflow filename)`);
+  }
+  if (/NODE_AUTH_TOKEN:\s*\$\{\{|secrets:\s*inherit/.test(text)) {
+    fail(`${label}: injecting a long-lived npm token is not allowed anymore`);
+  }
+}
+if (!/tags:\s*\n\s*-\s*'v\*-npm'/.test(npm)) fail('npm-plugin.yml: must be triggered directly by v*-npm tags');
+if (!/id-token:\s*write/.test(npm)) fail('npm-plugin.yml: id-token: write is required for OIDC');
+if (!/environment:\s*PANDA/.test(npm)) fail('npm-plugin.yml: environment must match the npm Trusted Publisher setting');
+if (!/!v\*-npm/.test(release)) fail('release.yml: must exclude v*-npm tags');
+if (/^\s{2}publish-npm:/m.test(release)) fail('release.yml: publish-npm job must stay removed');
+console.log('  ok  OIDC release contract (self-triggered, no token, -npm excluded from release)');
+NODE
+
 echo "== credential guard =="
 bash npm/scripts/check-credentials.sh
 

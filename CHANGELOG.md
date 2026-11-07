@@ -4,6 +4,33 @@
 
 ## Unreleased
 
+## v3.10.6 — 2026-11-07（新增 npm 分发方式、安装与配置引导、后续改进参考）
+
+> 纯分发链路与文档版本，**不含 Go 代码改动**；同时用于完成 npm Trusted Publisher 的首次 OIDC 验证。本次不发 MCP Registry。
+
+### 新增：npm / dsh 插件分发
+
+- **一组 6 个 npm 包**：`dsh-websearch-mcpserver`（DeepSeek Harness 的 config-only Cordis bundle）、`websearch-mcp-cli`（通用 MCP 客户端的 stdio 壳）、4 个按 `os` / `cpu` 限定的平台二进制包。Go 单二进制随平台子包分发，Node 侧只有一个启动 shim；**无 postinstall、无运行时下载、无需 API Key**，绕开 pnpm 10+ 的 `allowBuilds` 门禁
+- **发布矩阵与既有约定对称**：普通 `vX.Y.Z` tag 只发 Release + GHCR，产物就绪后另打 `vX.Y.Z-npm` 发 npm（与 `vX.Y.Z-registry` 发 MCP Registry 同节奏），不重编译、不建 Release、不推镜像；版本一律取 base tag，`publish.sh` 按「4 平台包 → cli → bundle」顺序发布并逐个校验 Release 的 `.sha256`
+- **Trusted Publishing（OIDC）**：`npm-plugin.yml` 由自身接 `-npm` tag 与手动 dispatch，Node 24 + npm 11 + `id-token: write` + `environment: PANDA`，npm CLI 现场换取短期凭据并自动生成 provenance；仓库与 CI 不再保存任何长期 npm token
+- **CI 护栏**：PR 上的 `npm-plugin-check` 跑结构检查、凭据扫描与占位二进制 dry-run pack；新增 OIDC 发布契约校验，防止把链路改回 `workflow_call` 或重新注入长期 token——npm 校验的是「调用方」工作流文件名，经 `release.yml` 复用会身份失配
+
+### 文档：安装与个性化配置引导
+
+- README / installation 中英四份补齐 npm 安装方式（`dsh plugin --profile web add ...`、`npm i -g websearch-mcp-cli`、`mcpServers` 片段），并说明非 web profile、平台矩阵、校验和与权限边界
+- **强调「装完只是能跑」**：零配置只跑 `mode: engine`，拿不到零 Key 托管 MCP 级联、多供应商 Key 池、学术源权重、抓取回退、代理适配与结果预算；给出「自己读 HUMAN_GUIDE / configuration」与「让 agent 代读」两条路径
+- **agent 提示词自包含**：从 GitHub 网页直接复制也不会出现「本项目」指代不明——写明仓库地址、`git clone --depth 1` 与三个 raw 文档链接、配置文件的本机绝对路径，并要求最后回报 `WEBSEARCH_MCP_CONFIG` 该设什么、怎么确认生效
+
+### 后续改进参考
+
+- `docs/optimization-roadmap.md` 新增「DSH 生态调研衍生的改进参考（2026-11-07）」D1–D8：离线检索质量评测集（与 T2 合并）、失败模型哨兵化 + 命名错误码、共享 per-request 预算与 abort 传播、citation ID / 证据包、server instructions、垂直源窄查、配置分层与热重载、实时指标与显式 DI；同时写明不跟的方向（本地大模型与浏览器池、10+ 工具面、PTC 全套）
+- 清单来自 dsh 插件市场与开源搜索 MCP 的横向评估（对标 `@fffangchenghao/dsh-web-search`、`dsh-free-search`、Wigolo），**均未拍板**；与既有 Q/T/E 系列有重叠，立项前先对齐。原始草稿在 `docs/plans/`，按 `.gitignore` 不入库，roadmap 顶部改为指向入库的 D 系列，避免 clone 后死链
+
+### 修复
+
+- **CI 弃用告警**：`npm-plugin.yml` 的 `checkout` / `setup-node` 升到 v6，消除 Node 24 runner 上「Node.js 20 is deprecated」的强制迁移告警
+- **发布日志口径**：正式版本不再显式传 `--tag`（OIDC 下改 dist-tag 需额外授权），OIDC 下由 npm 自动生成 provenance，`dry-run` 输出与实际发布参数保持一致
+
 ## v3.10.5 — 2026-11-07（状态机原子性：并发冷却、Key 分类、软超时副作用）
 
 > PR [#29](https://github.com/daidaiJ/websearch-mcpserver/pull/29)。本次不发 MCP Registry。

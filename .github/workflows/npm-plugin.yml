@@ -62,10 +62,12 @@ jobs:
       id-token: write     # OIDC: npm CLI 换取短期凭据 + 自动 provenance
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node 24
-        uses: actions/setup-node@v4
+        # v6 与 npm 官方 Trusted Publishing 示例同代，避免 v4 在 Node 24 runner
+        # 上被强制迁移时刷「Node.js 20 is deprecated」告警。
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           # 刻意不设 registry-url：默认 registry 就是 npmjs.org，而 setup-node

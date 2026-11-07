@@ -4,7 +4,7 @@
 >
 > 总评：项目已过功能建设期，投入方向为四条线——搜索链路的 context 化与并发正确性、结果去重与守卫校准的质量收尾、MCP 协议新代际跟进、可观测性与测试护栏。零 Key + 反检测 + agent 成本控制是既有差异化定位，继续深耕而非扩面。
 >
-> 2026-11-07 另有一份本地草稿 `docs/plans/2026-11-07-dsh-ecosystem-review.md`（DSH 生态同类评估 + Go 二进制分发到 dsh 插件市场的路径调研，`docs/plans/` 按 .gitignore 不入库），两份清单暂未合并；P0 立项前先对齐，别重复排期。
+> 2026-11-07 的 DSH 生态同类评估（含 Go 二进制分发到 dsh 插件市场的路径调研）已把**代码侧改进参考**合并进下面的「DSH 生态调研衍生的改进参考」小节；原始草稿 `docs/plans/2026-11-07-dsh-ecosystem-review.md` 按 `.gitignore` 不入库，仅本地留档。该轮已落地的是 npm / dsh 插件分发、文档引导与 Trusted Publishing 发布链路，**别把「已发版」当成「改进项已完成」**；D 系列与 Q/T/E 系列有重叠，立项前先对齐。
 
 ## 待办
 
@@ -40,6 +40,21 @@
 ### 可观测性与测试护栏
 
 - [ ] **T2. 引擎包测试密度**：`pkg/search/engine/{baidu,bing,google}` 各仅 1 个测试文件，解析函数（HTML→结构化结果）适合表驱动 + 固定 fixture 补齐。
+
+### DSH 生态调研衍生的改进参考（2026-11-07）
+
+> 横向评估 DeepSeek Harness 插件市场与开源搜索 MCP 后识别的**代码侧**方向，全部**未拍板**。参照对象最强的是 `@fffangchenghao/dsh-web-search`（8 引擎 RRF + 20-query 离线评测集 + 81 组参数扫描）、`dsh-free-search`（20+ 引擎回退）、Wigolo（本地 rerank + citation）。本项目在零 Key + 9 学术源 + 单二进制上工程深度更高，短板集中在「质量闭环」而非「功能广度」。
+
+- [ ] **D1. 离线检索质量评测集（与 T2 合并做）**：`pkg/search/enhance/` 的阈值权重是经验常量，目前只有 oracle 等价性单测，改权重不可测。建 `bench/`：固定中英 query + 预期域名 fixture，输出 P@8 / R@8 / MRR@8 与逐 query 明细，CI 设回归门槛；顺带把 T2 的 HTML 解析 fixture 一起补上，缓解 8 个零 Key 引擎硬编码 CSS 选择器、上游改版即静默零结果的风险。
+- [ ] **D2. 失败模型哨兵化 + 命名错误码**：`pkg/search/core/diagnostics.go:98-117` 的 `ClassifyFailure` 靠错误字符串关键词判类，i18n 后口径会漂（AGENTS.md 已记着「改错误文案须核对三处」）。改为哨兵 + 命名错误码（`SEARCH_BLOCKED` / `SEARCH_PARSE` / `SEARCH_EMPTY` / `SEARCH_THROTTLED`）+ 结构化 `fallbackOn` 策略，并特判「HTTP 200 但实为验证码页」。这与 v3.10.5 推行的哨兵化方向一致。
+- [ ] **D3. 共享 per-request 预算与 abort 传播**：`hybrid/hybrid.go:178-208` 软超时后另起 goroutine，被放弃的请求仍在后台推进共享状态（注释自认）；v3.10.5 的 `ContextEngine` 只覆盖部分引擎。升级为「预算对象贯穿全链 + 显式 abort」，同时修可用性（两源到齐即放 tail）与竞态。
+- [ ] **D4. citation ID 与证据包**：现有 `result_ref` + `cleanfetch(offset/next_offset/eof)` 分段读回比竞品完整，值得保留；缺稳定引用 ID、source span、cited evidence pack，以及把网页正文包进 `<untrusted-web-content>` 代码标记防提示注入。dsh research 模式明确要求「给有来源的结论」。
+- [ ] **D5. 工具面与 server instructions**：`mcp/server.go:28-31` 建 server 时未设 Instructions，而 dsh MCP client 会把它并入系统提示。补一段「何时搜 / 何时读 / 何时 research」的工具选择策略，`skills/websearch-mcp/` 已有基础，几乎零成本提升召回。
+- [ ] **D6. 垂直源 / 官方源窄查（只做 optional action）**：对标插件有 34 垂直源与 2.5s 官方源 lookup；本项目已有 9 学术引擎与 GitHub 特判，可只补包管理 registry + 官方发布源一路，**不要全量扩面**——与「深耕不扩面」定位冲突。
+- [ ] **D7. 配置分层与热重载**：`config.go` 1,863 行 / 236 字段、`config.example.yaml` 559 行，dashboard 只能改白名单、不能热重载装配。引入 preset 分层（profile → bundle → patch）比继续堆字段划算。
+- [ ] **D8. 实时指标与显式 DI**：`/metrics` 是从 SQLite 回读当天事件而非进程内 counter，全仓无 tracing；`mcp/options.go:93-108` 与 `searxng/handler.go` 的全局 service-locator 装配不支持多实例，`core.ShowMeta` 存在无锁读写。
+
+**不跟**：Wigolo 的 1.5GB 本地模型 + 浏览器池（毁掉单二进制轻量定位）、10+ 工具面（与「客户端最多 5 工具」的省 token 设计冲突）、PTC 全套（可降维成 `search_many` 式批量 query 并发，与 E1 一起评估）。
 
 ## 已完成归档（2026-10-19）
 
