@@ -46,11 +46,26 @@
 | Environment name | 与 workflow job 的 `environment:` 完全一致（当前 `PANDA`）；没填就把那行删掉 |
 | Allowed actions | 勾 `npm publish`（我们直发）；`npm stage publish` 可选 |
 
+**不想在网页上点 6 次**：用 `npm trust` CLI 一条循环批量配（npm ≥ 11.15 / Node ≥ 22.14 / 账号已开 2FA / 本机已 `npm login`），首次 2FA 时在 npm 网页勾「接下来 5 分钟跳过 2FA」，其余 5 个自动完成：
+
+```bash
+for pkg in dsh-websearch-mcpserver websearch-mcp-cli \
+           websearch-mcp-cli-linux-amd64 websearch-mcp-cli-windows-amd64 \
+           websearch-mcp-cli-darwin-amd64 websearch-mcp-cli-darwin-arm64; do
+  npm trust github "$pkg" \
+    --repo daidaiJ/websearch-mcpserver --file npm-plugin.yml --env PANDA \
+    --allow-publish --allow-stage-publish --yes
+  sleep 2   # npm 官方 bulk 用法建议间隔 2 秒防限流
+done
+```
+
+官方 bulk 用法说明这个 5 分钟窗口足够配约 80 个包。注意 npm 目前**每个包只能有一条** trusted publisher：改字段要先 `npm trust list <pkg>` 取 ID、`npm trust revoke --id <id> <pkg>` 再重建；且 `npm trust` 要求包已存在于 registry，新增包必须先发一次。
+
 几个必须记住的坑：
 
 - **不能经 `workflow_call` 转发**。npm 官方 troubleshooting 明确：复用工作流被调用时，校验的是「调用方」工作流文件名，而不是实际跑 `npm publish` 的文件。所以 `release.yml` 已删掉 `publish-npm` job，`vX.Y.Z-npm` tag 由 `npm-plugin.yml` 自己接（`workflow_dispatch` 同理，调用方仍是它自己）。
 - npm 的 trusted publisher 配置**不能编辑，只能删掉重建**。改字段前先确认，尤其是 Environment name 的大小写。
-- 新建后状态是 `Pending validation`，**必须在页面提示的截止时间内用 OIDC 成功 publish 一次**才转正。npm 版本不可复用：重跑已发布的 `v3.10.5-npm` 只会 6 个包全部跳过，不算验证；需要下一个真实版本（如 `v3.10.6` → `v3.10.6-npm`）来过这一关。
+- 新建后状态是 `Pending validation`，**必须在页面提示的截止时间内用 OIDC 成功 publish 一次**才转正。npm 版本不可复用：重跑已发布的版本只会全部跳过，不算验证。首次验证已由 `v3.10.6` → `v3.10.6-npm` 完成（6 个包 exchange 全 201、provenance 自动签名），结果见文末「Trusted Publishing 首次验证」。发布后 npm 走 staged 队列逐个放行，`latest` 不会 6 个包同时更新；网页有缓存，以 `npm view <name> version` 为准。
 - 验证通过后再把包 Settings → Publishing access 设为 **"Require two-factor authentication and disallow tokens"**，彻底关掉长期 token 通道；早期设的 Actions secret 那时可删（仓库里已无任何文件引用）。
 - 预发布走 `--tag next`：OIDC 下改 dist-tag 需 npm 侧另勾 `Allow npm dist-tag` 且 npm ≥ 11.21.0。正式版刻意不传 `--tag`，用默认 `latest`，少一个权限依赖。
 
@@ -114,3 +129,17 @@ dsh plugin --profile web add /tmp/websearch-npm/dsh-websearch-mcpserver-3.10.5.t
 - [ ] 四个平台各装一次，确认 `os`/`cpu` 只拉到本平台那一个二进制包。
 - [ ] 带 `WEBSEARCH_MCP_CONFIG=/abs/config.yaml` 启动，确认自定义 mode / Key 生效（这是体验分水岭，见 README 的强调段）。
 - [ ] 非 `web` profile：设 `DSH_PROFILE=<name>` 再启动，或按 `npm/plugin/README.md` 在该 profile 的 `cordis.patch.yml` 覆盖 `mcp-websearch` 行。
+
+## Trusted Publishing 首次验证（2026-11-07，v3.10.6）
+
+由 `v3.10.6` → `v3.10.6-npm` 完成，纯 OIDC、发布 step 不注入任何长期 token：
+
+| 项 | 结果 |
+|---|---|
+| OIDC 身份 | `sub=repo:daidaiJ/websearch-mcpserver:environment:PANDA`，`workflow_ref` / `job_workflow_ref` 都是 `.github/workflows/npm-plugin.yml`，与 npm 侧 6 条配置一致 |
+| 6 个包 | `npm publish` 全部成功，exchange 端点逐个返回 `201`，npm CLI 打印 `Enabling provenance` |
+| provenance | 自动签名并写入 Sigstore transparency log（如 `dsh-websearch-mcpserver@3.10.6` → logIndex `3736129319`），脚本未显式传 `--provenance` |
+| registry | 6 个包 `latest` 均为 `3.10.6`；首发留下的 `0.0.0-stage` 占位版本仍在，无害。staged 队列逐个放行，最后上线的 `dsh-websearch-mcpserver` 比其余晚约 1 分钟 |
+| 第一次为什么断 | 首次跑时 `websearch-mcp-cli` 的 exchange 返回 `404 package not found`（当时该包还没绑定 trusted publisher），发布在它上面中止；补配后重跑，`publish.sh` 跳过已发的 4 个平台包、只补余下 2 个 |
+
+排障：`workflow_dispatch` 勾 `verbose` 会打印 OIDC claims 与 npm 的 exchange 返回码。只看到 `ENEEDAUTH` 时先看这里——npm CLI 在 exchange 失败时只写 verbose 日志、静默退回 token 认证，表面看不出是「包没绑定」还是「Environment 不匹配」。
