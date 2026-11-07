@@ -36,7 +36,7 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `search`（根） | **组合根**：`SearchGroup` 装配 + 对外类型别名（外部一律用 `search.SearchResult` 等） | `NewFromConfig(conf) *SearchGroup`、`SearchGroup{Primary, Fallback, Academic}` |
 | `search/core` | 类型契约叶子层：所有子包共用，**禁止** import 其它 search 子包 | `SearchInf`、`SearchResult`、`SearchTimeRanger`、`ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`、`DiagnosticsSearcher`/`ContextDiagnosticsSearcher`、`AcademicSearcher`、`ScoreBucket`、`FilterByScore/SortByScore`、`NormalizeURL`、`FormatMD` 系列结果格式化 |
 | `search/engine` | 底层网页引擎（HTTP 抓取 + 反检测参数），实现 `antirobot.Engine` | `baidu/bing/ddg/google` 各自的 `Engine` + `Opts` |
-| `search/provider` | API 供应商适配器（实现 `SearchInf`）+ Key 池 | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`、`KeyPool`（单供应商 SK 轮转）、`KeyError` |
+| `search/provider` | API 供应商适配器（实现 `SearchInf`）+ Key 池 | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`、`KeyPool`（单供应商 SK 轮转；`Next`/`NextUsable`、`MarkInvalid`/`MarkInvalidFor`）、`KeyError`（带 `Kind` 分类：auth/rate_limit/transport/content）|
 | `search/provider/mcphub` | 托管 MCP 级联 hub（实现 `SearchInf` + `Fetch`） | `New`、presets（parallel/anysearch/exa/firecrawl）、MCP Streamable HTTP 客户端、`priority`/`round-robin`、搜索/抓取独立冷却、结果解析 |
 | `search/adapter` | 把「非 API 供应商」适配成 `SearchInf` | `EngineSearchAdapter`（antirobot.Engine → SearchInf）、`BingSearchAdapter`、`BaiduWithFallback`、`AcademicAdapter`（学术 → SearchInf/AcademicSearcher） |
 | `search/apipool` | 跨供应商轮转策略（与 hybrid 同级实现） | `ApipoolSearchImpl`（round-robin/priority/weighted）、`ApipoolProvider` |
@@ -53,8 +53,8 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `pkg/fetch/jina` | Jina Reader 备选抓取（需代理） | `Reader.Fetch` |
 | `pkg/fetch/mineru` | MinerU AI 增强 PDF 解析（OCR/表格/公式） | `Client.ParseURL/ParseFile` |
 | `pkg/llm` | LLM Client + 搜索结果摘要 | `Client.Chat/ChatStream`、`Summarizer.Summarize/SummarizeStream` |
-| `pkg/antirobot` | 反检测公共层（**跨层共享，保持顶层**） | `Engine`、`Searcher`、限流器、`TimeRange` |
-| `pkg/cache` | SQLite 缓存（6h 过期，key 含 intent/fetch_top_n） | `Cache.Lookup/Store/UpdateSummary` |
+| `pkg/antirobot` | 反检测公共层（**跨层共享，保持顶层**） | `Engine`、`ContextEngine`（可选 ctx 入口）、`Searcher`、限流器、`TimeRange`、`NextCooldownDuration`（冷却档位升级的唯一实现）、`ErrLocalRateLimit`（本端限流哨兵）、`LocalLimitSkipped`、`SleepCtx` |
+| `pkg/cache` | SQLite 缓存（6h 过期，key 含 intent/fetch_top_n） | `Cache.Lookup/Store/UpdateSummary`、`ErrStaleGeneration`（代次作废的写入哨兵） |
 | `pkg/client` | API 供应商共用 HTTP 客户端（超时/重试/代理） | `Client` |
 | `pkg/config` | 全部配置结构体 + Viper 加载 + 环境变量覆盖 | `Load`、各 XxxConfig |
 | `pkg/proxy` | 系统代理检测（注册表/WinHTTP，10s TTL）+ transport 池 | `DetectSystemProxy` |
