@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,8 +50,9 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 	}
 
 	// ---- 缓存查询 ----
-	enginesKey := strings.Join(engines, ",")
-	cacheKey := query + "|" + timeRange + "|" + enginesKey
+	// page 必须进键（B7）：否则 page>=2 会命中第一页的缓存记录，分页静默退化。
+	// Lookup 与 Store 必须共用同一个键构造函数。
+	cacheKey := academicCacheKey(query, timeRange, engines, page)
 	requestCache := requestSearchCache()
 	if requestCache != nil {
 		rec, hitType, err := requestCache.Lookup(cacheKey, "", true)
@@ -117,10 +119,19 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 	if requestCache != nil {
 		// 逐引擎错误不写入缓存（Store 仍只存干净结果），命中路径展示的是上次结果；
 		// TTL 按 freshness 分桶：day → 1h、week → 6h、month 及其它 → 24h/默认
-		_ = requestCache.Store(cacheKey, "", true, res.Results, "", cache.TTLForFreshness(timeRange))
+		if storeErr := requestCache.Store(cacheKey, "", true, res.Results, "", cache.TTLForFreshness(timeRange)); storeErr != nil && !errors.Is(storeErr, cache.ErrStaleGeneration) {
+			log.ErrorT("log.mcp.cache_write_error_ignoring", "err", storeErr)
+		}
 	}
 	ret = searchcore.ProvenanceHeader(time.Now(), 0) + ret
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
+}
+
+// academicCacheKey 学术搜索的缓存键：query|timeRange|engines|page。
+// page 必须参与（B7）：缺页码会让 page>=2 在 TTL 内命中第一页记录，分页静默退化。
+// engines 顺序保持调用方给定的顺序，不排序：引擎组合顺序本身是检索语义的一部分。
+func academicCacheKey(query, timeRange string, engines []string, page int) string {
+	return query + "|" + timeRange + "|" + strings.Join(engines, ",") + "|page=" + strconv.Itoa(page)
 }
 
 // academicProviderErrorsFromError extracts the adapter's "engine: message"

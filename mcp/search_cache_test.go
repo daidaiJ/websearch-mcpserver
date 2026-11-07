@@ -204,7 +204,8 @@ func TestSearchCachesCannotRepopulateAfterClear(t *testing.T) {
 			}
 			key := webSearchCacheQuery("q", 3, 0)
 			if academic {
-				key = "q||"
+				// 与 tool_academic.go 的 academicCacheKey 保持一致（含 page）。
+				key = academicCacheKey("q", "", nil, 1)
 			}
 			if rec, _, err := view.Lookup(key, "", academic); err != nil || rec != nil {
 				t.Fatalf("old in-flight search populated current generation: %+v, %v", rec, err)

@@ -49,6 +49,7 @@
   "log.mcp.cache_hit_exact_intent_summary_query": "缓存命中(exact_intent+summary): query={{.query}}",
   "log.mcp.cache_hit_query_only_query": "缓存命中(query_only): query={{.query}}",
   "log.mcp.cache_query_error_skipping_cache": "缓存查询异常，跳过缓存: {{.err}}",
+  "log.mcp.cache_write_error_ignoring": "缓存写入失败（不影响搜索结果）: {{.err}}",
   "log.mcp.cleanfetch_enabled_false_mcp_fetch_enhancement": "cleanfetch.enabled=false，MCP 抓取增强不生效",
   "log.mcp.current_platform_is_everything_only_supports": "当前平台为 {{.gOOS}}：Everything 仅支持 Windows，任何 Linux 发行版都不建议启用 file_search，除非运行在 WSL 且 everything.url 指向 Windows 宿主的 Everything HTTP Server（{{.uRL}}）",
   "log.mcp.dns_resolution_failed_skipping_security_checks": "DNS 解析失败（跳过安全检查）: {{.host}}: {{.err}}",

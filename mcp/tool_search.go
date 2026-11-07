@@ -325,7 +325,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 		if sumErr == nil {
 			if requestCache != nil {
 				// 缓存只存干净摘要，失败诊断不落缓存
-				_ = requestCache.Store(cacheQuery, intent, false, results, output, ttl)
+				storeCacheRecord(requestCache, cacheQuery, intent, false, results, output, ttl)
 			}
 			recordSearchHistory(query, results)
 			for i, result := range results {
@@ -349,9 +349,19 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 		ret = notice
 	}
 	if requestCache != nil {
-		_ = requestCache.Store(cacheQuery, intent, false, results, "", ttl)
+		storeCacheRecord(requestCache, cacheQuery, intent, false, results, "", ttl)
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(ret, diag, len(results))}}}, nil, nil
+}
+
+// storeCacheRecord 写入缓存：代次作废（Clear 并发）是设计内竞态，静默跳过；
+// 其它写入错误记日志但不影响搜索主链路。
+func storeCacheRecord(requestCache *cache.Cache, key, intent string, academic bool, results []search.SearchResult, summary string, ttl time.Duration) {
+	err := requestCache.Store(key, intent, academic, results, summary, ttl)
+	if err == nil || errors.Is(err, cache.ErrStaleGeneration) {
+		return
+	}
+	log.ErrorT("log.mcp.cache_write_error_ignoring", "err", err)
 }
 
 // recordSearchHistory 把一次成功的 smartsearch 写入本地历史（search_history 启用时）。

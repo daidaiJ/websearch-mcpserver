@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 )
@@ -35,8 +36,8 @@ func TestClearRejectsInFlightStoreAndSummaryAcrossConnections(t *testing.T) {
 	}
 	defer restarted.Close()
 	current := requestView(t, restarted, "source-a")
-	if err := old.Store("q", "intent", false, nil, "stale result", 0); err != nil {
-		t.Fatal(err)
+	if err := old.Store("q", "intent", false, nil, "stale result", 0); !errors.Is(err, ErrStaleGeneration) {
+		t.Fatalf("作废写入应报 ErrStaleGeneration: %v", err)
 	}
 	var count int
 	if err := c.db.QueryRow(`SELECT COUNT(*) FROM search_cache`).Scan(&count); err != nil || count != 0 {
@@ -54,6 +55,31 @@ func TestClearRejectsInFlightStoreAndSummaryAcrossConnections(t *testing.T) {
 	}
 	if rec, _, err := old.Lookup("q", "intent", false); err != nil || rec != nil {
 		t.Fatalf("old generation read new data: %+v, %v", rec, err)
+	}
+}
+
+// TestStoreStaleGenerationReported 代次守卫作废的写入必须报 ErrStaleGeneration，
+// 正常写入仍返回 nil（B10：调用方要能区分「写成功」与「被代次丢弃」）。
+// 注意 Lookup 没有对称改动：它以含代次的键查询，正确性靠 Clear 的 DELETE 兜底
+// （docs/state-machines.md §3.1），与写入侧的显式守卫不同构。
+func TestStoreStaleGenerationReported(t *testing.T) {
+	c := newTestCache(t)
+	old := requestView(t, c, "source-a")
+	if err := old.Store("q", "intent", false, nil, "", 0); err != nil {
+		t.Fatalf("正常代次写入应返回 nil: %v", err)
+	}
+	if _, err := c.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if err := old.Store("q", "intent", false, nil, "stale", 0); !errors.Is(err, ErrStaleGeneration) {
+		t.Fatalf("Clear 后旧视图的 Store 应返回 ErrStaleGeneration，实际 %v", err)
+	}
+	current := requestView(t, c, "source-a")
+	if err := current.Store("q", "intent", false, nil, "current", 0); err != nil {
+		t.Fatalf("新代次写入应返回 nil: %v", err)
+	}
+	if rec, _, err := current.Lookup("q", "intent", false); err != nil || rec == nil || rec.Summary != "current" {
+		t.Fatalf("被作废的写入不得污染新代次: %+v, %v", rec, err)
 	}
 }
 

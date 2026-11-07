@@ -22,6 +22,7 @@
   "provider.exa.bad_status": "exa 搜索 API 返回错误状态码: {{.Status}}",
   "provider.exa.empty_results": "exa 搜索 API 结果为空",
   "provider.keypool.no_valid_key": "keypool: 无有效 API Key",
+  "provider.keypool.no_available_key": "{{.Name}} 池内所有 API Key 均在冷却中，跳过本次调用",
   "provider.doubao.no_api_key": "doubao 搜索未配置 API Key",
   "provider.doubao.query_empty": "doubao 搜索 query 不能为空",
   "provider.doubao.query_too_long": "doubao 搜索 query 超过 100 个字符",

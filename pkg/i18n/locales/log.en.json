@@ -49,6 +49,7 @@
   "log.mcp.cache_hit_exact_intent_summary_query": "cache hit (exact_intent+summary): query={{.query}}",
   "log.mcp.cache_hit_query_only_query": "cache hit (query_only): query={{.query}}",
   "log.mcp.cache_query_error_skipping_cache": "cache query error, skipping cache: {{.err}}",
+  "log.mcp.cache_write_error_ignoring": "cache write failed (search results unaffected): {{.err}}",
   "log.mcp.cleanfetch_enabled_false_mcp_fetch_enhancement": "cleanfetch.enabled=false, MCP fetch enhancement inactive",
   "log.mcp.current_platform_is_everything_only_supports": "current platform is {{.gOOS}}: Everything only supports Windows; enabling file_search on any Linux distribution is not recommended unless running under WSL with everything.url pointing to the Windows host's Everything HTTP Server ({{.uRL}})",
   "log.mcp.dns_resolution_failed_skipping_security_checks": "DNS resolution failed (skipping security checks): {{.host}}: {{.err}}",
