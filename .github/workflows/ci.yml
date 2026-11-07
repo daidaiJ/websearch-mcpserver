@@ -7,7 +7,29 @@ name: CI
 on:
   push:
     branches: [master]
+    # 纯文档/资源推送不参与构建。用宽通配而不是逐文件白名单，新增文档目录无需再改
+    # 本清单。只有全部改动路径都命中才跳过，文档 + 代码的混合提交照常触发。
+    #   - `**.md` 会连带忽略 npm/ 下的 README（check-credentials.sh 的扫描目标）。该
+    #     护栏在 npm-plugin.yml 的发布流程里同样先于 publish 执行，明文凭据仍进不了已
+    #     发布的 tarball；`paths-ignore` 不支持 `!` 再包含，这是唯一的取舍。
+    #   - 图片只忽略仓库根目录（`*` 不跨目录）：`**/*.png` 之类的宽通配不能加，
+    #     cmd/assets/*.ico 与 pkg/dashboard/web/logo-*.png 是 go:embed 的编译输入。
+    #   - 若将来给 master 开分支保护并把本工作流设为必需检查，被跳过的文档提交会停在
+    #     pending 而阻塞合并（GitHub 的路径过滤按文件而非按 job，无法只跳 test job）。
+    paths-ignore: &docs-only
+      - '**.md'
+      - '**.MD'
+      - 'docs/**'
+      - 'skills/**'
+      - '*.png'
+      - '*.svg'
+      - '*.jpg'
+      - '*.jpeg'
+      - '*.gif'
+      - '*.webp'
+      - '*.txt'
   pull_request:
+    paths-ignore: *docs-only
 
 permissions:
   contents: read
@@ -29,6 +51,28 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # 内置缓存命中 primary key 后就不再回写，GOCACHE 会冻结在首次构建，
+          # -race / -fuzz 的插桩产物每次都从零重编。下面两个步骤改为显式恢复：
+          # 模块缓存只读共用生产者，构建缓存走滚动键累积。
+          cache: false
+
+      # 与 release.yml / go-module-cache.yml 保持完全一致的路径与键（生产者是
+      # go-module-cache.yml 的 master 运行），此处只恢复、不重复上传。
+      - name: Restore Go modules
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-mod-v1-${{ hashFiles('go.mod', 'go.sum') }}
+
+      # 滚动键 + 前缀回退：每次运行都写一份新的 GOCACHE，供下一次运行命中前缀。
+      # run_number 保证键唯一（有变化就保存），restore-keys 保证总能拿到上一份。
+      - name: Restore Go build cache
+        id: gocache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.run_number }}
+          restore-keys: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-
 
       - name: Build
         run: go build ./...
@@ -49,6 +93,16 @@ jobs:
           go test -run=^$ -fuzz=FuzzValidateURLSecurity -fuzztime=10s ./mcp/
           go test -run=^$ -fuzz=FuzzIsPublicIP -fuzztime=10s ./mcp/
           go test -run=^$ -fuzz=FuzzIsPrivateHostFast -fuzztime=10s ./mcp/
+
+      # 只在 master 推送时回写，PR 走只读恢复：避免每个 PR 都新增一份缓存
+      # 条目、把 10GB 配额的历史挤掉（PR 分支的 GOCACHE 也无法被其他 PR 复用）。
+      # 重跑同一次运行（run_number 不变）时 primary key 已存在，跳过保存而不是失败。
+      - name: Save Go build cache
+        if: github.ref == 'refs/heads/master' && steps.gocache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.gocache.outputs.cache-primary-key }}
 
   lint:
     name: golangci-lint (new issues)

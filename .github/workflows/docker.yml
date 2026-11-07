@@ -69,5 +69,9 @@ jobs:
             VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # 本工作流只由 tag 触发，而 type=gha 的缓存按 ref 隔离、tag 之间互不可见
+          # （master 不跑 Docker，也没有可回退的分支作用域）。实测连续三个 tag 导入的
+          # cache manifest 各不相同、零命中，且 69 个 buildkit 条目白占约 2.4GB 配额。
+          # 改用镜像仓库作缓存后端：跨 tag 共享，且完全不占 Actions 缓存配额。
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
