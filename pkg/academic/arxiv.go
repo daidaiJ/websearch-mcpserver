@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -84,7 +85,19 @@ func (e *arxivEngine) Name() string                    { return "arxiv" }
 func (e *arxivEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *arxivEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再进入冷却 / 清冷却（B4）。
+func (e *arxivEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	start := time.Now()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	// 服务端限流冷却期：避让不打上游，快速失败（窗口过后下一次搜索自动恢复）
 	if left := e.cooldownRemaining(); left > 0 {
@@ -100,26 +113,32 @@ func (e *arxivEngine) Search(query string, page int, timeRange antirobot.TimeRan
 		if time.Since(start)+arxivRetryEstimate > arxivSearchBudget {
 			return nil, fmt.Errorf("arxiv: rate-limit wait would exceed %.0fs budget", arxivSearchBudget.Seconds())
 		}
-		time.Sleep(500 * time.Millisecond)
+		if err := antirobot.SleepCtx(ctx, 500*time.Millisecond); err != nil {
+			return nil, err
+		}
 	}
 
-	body, status, retryAfter, err := e.fetch(query, page, timeRange)
+	body, status, retryAfter, err := e.fetch(ctx, query, page, timeRange)
 	if err != nil {
 		return nil, err
 	}
 
 	// 429/503：预算内等待重试一次，注定超时才放弃进冷却
 	if status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable {
-		return e.handleRateLimited(start, retryAfter, query, page, timeRange, gen)
+		return e.handleRateLimited(ctx, start, retryAfter, query, page, timeRange, gen)
 	}
 
 	if status != http.StatusOK {
 		return nil, fmt.Errorf("arxiv HTTP %d", status)
 	}
 
-	e.recordSuccess(gen)
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+	}
 	return e.parse(body)
 }
+
+var _ antirobot.ContextEngine = (*arxivEngine)(nil)
 
 // stateGen 当前状态代次（请求开始时取快照）。
 func (e *arxivEngine) stateGen() uint64 {
@@ -129,7 +148,7 @@ func (e *arxivEngine) stateGen() uint64 {
 }
 
 // fetch 发一次搜索请求并读完 body，返回状态码、Retry-After 解析结果与响应体。
-func (e *arxivEngine) fetch(query string, page int, timeRange antirobot.TimeRange) ([]byte, int, time.Duration, error) {
+func (e *arxivEngine) fetch(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) ([]byte, int, time.Duration, error) {
 	offset := (page - 1) * 10
 	if offset < 0 {
 		offset = 0
@@ -143,7 +162,7 @@ func (e *arxivEngine) fetch(query string, page int, timeRange antirobot.TimeRang
 	u := fmt.Sprintf("%s?search_query=%s&start=%d&max_results=10",
 		arxivEndpoint, url.QueryEscape(q), offset)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("arxiv request: %w", err)
 	}
@@ -177,19 +196,26 @@ func arxivDateRange(timeRange antirobot.TimeRange) string {
 // handleRateLimited 限流避让决策：
 //   - 等待窗口 + 重试请求能装进本次超时预算 → 等待后重试一次，成功则直接返回；
 //   - 注定超时（如默认窗口 30s > 预算 10s）或重试仍限流 → 进入冷却快速失败。
-func (e *arxivEngine) handleRateLimited(start time.Time, retryAfter time.Duration, query string, page int, timeRange antirobot.TimeRange, gen uint64) (*antirobot.SearchResponse, error) {
+func (e *arxivEngine) handleRateLimited(ctx context.Context, start time.Time, retryAfter time.Duration, query string, page int, timeRange antirobot.TimeRange, gen uint64) (*antirobot.SearchResponse, error) {
 	wait := e.cooldownDuration(retryAfter)
 
 	if time.Since(start)+wait+arxivRetryEstimate <= arxivSearchBudget {
-		time.Sleep(wait)
-		body, status, _, err := e.fetch(query, page, timeRange)
+		if err := antirobot.SleepCtx(ctx, wait); err != nil {
+			return nil, err
+		}
+		body, status, _, err := e.fetch(ctx, query, page, timeRange)
 		if err == nil && status == http.StatusOK {
-			e.recordSuccess(gen)
+			if ctx.Err() == nil {
+				e.recordSuccess(gen)
+			}
 			return e.parse(body)
 		}
 		// 重试仍限流/失败 → 落入冷却放弃
 	}
 
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	e.enterCooldown(retryAfter)
 	return nil, fmt.Errorf("arxiv: HTTP 429/503 rate-limited (cooling down %.0fs)", e.cooldownRemaining().Seconds())
 }

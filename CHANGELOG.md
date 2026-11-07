@@ -22,6 +22,7 @@
 - **mcphub 空结果按失败同待遇冷却**：后端返回 200 但零结果（或抓取空正文）此前记进失败清单却不触发冷却，语义不对称且持续重试浪费上游配额；现在以哨兵 `mcphub.ErrEmptyResults` 判定并参与冷却（不靠错误文本关键词匹配）
 - **本端限流的归因不再失真**：`baidu` / `bing` / `google` / `github` / `googlenews` / `wikipedia` / `so360` 七个引擎在本端限流器拒绝放行时返回「空结果 + nil error」，被编排层记成「成功但零结果」——失败清单为空、聚合错误变成「所有搜索引擎均未返回有效结果」，控制中心的失败构成里完全看不到限流这一类。现在统一返回哨兵 `antirobot.ErrLocalRateLimit`，失败清单正确产出 `kind=rate_limit`
 - **评分流水线热点：分词去正则**：`tokenize` 是评分流水线的 CPU 与分配热点（正则 `FindAllString` 的匹配状态机开销高），改为手写字节扫描，语义逐字节等价（等价性用例以旧正则实现为 oracle 覆盖中英混排、CJK 长串、emoji、ASCII 边界等语料）
+- **独立评审补缺口（合入前）**：`baidu` / `bing` / `google` / `so360` / `arxiv` / `github` 补齐 `SearchContext`（ctx 取消后不再改退避 / 冷却 / 会话）；`KeyPool.MarkInvalidFor` 取较长截止，并发短冷却不再覆盖鉴权长冷却；DDG 本端限流改走 `LocalLimitSkipped`；`academicsearch` 省略 page 与 page=1 共用缓存键；TinyFish / Keenable 的 429/403 按 `keyErrorKindByStatus` 分类；`NewKeyError` 零 Kind 强制写成 transport
 
 ## v3.10.4 — 2026-11-05（发布整包、日志级别与并发失败可观测性、SQLite 连接池上限）
 

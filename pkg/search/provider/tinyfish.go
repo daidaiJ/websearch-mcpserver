@@ -123,11 +123,7 @@ func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackD
 	}
 	if res.StatusCode() != http.StatusOK {
 		err := errors.New(i18n.T("provider.tinyfish.bad_status", "Status", res.StatusCode()))
-		if res.StatusCode() == http.StatusUnauthorized {
-			return nil, NewKeyError(KeyErrorAuth, key, err)
-		}
-		// 非 401 状态码与 key 无关，不冷却
-		return nil, err
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	if len(resp.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.tinyfish.empty_content"))
@@ -170,11 +166,7 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 	}
 	if res.StatusCode() != http.StatusOK {
 		err := errors.New(i18n.T("provider.tinyfish.fetch_bad_status", "Status", res.StatusCode()))
-		if res.StatusCode() == http.StatusUnauthorized {
-			return "", NewKeyError(KeyErrorAuth, key, err)
-		}
-		// 非 401 状态码与 key 无关，不冷却
-		return "", err
+		return "", NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	if len(resp.Results) == 0 {
 		if len(resp.Errors) > 0 {

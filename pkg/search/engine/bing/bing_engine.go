@@ -1,6 +1,7 @@
 package bing
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -74,6 +75,18 @@ func (e *bingEngine) Name() string                    { return "bing" }
 func (e *bingEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再推进退避 / 会话轮换（B4）。
+func (e *bingEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !e.limiter.Allow() {
 		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
 		return antirobot.LocalLimitSkipped("bing")
@@ -81,10 +94,12 @@ func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRang
 
 	gen := e.stateGen()
 
-	e.preDelay()
+	if err := e.preDelay(ctx); err != nil {
+		return nil, err
+	}
 	u := e.buildURL(query, page, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -93,42 +108,52 @@ func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRang
 
 	resp, err := sess.client.Do(req)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	html := string(body)
 
-	if resp.StatusCode == 429 || resp.StatusCode == 403 {
-		e.recordFail()
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	if resp.StatusCode != 200 {
-		e.recordFail()
+	if resp.StatusCode == 429 || resp.StatusCode == 403 || resp.StatusCode != 200 {
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	if !strings.Contains(html, `id="b_results"`) {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("blocked by anti-bot")
 	}
 
-	e.recordSuccess(gen)
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+	}
 	results := e.parseResults(html)
 
 	if len(e.opts.Blocked) > 0 {
 		results = e.filterBlocked(results)
 	}
 
-	e.rotateSessionIfNeeded()
+	if ctx.Err() == nil {
+		e.rotateSessionIfNeeded()
+	}
 
 	return &antirobot.SearchResponse{Engine: "bing", Results: results}, nil
 }
+
+var _ antirobot.ContextEngine = (*bingEngine)(nil)
 
 // session 本请求使用的会话快照（B1：client 与 UA 同临界区读取，不混用轮换前后状态）。
 type session struct {
@@ -152,7 +177,7 @@ func (e *bingEngine) stateGen() uint64 {
 
 // ── 反爬防御 ──
 
-func (e *bingEngine) preDelay() {
+func (e *bingEngine) preDelay(ctx context.Context) error {
 	e.mu.Lock()
 	bo := e.backoff
 	e.mu.Unlock()
@@ -160,7 +185,7 @@ func (e *bingEngine) preDelay() {
 	if bo > 0 {
 		delay += bo
 	}
-	time.Sleep(delay)
+	return antirobot.SleepCtx(ctx, delay)
 }
 
 // rotateSessionIfNeeded 会话寿命计数与轮换在同一临界区内完成（B1）。

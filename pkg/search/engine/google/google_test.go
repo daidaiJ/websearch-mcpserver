@@ -1,6 +1,7 @@
 package google
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -357,7 +358,7 @@ func TestNewGoogle(t *testing.T) {
 func TestPreDelay(t *testing.T) {
 	e := &googleEngine{opts: GoogleOpts{}}
 	start := time.Now()
-	e.preDelay()
+	e.preDelay(context.Background())
 	elapsed := time.Since(start)
 
 	if elapsed < googleBaseDelay {

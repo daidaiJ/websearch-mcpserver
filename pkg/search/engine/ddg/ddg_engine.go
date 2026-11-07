@@ -100,13 +100,21 @@ func (e *ddgEngine) Search(query string, page int, timeRange antirobot.TimeRange
 	return e.SearchContext(context.Background(), query, page, timeRange)
 }
 
+var _ antirobot.ContextEngine = (*ddgEngine)(nil)
+
 // SearchContext 实现 antirobot.ContextEngine：ctx 取消（编排层软超时或客户端断连）
 // 后请求立即中止，且本次被判弃的调用不再推进冷却 / 会话轮换等共享状态（B4）。
 func (e *ddgEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	start := time.Now()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	if !e.limiter.Allow() {
-		return nil, fmt.Errorf("duckduckgo: local rate limit exceeded")
+		return antirobot.LocalLimitSkipped("duckduckgo")
 	}
 
 	// 服务端限流冷却期：避让不打上游，快速失败（窗口过后下一次搜索自动恢复）
@@ -173,7 +181,9 @@ func (e *ddgEngine) finishOK(ctx context.Context, body []byte, gen uint64) (*ant
 		results = e.filterBlocked(results)
 	}
 
-	e.rotateSessionIfNeeded()
+	if ctx.Err() == nil {
+		e.rotateSessionIfNeeded()
+	}
 
 	return &antirobot.SearchResponse{Engine: "duckduckgo", Results: results}, nil
 }
@@ -222,7 +232,7 @@ func (e *ddgEngine) handleRateLimited(ctx context.Context, start time.Time, retr
 	wait := e.cooldownDuration(retryAfter)
 
 	if time.Since(start)+wait+ddgRetryRequestEstimate <= e.searchBudget() {
-		if err := sleepCtx(ctx, wait); err != nil {
+		if err := antirobot.SleepCtx(ctx, wait); err != nil {
 			return nil, err
 		}
 		status, _, body, err := e.post(ctx, query, page, timeRange)
@@ -305,25 +315,7 @@ func (e *ddgEngine) preDelay(ctx context.Context) error {
 	if bo > 0 {
 		delay += bo
 	}
-	return sleepCtx(ctx, delay)
-}
-
-// sleepCtx 按 ctx 可取消地等待 d；d 非正时只回报 ctx 状态。
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if d <= 0 {
-		return nil
-	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-t.C:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return antirobot.SleepCtx(ctx, delay)
 }
 
 // recordFailIfLive 只有仍未被放弃的调用才推进退避状态（B4）。

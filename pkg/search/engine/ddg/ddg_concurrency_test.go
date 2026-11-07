@@ -2,6 +2,7 @@ package ddg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -260,5 +261,26 @@ func TestSoftTimeoutDoesNotAdvanceState(t *testing.T) {
 	}
 	if e.backoff != 0 || e.consecFails != 0 {
 		t.Errorf("被放弃的调用不应推进退避, backoff=%v consecFails=%d", e.backoff, e.consecFails)
+	}
+}
+
+// TestDDGLocalRateLimitIsAttributable DDG 本端限流走 LocalLimitSkipped 哨兵，
+// 与其它引擎同一归因路径（旧实现是裸 fmt.Errorf）。
+func TestDDGLocalRateLimitIsAttributable(t *testing.T) {
+	e := cooldownTestEngine()
+	e.limiter = antirobot.NewRateLimiter(1, 1)
+	if !e.limiter.Allow() {
+		t.Fatal("首次应放行")
+	}
+
+	resp, err := e.Search("q", 1, antirobot.TimeRangeNone)
+	if err == nil {
+		t.Fatal("本端限流必须返回错误")
+	}
+	if !errors.Is(err, antirobot.ErrLocalRateLimit) {
+		t.Fatalf("错误应包裹本端限流哨兵, got %v", err)
+	}
+	if resp == nil || len(resp.Results) != 0 {
+		t.Fatalf("本端限流应返回空结果, got %+v", resp)
 	}
 }

@@ -1,12 +1,22 @@
 package so360
 
 import (
+	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"websearch/pkg/antirobot"
 )
+
+type hangRT struct{}
+
+func (hangRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	<-req.Context().Done()
+	return nil, req.Context().Err()
+}
 
 // ── B2/B12：so360 的轻形态（退避）+ 本端限流归因 ──────────────────────────────
 
@@ -51,6 +61,38 @@ func TestSo360LocalRateLimitIsAttributable(t *testing.T) {
 	}
 	if resp == nil || len(resp.Results) != 0 {
 		t.Fatalf("本端限流应返回空结果, got %+v", resp)
+	}
+}
+
+// TestSo360SoftTimeoutDoesNotAdvanceState ctx 到期时被放弃的调用不得推进退避（B4）。
+func TestSo360SoftTimeoutDoesNotAdvanceState(t *testing.T) {
+	origDelay, origJitter := so360BaseDelay, so360Jitter
+	so360BaseDelay, so360Jitter = time.Millisecond, time.Millisecond
+	t.Cleanup(func() {
+		so360BaseDelay, so360Jitter = origDelay, origJitter
+	})
+
+	e := NewSo360(So360Opts{Enabled: true, PerSec: 1000, PerMin: 10000}).(*so360Engine)
+	e.client = &http.Client{Transport: hangRT{}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+
+	e.mu.Lock()
+	epochBefore := e.stateEpoch
+	e.mu.Unlock()
+
+	_, err := e.SearchContext(ctx, "q", 1, antirobot.TimeRangeNone)
+	if err == nil {
+		t.Fatal("ctx 到期后应返回错误")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateEpoch != epochBefore {
+		t.Errorf("被放弃的调用不应推进状态代次, %d → %d", epochBefore, e.stateEpoch)
+	}
+	if e.backoff != 0 || e.consecFails != 0 {
+		t.Errorf("被放弃的调用不应推进退避, backoff=%v consecFails=%d", e.backoff, e.consecFails)
 	}
 }
 

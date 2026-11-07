@@ -96,8 +96,14 @@ func TestKeenableSearchKeyedTier(t *testing.T) {
 		t.Fatal("401 must error")
 	}
 	var ke *KeyError
-	if !asKeyError(err, &ke) || ke.Key != "keen-1" {
-		t.Fatalf("err = %v, want KeyError(keen-1)", err)
+	if !asKeyError(err, &ke) || ke.Key != "keen-1" || ke.Kind != KeyErrorAuth {
+		t.Fatalf("err = %v, want KeyErrorAuth(keen-1)", err)
+	}
+
+	status = http.StatusTooManyRequests
+	_, err = k.SearchRaw("q")
+	if !asKeyError(err, &ke) || ke.Kind != KeyErrorRateLimit || ke.Key != "keen-1" {
+		t.Fatalf("429 must be KeyErrorRateLimit, got %v", err)
 	}
 }
 

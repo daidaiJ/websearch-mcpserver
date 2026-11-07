@@ -48,10 +48,14 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 	if academicSearcher == nil {
 		return nil, nil, errors.New(i18n.T("tool.academic.disabled"))
 	}
+	if page <= 0 {
+		page = 1
+	}
 
 	// ---- 缓存查询 ----
 	// page 必须进键（B7）：否则 page>=2 会命中第一页的缓存记录，分页静默退化。
-	// Lookup 与 Store 必须共用同一个键构造函数。
+	// Lookup 与 Store 必须共用同一个键构造函数。省略 / 非正页码与适配器
+	// 的 clamp（<=0 → 1）对齐，避免 MCP 缺省 page=0 与真实检索 page=1 各写各的键。
 	cacheKey := academicCacheKey(query, timeRange, engines, page)
 	requestCache := requestSearchCache()
 	if requestCache != nil {
@@ -131,6 +135,9 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 // page 必须参与（B7）：缺页码会让 page>=2 在 TTL 内命中第一页记录，分页静默退化。
 // engines 顺序保持调用方给定的顺序，不排序：引擎组合顺序本身是检索语义的一部分。
 func academicCacheKey(query, timeRange string, engines []string, page int) string {
+	if page <= 0 {
+		page = 1
+	}
 	return query + "|" + timeRange + "|" + strings.Join(engines, ",") + "|page=" + strconv.Itoa(page)
 }
 

@@ -6,6 +6,7 @@
 package so360
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -27,6 +28,7 @@ import (
 type so360Engine struct {
 	opts    So360Opts
 	limiter *antirobot.RateLimiter
+	client  *http.Client
 
 	mu          sync.Mutex
 	backoff     time.Duration
@@ -57,6 +59,18 @@ func (e *so360Engine) Name() string                    { return "so360" }
 func (e *so360Engine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再推进退避（B4）。
+func (e *so360Engine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !e.limiter.Allow() {
 		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
 		return antirobot.LocalLimitSkipped("so360")
@@ -64,41 +78,56 @@ func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRan
 
 	gen := e.stateGen()
 
-	e.preDelay()
+	if err := e.preDelay(ctx); err != nil {
+		return nil, err
+	}
 	u := e.buildURL(query, page, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	e.setHeaders(req)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := e.client
+	if client == nil {
+		client = &http.Client{Timeout: 15 * time.Second}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	html := string(body)
 
 	if resp.StatusCode != 200 {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	// 验证码页（wappass）= 反爬拦截；普通空结果页不含验证码标记，正常解析返回空
 	if so360CaptchaRe.MatchString(html) {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("blocked by anti-bot")
 	}
 
-	e.recordSuccess(gen)
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+	}
 	results := e.parseResults(html)
 
 	if len(e.opts.Blocked) > 0 {
@@ -106,6 +135,8 @@ func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRan
 	}
 	return &antirobot.SearchResponse{Engine: "so360", Results: results}, nil
 }
+
+var _ antirobot.ContextEngine = (*so360Engine)(nil)
 
 // stateGen 当前状态代次（请求开始时取快照）。
 func (e *so360Engine) stateGen() uint64 {
@@ -116,7 +147,7 @@ func (e *so360Engine) stateGen() uint64 {
 
 // ── 反爬防御 ──
 
-func (e *so360Engine) preDelay() {
+func (e *so360Engine) preDelay(ctx context.Context) error {
 	e.mu.Lock()
 	bo := e.backoff
 	e.mu.Unlock()
@@ -124,7 +155,7 @@ func (e *so360Engine) preDelay() {
 	if bo > 0 {
 		delay += bo
 	}
-	time.Sleep(delay)
+	return antirobot.SleepCtx(ctx, delay)
 }
 
 // recordSuccess 搜索成功：只在「本次请求期间没有并发请求记录失败」时清退避（B2）。

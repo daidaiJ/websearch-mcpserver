@@ -1,6 +1,7 @@
 package baidu
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -316,7 +317,7 @@ func TestBaiduSearch_TimeRange(t *testing.T) {
 func TestPreDelay(t *testing.T) {
 	e := &baiduEngine{opts: BaiduOpts{}}
 	start := time.Now()
-	e.preDelay()
+	e.preDelay(context.Background())
 	elapsed := time.Since(start)
 
 	// 基础延迟至少 500ms

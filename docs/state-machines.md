@@ -15,7 +15,7 @@
 > | B1 会话轮换竞态 | `ddg/bing/baidu/google/so360` 的 `*_concurrency_test.go`（`-race`） |
 > | B2 成功清空并发冷却/失败 | 各引擎 `RecordSuccessKeepsConcurrent*` |
 > | B3 KeyError 分类 | `pkg/search/apipool/apipool_test.go` 的 transport/auth/rate_limit 三例 |
-> | B4 软超时后副作用 | `ddg` `TestSoftTimeoutDoesNotAdvanceState`、`hybrid/ctx_cancel_test.go`、`antirobot/cooldown_test.go` |
+> | B4 软超时后副作用 | `ddg`/`baidu`/`bing`/`google`/`so360` `Test*SoftTimeoutDoesNotAdvanceState`、`hybrid/ctx_cancel_test.go`、`antirobot/cooldown_test.go` |
 > | B5 refcount 非原子 / 重复 stop | `server/refcount_test.go` |
 > | B6 冷却读-改-写 | `ddg` `TestConcurrentCooldownEscalation`、`antirobot/cooldown_test.go` |
 > | B7 academicsearch 缓存键 | `mcp/tool_academic_cache_test.go` |
@@ -51,7 +51,7 @@
 | B1 | 会话快照 `takeSession()` 同临界区取 client+UA；轮换（计数+判定+重写）整体入锁 | 五引擎 `*_engine.go` |
 | B2 | 引入状态代次 `stateEpoch`：请求开始取快照，成功只在「期间无并发进入冷却/记录失败」时清理 | 五引擎 + `pkg/academic/arxiv.go` |
 | B3 | `KeyError` 加 `Kind`（auth/rate_limit/transport/content）+ `NewKeyError`；apipool 按分类查表：auth 冷却 30min、rate_limit 短冷却、transport/content 不冷却且不换 key | `keypool.go`、8 个 provider、`apipool.go` |
-| B4 | 新增 `antirobot.ContextEngine` 可选接口，五引擎实现 `SearchContext`；ctx 取消后请求中止、且失败/成功/进入冷却均不再推进共享状态；`preDelay` 改为可取消等待；编排层 `execOne` 优先走 ctx 入口 | `antirobot/{engine,searcher}.go`、五引擎、`hybrid.go`（既有 ctx 下传保持不变） |
+| B4 | 新增 `antirobot.ContextEngine` 可选接口；`ddg`/`baidu`/`bing`/`google`/`so360`/`arxiv`/`github` 实现 `SearchContext`；ctx 取消后请求中止、且失败/成功/进入冷却均不再推进共享状态；`preDelay` 改为可取消等待；编排层 `execOne` 优先走 ctx 入口 | `antirobot/{engine,searcher}.go`、上述引擎、`hybrid.go`（既有 ctx 下传保持不变） |
 | B5 | `refMu` + `applyRefDelta`：锁内完成「检查 + 更新」，按饱和处理，`1→0` 迁移才发一次信号 → 重复 stop 真 no-op | `server/server.go` |
 | B6 | 冷却档位计算收敛为纯函数 `antirobot.NextCooldownDuration`，读写在同一临界区内 | `antirobot/cooldown.go`、五引擎、`arxiv.go` |
 | B7 | 缓存键并入 `page`（`academicCacheKey`），Lookup/Store 共用 | `mcp/tool_academic.go` |

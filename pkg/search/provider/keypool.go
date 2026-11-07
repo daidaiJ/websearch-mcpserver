@@ -94,7 +94,8 @@ func (p *KeyPool) MarkInvalid(key string) {
 const KeyRateLimitCooldown = 5 * time.Minute
 
 // MarkInvalidFor 标记指定 key 失效 ttl 时长（rate_limit 类短冷却用）。
-// ttl <= 0 视为立即恢复（清零失效时间）。
+// ttl <= 0 视为立即恢复（清零失效时间）。ttl > 0 时取
+// max(已有截止, now+ttl)，避免并发 429 的短冷却覆盖尚未到期的鉴权冷却（B6 同类）。
 func (p *KeyPool) MarkInvalidFor(key string, ttl time.Duration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -103,7 +104,11 @@ func (p *KeyPool) MarkInvalidFor(key string, ttl time.Duration) {
 			if ttl <= 0 {
 				p.states[i].invalidUntil = time.Time{}
 			} else {
-				p.states[i].invalidUntil = time.Now().Add(ttl)
+				until := time.Now().Add(ttl)
+				if p.states[i].invalidUntil.After(until) {
+					until = p.states[i].invalidUntil
+				}
+				p.states[i].invalidUntil = until
 			}
 			return
 		}
@@ -150,8 +155,12 @@ type KeyError struct {
 	Err  error
 }
 
-// NewKeyError 构造带分类的 KeyError。kind 为零值时按 transport 处理。
+// NewKeyError 构造带分类的 KeyError。kind 为零值时强制写成 transport，
+// 与 KeyError.Kind 字段注释及 apipool 查表的保守口径一致。
 func NewKeyError(kind KeyErrorKind, key string, err error) *KeyError {
+	if kind == "" {
+		kind = KeyErrorTransport
+	}
 	return &KeyError{Key: key, Kind: kind, Err: err}
 }
 

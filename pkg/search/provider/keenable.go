@@ -119,11 +119,10 @@ func (k *KeenableSearchImpl) search(ctx context.Context, query string) ([]core.S
 	}
 	if res.StatusCode() != http.StatusOK {
 		err := errors.New(i18n.T("provider.keenable.bad_status", "Status", res.StatusCode()))
-		if !k.usePublic() && res.StatusCode() == http.StatusUnauthorized {
-			return nil, NewKeyError(KeyErrorAuth, key, err)
+		if k.usePublic() {
+			return nil, err
 		}
-		// 非 401 状态码与 key 无关，不冷却
-		return nil, err
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	if len(resp.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.keenable.empty_content"))
@@ -180,7 +179,11 @@ func (k *KeenableSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 		return "", NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.keenable.fetch_call_failed"), err))
 	}
 	if res.StatusCode() != http.StatusOK {
-		return "", errors.New(i18n.T("provider.keenable.fetch_bad_status", "Status", res.StatusCode()))
+		err := errors.New(i18n.T("provider.keenable.fetch_bad_status", "Status", res.StatusCode()))
+		if k.usePublic() {
+			return "", err
+		}
+		return "", NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	text := strings.TrimSpace(resp.Content)
 	if text == "" {

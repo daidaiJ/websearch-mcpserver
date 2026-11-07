@@ -99,3 +99,18 @@ func TestAcademicPageOneTwoNineKeysDiffer(t *testing.T) {
 		t.Fatalf("同参数键应稳定: %q vs %q", again, k2)
 	}
 }
+
+// TestAcademicCacheKeyClampsNonPositivePage MCP 省略 page（零值 0）与适配器
+// clamp 后的 page=1 必须共用同一缓存键，否则缺省调用与显式 page=1 各写各的。
+func TestAcademicCacheKeyClampsNonPositivePage(t *testing.T) {
+	engines := []string{"arxiv"}
+	k0 := academicCacheKey("q", "year", engines, 0)
+	k1 := academicCacheKey("q", "year", engines, 1)
+	kNeg := academicCacheKey("q", "year", engines, -3)
+	if k0 != k1 || kNeg != k1 {
+		t.Fatalf("page<=0 必须与 page=1 同键: 0=%q 1=%q -3=%q", k0, k1, kNeg)
+	}
+	if !strings.Contains(k1, "page=1") {
+		t.Fatalf("钳制后键应可读为 page=1: %q", k1)
+	}
+}

@@ -1,14 +1,23 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"websearch/pkg/antirobot"
 )
+
+type hangRT struct{}
+
+func (hangRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	<-req.Context().Done()
+	return nil, req.Context().Err()
+}
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
@@ -157,5 +166,29 @@ func TestGitHubTruncateClausesQuoteAware(t *testing.T) {
 	same := `foo "bar baz" qux`
 	if got := truncateClauses(same); got != same {
 		t.Fatalf("未超限不应改动: %q", got)
+	}
+}
+
+func TestGitHubEnterCooldownKeepsLaterUntil(t *testing.T) {
+	e := NewGitHub(GitHubOpts{Enabled: true}).(*githubEngine)
+	e.enterCooldown(&http.Response{Header: http.Header{"Retry-After": []string{"300"}}})
+	e.enterCooldown(&http.Response{Header: http.Header{"Retry-After": []string{"5"}}})
+	if rest := e.cooldownRemaining(); rest < 4*time.Minute {
+		t.Fatalf("短 Retry-After 不得覆盖更晚截止, remaining=%v", rest)
+	}
+}
+
+func TestGitHubSoftTimeoutDoesNotEnterCooldown(t *testing.T) {
+	e := NewGitHub(GitHubOpts{Enabled: true, PerMin: 10000}).(*githubEngine)
+	e.client = &http.Client{Transport: hangRT{}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+	_, err := e.SearchContext(ctx, "q", 1, antirobot.TimeRangeNone)
+	if err == nil {
+		t.Fatal("ctx 到期后应返回错误")
+	}
+	if rest := e.cooldownRemaining(); rest > 0 {
+		t.Errorf("被放弃的调用不应进入冷却, remaining=%v", rest)
 	}
 }
