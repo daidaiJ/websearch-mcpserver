@@ -388,7 +388,7 @@ func TestRecordFail_Backoff(t *testing.T) {
 func TestRecordSuccess_Reset(t *testing.T) {
 	e := &googleEngine{opts: GoogleOpts{}}
 	e.recordFail()
-	e.recordSuccess()
+	e.recordSuccess(e.stateGen())
 
 	e.mu.Lock()
 	defer e.mu.Unlock()

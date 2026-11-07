@@ -33,6 +33,10 @@ type bingEngine struct {
 	reqCount    int
 	backoff     time.Duration
 	consecFails int
+
+	// 状态代次：每次记录失败递增。请求开始时取快照，成功路径只在
+	// 「本次请求期间没有并发请求记录失败」时清退避（B2）。
+	stateEpoch uint64
 }
 
 var bingUAs = []string{
@@ -55,11 +59,15 @@ var bingLangVariants = []string{
 var bingSafesearchMap = map[int]string{0: "off", 1: "moderate", 2: "strict"}
 
 const (
-	bingBaseDelay       = 500 * time.Millisecond
-	bingJitter          = 800 * time.Millisecond
 	bingMaxBackoff      = 60 * time.Second
 	bingSessionLifetime = 30
 	bingBlockThreshold  = 5
+)
+
+// 前置退避等待参数改为变量：单测需要缩短（生产取值不变）。
+var (
+	bingBaseDelay = 500 * time.Millisecond
+	bingJitter    = 800 * time.Millisecond
 )
 
 func (e *bingEngine) Name() string                    { return "bing" }
@@ -67,8 +75,11 @@ func (e *bingEngine) Region() antirobot.NetworkRegion { return antirobot.RegionC
 
 func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "bing", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("bing")
 	}
+
+	gen := e.stateGen()
 
 	e.preDelay()
 	u := e.buildURL(query, page, timeRange)
@@ -77,9 +88,10 @@ func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRang
 	if err != nil {
 		return nil, err
 	}
-	e.setHeaders(req)
+	sess := e.takeSession()
+	e.setHeaders(req, sess.ua)
 
-	resp, err := e.client.Do(req)
+	resp, err := sess.client.Do(req)
 	if err != nil {
 		e.recordFail()
 		return nil, err
@@ -106,22 +118,36 @@ func (e *bingEngine) Search(query string, page int, timeRange antirobot.TimeRang
 		return nil, fmt.Errorf("blocked by anti-bot")
 	}
 
-	e.recordSuccess()
+	e.recordSuccess(gen)
 	results := e.parseResults(html)
 
 	if len(e.opts.Blocked) > 0 {
 		results = e.filterBlocked(results)
 	}
 
-	e.mu.Lock()
-	e.reqCount++
-	rotate := e.reqCount >= bingSessionLifetime
-	e.mu.Unlock()
-	if rotate {
-		e.rotateSession()
-	}
+	e.rotateSessionIfNeeded()
 
 	return &antirobot.SearchResponse{Engine: "bing", Results: results}, nil
+}
+
+// session 本请求使用的会话快照（B1：client 与 UA 同临界区读取，不混用轮换前后状态）。
+type session struct {
+	client *http.Client
+	ua     string
+}
+
+// takeSession 取会话快照。
+func (e *bingEngine) takeSession() session {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return session{client: e.client, ua: e.ua}
+}
+
+// stateGen 当前状态代次。
+func (e *bingEngine) stateGen() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stateEpoch
 }
 
 // ── 反爬防御 ──
@@ -137,17 +163,32 @@ func (e *bingEngine) preDelay() {
 	time.Sleep(delay)
 }
 
-func (e *bingEngine) rotateSession() {
+// rotateSessionIfNeeded 会话寿命计数与轮换在同一临界区内完成（B1）。
+func (e *bingEngine) rotateSessionIfNeeded() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.reqCount++
+	if e.reqCount >= bingSessionLifetime {
+		e.rotateSessionLocked()
+	}
+}
+
+// rotateSessionLocked 重建会话（调用方已持锁）。
+func (e *bingEngine) rotateSessionLocked() {
 	jar, _ := cookiejar.New(nil)
 	e.client = &http.Client{Jar: jar, Timeout: 15 * time.Second}
 	e.ua = bingUAs[rand.Intn(len(bingUAs))]
 	e.reqCount = 0
 }
 
-func (e *bingEngine) setHeaders(req *http.Request) {
+// rotateSession 构造期初始化会话（无并发）。
+func (e *bingEngine) rotateSession() {
 	e.mu.Lock()
-	ua := e.ua
-	e.mu.Unlock()
+	defer e.mu.Unlock()
+	e.rotateSessionLocked()
+}
+
+func (e *bingEngine) setHeaders(req *http.Request, ua string) {
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", bingAcceptVariants[rand.Intn(len(bingAcceptVariants))])
 	req.Header.Set("Accept-Language", bingLangVariants[rand.Intn(len(bingLangVariants))])
@@ -162,17 +203,22 @@ func (e *bingEngine) setHeaders(req *http.Request) {
 	req.Header.Set("Referer", "https://www.bing.com/")
 }
 
-func (e *bingEngine) recordSuccess() {
+// recordSuccess 搜索成功：只在「本次请求期间没有并发请求记录失败」时清退避（B2）。
+func (e *bingEngine) recordSuccess(since uint64) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateEpoch != since {
+		return
+	}
 	e.backoff = 0
 	e.consecFails = 0
-	e.mu.Unlock()
 }
 
 func (e *bingEngine) recordFail() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.consecFails++
+	e.stateEpoch++
 	bo := bingBaseDelay * time.Duration(1<<uint(e.consecFails))
 	if bo > bingMaxBackoff {
 		bo = bingMaxBackoff

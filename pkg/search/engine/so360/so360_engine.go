@@ -31,6 +31,10 @@ type so360Engine struct {
 	mu          sync.Mutex
 	backoff     time.Duration
 	consecFails int
+
+	// 状态代次：每次记录失败递增。请求开始时取快照，成功路径只在
+	// 「本次请求期间没有并发请求记录失败」时清退避（B2）。
+	stateEpoch uint64
 }
 
 var so360UAs = []string{
@@ -40,9 +44,13 @@ var so360UAs = []string{
 }
 
 const (
-	so360BaseDelay  = 500 * time.Millisecond
-	so360Jitter     = 800 * time.Millisecond
 	so360MaxBackoff = 60 * time.Second
+)
+
+// 前置退避等待参数改为变量：单测需要缩短（生产取值不变）。
+var (
+	so360BaseDelay = 500 * time.Millisecond
+	so360Jitter    = 800 * time.Millisecond
 )
 
 func (e *so360Engine) Name() string                    { return "so360" }
@@ -50,8 +58,11 @@ func (e *so360Engine) Region() antirobot.NetworkRegion { return antirobot.Region
 
 func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "so360", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("so360")
 	}
+
+	gen := e.stateGen()
 
 	e.preDelay()
 	u := e.buildURL(query, page, timeRange)
@@ -87,13 +98,20 @@ func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRan
 		return nil, fmt.Errorf("blocked by anti-bot")
 	}
 
-	e.recordSuccess()
+	e.recordSuccess(gen)
 	results := e.parseResults(html)
 
 	if len(e.opts.Blocked) > 0 {
 		results = e.filterBlocked(results)
 	}
 	return &antirobot.SearchResponse{Engine: "so360", Results: results}, nil
+}
+
+// stateGen 当前状态代次（请求开始时取快照）。
+func (e *so360Engine) stateGen() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stateEpoch
 }
 
 // ── 反爬防御 ──
@@ -109,17 +127,22 @@ func (e *so360Engine) preDelay() {
 	time.Sleep(delay)
 }
 
-func (e *so360Engine) recordSuccess() {
+// recordSuccess 搜索成功：只在「本次请求期间没有并发请求记录失败」时清退避（B2）。
+func (e *so360Engine) recordSuccess(since uint64) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateEpoch != since {
+		return
+	}
 	e.backoff = 0
 	e.consecFails = 0
-	e.mu.Unlock()
 }
 
 func (e *so360Engine) recordFail() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.consecFails++
+	e.stateEpoch++
 	bo := so360BaseDelay * time.Duration(1<<uint(e.consecFails))
 	if bo > so360MaxBackoff {
 		bo = so360MaxBackoff

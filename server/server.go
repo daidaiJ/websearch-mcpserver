@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"strconv"
 
-	"sync/atomic"
+	"sync"
 	"syscall"
 	"time"
 
@@ -27,7 +27,8 @@ import (
 // Server 封装了 MCP 服务的生命周期管理。
 // 可独立使用，也可被外部项目嵌入。
 type Server struct {
-	refCount   atomic.Int32
+	refMu      sync.Mutex // 保护 refCount 的「检查 + 更新」复合操作
+	refCount   int32
 	shutdownCh chan struct{}
 }
 
@@ -38,15 +39,44 @@ func New() *Server {
 	}
 }
 
-// SetRefCount 设置初始引用计数。
-// 通常在首次启动时调用，设为 1。
+// SetRefCount 设置初始引用计数（通常在首次启动时调用，设为 1）。
 func (s *Server) SetRefCount(n int32) {
-	s.refCount.Store(n)
+	s.refMu.Lock()
+	defer s.refMu.Unlock()
+	s.refCount = max(n, 0)
 }
 
 // RefCount 返回当前引用计数。
 func (s *Server) RefCount() int32 {
-	return s.refCount.Load()
+	s.refMu.Lock()
+	defer s.refMu.Unlock()
+	return s.refCount
+}
+
+// applyRefDelta 在锁内完成「检查 + 更新」，返回新的引用计数与是否需要触发关闭。
+// 计数按饱和处理（下限 0），因此重复 stop 是真正的 no-op：计数已为 0 时再减
+// 不再产生新的 1→0 迁移，也就不会重复发关闭信号（B5）。
+func (s *Server) applyRefDelta(delta int32) (int32, bool) {
+	s.refMu.Lock()
+	defer s.refMu.Unlock()
+	if s.refCount == 0 && delta <= 0 {
+		return 0, false
+	}
+	next := s.refCount + delta
+	if next < 0 {
+		next = 0
+	}
+	tripped := s.refCount > 0 && next == 0
+	s.refCount = next
+	return next, tripped
+}
+
+// requestShutdown 非阻塞发一次关闭信号（重复请求被容量 1 的通道吸收）。
+func (s *Server) requestShutdown() {
+	select {
+	case s.shutdownCh <- struct{}{}:
+	default:
+	}
 }
 
 // localOnlyMiddleware 限制 admin 接口仅本地访问
@@ -106,20 +136,13 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 			return
 		}
 
-		newVal := s.refCount.Add(int32(req.Delta))
-		if newVal < 0 {
-			s.refCount.Store(0)
-			newVal = 0
-		}
+		newVal, tripped := s.applyRefDelta(int32(req.Delta))
 
 		w.Header().Set("Content-Type", "application/json")
 		resp := daemon.RefCountResponse{RefCount: int(newVal)}
-		if newVal == 0 {
+		if tripped {
 			resp.Message = "refcount reached zero, server will shutdown gracefully"
-			select {
-			case s.shutdownCh <- struct{}{}:
-			default:
-			}
+			s.requestShutdown()
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -130,7 +153,7 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(daemon.RefCountResponse{RefCount: int(s.refCount.Load())})
+		_ = json.NewEncoder(w).Encode(daemon.RefCountResponse{RefCount: int(s.RefCount())})
 	}))
 
 	mux.HandleFunc("/__admin/shutdown", localOnlyMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -140,17 +163,14 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"shutdown requested"}`))
-		select {
-		case s.shutdownCh <- struct{}{}:
-		default:
-		}
+		s.requestShutdown()
 	}))
 
 	mux.HandleFunc("/__admin/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(daemon.RefCountResponse{
-			RefCount: int(s.refCount.Load()),
+			RefCount: int(s.RefCount()),
 			Message:  "running",
 		})
 	})

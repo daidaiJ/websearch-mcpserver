@@ -46,5 +46,6 @@
   "search.engine.wikipedia_api_error": "wikipedia API 错误: {{.Info}}",
   "search.engine.googlenews_shell_missing_attrs": "shell page 缺少 data-n-a-* 属性（页面结构可能已变化）",
   "search.engine.googlenews_ts_not_numeric": "ts 非数字: \"{{.Value}}\"",
-  "search.engine.googlenews_no_garturlres": "batchexecute 响应中无 garturlres"
+  "search.engine.googlenews_no_garturlres": "batchexecute 响应中无 garturlres",
+  "search.engine.local_rate_limited": "本端限流（速率限制），已跳过本次请求"
 }

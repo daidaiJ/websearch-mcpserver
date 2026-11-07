@@ -133,7 +133,15 @@ func (s *Searcher) execOne(parent context.Context, eng Engine, query string, pag
 	}
 	ch := make(chan outcome, 1)
 	go func() {
-		resp, err := eng.Search(query, page, s.TimeRange)
+		var resp *SearchResponse
+		var err error
+		// 优先走 ctx 入口：软超时或客户端断连后引擎立即中止在飞请求，
+		// 不再把已被放弃的调用结果写进冷却 / 会话轮换等共享状态（B4）。
+		if ce, ok := eng.(ContextEngine); ok {
+			resp, err = ce.SearchContext(ctx, query, page, s.TimeRange)
+		} else {
+			resp, err = eng.Search(query, page, s.TimeRange)
+		}
 		ch <- outcome{resp, err}
 	}()
 

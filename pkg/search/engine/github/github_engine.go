@@ -117,7 +117,8 @@ func (e *githubEngine) Search(query string, page int, timeRange antirobot.TimeRa
 		return nil, fmt.Errorf("github: HTTP 403/429 rate-limited (cooling down %.0fs)", rest.Seconds())
 	}
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "github", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("github")
 	}
 
 	u := e.buildURL(query, page, timeRange)

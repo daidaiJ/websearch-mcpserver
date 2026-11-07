@@ -350,7 +350,7 @@ func TestRecordFail_Backoff(t *testing.T) {
 func TestRecordSuccess_ResetBackoff(t *testing.T) {
 	e := &baiduEngine{opts: BaiduOpts{}}
 	e.recordFail()
-	e.recordSuccess()
+	e.recordSuccess(e.stateGen())
 
 	e.mu.Lock()
 	defer e.mu.Unlock()

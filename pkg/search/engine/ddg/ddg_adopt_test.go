@@ -40,7 +40,7 @@ func TestDDGAdoptPersistedCooldown(t *testing.T) {
 	}
 
 	// 成功后清冷却（本地 + 落盘注册表）
-	e.recordSuccess()
+	e.recordSuccess(e.stateGen())
 	if e.cooldownRemaining() != 0 {
 		t.Fatalf("成功后冷却应清零, remaining=%v", e.cooldownRemaining())
 	}
