@@ -163,7 +163,10 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		Freshness: freshness,
 	}
 
-	key := y.keys.Next()
+	key, ok := y.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(y.name)
+	}
 	var resp yuanbaoSearchResponse
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
@@ -173,7 +176,8 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		SetResult(&resp).
 		Post(y.endpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.yuanbao.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.yuanbao.call_failed"), err))
 	}
 
 	status := res.StatusCode()
@@ -281,36 +285,48 @@ func lookbackDaysToYuanbaoFreshness(days int) string {
 
 func yuanbaoAPIErr(key string, status int, code, message string) error {
 	err := errors.New(i18n.T("provider.yuanbao.api_error", "Code", code, "Message", message))
-	if isYuanbaoKeyError(status, code) {
-		return &KeyError{Key: key, Err: err}
+	if kind, ok := yuanbaoKeyErrorKind(status, code); ok {
+		return NewKeyError(kind, key, err)
 	}
 	return err
 }
 
 func yuanbaoStatusErr(key string, status int) error {
 	err := errors.New(i18n.T("provider.yuanbao.bad_status", "Status", status))
-	if isYuanbaoKeyError(status, "") {
-		return &KeyError{Key: key, Err: err}
+	if kind, ok := yuanbaoKeyErrorKind(status, ""); ok {
+		return NewKeyError(kind, key, err)
 	}
 	return err
 }
 
-func isYuanbaoKeyError(status int, code string) bool {
+// yuanbaoKeyErrorKind 把状态码 / envelope 业务码映射为 KeyErrorKind；
+// ok=false 表示与 key 无关（返回裸错误，apipool 不冷却任何 key）。
+// 429 与 ratelimit/quota 类码按 rate_limit 短冷却，401/403 与 unauthorized 类码按 auth 冷却。
+func yuanbaoKeyErrorKind(status int, code string) (KeyErrorKind, bool) {
 	switch status {
-	case 401, 403, 429:
-		return true
+	case 401, 403:
+		return KeyErrorAuth, true
+	case 429:
+		return KeyErrorRateLimit, true
 	}
 	code = strings.ToLower(strings.TrimSpace(code))
 	switch code {
-	case "unauthorizedoperation", "requestlimitexceeded", "authfailure":
-		return true
+	case "unauthorizedoperation", "authfailure":
+		return KeyErrorAuth, true
+	case "requestlimitexceeded":
+		return KeyErrorRateLimit, true
 	}
-	for _, marker := range []string{"unauthorized", "invalidapikey", "invalid_api_key", "ratelimit", "rate_limit", "throttl", "quota"} {
+	for _, marker := range []string{"unauthorized", "invalidapikey", "invalid_api_key"} {
 		if strings.Contains(code, marker) {
-			return true
+			return KeyErrorAuth, true
 		}
 	}
-	return false
+	for _, marker := range []string{"ratelimit", "rate_limit", "throttl", "quota"} {
+		if strings.Contains(code, marker) {
+			return KeyErrorRateLimit, true
+		}
+	}
+	return "", false
 }
 
 // ── 月度调用预算 ──

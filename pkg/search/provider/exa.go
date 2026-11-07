@@ -162,7 +162,10 @@ func (e *ExaSearchImpl) search(ctx context.Context, query string) ([]core.Search
 	}
 
 	var resp exaSearchResp
-	key := e.keys.Next()
+	key, ok := e.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(e.name)
+	}
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
 		SetHeader("x-api-key", key).
@@ -171,10 +174,11 @@ func (e *ExaSearchImpl) search(ctx context.Context, query string) ([]core.Search
 		SetResult(&resp).
 		Post(exaAPIEndpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.exa.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.exa.call_failed"), err))
 	}
 	if res.StatusCode() != 200 {
-		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.exa.bad_status", "Status", res.StatusCode()))}
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, errors.New(i18n.T("provider.exa.bad_status", "Status", res.StatusCode())))
 	}
 	if len(resp.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.exa.empty_results"))

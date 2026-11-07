@@ -470,3 +470,104 @@ func TestHubFetchSkipsEngines(t *testing.T) {
 		t.Fatalf("engine calls = %d", eng.calls)
 	}
 }
+
+// ── B11：空结果（200 + 零结果）算失败，必须与其他失败同等待遇触发冷却 ────────
+
+// TestMCPHubEmptyResultsCooldown 上游 200 + 零结果：第一次失败后 server 必须进入
+// 冷却，第二次搜索不得再打上游（旧实现进失败清单但不冷却，语义不对称）。
+func TestMCPHubEmptyResultsCooldown(t *testing.T) {
+	fake := &fakeCaller{results: map[string]toolResult{
+		"parallel": {Structured: map[string]any{"results": []any{}}},
+	}}
+	h, err := newHub(testConfig("parallel"), testProxy, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.SearchRaw("q"); err == nil {
+		t.Fatal("空结果必须报告为失败")
+	}
+	if !h.rotation[0].cooled(false, time.Now()) {
+		t.Fatal("空结果必须触发冷却（B11：与其他失败同等待遇）")
+	}
+	before := len(fake.snapshot())
+	if _, err := h.SearchRaw("q"); err == nil {
+		t.Fatal("冷却期内的第二次搜索也应失败")
+	}
+	if after := len(fake.snapshot()); after != before {
+		t.Fatalf("冷却中的 server 不得再被调用: before=%d after=%d", before, after)
+	}
+}
+
+// TestMCPHubFetchEmptyBodyCooldown 抓取路径同理：空正文触发冷却。
+func TestMCPHubFetchEmptyBodyCooldown(t *testing.T) {
+	fake := &fakeCaller{results: map[string]toolResult{
+		"parallel/web_fetch": {Structured: map[string]any{"results": []any{
+			map[string]any{"url": "https://example.com", "full_content": "   "},
+		}}},
+	}}
+	h, err := newHub(testConfig("parallel"), testProxy, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Fetch(context.Background(), "https://example.com"); err == nil {
+		t.Fatal("空正文必须报告为失败")
+	}
+	if !h.rotation[0].cooled(true, time.Now()) {
+		t.Fatal("抓取空正文必须触发冷却")
+	}
+	before := len(fake.snapshot())
+	if _, err := h.Fetch(context.Background(), "https://example.com"); err == nil {
+		t.Fatal("冷却期内的第二次抓取也应失败")
+	}
+	if after := len(fake.snapshot()); after != before {
+		t.Fatalf("冷却中的 server 不得再被抓取: before=%d after=%d", before, after)
+	}
+}
+
+// TestShouldCooldownEmptyResultsSentinel 冷却判定走 ErrEmptyResults 哨兵：
+// 包裹与否、文案如何改写都不影响判定；无哨兵的纯文本错误不因含「空」字误判。
+func TestShouldCooldownEmptyResultsSentinel(t *testing.T) {
+	if !shouldCooldown(fmt.Errorf("wrapped: %w", ErrEmptyResults)) {
+		t.Fatal("包裹后的 ErrEmptyResults 仍应触发冷却")
+	}
+	if !shouldCooldown(emptyResultsError()) {
+		t.Fatal("emptyResultsError 必须携带哨兵")
+	}
+	if shouldCooldown(errors.New("provider.mcphub.empty_results")) {
+		t.Fatal("纯文本同名错误不应靠关键词触发冷却")
+	}
+}
+
+// TestHubAllKeysCoolingSkipsUpstream 全部 key 冷却中时不再下发已知失效 key
+// （B8 语义）：清掉 server 级冷却模拟「server 冷却已过、key 仍在 30min 冷却」
+// 的窗口，此时 callWithKeys 应返回 NoKeyError 并级联下一个 server，而不是
+// 拿着已知失效的 key 再打一次上游。
+func TestHubAllKeysCoolingSkipsUpstream(t *testing.T) {
+	cfg := testConfig("parallel", "exa")
+	cfg.Servers[0].SKList = []string{"k1", "k2"}
+	fake := &fakeCaller{
+		keyErrs: map[string]error{"k1": errors.New("401 unauthorized"), "k2": errors.New("401 unauthorized")},
+		results: map[string]toolResult{
+			"exa": exaResult("Exa", "https://example.com/exa"),
+		},
+	}
+	h, err := newHub(cfg, testProxy, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 第一次：两个 key 都因鉴权失败被标冷却（401 同时冷却 server 1s），级联到 exa 成功
+	if _, err := h.SearchRaw("q"); err != nil {
+		t.Fatal(err)
+	}
+	// server 冷却（1s）先于 key 冷却（30min）过期：直接清零 server 冷却原子。
+	h.rotation[0].searchCooldown.Store(0)
+	before := len(fake.snapshot())
+	if _, err := h.SearchRaw("q"); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range fake.snapshot()[before:] {
+		if c.server == "parallel" {
+			t.Fatalf("全部 key 冷却中的 server 不得再打上游（旧 Next() 会下发失效 key）: %+v", fake.snapshot()[before:])
+		}
+	}
+}

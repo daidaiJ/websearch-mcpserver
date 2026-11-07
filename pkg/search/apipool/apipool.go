@@ -45,13 +45,16 @@ func NewApipoolProvider(name string, engine core.SearchInf, pool *provider.KeyPo
 //   - priority：始终从第一个供应商开始，用完所有 SK → 下一个供应商 → web 兜底
 //   - weighted：按权重加权随机选择起始供应商（权重按可用 SK 数累加），失败切换链路相同
 //
-// 三种策略都支持同供应商内 SK 重试：当前 key 失败 → 标记 invalid → 尝试同 pool 下一个可用 key。
+// 三种策略都支持同供应商内 SK 重试：key 失败按 KeyErrorKind 分类处置（B3），
+// auth/rate_limit 类冷却该 key 后尝试同 pool 下一个可用 key；transport/content
+// 类与 key 无关，直接级联下一个供应商。
 type ApipoolSearchImpl struct {
-	providers []ApipoolProvider
-	strategy  string         // "round-robin" / "priority" / "weighted"
-	idx       atomic.Uint64  // round-robin 轮转游标
-	maxSize   int            // 全局最大结果数，0 = 不限
-	weights   map[string]int // weighted 策略：供应商名 → 单 Key 权重
+	providers    []ApipoolProvider
+	strategy     string         // "round-robin" / "priority" / "weighted"
+	idx          atomic.Uint64  // round-robin 轮转游标
+	maxSize      int            // 全局最大结果数，0 = 不限
+	weights      map[string]int // weighted 策略：供应商名 → 单 Key 权重
+	rateLimitTTL time.Duration  // rate_limit 类短冷却时长；0 = provider.KeyRateLimitCooldown（测试注入更短值）
 }
 
 // NewApipoolSearch 创建 ApipoolSearchImpl，providers 顺序即为优先级顺序。
@@ -68,6 +71,14 @@ func NewApipoolSearch(strategy string, providers ...ApipoolProvider) *ApipoolSea
 // 供应商有效权重 = 配置权重 × 当前可用 SK 数（免费引擎无 pool，固定为 1）。
 func (a *ApipoolSearchImpl) SetWeights(w map[string]int) {
 	a.weights = w
+}
+
+// rateLimitCooldown 返回 rate_limit 类短冷却时长；0 值回退包级默认（供测试注入）。
+func (a *ApipoolSearchImpl) rateLimitCooldown() time.Duration {
+	if a.rateLimitTTL > 0 {
+		return a.rateLimitTTL
+	}
+	return provider.KeyRateLimitCooldown
 }
 
 // SetMaxSize 设置全局最大结果数。
@@ -193,8 +204,14 @@ func (a *ApipoolSearchImpl) SearchRaw(query string) ([]core.SearchResult, error)
 	return a.searchRaw(context.Background(), query, -1)
 }
 
-// callProviderWithRetry 调用单个供应商，自动重试同 pool 内的其他 SK。
-// 当前 key 失败 → 标记 invalid → 检查 pool 是否还有可用 key → 有则重试，无则返回错误。
+// callProviderWithRetry 调用单个供应商，按失败分类处置 key 并重试（B3 查表）：
+//   - KeyErrorAuth        → 冷却该 key 30 分钟，同 pool 换下一个 key 重试；
+//   - KeyErrorRateLimit   → 短冷却该 key（keyRateLimitCooldown），同 pool 换下一个 key 重试；
+//   - KeyErrorTransport / KeyErrorContent / 非 KeyError → 与 key 无关，不冷却也不换 key，
+//     直接返回错误让 apipool 级联到下一个供应商；
+//   - 池内无可用 key（NextUsable 取不到）→ 引擎返回 ErrNoAvailableKey 包装错误，
+//     不再下发已知失效的 key（B8），这里同样不冷却直接级联。
+//
 // 请求 ctx 取消后立即停止重试。
 func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p ApipoolProvider, query string, lookbackDays int) ([]core.SearchResult, error) {
 	// 免费引擎无 pool，只调一次
@@ -202,7 +219,6 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p Apipool
 		return a.callSingle(ctx, p, query, lookbackDays)
 	}
 
-	var lastErr error
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.request_canceled"), err)
@@ -211,17 +227,22 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p Apipool
 		if err == nil {
 			return results, nil
 		}
-		// 优先按 provider.KeyError 精确标记本次实际使用的 key（并发安全）；
-		// 无 provider.KeyError（如免费引擎/内容为空等非 key 错误）时回退 MarkLastInvalid。
 		var ke *provider.KeyError
-		if errors.As(err, &ke) {
-			p.pool.MarkInvalid(ke.Key)
-		} else {
-			p.pool.MarkLastInvalid()
+		if !errors.As(err, &ke) {
+			// 非 key 错误（内容为空等）：与 key 无关，不冷却，级联下一供应商
+			return nil, err
 		}
-		lastErr = err
+		switch ke.Kind {
+		case provider.KeyErrorAuth:
+			p.pool.MarkInvalid(ke.Key)
+		case provider.KeyErrorRateLimit:
+			p.pool.MarkInvalidFor(ke.Key, a.rateLimitCooldown())
+		default:
+			// transport / content / 未分类：与 key 无关，不冷却任何 key，不换 key
+			return nil, err
+		}
 		if p.pool.Available() == 0 {
-			return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.all_keys_failed", "Name", p.engine.Name()), lastErr)
+			return nil, fmt.Errorf("%s: %w", i18n.T("search.apipool.all_keys_failed", "Name", p.engine.Name()), err)
 		}
 		log.InfoT("log.search.apipool.apipool_current_sk_failed_trying_the", "name", p.engine.Name())
 	}

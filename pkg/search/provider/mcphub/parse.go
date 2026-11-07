@@ -270,7 +270,7 @@ func parseParallelFetch(res toolResult) (string, error) {
 		return "", fmt.Errorf("%s: %w", i18n.T("provider.mcphub.parallel_fetch_unparsable"), err)
 	}
 	if len(out.Results) == 0 {
-		return "", errors.New(i18n.T("provider.mcphub.parallel_fetch_empty"))
+		return "", fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.parallel_fetch_empty"))
 	}
 	r := out.Results[0]
 	content := strings.TrimSpace(r.FullContent)
@@ -278,7 +278,7 @@ func parseParallelFetch(res toolResult) (string, error) {
 		content = strings.TrimSpace(strings.Join(r.Excerpts, "\n\n"))
 	}
 	if content == "" {
-		return "", errors.New(i18n.T("provider.mcphub.parallel_fetch_no_body"))
+		return "", fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.parallel_fetch_no_body"))
 	}
 	var b strings.Builder
 	if r.Title != "" {
@@ -302,7 +302,7 @@ func parseFirecrawlFetch(res toolResult) (string, error) {
 	}
 	content := firstNonEmpty(stringField(m, "markdown"), stringField(m, "content"), stringField(m, "text"))
 	if content == "" {
-		return "", errors.New(i18n.T("provider.mcphub.firecrawl_fetch_no_body"))
+		return "", fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.firecrawl_fetch_no_body"))
 	}
 	title := ""
 	if meta, ok := m["metadata"].(map[string]any); ok {
@@ -324,7 +324,7 @@ func parseAnysearchFetch(res toolResult) (string, error) {
 	}
 	content := firstNonEmpty(stringField(m, "content"), stringField(m, "markdown"), stringField(m, "text"), res.Text)
 	if strings.TrimSpace(content) == "" {
-		return "", errors.New(i18n.T("provider.mcphub.anysearch_fetch_empty"))
+		return "", fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.anysearch_fetch_empty"))
 	}
 	title := stringField(m, "title")
 	if title != "" && !strings.HasPrefix(strings.TrimSpace(content), "# ") {
@@ -336,7 +336,7 @@ func parseAnysearchFetch(res toolResult) (string, error) {
 func parseExaFetch(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return "", errors.New(i18n.T("provider.mcphub.exa_fetch_empty"))
+		return "", fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.exa_fetch_empty"))
 	}
 	lines := strings.Split(text, "\n")
 	var out []string
