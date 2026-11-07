@@ -29,7 +29,30 @@ var stopWords = map[string]struct{}{
 	"如何": {}, "怎么": {}, "什么": {}, "最新": {}, "最近": {},
 }
 
-var latinWordRe = regexp.MustCompile(`[a-z0-9]+`)
+// asciiWords 手写字节扫描替代正则 `[a-z0-9]+`（latinWordRe，现仅存于
+// tokenize_oracle_test.go 作等价性参照）：小写后按非 [a-z0-9] 切出 ASCII 词元，
+// 保持出现顺序、不产空词元。tokenize 是评分流水线的 CPU/分配热点，正则 FindAll
+// 的匹配状态机开销远高于直接按字节扫描。
+func asciiWords(s string) []string {
+	words := make([]string, 0, 8)
+	var w []byte
+	flush := func() {
+		if len(w) != 0 {
+			words = append(words, string(w))
+			w = w[:0]
+		}
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			w = append(w, c)
+		} else {
+			flush()
+		}
+	}
+	flush()
+	return words
+}
 
 // isCJK 判断是否为 CJK 表意字符。
 func isCJK(r rune) bool {
@@ -48,7 +71,7 @@ func tokenize(s string) []string {
 	var toks []string
 
 	// 英文/数字词元
-	for _, w := range latinWordRe.FindAllString(s, -1) {
+	for _, w := range asciiWords(s) {
 		if len(w) >= 2 {
 			toks = append(toks, w)
 		}
@@ -180,7 +203,7 @@ func isCompoundTerm(w string) bool {
 // 复合词（如 pgvector、fts5_virtual、pg18）命中时提升，全缺失时降低；
 // 无复合词时退化为短语连续匹配检测。
 func RareTermsFactor(query, title, snippet string) float64 {
-	qWords := latinWordRe.FindAllString(strings.ToLower(query), -1)
+	qWords := asciiWords(strings.ToLower(query))
 	doc := strings.ToLower(title + " " + snippet)
 
 	var compounds []string

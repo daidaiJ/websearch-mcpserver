@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"websearch/pkg/search/core"
 	"websearch/pkg/search/provider"
 )
@@ -17,6 +18,7 @@ type poolAwareEngine struct {
 	pool   *provider.KeyPool
 	result []core.SearchResult
 	errFn  func(key string) error // 根据 key 决定是否报错
+	calls  int                    // SearchRaw 实际到达引擎的次数（上游调用计数）
 }
 
 func (p *poolAwareEngine) Name() string { return p.name }
@@ -24,7 +26,11 @@ func (p *poolAwareEngine) Search(query string) (string, error) {
 	return "", nil
 }
 func (p *poolAwareEngine) SearchRaw(query string) ([]core.SearchResult, error) {
-	key := p.pool.Next()
+	key, ok := p.pool.NextUsable()
+	if !ok {
+		return nil, provider.NoKeyError(p.name)
+	}
+	p.calls++ // 通过 key 检查后才算上游调用（全冷却时打不到上游）
 	if p.errFn != nil {
 		if err := p.errFn(key); err != nil {
 			return nil, err
@@ -60,14 +66,14 @@ func TestApipool_FirstProviderSucceeds(t *testing.T) {
 
 func TestApipool_IntraPool_RetryNextSK(t *testing.T) {
 	pool1, _ := provider.NewKeyPool([]string{"k1_bad", "k2_good"})
-	// k1_bad 报错，k2_good 成功
+	// k1_bad 报鉴权错（B3：只有 auth 类才冷却并换 key），k2_good 成功
 	e1 := &poolAwareEngine{
 		name:   "baidu",
 		pool:   pool1,
 		result: []core.SearchResult{{Title: "b1", Url: "http://b1.com", Engine: "baidu"}},
 		errFn: func(key string) error {
 			if key == "k1_bad" {
-				return fmt.Errorf("auth fail")
+				return provider.NewKeyError(provider.KeyErrorAuth, key, fmt.Errorf("auth fail"))
 			}
 			return nil
 		},
@@ -91,10 +97,12 @@ func TestApipool_IntraPool_RetryNextSK(t *testing.T) {
 func TestApipool_IntraPool_AllSKsFail_FallbackToNext(t *testing.T) {
 	pool1, _ := provider.NewKeyPool([]string{"k1", "k2"})
 	pool2, _ := provider.NewKeyPool([]string{"k3"})
-	// baidu 全部 key 都失败
+	// baidu 全部 key 都鉴权失败（B3：模拟的失败形态必须显式分类才会冷却）
 	e1 := &poolAwareEngine{
 		name: "baidu", pool: pool1,
-		errFn: func(key string) error { return fmt.Errorf("fail") },
+		errFn: func(key string) error {
+			return provider.NewKeyError(provider.KeyErrorAuth, key, fmt.Errorf("auth fail"))
+		},
 	}
 	e2 := &poolAwareEngine{
 		name: "tavily", pool: pool2,
@@ -301,7 +309,10 @@ func (e *keyErrorEngine) Search(query string) (string, error) {
 	return "", nil
 }
 func (e *keyErrorEngine) SearchRaw(query string) ([]core.SearchResult, error) {
-	key := e.pool.Next()
+	key, ok := e.pool.NextUsable()
+	if !ok {
+		return nil, provider.NoKeyError("keyerr")
+	}
 	if e.gotKey != nil {
 		e.gotKey <- struct{}{}
 	}
@@ -309,7 +320,7 @@ func (e *keyErrorEngine) SearchRaw(query string) ([]core.SearchResult, error) {
 		<-e.release
 	}
 	if e.failKeys[key] {
-		return nil, &provider.KeyError{Key: key, Err: fmt.Errorf("boom")}
+		return nil, provider.NewKeyError(provider.KeyErrorAuth, key, fmt.Errorf("boom"))
 	}
 	return []core.SearchResult{{Title: "ok", Url: "http://ok.com", Engine: "keyerr"}}, nil
 }
@@ -319,7 +330,7 @@ func (e *keyErrorEngine) MergeContent(query string, results []core.SearchResult)
 
 // TestKeyError_ErrorHidesKey provider.KeyError.Error() 不得泄漏 Key 本身（日志安全）。
 func TestKeyError_ErrorHidesKey(t *testing.T) {
-	ke := &provider.KeyError{Key: "sk-secret-123", Err: fmt.Errorf("auth fail")}
+	ke := provider.NewKeyError(provider.KeyErrorAuth, "sk-secret-123", fmt.Errorf("auth fail"))
 	if strings.Contains(ke.Error(), "sk-secret-123") {
 		t.Errorf("provider.KeyError.Error() 不应包含 Key: %s", ke.Error())
 	}
@@ -351,7 +362,7 @@ func TestApipool_KeyError_MarksUsedKey(t *testing.T) {
 }
 
 // TestApipool_ConcurrentKeyError_CoolsOwnKey 并发：两个 goroutine 交错 Next + 失败，
-// 各自冷却自己的 key，不误伤对方（旧 MarkLastInvalid 会标错 key）。
+// 各自冷却自己的 key，不误伤对方（B9：旧 MarkLastInvalid 会标错 key，已删除）。
 func TestApipool_ConcurrentKeyError_CoolsOwnKey(t *testing.T) {
 	pool, _ := provider.NewKeyPool([]string{"k1", "k2"})
 	e := &keyErrorEngine{
@@ -382,6 +393,207 @@ func TestApipool_ConcurrentKeyError_CoolsOwnKey(t *testing.T) {
 	}
 	if got := pool.Next(); got != "k2" {
 		t.Errorf("expected k2 still available, got %s", got)
+	}
+}
+
+// ── B3：KeyError 分类决定冷却与换 key 行为 ────────────────────────────────
+
+// TestApipool_TransportErrorDoesNotCoolKeys transport 类失败不冷却任何 key、
+// 不换 key，直接级联下一个供应商（B3 修复 (a)）。
+func TestApipool_TransportErrorDoesNotCoolKeys(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1"})
+	pool2, _ := provider.NewKeyPool([]string{"k2"})
+	e1 := &poolAwareEngine{
+		name: "tavily", pool: pool1,
+		errFn: func(key string) error {
+			return provider.NewKeyError(provider.KeyErrorTransport, key, fmt.Errorf("dial tcp: connection reset"))
+		},
+	}
+	e2 := &poolAwareEngine{name: "exa", pool: pool2, result: []core.SearchResult{{Title: "e1", Engine: "exa"}}}
+	ap := NewApipoolSearch("round-robin",
+		ApipoolProvider{engine: e1, pool: pool1},
+		ApipoolProvider{engine: e2, pool: pool2},
+	)
+	results, err := ap.SearchRaw("test")
+	if err != nil {
+		t.Fatalf("transport 失败应级联到 exa 成功: %v", err)
+	}
+	if results[0].Engine != "exa" {
+		t.Fatalf("expected fallback to exa, got %s", results[0].Engine)
+	}
+	// key 完全未被冷却，且引擎只被调了一次（未换 key 重试）
+	if got := pool1.Available(); got != 1 {
+		t.Errorf("transport 失败不得冷却任何 key: Available=%d, want 1", got)
+	}
+	if e1.calls != 1 {
+		t.Errorf("transport 失败不得换 key 重试: calls=%d, want 1", e1.calls)
+	}
+}
+
+// TestApipool_AuthErrorCoolsKey auth 类失败冷却该 key 并换下一个 key 重试（B3 修复 (b)）。
+func TestApipool_AuthErrorCoolsKey(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1", "k2"})
+	calls := 0
+	e1 := &poolAwareEngine{
+		name: "tavily", pool: pool1,
+		errFn: func(key string) error {
+			calls++
+			if key == "k1" {
+				return provider.NewKeyError(provider.KeyErrorAuth, key, fmt.Errorf("401 unauthorized"))
+			}
+			return nil
+		},
+		result: []core.SearchResult{{Title: "t1", Engine: "tavily"}},
+	}
+	ap := NewApipoolSearch("round-robin", ApipoolProvider{engine: e1, pool: pool1})
+	results, err := ap.SearchRaw("test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results[0].Title != "t1" {
+		t.Fatalf("expected t1, got %+v", results)
+	}
+	if got := pool1.Available(); got != 1 {
+		t.Errorf("auth 失败应冷却 k1（剩 k2 可用）: Available=%d, want 1", got)
+	}
+	if calls != 2 {
+		t.Errorf("auth 失败应换 key 重试一次: calls=%d, want 2", calls)
+	}
+}
+
+// TestApipool_RateLimitErrorShortCooldown rate_limit 类失败只短冷却该 key：
+// 冷却后 key 在注入的短 TTL 之后即恢复可用（不等 5 分钟真实时长）。
+func TestApipool_RateLimitErrorShortCooldown(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1", "k2"})
+	e1 := &poolAwareEngine{
+		name: "tavily", pool: pool1,
+		errFn: func(key string) error {
+			if key == "k1" {
+				return provider.NewKeyError(provider.KeyErrorRateLimit, key, fmt.Errorf("429 too many requests"))
+			}
+			return nil
+		},
+		result: []core.SearchResult{{Title: "t1", Engine: "tavily"}},
+	}
+	ap := NewApipoolSearch("round-robin", ApipoolProvider{engine: e1, pool: pool1})
+	ap.rateLimitTTL = 30 * time.Millisecond // 注入短 TTL，避免等真实 5 分钟
+	results, err := ap.SearchRaw("test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results[0].Title != "t1" {
+		t.Fatalf("expected t1, got %+v", results)
+	}
+	// 立即看：k1 短冷却中，k2 可用
+	if got := pool1.Available(); got != 1 {
+		t.Errorf("rate_limit 失败应短冷却 k1（剩 k2 可用）: Available=%d, want 1", got)
+	}
+	if got := pool1.Next(); got != "k2" {
+		t.Errorf("expected next key k2, got %s", got)
+	}
+	// 短 TTL 过后 k1 惰性恢复
+	time.Sleep(40 * time.Millisecond)
+	if got := pool1.Available(); got != 2 {
+		t.Errorf("短冷却到期后 k1 应恢复: Available=%d, want 2", got)
+	}
+}
+
+// TestApipool_ContentErrorDoesNotCoolKeys content 类失败（空结果等）不冷却任何 key（B3）。
+func TestApipool_ContentErrorDoesNotCoolKeys(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1"})
+	e1 := &poolAwareEngine{
+		name: "tavily", pool: pool1,
+		errFn: func(key string) error {
+			return provider.NewKeyError(provider.KeyErrorContent, key, fmt.Errorf("no results"))
+		},
+	}
+	ap := NewApipoolSearch("round-robin", ApipoolProvider{engine: e1, pool: pool1})
+	if _, err := ap.SearchRaw("test"); err == nil {
+		t.Fatal("content 失败应返回错误")
+	}
+	if got := pool1.Available(); got != 1 {
+		t.Errorf("content 失败不得冷却 key: Available=%d, want 1", got)
+	}
+}
+
+// TestApipool_NonKeyErrorDoesNotCoolKeys 非 KeyError 失败不冷却任何 key
+// （B9 收口：旧实现回退 MarkLastInvalid 会误冻池级 lastKey）。
+func TestApipool_NonKeyErrorDoesNotCoolKeys(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1"})
+	e1 := &poolAwareEngine{
+		name: "tavily", pool: pool1,
+		errFn: func(string) error { return fmt.Errorf("plain failure") },
+	}
+	ap := NewApipoolSearch("round-robin", ApipoolProvider{engine: e1, pool: pool1})
+	if _, err := ap.SearchRaw("test"); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := pool1.Available(); got != 1 {
+		t.Errorf("非 KeyError 失败不得冷却 key: Available=%d, want 1", got)
+	}
+}
+
+// ── B8：池内无可用 key 时不打上游 ─────────────────────────────────────────
+
+// TestApipool_AllKeysCooling_NoUpstreamCall 全部 key 冷却中：Next() 返回 ""、
+// NextUsable() ok=false，callProviderWithRetry 报错且上游调用次数为 0。
+func TestApipool_AllKeysCooling_NoUpstreamCall(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1", "k2"})
+	pool1.MarkInvalid("k1")
+	pool1.MarkInvalid("k2")
+	if got := pool1.Available(); got != 0 {
+		t.Fatalf("precondition: all keys cooling, Available=%d", got)
+	}
+	if got := pool1.Next(); got != "" {
+		t.Errorf("全部冷却时 Next() 必须返回空串（不下发已知失效 key）, got %q", got)
+	}
+	if key, ok := pool1.NextUsable(); ok {
+		t.Errorf("全部冷却时 NextUsable() 必须 ok=false, got key=%q ok=true", key)
+	}
+	pool2, _ := provider.NewKeyPool([]string{"k3"})
+	e1 := &poolAwareEngine{name: "tavily", pool: pool1}
+	e2 := &poolAwareEngine{name: "exa", pool: pool2, result: []core.SearchResult{{Title: "e1", Engine: "exa"}}}
+	ap := NewApipoolSearch("round-robin",
+		ApipoolProvider{engine: e1, pool: pool1},
+		ApipoolProvider{engine: e2, pool: pool2},
+	)
+	results, err := ap.SearchRaw("test")
+	if err != nil {
+		t.Fatalf("应级联到 exa 成功: %v", err)
+	}
+	if results[0].Engine != "exa" {
+		t.Fatalf("expected exa, got %s", results[0].Engine)
+	}
+	if e1.calls != 0 {
+		t.Errorf("全部冷却时不得打上游: calls=%d, want 0", e1.calls)
+	}
+}
+
+// TestApipool_AllKeysCooling_AllProvidersDown 全供应商全冷却：整体报错且含
+// ErrNoAvailableKey 哨兵，上游零调用。
+func TestApipool_AllKeysCooling_AllProvidersDown(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1"})
+	pool1.MarkInvalid("k1")
+	e1 := &poolAwareEngine{name: "tavily", pool: pool1}
+	ap := NewApipoolSearch("round-robin", ApipoolProvider{engine: e1, pool: pool1})
+	_, err := ap.SearchRaw("test")
+	if err == nil {
+		t.Fatal("expected error when all providers' keys are cooling")
+	}
+	if !errors.Is(err, provider.ErrNoAvailableKey) {
+		t.Errorf("聚合错误应包含 ErrNoAvailableKey 哨兵, got %v", err)
+	}
+	if e1.calls != 0 {
+		t.Errorf("全部冷却时不得打上游: calls=%d, want 0", e1.calls)
+	}
+}
+
+// TestKeyPool_MarkInvalidFor_ZeroTTLRecovers MarkInvalidFor 的 ttl<=0 视为立即恢复。
+func TestKeyPool_MarkInvalidFor_ZeroTTLRecovers(t *testing.T) {
+	pool, _ := provider.NewKeyPool([]string{"k1", "k2"})
+	pool.MarkInvalidFor("k1", 0)
+	if got := pool.Available(); got != 2 {
+		t.Errorf("ttl=0 应清零冷却: Available=%d, want 2", got)
 	}
 }
 

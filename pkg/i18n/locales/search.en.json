@@ -46,5 +46,6 @@
   "search.engine.wikipedia_api_error": "wikipedia API error: {{.Info}}",
   "search.engine.googlenews_shell_missing_attrs": "the shell page is missing the data-n-a-* attributes (the page structure may have changed)",
   "search.engine.googlenews_ts_not_numeric": "ts is not numeric: \"{{.Value}}\"",
-  "search.engine.googlenews_no_garturlres": "the batchexecute response contains no garturlres"
+  "search.engine.googlenews_no_garturlres": "the batchexecute response contains no garturlres",
+  "search.engine.local_rate_limited": "local rate limit reached; request skipped"
 }

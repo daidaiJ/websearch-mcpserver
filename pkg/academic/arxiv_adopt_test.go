@@ -28,7 +28,7 @@ func TestArxivAdoptPersistedCooldown(t *testing.T) {
 		t.Fatalf("应续接翻倍档位 60s, got %v", e.cooldown)
 	}
 
-	e.recordSuccess()
+	e.recordSuccess(e.stateGen())
 	if e.cooldownRemaining() != 0 {
 		t.Fatalf("成功后冷却应清零, remaining=%v", e.cooldownRemaining())
 	}

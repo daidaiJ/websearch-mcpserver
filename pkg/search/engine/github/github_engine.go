@@ -5,6 +5,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -113,15 +114,28 @@ type ghSearchResp struct {
 }
 
 func (e *githubEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再写入限流冷却（B4）。
+func (e *githubEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if rest := e.cooldownRemaining(); rest > 0 {
 		return nil, fmt.Errorf("github: HTTP 403/429 rate-limited (cooling down %.0fs)", rest.Seconds())
 	}
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "github", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("github")
 	}
 
 	u := e.buildURL(query, page, timeRange)
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +157,9 @@ func (e *githubEngine) Search(query string, page int, timeRange antirobot.TimeRa
 	}
 	// GitHub 限流形态：403（配额耗尽，headers 带提示）与 429（二级限流，Retry-After）。
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-		e.enterCooldown(resp)
+		if ctx.Err() == nil {
+			e.enterCooldown(resp)
+		}
 		return nil, fmt.Errorf("github: HTTP %d rate-limited", resp.StatusCode)
 	}
 	if resp.StatusCode != 200 {
@@ -276,10 +292,16 @@ func (e *githubEngine) enterCooldown(resp *http.Response) {
 	}
 	until := time.Now().Add(cd)
 	e.cooldownMu.Lock()
-	e.coolUntil = until
+	if e.coolUntil.After(until) {
+		until = e.coolUntil
+	} else {
+		e.coolUntil = until
+	}
 	e.cooldownMu.Unlock()
 	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_403_429"), until, cd)
 }
+
+var _ antirobot.ContextEngine = (*githubEngine)(nil)
 
 func (e *githubEngine) cooldownRemaining() time.Duration {
 	e.cooldownMu.Lock()

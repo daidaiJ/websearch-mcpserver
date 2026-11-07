@@ -118,17 +118,22 @@ func (b *BaiduSearchImpl) search(ctx context.Context, query string) ([]core.Sear
 		Recency:      b.recency,
 	}
 	rep := baidSearchReponse{}
-	key := b.keys.Next()
+	key, ok := b.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(b.name)
+	}
 	res, err := client.DefaultClient.R().SetContext(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s, %w", i18n.T("provider.baidu.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s, %w", i18n.T("provider.baidu.call_failed"), err))
 	}
 	// 非 200 通常意味着鉴权/配额/参数错误，显式暴露状态码与服务端消息，避免误报为“内容为空”
 	if res.StatusCode() != 200 {
+		kind := keyErrorKindByStatus(res.StatusCode())
 		if rep.Message != "" {
-			return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.baidu.bad_status_msg_code", "Status", res.StatusCode(), "Message", rep.Message, "Code", rep.Code))}
+			return nil, NewKeyError(kind, key, errors.New(i18n.T("provider.baidu.bad_status_msg_code", "Status", res.StatusCode(), "Message", rep.Message, "Code", rep.Code)))
 		}
-		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.baidu.bad_status_body", "Status", res.StatusCode(), "Body", res.String()))}
+		return nil, NewKeyError(kind, key, errors.New(i18n.T("provider.baidu.bad_status_body", "Status", res.StatusCode(), "Body", res.String())))
 	}
 	if len(rep.References) == 0 {
 		return nil, errors.New(i18n.T("provider.baidu.empty_content"))

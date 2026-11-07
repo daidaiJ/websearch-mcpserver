@@ -1,9 +1,7 @@
 package enhance
 
 import (
-	"net/url"
 	"sort"
-	"strings"
 	"websearch/pkg/search/core"
 
 	"websearch/pkg/antirobot"
@@ -69,25 +67,13 @@ func ConsensusBoost(numEngines int) float64 {
 	}
 }
 
-// normalizeURLKey 归一化 URL 作为跨引擎去重键（忽略 scheme / www / 末尾斜杠）。
+// normalizeURLKey 归一化 URL 作为跨引擎去重键，统一委托 core.NormalizeURL
+// （scheme/host 小写、去 fragment、剥离 utm_*/fbclid/gclid/ref/spm 追踪参数、
+// 查询参数排序、非根路径去尾斜杠）。旧实现只忽略 scheme/www/尾斜杠但保留
+// 原始查询串（不剥追踪参数、不排序），与 hybrid 的单引擎去重键是两套语义，
+// 现与 hybrid 一致。空 URL 返回空。
 func normalizeURLKey(raw string) string {
-	s := strings.TrimSpace(raw)
-	if s == "" {
-		return ""
-	}
-	u, err := url.Parse(s)
-	if err != nil || u.Host == "" {
-		return strings.TrimRight(s, "/")
-	}
-	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
-	key := host + strings.TrimRight(u.EscapedPath(), "/")
-	if u.RawQuery != "" {
-		key += "?" + u.RawQuery
-	}
-	if key == "" {
-		return strings.TrimRight(s, "/")
-	}
-	return key
+	return core.NormalizeURL(raw)
 }
 
 // resultKeys 学术结果去重键组：DOI 与 URL 各生成一个键，任一键命中即视为同文。
@@ -191,11 +177,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 
 	// MMR 多样性重排（阀值过滤之后、maxSize 截断之前）
 	if mmr.Enabled {
-		targetN := mmr.TargetCount
-		if targetN <= 0 {
-			targetN = len(scored)
-		}
-		scored = ApplyMMR(scored, mmr.Lambda, targetN)
+		scored = ApplyMMR(scored, mmr.Lambda, mmrTargetN(mmr, maxSize, len(scored)))
 	}
 
 	if maxSize > 0 && len(scored) > maxSize {
@@ -204,6 +186,23 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 
 	log.InfoT("log.search.enhance.wigolo_score_enhancement_intent_error_temporal", "classifyIntent", classifyIntent(query), "hasError", hasError, "temporal", temporal, "enabled", mmr.Enabled, "before", before, "len", len(scored), "len2", len(scored))
 	return scored
+}
+
+// mmrTargetN 计算 MMR 的目标条数（纯函数，便于直接断言）：
+//   - target_count > 0：以显式配置为上限，与输入条数取小；
+//   - target_count 缺省（0）且 maxSize > 0：跟随 maxSize——MMR 贪心选择具有
+//     前缀性（选前 k 项与对全量选择后的前 k 项相同），超出 maxSize 的尾部终将
+//     被截断丢弃，对全量做二次方重排是纯浪费；
+//   - maxSize <= 0（全局不限）：对全量重排，不额外截断。
+func mmrTargetN(mmr config.MMRConfig, maxSize, total int) int {
+	targetN := mmr.TargetCount
+	if targetN <= 0 {
+		targetN = maxSize
+	}
+	if targetN <= 0 || targetN > total {
+		targetN = total
+	}
+	return targetN
 }
 
 // ApplyScoreFloor 相关性阀值过滤，裁剪低质量上下文：

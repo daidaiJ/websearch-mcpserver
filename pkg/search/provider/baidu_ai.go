@@ -141,7 +141,10 @@ func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.Se
 	}
 
 	var resp baiduAIResponse
-	key := b.keys.Next()
+	key, ok := b.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(b.name)
+	}
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
 		SetHeader("X-Appbuilder-Authorization", fmt.Sprintf("Bearer %s", key)).
@@ -149,10 +152,11 @@ func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.Se
 		SetResult(&resp).
 		Post("https://qianfan.baidubce.com/v2/ai_search/chat/completions")
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s, %w", i18n.T("provider.baidu_ai.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s, %w", i18n.T("provider.baidu_ai.call_failed"), err))
 	}
 	if res.StatusCode() != 200 {
-		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.baidu_ai.bad_status", "Status", res.StatusCode()))}
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, errors.New(i18n.T("provider.baidu_ai.bad_status", "Status", res.StatusCode())))
 	}
 	if len(resp.References) == 0 && len(resp.Choices) == 0 {
 		return nil, errors.New(i18n.T("provider.baidu_ai.empty_content"))

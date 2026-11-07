@@ -15,6 +15,11 @@ import (
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
+// ErrEmptyResults 后端返回 200 但零结果/空正文的稳定哨兵（errors.Is 判定）。
+// 空结果按失败处理并参与冷却（B11），判定走哨兵而非错误文本关键词。
+// 自身文本不本地化；用户可见的描述用 provider.mcphub.empty_results 文案包裹。
+var ErrEmptyResults = errors.New("mcphub: empty results")
+
 // toolResult 一次 MCP tools/call 的结果：结构化内容优先，纯文本兜底。
 type toolResult struct {
 	Structured map[string]any
@@ -109,6 +114,11 @@ func shouldCooldown(err error) bool {
 	}
 	if errors.Is(err, context.Canceled) {
 		return false
+	}
+	// 空结果（200 + 零结果）也算失败：语义上与其它失败同等待遇，持续被重试只会
+	// 浪费上游配额（B11）。
+	if errors.Is(err, ErrEmptyResults) {
+		return true
 	}
 	msg := strings.ToLower(err.Error())
 	for _, needle := range []string{

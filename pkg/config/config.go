@@ -1074,7 +1074,7 @@ func (c SmartSearchConfig) InlineMaxCharsOrDefault() (limit int, enabled bool) {
 type MMRConfig struct {
 	Enabled     bool    `mapstructure:"enabled"`      // MMR 重排开关（默认 true）
 	Lambda      float64 `mapstructure:"lambda"`       // 相关性-多样性权衡系数 [0,1]，越高越偏相关性，默认 0.7
-	TargetCount int     `mapstructure:"target_count"` // MMR 后的目标条数，0 = 不额外截断（由 max_size 统一截断）
+	TargetCount int     `mapstructure:"target_count"` // MMR 后的目标条数，0 = 跟随 max_size（全局 max_size > 0 时以此为上限；max_size 不限时与旧行为一致不额外截断）
 }
 
 // SmartSearchEngine 单引擎的 smartsearch 配置。

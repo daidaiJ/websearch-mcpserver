@@ -155,7 +155,7 @@ func (s *server) Search(ctx context.Context, query string, max int) ([]core.Sear
 		return nil, fmt.Errorf("%s: %w", s.name, err)
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("%s: %s", s.name, i18n.T("provider.mcphub.empty_results"))
+		return nil, fmt.Errorf("%s: %w", s.name, emptyResultsError())
 	}
 	return results, nil
 }
@@ -170,7 +170,7 @@ func (s *server) Fetch(ctx context.Context, rawURL string, maxChars int) (string
 		return "", fmt.Errorf("%s: %w", s.name, err)
 	}
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("%s: %s", s.name, i18n.T("provider.mcphub.fetch_empty"))
+		return "", fmt.Errorf("%s: %w", s.name, emptyFetchError())
 	}
 	if maxChars > 0 {
 		runes := []rune(text)
@@ -179,6 +179,16 @@ func (s *server) Fetch(ctx context.Context, rawURL string, maxChars int) (string
 		}
 	}
 	return text, nil
+}
+
+// emptyResultsError 本地化的空结果错误，包裹 ErrEmptyResults 哨兵供 shouldCooldown 判定。
+func emptyResultsError() error {
+	return fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.empty_results"))
+}
+
+// emptyFetchError 同 emptyResultsError，抓取路径的文案。
+func emptyFetchError() error {
+	return fmt.Errorf("%w: %s", ErrEmptyResults, i18n.T("provider.mcphub.fetch_empty"))
 }
 
 // callWithKeys 单 server 内按 Key 重试：仅鉴权失败换 Key，超时/连接错误仍交由级联处理。
@@ -191,7 +201,14 @@ func (s *server) callWithKeys(ctx context.Context, tool string, args map[string]
 		if err := ctx.Err(); err != nil {
 			return toolResult{}, err
 		}
-		key := s.keys.Next()
+		key, ok := s.keys.NextUsable()
+		if !ok {
+			// 全部 key 冷却中：不再向已失效的 key 打上游（B8 语义），立即放弃本 server。
+			if lastErr == nil {
+				lastErr = provider.NoKeyError(s.name)
+			}
+			return toolResult{}, lastErr
+		}
 		res, err := s.caller.Call(ctx, s, tool, args, timeout, key)
 		if err == nil {
 			return res, nil
@@ -239,7 +256,7 @@ func (e *engineBackend) Search(ctx context.Context, query string, max int) ([]co
 		return nil, fmt.Errorf("%s: %w", e.name, err)
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("%s: %s", e.name, i18n.T("provider.mcphub.empty_results"))
+		return nil, fmt.Errorf("%s: %w", e.name, emptyResultsError())
 	}
 	if max > 0 && len(results) > max {
 		results = results[:max]
@@ -521,7 +538,7 @@ func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, 
 			return results, true
 		}
 		if err == nil {
-			err = errors.New(i18n.T("provider.mcphub.empty_results"))
+			err = emptyResultsError()
 		}
 		if ctx.Err() != nil {
 			return nil, false
@@ -558,7 +575,7 @@ func (h *Hub) Fetch(ctx context.Context, rawURL string) (string, error) {
 			return text, nil
 		}
 		if err == nil {
-			err = errors.New(i18n.T("provider.mcphub.empty_results"))
+			err = emptyResultsError()
 		}
 		if ctx.Err() != nil {
 			return "", ctx.Err()
@@ -583,7 +600,7 @@ func (h *Hub) startIndex(fetch bool) int {
 
 func (h *Hub) handleFailure(st *backendState, fetch bool, err error) {
 	if err == nil {
-		err = errors.New(i18n.T("provider.mcphub.empty_results"))
+		err = emptyResultsError()
 	}
 	if shouldCooldown(err) {
 		st.markCooldown(fetch, h.cooldown)

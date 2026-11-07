@@ -263,7 +263,10 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		req.Filter = &doubaoGlobalFilter{ICPHostOnly: true}
 	}
 
-	key := d.keys.Next()
+	key, ok := d.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(d.name)
+	}
 	var resp doubaoGlobalSearchResponse
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
@@ -274,7 +277,8 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		SetResult(&resp).
 		Post(d.globalEndpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err))
 	}
 
 	status := res.StatusCode()
@@ -328,7 +332,10 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		req.QueryControl = &doubaoQueryControl{QueryRewrite: true}
 	}
 
-	key := d.keys.Next()
+	key, ok := d.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(d.name)
+	}
 	var resp doubaoCustomSearchResponse
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
@@ -339,7 +346,8 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		SetResult(&resp).
 		Post(d.customEndpoint)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err))
 	}
 
 	status := res.StatusCode()
@@ -448,36 +456,48 @@ func doubaoGlobalContent(doc doubaoGlobalDocument) string {
 
 func doubaoAPIErr(key string, status int, code, message string) error {
 	err := errors.New(i18n.T("provider.doubao.api_error", "Code", code, "Message", message))
-	if isDoubaoKeyError(status, code) {
-		return &KeyError{Key: key, Err: err}
+	if kind, ok := doubaoKeyErrorKind(status, code); ok {
+		return NewKeyError(kind, key, err)
 	}
 	return err
 }
 
 func doubaoStatusErr(key string, status int) error {
 	err := errors.New(i18n.T("provider.doubao.bad_status", "Status", status))
-	if isDoubaoKeyError(status, "") {
-		return &KeyError{Key: key, Err: err}
+	if kind, ok := doubaoKeyErrorKind(status, ""); ok {
+		return NewKeyError(kind, key, err)
 	}
 	return err
 }
 
-func isDoubaoKeyError(status int, code string) bool {
+// doubaoKeyErrorKind 把状态码 / envelope 业务码映射为 KeyErrorKind；
+// ok=false 表示与 key 无关（返回裸错误，apipool 不冷却任何 key）。
+// 429 与 quota/throttl 类码按 rate_limit 短冷却，401/403 与 auth 类码按 auth 冷却。
+func doubaoKeyErrorKind(status int, code string) (KeyErrorKind, bool) {
 	switch status {
-	case 401, 403, 429:
-		return true
+	case 401, 403:
+		return KeyErrorAuth, true
+	case 429:
+		return KeyErrorRateLimit, true
 	}
 	code = strings.ToLower(strings.TrimSpace(code))
 	switch code {
-	case "10403", "10412", "700429", "700901":
-		return true
+	case "10403", "700901":
+		return KeyErrorAuth, true
+	case "10412", "700429":
+		return KeyErrorRateLimit, true
 	}
-	for _, marker := range []string{"auth", "accessdenied", "signature", "quota", "throttl", "ratelimit", "rate_limit"} {
+	for _, marker := range []string{"auth", "accessdenied", "signature"} {
 		if strings.Contains(code, marker) {
-			return true
+			return KeyErrorAuth, true
 		}
 	}
-	return false
+	for _, marker := range []string{"quota", "throttl", "ratelimit", "rate_limit"} {
+		if strings.Contains(code, marker) {
+			return KeyErrorRateLimit, true
+		}
+	}
+	return "", false
 }
 
 func firstNonEmpty(values ...string) string {

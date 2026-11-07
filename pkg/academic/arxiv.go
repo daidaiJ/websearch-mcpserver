@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -45,6 +46,10 @@ type arxivEngine struct {
 	mu            sync.Mutex
 	cooldown      time.Duration
 	cooldownUntil time.Time
+
+	// 状态代次：每次进入冷却递增。请求开始时取快照，成功路径只在
+	// 「本次请求期间没有并发请求进入冷却」时清冷却（B2）。
+	stateEpoch uint64
 }
 
 // NewArxiv 创建 arXiv 引擎。client 为 nil 时使用直连默认客户端。
@@ -80,12 +85,27 @@ func (e *arxivEngine) Name() string                    { return "arxiv" }
 func (e *arxivEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *arxivEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再进入冷却 / 清冷却（B4）。
+func (e *arxivEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	start := time.Now()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	// 服务端限流冷却期：避让不打上游，快速失败（窗口过后下一次搜索自动恢复）
 	if left := e.cooldownRemaining(); left > 0 {
 		return nil, fmt.Errorf("arxiv: rate-limited by server, cooling down (%.0fs left)", left.Seconds())
 	}
+
+	// 状态代次快照：本次请求期间若并发请求进入冷却，成功路径不得清掉它（B2）。
+	gen := e.stateGen()
 
 	// 限流等待：官方 Tou ≥3s 间隔 + 滑动窗口；注定超出预算直接放弃，
 	// 避免被 execOne 的 per-engine 超时抛弃后仍在后台空转
@@ -93,29 +113,42 @@ func (e *arxivEngine) Search(query string, page int, timeRange antirobot.TimeRan
 		if time.Since(start)+arxivRetryEstimate > arxivSearchBudget {
 			return nil, fmt.Errorf("arxiv: rate-limit wait would exceed %.0fs budget", arxivSearchBudget.Seconds())
 		}
-		time.Sleep(500 * time.Millisecond)
+		if err := antirobot.SleepCtx(ctx, 500*time.Millisecond); err != nil {
+			return nil, err
+		}
 	}
 
-	body, status, retryAfter, err := e.fetch(query, page, timeRange)
+	body, status, retryAfter, err := e.fetch(ctx, query, page, timeRange)
 	if err != nil {
 		return nil, err
 	}
 
 	// 429/503：预算内等待重试一次，注定超时才放弃进冷却
 	if status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable {
-		return e.handleRateLimited(start, retryAfter, query, page, timeRange)
+		return e.handleRateLimited(ctx, start, retryAfter, query, page, timeRange, gen)
 	}
 
 	if status != http.StatusOK {
 		return nil, fmt.Errorf("arxiv HTTP %d", status)
 	}
 
-	e.recordSuccess()
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+	}
 	return e.parse(body)
 }
 
+var _ antirobot.ContextEngine = (*arxivEngine)(nil)
+
+// stateGen 当前状态代次（请求开始时取快照）。
+func (e *arxivEngine) stateGen() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stateEpoch
+}
+
 // fetch 发一次搜索请求并读完 body，返回状态码、Retry-After 解析结果与响应体。
-func (e *arxivEngine) fetch(query string, page int, timeRange antirobot.TimeRange) ([]byte, int, time.Duration, error) {
+func (e *arxivEngine) fetch(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) ([]byte, int, time.Duration, error) {
 	offset := (page - 1) * 10
 	if offset < 0 {
 		offset = 0
@@ -129,7 +162,7 @@ func (e *arxivEngine) fetch(query string, page int, timeRange antirobot.TimeRang
 	u := fmt.Sprintf("%s?search_query=%s&start=%d&max_results=10",
 		arxivEndpoint, url.QueryEscape(q), offset)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("arxiv request: %w", err)
 	}
@@ -163,19 +196,26 @@ func arxivDateRange(timeRange antirobot.TimeRange) string {
 // handleRateLimited 限流避让决策：
 //   - 等待窗口 + 重试请求能装进本次超时预算 → 等待后重试一次，成功则直接返回；
 //   - 注定超时（如默认窗口 30s > 预算 10s）或重试仍限流 → 进入冷却快速失败。
-func (e *arxivEngine) handleRateLimited(start time.Time, retryAfter time.Duration, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+func (e *arxivEngine) handleRateLimited(ctx context.Context, start time.Time, retryAfter time.Duration, query string, page int, timeRange antirobot.TimeRange, gen uint64) (*antirobot.SearchResponse, error) {
 	wait := e.cooldownDuration(retryAfter)
 
 	if time.Since(start)+wait+arxivRetryEstimate <= arxivSearchBudget {
-		time.Sleep(wait)
-		body, status, _, err := e.fetch(query, page, timeRange)
+		if err := antirobot.SleepCtx(ctx, wait); err != nil {
+			return nil, err
+		}
+		body, status, _, err := e.fetch(ctx, query, page, timeRange)
 		if err == nil && status == http.StatusOK {
-			e.recordSuccess()
+			if ctx.Err() == nil {
+				e.recordSuccess(gen)
+			}
 			return e.parse(body)
 		}
 		// 重试仍限流/失败 → 落入冷却放弃
 	}
 
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	e.enterCooldown(retryAfter)
 	return nil, fmt.Errorf("arxiv: HTTP 429/503 rate-limited (cooling down %.0fs)", e.cooldownRemaining().Seconds())
 }
@@ -186,32 +226,19 @@ func (e *arxivEngine) handleRateLimited(start time.Time, retryAfter time.Duratio
 // 服务端 Retry-After 明确给出等待时长时以其为准（仍封顶，防异常大值）。
 func (e *arxivEngine) cooldownDuration(retryAfter time.Duration) time.Duration {
 	e.mu.Lock()
-	cd := e.cooldown
-	e.mu.Unlock()
-	if cd <= 0 {
-		cd = arxivRateCooldown
-	} else {
-		cd *= 2
-	}
-	if cd > arxivCooldownMax {
-		cd = arxivCooldownMax
-	}
-	if retryAfter > 0 {
-		if retryAfter > arxivCooldownMax {
-			retryAfter = arxivCooldownMax
-		}
-		cd = retryAfter
-	}
-	return cd
+	defer e.mu.Unlock()
+	return antirobot.NextCooldownDuration(e.cooldown, arxivRateCooldown, arxivCooldownMax, retryAfter)
 }
 
-// enterCooldown 进入服务端限流冷却，时长由 cooldownDuration 计算。
+// enterCooldown 进入服务端限流冷却，时长由冷却档位规则计算。
+// 档位升级与截止时间在同一临界区内完成读写（B6）。
 func (e *arxivEngine) enterCooldown(retryAfter time.Duration) {
-	cd := e.cooldownDuration(retryAfter)
-	until := time.Now().Add(cd)
 	e.mu.Lock()
+	cd := antirobot.NextCooldownDuration(e.cooldown, arxivRateCooldown, arxivCooldownMax, retryAfter)
+	until := time.Now().Add(cd)
 	e.cooldown = cd
 	e.cooldownUntil = until
+	e.stateEpoch++
 	e.mu.Unlock()
 	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_429_503"), until, cd)
 }
@@ -226,13 +253,19 @@ func (e *arxivEngine) cooldownRemaining() time.Duration {
 	return 0
 }
 
-// recordSuccess 搜索成功后重置冷却与连续限流计数。
-func (e *arxivEngine) recordSuccess() {
+// recordSuccess 搜索成功后重置冷却：只在「本次请求期间没有并发请求进入冷却」时
+// 清零，避免一次成功清空并发建立的冷却（B2）。
+func (e *arxivEngine) recordSuccess(since uint64) {
 	e.mu.Lock()
-	e.cooldown = 0
-	e.cooldownUntil = time.Time{}
+	clear := e.stateEpoch == since
+	if clear {
+		e.cooldown = 0
+		e.cooldownUntil = time.Time{}
+	}
 	e.mu.Unlock()
-	antirobot.ClearCooldown(e.Name())
+	if clear {
+		antirobot.ClearCooldown(e.Name())
+	}
 }
 
 // adoptPersistedCooldown 收养上一次进程落盘的冷却：未过期则继续避让至截止时间，

@@ -102,11 +102,14 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		SetBody(req).
 		SetResult(&resp)
 
-	// 认证头按 KeyPool 有无分流：有 Key 走轮转并包装 KeyError（精确冷却）；
+	// 认证头按 KeyPool 有无分流：有 Key 走轮转并包装 KeyError（按类处置）；
 	// 匿名档省略 Authorization 头（带空 Bearer 会被上游拒绝），限流钳制前置
 	var key string
 	if a.keys != nil {
-		key = a.keys.Next()
+		var ok bool
+		if key, ok = a.keys.NextUsable(); !ok {
+			return nil, NoKeyError(a.name)
+		}
 		call = call.SetHeader("Authorization", fmt.Sprintf("Bearer %s", key))
 	} else if !a.anonLimiter.Allow() {
 		perSec, perMin := a.anonLimiter.Limits()
@@ -118,19 +121,21 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		if a.keys == nil {
 			return nil, fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err)
 		}
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err))
 	}
 	if res.StatusCode() != 200 {
 		if a.keys == nil {
 			return nil, errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode()))
 		}
-		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode()))}
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode())))
 	}
 	if resp.Code != 0 {
 		if a.keys == nil {
 			return nil, errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message))
 		}
-		return nil, &KeyError{Key: key, Err: errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message))}
+		// envelope 业务错误：与 key 无关，不冷却
+		return nil, NewKeyError(KeyErrorContent, key, errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message)))
 	}
 	if len(resp.Data.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.anysearch.empty_results"))

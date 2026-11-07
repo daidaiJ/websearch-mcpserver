@@ -102,7 +102,10 @@ func (k *KeenableSearchImpl) search(ctx context.Context, query string) ([]core.S
 		endpoint += "/public"
 		req.SetHeader("X-Keenable-Title", keenableAppTitle)
 	} else {
-		key = k.keys.Next()
+		var ok bool
+		if key, ok = k.keys.NextUsable(); !ok {
+			return nil, NoKeyError(k.name)
+		}
 		req.SetHeader("X-API-Key", key)
 	}
 	var resp keenableSearchResp
@@ -111,14 +114,15 @@ func (k *KeenableSearchImpl) search(ctx context.Context, query string) ([]core.S
 		if k.usePublic() {
 			return nil, fmt.Errorf("%s: %w", i18n.T("provider.keenable.call_failed"), err)
 		}
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.keenable.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.keenable.call_failed"), err))
 	}
 	if res.StatusCode() != http.StatusOK {
 		err := errors.New(i18n.T("provider.keenable.bad_status", "Status", res.StatusCode()))
-		if !k.usePublic() && res.StatusCode() == http.StatusUnauthorized {
-			return nil, &KeyError{Key: key, Err: err}
+		if k.usePublic() {
+			return nil, err
 		}
-		return nil, err
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	if len(resp.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.keenable.empty_content"))
@@ -154,19 +158,32 @@ func (k *KeenableSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 	if maxChars > 0 {
 		req.SetQueryParam("max_chars", strconv.Itoa(maxChars))
 	}
+	var key string
 	if k.usePublic() {
 		endpoint += "/public"
 		req.SetHeader("X-Keenable-Title", keenableAppTitle)
 	} else {
-		req.SetHeader("X-API-Key", k.keys.Next())
+		var ok bool
+		if key, ok = k.keys.NextUsable(); !ok {
+			return "", NoKeyError(k.name)
+		}
+		req.SetHeader("X-API-Key", key)
 	}
 	var resp keenableFetchResp
 	res, err := req.SetResult(&resp).Get(endpoint)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", i18n.T("provider.keenable.fetch_call_failed"), err)
+		if k.usePublic() {
+			return "", fmt.Errorf("%s: %w", i18n.T("provider.keenable.fetch_call_failed"), err)
+		}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return "", NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.keenable.fetch_call_failed"), err))
 	}
 	if res.StatusCode() != http.StatusOK {
-		return "", errors.New(i18n.T("provider.keenable.fetch_bad_status", "Status", res.StatusCode()))
+		err := errors.New(i18n.T("provider.keenable.fetch_bad_status", "Status", res.StatusCode()))
+		if k.usePublic() {
+			return "", err
+		}
+		return "", NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	text := strings.TrimSpace(resp.Content)
 	if text == "" {

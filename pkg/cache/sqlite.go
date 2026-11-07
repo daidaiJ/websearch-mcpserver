@@ -3,6 +3,7 @@ package cache
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,11 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+// ErrStaleGeneration 本次写入被代次守卫作废（Clear() 与写入并发，写入按设计丢弃）。
+// 调用方应视其为正常竞态（errors.Is 判定后静默/调试级处理），不作错误噪音上抛。
+// 稳定哨兵，文本不本地化。
+var ErrStaleGeneration = errors.New("cache: stale generation")
 
 // DefaultTTL 缓存记录默认存活时长（写入时未指定 TTL 时的安全默认）。
 const DefaultTTL = 6 * time.Hour
@@ -331,7 +337,9 @@ func (c *Cache) Store(query, intent string, academic bool, results []core.Search
 	if affected, err := res.RowsAffected(); err != nil {
 		return err
 	} else if affected == 0 {
-		return nil // The request predates a successful Clear.
+		// 请求的代次视图早于一次成功的 Clear()，写入按设计作废；
+		// 用稳定哨兵把「被代次丢弃」与「写成功」区分开，调用方按竞态静默处理。
+		return ErrStaleGeneration
 	}
 
 	log.InfoT("log.cache.cache_stored_query_intent_academic_has", "query", query, "intent", intent, "academic", academic, "hasSummary", summary != "", "ttl", ttl)

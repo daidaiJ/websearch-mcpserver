@@ -385,7 +385,7 @@ pdf_parser:
 #   mmr:                       # MMR 多样性重排（打散同话题高相似结果）
 #     enabled: true            # 总开关（默认 true）
 #     lambda: 0.7              # 相关性-多样性权衡系数 [0,1]，越高越偏相关性（默认 0.7）
-#     target_count: 0          # MMR 后目标条数，0 = 不额外截断
+#     target_count: 0          # MMR 后目标条数，0 = 跟随 max_size（默认 max_size 上限；max_size 不限时不额外截断）
 #   engines:              # 按引擎名配置（引擎名: tavily_api, exa, baidu_api, baidu, so360, bing, google, duckduckgo, anysearch, doubao, yuanbao）
 #     tavily_api:
 #       min_score: 0.5    # Tavily API 最低相关性分数阈值（0 = 不过滤）

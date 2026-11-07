@@ -104,7 +104,10 @@ func (t *TinyFishSearchImpl) SearchRaw(query string) ([]core.SearchResult, error
 }
 
 func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
-	key := t.keys.Next()
+	key, ok := t.keys.NextUsable()
+	if !ok {
+		return nil, NoKeyError(t.name)
+	}
 	req := client.DefaultClient.R().
 		SetContext(ctx).
 		SetHeader("X-API-Key", key).
@@ -115,14 +118,12 @@ func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackD
 	var resp tinyfishSearchResp
 	res, err := req.SetResult(&resp).Get(t.searchURL)
 	if err != nil {
-		return nil, &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.call_failed"), err))
 	}
 	if res.StatusCode() != http.StatusOK {
 		err := errors.New(i18n.T("provider.tinyfish.bad_status", "Status", res.StatusCode()))
-		if res.StatusCode() == http.StatusUnauthorized {
-			return nil, &KeyError{Key: key, Err: err}
-		}
-		return nil, err
+		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	if len(resp.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.tinyfish.empty_content"))
@@ -147,7 +148,10 @@ func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackD
 // Fetch 通过 TinyFish Fetch API 抓取单页正文（markdown）。
 // 免费额度按成功抓取的 URL 计数；单 URL 失败信息在 errors[] 里随 200 返回。
 func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars int) (string, error) {
-	key := t.keys.Next()
+	key, ok := t.keys.NextUsable()
+	if !ok {
+		return "", NoKeyError(t.name)
+	}
 	var resp tinyfishFetchResp
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
@@ -157,14 +161,12 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 		SetResult(&resp).
 		Post(t.fetchURL)
 	if err != nil {
-		return "", &KeyError{Key: key, Err: fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.fetch_call_failed"), err)}
+		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
+		return "", NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.fetch_call_failed"), err))
 	}
 	if res.StatusCode() != http.StatusOK {
 		err := errors.New(i18n.T("provider.tinyfish.fetch_bad_status", "Status", res.StatusCode()))
-		if res.StatusCode() == http.StatusUnauthorized {
-			return "", &KeyError{Key: key, Err: err}
-		}
-		return "", err
+		return "", NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, err)
 	}
 	if len(resp.Results) == 0 {
 		if len(resp.Errors) > 0 {

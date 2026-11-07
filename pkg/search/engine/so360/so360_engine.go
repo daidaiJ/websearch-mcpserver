@@ -6,6 +6,7 @@
 package so360
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -27,10 +28,15 @@ import (
 type so360Engine struct {
 	opts    So360Opts
 	limiter *antirobot.RateLimiter
+	client  *http.Client
 
 	mu          sync.Mutex
 	backoff     time.Duration
 	consecFails int
+
+	// 状态代次：每次记录失败递增。请求开始时取快照，成功路径只在
+	// 「本次请求期间没有并发请求记录失败」时清退避（B2）。
+	stateEpoch uint64
 }
 
 var so360UAs = []string{
@@ -40,54 +46,88 @@ var so360UAs = []string{
 }
 
 const (
-	so360BaseDelay  = 500 * time.Millisecond
-	so360Jitter     = 800 * time.Millisecond
 	so360MaxBackoff = 60 * time.Second
+)
+
+// 前置退避等待参数改为变量：单测需要缩短（生产取值不变）。
+var (
+	so360BaseDelay = 500 * time.Millisecond
+	so360Jitter    = 800 * time.Millisecond
 )
 
 func (e *so360Engine) Name() string                    { return "so360" }
 func (e *so360Engine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再推进退避（B4）。
+func (e *so360Engine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "so360", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("so360")
 	}
 
-	e.preDelay()
+	gen := e.stateGen()
+
+	if err := e.preDelay(ctx); err != nil {
+		return nil, err
+	}
 	u := e.buildURL(query, page, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	e.setHeaders(req)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := e.client
+	if client == nil {
+		client = &http.Client{Timeout: 15 * time.Second}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	html := string(body)
 
 	if resp.StatusCode != 200 {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	// 验证码页（wappass）= 反爬拦截；普通空结果页不含验证码标记，正常解析返回空
 	if so360CaptchaRe.MatchString(html) {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("blocked by anti-bot")
 	}
 
-	e.recordSuccess()
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+	}
 	results := e.parseResults(html)
 
 	if len(e.opts.Blocked) > 0 {
@@ -96,9 +136,18 @@ func (e *so360Engine) Search(query string, page int, timeRange antirobot.TimeRan
 	return &antirobot.SearchResponse{Engine: "so360", Results: results}, nil
 }
 
+var _ antirobot.ContextEngine = (*so360Engine)(nil)
+
+// stateGen 当前状态代次（请求开始时取快照）。
+func (e *so360Engine) stateGen() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stateEpoch
+}
+
 // ── 反爬防御 ──
 
-func (e *so360Engine) preDelay() {
+func (e *so360Engine) preDelay(ctx context.Context) error {
 	e.mu.Lock()
 	bo := e.backoff
 	e.mu.Unlock()
@@ -106,20 +155,25 @@ func (e *so360Engine) preDelay() {
 	if bo > 0 {
 		delay += bo
 	}
-	time.Sleep(delay)
+	return antirobot.SleepCtx(ctx, delay)
 }
 
-func (e *so360Engine) recordSuccess() {
+// recordSuccess 搜索成功：只在「本次请求期间没有并发请求记录失败」时清退避（B2）。
+func (e *so360Engine) recordSuccess(since uint64) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateEpoch != since {
+		return
+	}
 	e.backoff = 0
 	e.consecFails = 0
-	e.mu.Unlock()
 }
 
 func (e *so360Engine) recordFail() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.consecFails++
+	e.stateEpoch++
 	bo := so360BaseDelay * time.Duration(1<<uint(e.consecFails))
 	if bo > so360MaxBackoff {
 		bo = so360MaxBackoff

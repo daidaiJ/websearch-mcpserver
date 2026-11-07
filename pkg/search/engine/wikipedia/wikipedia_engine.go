@@ -91,7 +91,8 @@ type wikiSearchResp struct {
 func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	// MediaWiki list=search 无时间过滤参数，freshness 请求退化为普通搜索
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "wikipedia", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("wikipedia")
 	}
 
 	// MediaWiki list=search 不支持 site:/lang:/after:/before: 等网页搜索操作符，

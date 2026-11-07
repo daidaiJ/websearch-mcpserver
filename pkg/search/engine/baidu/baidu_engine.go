@@ -1,6 +1,7 @@
 package baidu
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -31,6 +32,10 @@ type baiduEngine struct {
 	reqCount    int
 	backoff     time.Duration
 	consecFails int
+
+	// 状态代次：每次记录失败递增。请求开始时取快照，成功路径只在
+	// 「本次请求期间没有并发请求记录失败」时清退避（B2）。
+	stateEpoch uint64
 }
 
 var baiduUAs = []string{
@@ -51,11 +56,15 @@ var baiduLangVariants = []string{
 }
 
 const (
-	baiduBaseDelay       = 500 * time.Millisecond
-	baiduJitter          = 800 * time.Millisecond
 	baiduMaxBackoff      = 60 * time.Second
 	baiduSessionLifetime = 30
 	baiduResultsPerPage  = 10
+)
+
+// 前置退避等待参数改为变量：单测需要缩短（生产取值不变）。
+var (
+	baiduBaseDelay = 500 * time.Millisecond
+	baiduJitter    = 800 * time.Millisecond
 )
 
 // ── JSON 响应结构 ──
@@ -81,62 +90,113 @@ func (e *baiduEngine) Name() string                    { return "baidu_web" }
 func (e *baiduEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *baiduEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再推进退避 / 会话轮换（B4）。
+func (e *baiduEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "baidu_web", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("baidu_web")
 	}
 
-	e.preDelay()
+	gen := e.stateGen()
+
+	if err := e.preDelay(ctx); err != nil {
+		return nil, err
+	}
 	u := e.buildURL(query, page, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
-	e.setHeaders(req)
+	sess := e.takeSession()
+	e.setHeaders(req, sess.ua)
 
-	resp, err := e.client.Do(req)
+	resp, err := sess.client.Do(req)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 
-	if resp.StatusCode == 429 || resp.StatusCode == 403 {
-		e.recordFail()
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	if resp.StatusCode != 200 {
-		e.recordFail()
+	if resp.StatusCode == 429 || resp.StatusCode == 403 || resp.StatusCode != 200 {
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	// 检测百度验证码重定向
 	if strings.Contains(resp.Request.URL.String(), "wappass.baidu.com/static/captcha") {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("blocked by Baidu CAPTCHA")
 	}
 
 	results, err := e.parseResponse(body)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 
-	e.recordSuccess()
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+	}
 
 	if len(e.opts.Blocked) > 0 {
 		results = e.filterBlocked(results)
 	}
 
-	e.rotateSessionIfNeeded()
+	if ctx.Err() == nil {
+		e.rotateSessionIfNeeded()
+	}
 
 	return &antirobot.SearchResponse{Engine: "baidu_web", Results: results}, nil
+}
+
+var _ antirobot.ContextEngine = (*baiduEngine)(nil)
+
+// session 本请求使用的会话快照：client 与 UA 在同一次临界区读取，
+// 保证一次请求不会混用轮换前后的 client / UA（B1）。
+type session struct {
+	client *http.Client
+	ua     string
+}
+
+// takeSession 取会话快照。
+func (e *baiduEngine) takeSession() session {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return session{client: e.client, ua: e.ua}
+}
+
+// stateGen 当前状态代次（请求开始时取快照，成功后据此判断期间是否有并发失败）。
+func (e *baiduEngine) stateGen() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stateEpoch
 }
 
 // ── URL 构造 ──
@@ -174,10 +234,7 @@ func baiduTimeRangeSeconds(tr antirobot.TimeRange) int {
 
 // ── 请求头 ──
 
-func (e *baiduEngine) setHeaders(req *http.Request) {
-	e.mu.Lock()
-	ua := e.ua
-	e.mu.Unlock()
+func (e *baiduEngine) setHeaders(req *http.Request, ua string) {
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", baiduAcceptVariants[rand.Intn(len(baiduAcceptVariants))])
 	req.Header.Set("Accept-Language", baiduLangVariants[rand.Intn(len(baiduLangVariants))])
@@ -189,7 +246,7 @@ func (e *baiduEngine) setHeaders(req *http.Request) {
 
 // ── 反爬防御 ──
 
-func (e *baiduEngine) preDelay() {
+func (e *baiduEngine) preDelay(ctx context.Context) error {
 	e.mu.Lock()
 	bo := e.backoff
 	e.mu.Unlock()
@@ -197,20 +254,25 @@ func (e *baiduEngine) preDelay() {
 	if bo > 0 {
 		delay += bo
 	}
-	time.Sleep(delay)
+	return antirobot.SleepCtx(ctx, delay)
 }
 
-func (e *baiduEngine) recordSuccess() {
+// recordSuccess 搜索成功：只在「本次请求期间没有并发请求记录失败」时清退避（B2）。
+func (e *baiduEngine) recordSuccess(since uint64) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateEpoch != since {
+		return
+	}
 	e.backoff = 0
 	e.consecFails = 0
-	e.mu.Unlock()
 }
 
 func (e *baiduEngine) recordFail() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.consecFails++
+	e.stateEpoch++
 	bo := baiduBaseDelay * time.Duration(1<<uint(e.consecFails))
 	if bo > baiduMaxBackoff {
 		bo = baiduMaxBackoff
@@ -218,20 +280,28 @@ func (e *baiduEngine) recordFail() {
 	e.backoff = bo
 }
 
+// rotateSessionIfNeeded 会话寿命计数与轮换在同一临界区内完成（B1）。
 func (e *baiduEngine) rotateSessionIfNeeded() {
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.reqCount++
-	rotate := e.reqCount >= baiduSessionLifetime
-	e.mu.Unlock()
-	if rotate {
-		e.rotateSession()
+	if e.reqCount >= baiduSessionLifetime {
+		e.rotateSessionLocked()
 	}
 }
 
-func (e *baiduEngine) rotateSession() {
+// rotateSessionLocked 重建会话（调用方已持锁）：client / ua / 计数一起更新。
+func (e *baiduEngine) rotateSessionLocked() {
 	e.client = &http.Client{Timeout: 15 * time.Second}
 	e.ua = baiduUAs[rand.Intn(len(baiduUAs))]
 	e.reqCount = 0
+}
+
+// rotateSession 构造期初始化会话（无并发）。
+func (e *baiduEngine) rotateSession() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.rotateSessionLocked()
 }
 
 // ── 响应解析 ──

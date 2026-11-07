@@ -1,7 +1,9 @@
 package so360
 
 import (
+	"net/http"
 	"regexp"
+	"time"
 
 	"websearch/pkg/antirobot"
 )
@@ -30,5 +32,6 @@ func NewSo360(opts So360Opts) antirobot.Engine {
 	return &so360Engine{
 		opts:    opts,
 		limiter: antirobot.NewRateLimiter(perSec, perMin),
+		client:  &http.Client{Timeout: 15 * time.Second},
 	}
 }

@@ -40,7 +40,7 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | `search` (root) | **Composition root**: `SearchGroup` assembly + public type aliases (external code keeps using `search.SearchResult` etc.) | `NewFromConfig(conf) *SearchGroup`, `SearchGroup{Primary, Fallback, Academic}` |
 | `search/core` | Type-contract leaf: shared by all subpackages, **must not** import other search subpackages | `SearchInf`, `SearchResult`, `SearchTimeRanger`, `ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`, `DiagnosticsSearcher`/`ContextDiagnosticsSearcher`, `AcademicSearcher`, `ScoreBucket`, `FilterByScore/SortByScore`, `NormalizeURL`, `FormatMD` result formatters |
 | `search/engine` | Low-level web engines (HTTP fetching + anti-bot params), implement `antirobot.Engine` | `Engine` + `Opts` of `baidu/bing/ddg/google` |
-| `search/provider` | API provider adapters (implement `SearchInf`) + key pool | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`, `KeyPool` (per-provider SK rotation), `KeyError` |
+| `search/provider` | API provider adapters (implement `SearchInf`) + key pool | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`, `KeyPool` (per-provider SK rotation; `Next`/`NextUsable`, `MarkInvalid`/`MarkInvalidFor`), `KeyError` (carries a `Kind`: auth/rate_limit/transport/content) |
 | `search/provider/mcphub` | Hosted-MCP cascade hub (implements `SearchInf` + `Fetch`) | `New`, presets (parallel/anysearch/exa/firecrawl), MCP Streamable HTTP client, `priority`/`round-robin`, engine backends in rotation/fallback, independent search/fetch cooldowns |
 | `search/adapter` | Adapts "non-API" sources into `SearchInf` | `EngineSearchAdapter` (antirobot.Engine → SearchInf), `BingSearchAdapter`, `BaiduWithFallback`, `AcademicAdapter` |
 | `search/apipool` | Cross-provider rotation strategy (sibling of hybrid) | `ApipoolSearchImpl` (round-robin/priority/weighted), `ApipoolProvider` |
@@ -57,8 +57,8 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | `pkg/fetch/jina` | Jina Reader fallback fetching (needs proxy) | `Reader.Fetch` |
 | `pkg/fetch/mineru` | MinerU AI-enhanced PDF parsing (OCR/tables/formulas) | `Client.ParseURL/ParseFile` |
 | `pkg/llm` | LLM client + search-result summarizer | `Client.Chat/ChatStream`, `Summarizer.Summarize/SummarizeStream` |
-| `pkg/antirobot` | Anti-detection common layer (**cross-domain, stays top-level**) | `Engine`, `Searcher`, rate limiters, `TimeRange` |
-| `pkg/cache` | SQLite cache (6h TTL, key includes intent/fetch_top_n) | `Cache.Lookup/Store/UpdateSummary` |
+| `pkg/antirobot` | Anti-detection common layer (**cross-domain, stays top-level**) | `Engine`, `ContextEngine` (optional ctx entry), `Searcher`, rate limiters, `TimeRange`, `NextCooldownDuration` (the single cooldown-escalation rule), `ErrLocalRateLimit` (local-limit sentinel), `LocalLimitSkipped`, `SleepCtx` |
+| `pkg/cache` | SQLite cache (6h expiry, key includes intent/fetch_top_n) | `Cache.Lookup/Store/UpdateSummary`, `ErrStaleGeneration` (sentinel for generation-stale writes) |
 | `pkg/client` | Shared HTTP client for API providers (timeout/retry/proxy) | `Client` |
 | `pkg/config` | All config structs + Viper loading + env overrides | `Load`, each `XxxConfig` |
 | `pkg/proxy` | System proxy detection (registry/WinHTTP, 10s TTL) + transport pool | `DetectSystemProxy` |

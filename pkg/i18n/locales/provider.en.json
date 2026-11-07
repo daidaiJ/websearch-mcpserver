@@ -22,6 +22,7 @@
   "provider.exa.bad_status": "the exa search API returned status {{.Status}}",
   "provider.exa.empty_results": "the exa search API returned no results",
   "provider.keypool.no_valid_key": "keypool: no valid API key",
+  "provider.keypool.no_available_key": "{{.Name}}: all API keys in the pool are cooling down, skipping this call",
   "provider.doubao.no_api_key": "doubao search has no API key configured",
   "provider.doubao.query_empty": "the doubao search query must not be empty",
   "provider.doubao.query_too_long": "the doubao search query exceeds 100 characters",

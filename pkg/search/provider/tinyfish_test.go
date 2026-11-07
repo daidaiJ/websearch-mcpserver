@@ -66,8 +66,27 @@ func TestTinyFishSearchAuthErrorMarksKey(t *testing.T) {
 		t.Fatal("401 must error")
 	}
 	var ke *KeyError
-	if !asKeyError(err, &ke) || ke.Key != "bad-key" {
-		t.Fatalf("err = %v, want KeyError(bad-key)", err)
+	if !asKeyError(err, &ke) || ke.Key != "bad-key" || ke.Kind != KeyErrorAuth {
+		t.Fatalf("err = %v, want KeyErrorAuth(bad-key)", err)
+	}
+}
+
+func TestTinyFishSearchRateLimitIsKeyError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	pool, err := NewKeyPool([]string{"tfk-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tf := NewTinyFishSearch(pool)
+	tf.searchURL = srv.URL
+	_, err = tf.SearchRaw("q")
+	var ke *KeyError
+	if !asKeyError(err, &ke) || ke.Kind != KeyErrorRateLimit || ke.Key != "tfk-1" {
+		t.Fatalf("429 must be KeyErrorRateLimit, got %v", err)
 	}
 }
 

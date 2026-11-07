@@ -1,6 +1,7 @@
 package google
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -30,6 +31,10 @@ type googleEngine struct {
 	reqCount    int
 	backoff     time.Duration
 	consecFails int
+
+	// 状态代次：每次记录失败递增。请求开始时取快照，成功路径只在
+	// 「本次请求期间没有并发请求记录失败」时清退避（B2）。
+	stateEpoch uint64
 }
 
 var googleUAs = []string{
@@ -58,11 +63,15 @@ var timeRangeMap = map[antirobot.TimeRange]string{
 }
 
 const (
-	googleBaseDelay       = 1 * time.Second
-	googleJitter          = 1 * time.Second
 	googleMaxBackoff      = 120 * time.Second
 	googleSessionLifetime = 20
 	googleResultsPerPage  = 10
+)
+
+// 前置退避等待参数改为变量：单测需要缩短（生产取值不变）。
+var (
+	googleBaseDelay = 1 * time.Second
+	googleJitter    = 1 * time.Second
 )
 
 // ── 接口实现 ──
@@ -71,48 +80,76 @@ func (e *googleEngine) Name() string                    { return "google" }
 func (e *googleEngine) Region() antirobot.NetworkRegion { return antirobot.RegionInternational }
 
 func (e *googleEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止，
+// 且被放弃的调用不再推进退避 / 会话轮换（B4）。
+func (e *googleEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "google", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
+		return antirobot.LocalLimitSkipped("google")
 	}
 
-	e.preDelay()
+	gen := e.stateGen()
+
+	if err := e.preDelay(ctx); err != nil {
+		return nil, err
+	}
 	u := e.buildURL(query, page, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
-	e.setHeaders(req)
+	sess := e.takeSession()
+	e.setHeaders(req, sess.ua)
 	// 绕过 Cookie 同意页面
 	req.AddCookie(&http.Cookie{Name: "CONSENT", Value: "YES+"})
 
-	resp, err := e.client.Do(req)
+	resp, err := sess.client.Do(req)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 
 	// 检测 Google CAPTCHA / sorry 页面
 	if err := detectSorry(resp, string(body)); err != nil {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	results := e.parseResults(string(body))
 	if len(results) == 0 {
-		e.recordFail()
+		if ctx.Err() == nil {
+			e.recordFail()
+		}
 		return nil, fmt.Errorf("no results parsed (possible anti-bot page, URL: %s)", resp.Request.URL)
 	}
 
@@ -120,10 +157,34 @@ func (e *googleEngine) Search(query string, page int, timeRange antirobot.TimeRa
 		results = e.filterBlocked(results)
 	}
 
-	e.recordSuccess()
-	e.rotateSessionIfNeeded()
+	if ctx.Err() == nil {
+		e.recordSuccess(gen)
+		e.rotateSessionIfNeeded()
+	}
 
 	return &antirobot.SearchResponse{Engine: "google", Results: results}, nil
+}
+
+var _ antirobot.ContextEngine = (*googleEngine)(nil)
+
+// session 本请求使用的会话快照（B1）。
+type session struct {
+	client *http.Client
+	ua     string
+}
+
+// takeSession 取会话快照。
+func (e *googleEngine) takeSession() session {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return session{client: e.client, ua: e.ua}
+}
+
+// stateGen 当前状态代次。
+func (e *googleEngine) stateGen() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stateEpoch
 }
 
 // ── CAPTCHA / 安全挑战检测 ──
@@ -173,10 +234,7 @@ func (e *googleEngine) buildURL(query string, page int, timeRange antirobot.Time
 
 // ── 请求头 ──
 
-func (e *googleEngine) setHeaders(req *http.Request) {
-	e.mu.Lock()
-	ua := e.ua
-	e.mu.Unlock()
+func (e *googleEngine) setHeaders(req *http.Request, ua string) {
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", googleAcceptVariants[rand.Intn(len(googleAcceptVariants))])
 	req.Header.Set("Accept-Language", googleLangVariants[rand.Intn(len(googleLangVariants))])
@@ -191,7 +249,7 @@ func (e *googleEngine) setHeaders(req *http.Request) {
 
 // ── 反爬防御 ──
 
-func (e *googleEngine) preDelay() {
+func (e *googleEngine) preDelay(ctx context.Context) error {
 	e.mu.Lock()
 	bo := e.backoff
 	e.mu.Unlock()
@@ -199,20 +257,25 @@ func (e *googleEngine) preDelay() {
 	if bo > 0 {
 		delay += bo
 	}
-	time.Sleep(delay)
+	return antirobot.SleepCtx(ctx, delay)
 }
 
-func (e *googleEngine) recordSuccess() {
+// recordSuccess 搜索成功：只在「本次请求期间没有并发请求记录失败」时清退避（B2）。
+func (e *googleEngine) recordSuccess(since uint64) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.stateEpoch != since {
+		return
+	}
 	e.backoff = 0
 	e.consecFails = 0
-	e.mu.Unlock()
 }
 
 func (e *googleEngine) recordFail() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.consecFails++
+	e.stateEpoch++
 	bo := googleBaseDelay * time.Duration(1<<uint(e.consecFails))
 	if bo > googleMaxBackoff {
 		bo = googleMaxBackoff
@@ -220,20 +283,28 @@ func (e *googleEngine) recordFail() {
 	e.backoff = bo
 }
 
+// rotateSessionIfNeeded 会话寿命计数与轮换在同一临界区内完成（B1）。
 func (e *googleEngine) rotateSessionIfNeeded() {
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.reqCount++
-	rotate := e.reqCount >= googleSessionLifetime
-	e.mu.Unlock()
-	if rotate {
-		e.rotateSession()
+	if e.reqCount >= googleSessionLifetime {
+		e.rotateSessionLocked()
 	}
 }
 
-func (e *googleEngine) rotateSession() {
+// rotateSessionLocked 重建会话（调用方已持锁）。
+func (e *googleEngine) rotateSessionLocked() {
 	e.client = e.opts.newHTTPClient()
 	e.ua = googleUAs[rand.Intn(len(googleUAs))]
 	e.reqCount = 0
+}
+
+// rotateSession 构造期初始化会话（无并发）。
+func (e *googleEngine) rotateSession() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.rotateSessionLocked()
 }
 
 // ── HTML 解析 ──

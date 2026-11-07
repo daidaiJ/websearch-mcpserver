@@ -113,7 +113,8 @@ func (e *gnewsEngine) Search(query string, page int, timeRange antirobot.TimeRan
 		return &antirobot.SearchResponse{Engine: "googlenews", Results: []antirobot.Result{}}, nil
 	}
 	if !e.limiter.Allow() {
-		return &antirobot.SearchResponse{Engine: "googlenews", Results: []antirobot.Result{}}, nil
+		// 本端限流：返回哨兵错误而不是「空结果 + nil」，否则归因链路把它记成零结果（B12）
+		return antirobot.LocalLimitSkipped("googlenews")
 	}
 
 	u := e.buildURL(query, timeRange)

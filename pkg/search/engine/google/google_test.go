@@ -1,6 +1,7 @@
 package google
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -357,7 +358,7 @@ func TestNewGoogle(t *testing.T) {
 func TestPreDelay(t *testing.T) {
 	e := &googleEngine{opts: GoogleOpts{}}
 	start := time.Now()
-	e.preDelay()
+	e.preDelay(context.Background())
 	elapsed := time.Since(start)
 
 	if elapsed < googleBaseDelay {
@@ -388,7 +389,7 @@ func TestRecordFail_Backoff(t *testing.T) {
 func TestRecordSuccess_Reset(t *testing.T) {
 	e := &googleEngine{opts: GoogleOpts{}}
 	e.recordFail()
-	e.recordSuccess()
+	e.recordSuccess(e.stateGen())
 
 	e.mu.Lock()
 	defer e.mu.Unlock()

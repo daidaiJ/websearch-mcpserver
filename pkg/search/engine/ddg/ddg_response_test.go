@@ -47,8 +47,11 @@ func TestDDGLocalLimitIsFailure(t *testing.T) {
 		t.Fatal("first request should be allowed")
 	}
 	resp, err := e.Search("query", 1, antirobot.TimeRangeNone)
-	if resp != nil || err == nil || !strings.Contains(err.Error(), "local") || core.ClassifyFailure(err) != core.FailureRateLimit {
+	if err == nil || !strings.Contains(err.Error(), "local") || core.ClassifyFailure(err) != core.FailureRateLimit {
 		t.Fatalf("local limit reported as success: resp=%v err=%v", resp, err)
+	}
+	if resp != nil && len(resp.Results) != 0 {
+		t.Fatalf("本端限流应返回空结果, got %+v", resp)
 	}
 }
 
