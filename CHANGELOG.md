@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+## v3.10.5 — 2026-11-07（状态机原子性：并发冷却、Key 分类、软超时副作用）
+
+> PR [#29](https://github.com/daidaiJ/websearch-mcpserver/pull/29)。本次不发 MCP Registry。
+
 ### 变更
 
 - **MMR 的 `target_count` 缺省值改为跟随 `max_size`**：`smartsearch.mmr.target_count: 0`（缺省）此前表示「对全部结果做重排」，而超出 `max_size` 的尾部随后必被截断丢弃，等于白做一轮二次方贪心选择。现在缺省取 `max_size` 为上限，`max_size` 不限时仍重排全部（旧语义）；显式配置 `target_count` 的行为不变。MMR 贪心选择具有前缀性（选前 k 项与对全量选择后的前 k 项相同），输出内容不变，只省掉无用工作
@@ -15,7 +19,7 @@
 - **传输层瞬断不再冻结 API Key 30 分钟（P0）**：`KeyError` 此前同时表达「key 坏了」与「这次调用失败了」，`apipool` 只要命中就 `MarkInvalid` 30 分钟——单 Key 供应商一次网络抖动即 30 分钟不可用。现在 `KeyError` 带显式分类（`auth` / `rate_limit` / `transport` / `content`），`apipool` 按分类查表：鉴权失败冷却该 key，限流短冷却（5 分钟），传输层与内容类失败不冷却任何 key 且立即级联下一供应商
 - **全部 Key 失效时不再下发已知失效的 Key**：`KeyPool.Next()` 在池内全部冷却时返回空串，新增 `NextUsable()` 返回是否取到；8 个供应商与 mcphub 均改为「取不到即上报明确错误」，不再拿着已被冷却的 key 去打一次必然被拒的请求
 - **删除并发下会标错 key 的 `MarkLastInvalid`**：该方法标记的是「池级最近返回的 key」而非「本请求实际使用的 key」，并发下会误冻好 key、放过坏 key（代码注释早已自认非并发安全）。已整体删除，兜底路径改为按 `KeyError` 分类处理
-- **软超时放弃后不再改状态（P1）**：编排层对超时引擎放弃等待后，引擎的 goroutine 仍继续推进冷却与会话状态，导致观测层记「超时失败」而上游记「成功」。新增 `antirobot.ContextEngine` 可选接口（五个本地引擎实现），ctx 取消后请求立即中止，且被放弃的调用不再推进冷却 / 会话轮换 / 退避状态；前置退避等待也改为可被 ctx 取消
+- **软超时放弃后不再改状态（P1）**：编排层对超时引擎放弃等待后，引擎的 goroutine 仍继续推进冷却与会话状态，导致观测层记「超时失败」而上游记「成功」。新增 `antirobot.ContextEngine` 可选接口（`ddg`/`baidu`/`bing`/`google`/`so360`/`arxiv`/`github` 实现），ctx 取消后请求立即中止，且被放弃的调用不再推进冷却 / 会话轮换 / 退避状态；前置退避等待也改为可被 ctx 取消
 - **重复 `stop` 不再重复触发关闭（P1）**：`refcount` 的「检查 + 更新」改为锁内完成并按饱和处理，只有真正的 `1 → 0` 迁移才发关闭信号——此前计数已为 0 时再 `-1`（脚本重试、客户端重复 stop）会每次都重发一次关闭信号
 - **`academicsearch` 分页不再静默退化（P1）**：缓存键此前不含 `page`，`page≥2` 在 TTL 内会命中第一页的记录并返回第一页结果。现在页码参与缓存键
 - **缓存代次写入的静默丢弃变为显式报告**：`Clear()` 与在飞写入并发时，旧代次视图的写入按设计作废，此前静默返回 `nil`；现在返回哨兵 `cache.ErrStaleGeneration`，`mcp` 调用方按竞态静默处理，其它写入错误记日志

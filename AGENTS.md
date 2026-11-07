@@ -196,17 +196,6 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### 状态机缺陷修复（B1–B12 + 性能项）— 已实现，**下个会话做独立评审**（2026-11-07）
-
-- **当前状态：** 12 条缺陷与三项性能改进已在**单个分支、单次提交序列**内全部修复并交付 **PR [#29](https://github.com/daidaiJ/websearch-mcpserver/pull/29)**（`fix/state-machine-atomicity` → `master`，5 个功能分层提交），基线 `f792e04`、分支 HEAD `a85b5ad`；CI 三 job 全绿（run `42348458038`）。**用户 2026-11-07 指定下个会话由不同模型做独立评审**（不继续写功能），合并与发版由用户拍板（本轮未打 tag）
-- **评审入口（按此开工）：** 读 [`.handoff/state-machine-fixes.md`](.handoff/state-machine-fixes.md) §4（五处优先质疑点：并发状态迁移代次语义、`KeyError` 分类与不冷却判定、ctx 取消的事后判断、refcount/缓存两处小改、URL 归一化会改变结果组成）与 §5（作者自认可能出错的六条，含「回退验证是手工近似旧版而非真旧版」这一方法论弱点）；diff 取 `git diff f792e04...origin/fix/state-machine-atomicity`
-- **修复范围：** B1/B2/B6 并发状态迁移原子化（`stateEpoch` 代次快照 + 轮换整体入锁 + 冷却档位纯函数 `antirobot.NextCooldownDuration`）；B3 `KeyError` 分类（auth/rate_limit/transport/content）；B4 新增 `antirobot.ContextEngine` 并让被放弃的调用不再改状态；B5 refcount 锁内「检查+更新」+ 重复 stop 幂等；B7 缓存键含 page；B8 `NextUsable()` 不再下发失效 key；B9 删除 `MarkLastInvalid`；B10 `cache.ErrStaleGeneration`；B11 `mcphub.ErrEmptyResults` 空结果冷却；B12 `antirobot.ErrLocalRateLimit` 本端限流归因
-- **性能项：** tokenizer 去正则（手写字节扫描，字节级等价）、MMR `target_count` 缺省跟随 `max_size`（前缀性等价）、URL 归一化统一委托 `core.NormalizeURL`；**未做**：遥测移出请求路径（涉及关闭时 flush，本轮取舍不动）
-- **验收（已跑）：** `go build ./...`、`go vet ./...`、`gofmt -l` 干净；`go test -short -count=1 ./...` 全绿；`go test -race -short -count=1 -p 1` 覆盖 antirobot / 全部 engine / enhance / hybrid / apipool / provider / mcphub / cache / server / academic 全绿；`go test ./pkg/i18n/` 绿；每条修复均完成「改回旧实现 → 新用例失败」双向验证（B1/B6 报 `-race`、B2 断言冷却被清、B3/B8/B9 apipool 断言、B5 refcount 重复 stop、B7 页码、B10 哨兵、B11 冷却、B12 失败清单）
-- **评审注意（非 `-short` 时的假失败）：** `go test ./pkg/search/engine/... ./pkg/academic/` 不加 `-short` 会跑真实外网用例——`TestBingSearch` 走 `testenv.Require(testenv.Bing)`、`TestGoogleScholarSearch` 走 `testing.Short()`，本机网络下 FAIL 属环境门控，不是回归
-- **开口项：** ① 遥测出请求路径（本轮未做）② `D:\tmp\wsbench\` bench harness 未使用（跨会话可能已被清理）③ 不做自学习/自适应钳制阈值（用户 2026-11-07 明确否决）④ 本轮 CI 的 golangci-lint 曾拦下 5 处新增问题（`bodyclose` ×2 / `errcheck` / `staticcheck` nil ctx / `unused`），已修并 autosquash 进对应提交
-- **详情指针：** [`docs/state-machines.md`](docs/state-machines.md)（状态机/不变式/转换表 + B1–B12 分级 + §0.1 修复状态 + §7 复现方式）、[`.handoff/state-machine-fixes.md`](.handoff/state-machine-fixes.md)
-
 ### 发布整包（含 Skill）+ log_level 生效 / 并发失败留痕 + SQLite 连接池上限 — done（2026-11-05，随 v3.10.4 发布；本次未发 MCP Registry）
 
 - **当前状态：** 三项随 `v3.10.4` 交付：base Release 24 个产物（8 裸二进制 + 4 平台整包 + 12 校验和，整包 19.9–21.2 MB，约为同平台两个裸二进制之和的 39%）、`release.yml` 与 `docker.yml` 均 success、GHCR `3.10.4` 镜像已推；按用户要求本次**不打 `-registry` tag**，MCP Registry 仍停在 `3.10.3`（已核对 registry 列表无 `3.10.4`）

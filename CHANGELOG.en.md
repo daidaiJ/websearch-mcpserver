@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+## v3.10.5 — 2026-11-07 (State-machine atomicity: concurrent cooldown, key classification, soft-timeout side effects)
+
+> PR [#29](https://github.com/daidaiJ/websearch-mcpserver/pull/29). MCP Registry is not published for this release.
+
 ### Changed
 
 - **MMR `target_count` default now follows `max_size`**: `smartsearch.mmr.target_count: 0` (the default) used to mean "re-rank every result", even though everything past `max_size` was truncated away right after — a quadratic greedy selection for nothing. The default now caps at `max_size`; when `max_size` is unlimited the old behaviour (re-rank everything) is kept, and an explicit `target_count` is unchanged. MMR greedy selection is prefix-stable (picking the first k equals the first k of a full run), so output is identical and only wasted work disappears
@@ -15,7 +19,7 @@
 - **A transport blip no longer freezes an API key for 30 minutes (P0)**: `KeyError` used to mean both "the key is bad" and "this call failed", so `apipool` marked the key invalid for 30 minutes on any hit — one network hiccup disabled a single-key provider for half an hour. `KeyError` now carries an explicit kind (`auth` / `rate_limit` / `transport` / `content`) and `apipool` looks up the policy: auth cools the key, rate limit cools it briefly (5 minutes), transport and content failures cool nothing and cascade to the next provider immediately
 - **No known-invalid key is dispatched when every key is cooling**: `KeyPool.Next()` now returns an empty string when all keys are cooling, with a new `NextUsable()` reporting whether a key was obtained; the eight providers and mcphub report a clear error instead of spending a request that the upstream will reject
 - **`MarkLastInvalid` removed**: it marked the pool's most recently returned key rather than the one this request actually used, so under concurrency it could freeze a healthy key and leave a bad one in rotation (its own comment admitted it was not concurrency-safe). The fallback path now dispatches on the `KeyError` kind
-- **A soft-timed-out call no longer mutates state (P1)**: after the orchestrator gave up waiting on a slow engine, the engine's goroutine kept advancing cooldowns and session state, so metrics recorded a timeout failure while the upstream recorded a success. New optional interface `antirobot.ContextEngine` (implemented by the five local engines): cancelling the context aborts the in-flight request, and an abandoned call no longer advances cooldown, session rotation or backoff; the pre-request backoff wait is cancellable too
+- **A soft-timed-out call no longer mutates state (P1)**: after the orchestrator gave up waiting on a slow engine, the engine's goroutine kept advancing cooldowns and session state, so metrics recorded a timeout failure while the upstream recorded a success. New optional interface `antirobot.ContextEngine` (implemented by `ddg`/`baidu`/`bing`/`google`/`so360`/`arxiv`/`github`): cancelling the context aborts the in-flight request, and an abandoned call no longer advances cooldown, session rotation or backoff; the pre-request backoff wait is cancellable too
 - **A repeated `stop` no longer re-triggers shutdown (P1)**: `refcount` now does its check-and-update under a lock with saturation, so only a real `1 → 0` transition signals shutdown — previously another `-1` at zero (script retry, duplicate client stop) re-sent the signal every time
 - **`academicsearch` pagination no longer silently degrades (P1)**: the cache key omitted `page`, so `page≥2` hit the page-1 record within the TTL and returned page-1 results. The page number now participates in the key
 - **Silent discard of generation-stale cache writes is now reported**: when `Clear()` races an in-flight write, the old-generation write is discarded by design but used to return `nil`; it now returns the `cache.ErrStaleGeneration` sentinel, `mcp` treats it as the expected race, and other write errors are logged
