@@ -62,8 +62,8 @@ pkg/dashboard/web/*.html
 /.codegraph/
 /.playwright-mcp/
 
-# 凭据与打包产物：.npmrc 常含 _authToken，.env 常含各类 token；
-# NPM_TOKEN 只放 GitHub Actions Secret，绝不写进这里的任何文件。
+# 凭据与打包产物：发布走 npm Trusted Publishing（OIDC），CI 不需要任何长期
+# token；这里仍挡住误提交的 .npmrc（常含 auth token 赋值）、.env 与 tgz。
 .npmrc
 .env
 .env.*

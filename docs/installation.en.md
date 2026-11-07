@@ -344,14 +344,28 @@ The same `mcpServers` block in `.mcp.json` / `~/.dsh/mcp.json` gives dsh the sam
 
 With no config file the Go binary runs in-memory defaults (`mode: engine`): search works, but the zero-key hosted-MCP cascade, multi-provider key pools, academic weighting, fetch fallbacks, proxy handling, language and result budgets are all off. **A fresh install gets you "it runs", not the best experience.**
 
-Either read the docs yourself — tuning path in [HUMAN_GUIDE.en.md](HUMAN_GUIDE.en.md), full reference in [configuration.en.md](configuration.en.md), plus `config.example.yaml` — or have your agent do it (recommended):
+Either read the docs yourself — tuning path in [HUMAN_GUIDE.en.md](HUMAN_GUIDE.en.md), full reference in [configuration.en.md](configuration.en.md), plus `config.example.yaml` — or have your agent do it (recommended). An npm install ships only the Go binary, so the prompt below is self-contained: it names the repository and the exact doc URLs, safe to paste straight from the GitHub page. Drop the fetch step if you already work inside a checkout.
 
 ```text
-Read docs/AGENT_GUIDE.en.md, docs/configuration.en.md and config.example.yaml.
-First ask me about my network (do I need a proxy), which API keys I have, and my
-main use case (Chinese web / academic papers / code docs / deep research). Then
-generate ~/.config/websearch/config.yaml with only the necessary overrides,
+I installed websearch-mcp-cli / dsh-websearch-mcpserver via npm and need a
+personalized config for it.
+The repository is https://github.com/daidaiJ/websearch-mcpserver ; the config
+docs live only there and I may not have the source on this machine. First check
+whether the current directory is a checkout of that repo: if so read it directly;
+otherwise clone it shallowly with
+git clone --depth 1 https://github.com/daidaiJ/websearch-mcpserver to a temp dir,
+or fetch these raw files:
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/docs/AGENT_GUIDE.en.md
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/docs/configuration.en.md
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/config.example.yaml
+Then ask me about my OS, network (do I need a proxy), which API keys I have, and
+my main use case (Chinese web / academic papers / code docs / deep research).
+Generate config.yaml at an absolute path on my machine
+(Windows: %USERPROFILE%\.config\websearch\config.yaml;
+ otherwise ~/.config/websearch/config.yaml) with only the necessary overrides,
 explain each choice, skip engines I do not use, and never write secrets in plain text.
+Finally tell me the exact absolute path to put in WEBSEARCH_MCP_CONFIG and how to
+verify it took effect.
 ```
 
 Then export an **absolute** path before launching dsh:

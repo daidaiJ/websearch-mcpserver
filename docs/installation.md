@@ -347,14 +347,23 @@ npm i -g websearch-mcp-cli
 请二选一：
 
 - **自己读**：[HUMAN_GUIDE.md](HUMAN_GUIDE.md) 的调优路线 → [configuration.md](configuration.md) 完整字段 → `config.example.yaml`。
-- **让 agent 代读**（推荐）：把下面这段发给 agent，让它按你的实际环境生成配置。
+- **让 agent 代读**（推荐）：把下面这段发给 agent，让它按你的实际环境生成配置。npm 安装只带 Go 二进制，本机通常没有仓库源码，所以这段提示词自带仓库地址，从网页复制给任意 agent 都能用；若你本来就在仓库副本里，删掉取文档那句即可。
 
 ```text
-请阅读本项目 docs/AGENT_GUIDE.md、docs/configuration.md 和 config.example.yaml，
-先问清我的网络环境（是否需要代理）、有哪些可用的 API Key、主要用途
-（中文网页 / 学术论文 / 代码资料 / 深度调研），然后为我生成一份
-~/.config/websearch/config.yaml：只写必要的覆盖项，逐条解释为什么这样选，
+我通过 npm 安装了 websearch-mcp-cli / dsh-websearch-mcpserver，要为它做个性化配置。
+项目仓库是 https://github.com/daidaiJ/websearch-mcpserver ，配置文档只在仓库里，
+我本机可能没有源码。请先确认当前目录是不是这个仓库的副本：是就直接读；
+否则 git clone --depth 1 https://github.com/daidaiJ/websearch-mcpserver 到临时目录，
+或直接读这三个 raw 文件：
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/docs/AGENT_GUIDE.md
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/docs/configuration.md
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/config.example.yaml
+读完先问清我的操作系统、网络环境（是否需要代理）、有哪些可用的 API Key、
+主要用途（中文网页 / 学术论文 / 代码资料 / 深度调研），再生成一份 config.yaml：
+写到我本机的绝对路径（Windows 用 %USERPROFILE%\.config\websearch\config.yaml，
+其他用 ~/.config/websearch/config.yaml），只写必要的覆盖项，逐条解释为什么这样选，
 不要开启我不用的引擎，不要把密钥明文写进文件。
+最后告诉我 WEBSEARCH_MCP_CONFIG 该设成哪个绝对路径，以及怎么确认它已生效。
 ```
 
 生成后启动 dsh 前导出（**绝对路径**）：

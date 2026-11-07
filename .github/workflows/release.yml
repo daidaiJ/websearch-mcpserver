@@ -22,12 +22,10 @@
 #     Bare binaries stay published for users who want a single file.
 #   - plain tags (v3.4.0) only build the Release here: no MCPB packaging
 #   - GHCR 镜像在独立工作流 docker.yml 中随普通 tag 推送，不与本流程互相阻塞
-#   - publish-npm job：与 -registry 对称，只在 vX.Y.Z-npm 后缀 tag 上跑。
-#     普通 tag 只发 Release + GHCR，-npm tag 不重编译、不建 Release、不推镜像；
-#     它从 base tag（vX.Y.Z）的 Release 下载并校验 websearch-mcp-cli-*，
-#     发布 4 个平台 npm 包 + websearch-mcp-cli + dsh-websearch-mcpserver
-#     （dsh config-only bundle），见 npm-plugin.yml。
-#     失败可手动跑 npm-plugin.yml 的 workflow_dispatch 补发（填 base tag 或 -npm tag 均可）。
+#   - npm 包不在本工作流发布：vX.Y.Z-npm 后缀 tag 由 npm-plugin.yml 自己接
+#     （on.push.tags），下面的 on.push.tags 明确排除它。原因是 npm Trusted
+#     Publishing 校验「调用方工作流文件名」：若经本文件 workflow_call 复用，
+#     npm 看到的是 release.yml，与 npm 侧绑定的 npm-plugin.yml 不匹配。
 #   - a follow-up tag with the "-registry" suffix (e.g. v3.4.0-registry),
 #     pushed only after the base Release exists:
 #     downloads the base release binaries, packages them as .mcpb bundles
@@ -44,6 +42,9 @@ on:
   push:
     tags:
       - 'v*'
+      # -npm tag 由 npm-plugin.yml 直接发布（Trusted Publishing 校验调用方
+      # 工作流文件名），本工作流不接，避免产生一个全 job 跳过的空 run。
+      - '!v*-npm'
 
 # 工作流级只读；写权限下放到需要的 job（release 创建 / registry 发布）
 permissions:
@@ -214,24 +215,8 @@ jobs:
             --title "${{ github.ref_name }}" \
             --notes-file notes.md
 
-  publish-npm:
-    name: Publish npm / dsh plugin
-    # 与 publish-registry 对称：普通版本 tag 发完 Release、产物就绪后，
-    # 再单独打 vX.Y.Z-npm 触发本 job。打包原料从 base tag 的 Release 下载，
-    # 所以不 needs: release（-npm tag 上 build/release 都跳过）。
-    if: ${{ endsWith(github.ref_name, '-npm') }}
-    uses: ./.github/workflows/npm-plugin.yml
-    with:
-      # publish.sh 会把 -npm 后缀剥掉，得到 base tag 与 npm version。
-      tag: ${{ github.ref_name }}
-    # 只把发布需要的那一个 secret 传给被调用工作流，不用 secrets: inherit：
-    # 后者会把仓库里所有 secret 暴露给 npm-plugin.yml 的每一个 step。
-    secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    permissions:
-      contents: read
-      id-token: write
-
+  # publish-npm 已移到 npm-plugin.yml：Trusted Publishing 校验调用方工作流
+  # 文件名，被本文件 workflow_call 复用会与 npm 侧绑定的 npm-plugin.yml 失配。
   publish-registry:
     name: Publish to MCP Registry
     # 发完普通 tag 后再单独打 "-registry" 后缀（如 v3.4.0-registry）。

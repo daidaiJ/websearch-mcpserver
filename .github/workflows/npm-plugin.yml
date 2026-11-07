@@ -1,45 +1,37 @@
-# npm / dsh 插件发布。
+# npm / dsh 插件发布 —— npm Trusted Publishing (OIDC)，仓库里没有长期 token。
 #
-# 两种触发方式：
-#   1. release.yml 的 publish-npm job 用 workflow_call 调用，**只在 vX.Y.Z-npm
-#      后缀 tag 上触发**（与 -registry 对称）：普通 tag 发完 Release、产物就绪后
-#      再单独打 -npm tag；二进制从 base tag 的 Release 下载并校验 sha256，
-#      不重编译、不建 Release、不推镜像。
-#   2. Actions 手动 workflow_dispatch，补发 / 重跑 / dry_run（tag 填 base tag
+# 两种触发方式（关键：两者的「调用方工作流」都是本文件）：
+#   1. push vX.Y.Z-npm tag：与 vX.Y.Z-registry 对称，base Release 产物就绪后
+#      单独打。二进制从 base tag 的 Release 下载并校验 sha256，不重编译、
+#      不建 Release、不推镜像。release.yml 已在 on.push.tags 里排除 -npm。
+#   2. Actions 手动 workflow_dispatch：补发 / 重跑 / dry_run（tag 填 base tag
 #      或 -npm tag 均可，publish.sh 会剥掉 -npm 后缀）。npm 版本不可复用，
 #      publish.sh 已对已存在的版本做跳过，重跑是安全的。
 #
+# 为什么不再用 workflow_call：npm 官方 troubleshooting 明确说明，通过
+# workflow_call 调用时 npm 校验的是「调用方」工作流文件名（release.yml），
+# 而不是实际跑 npm publish 的文件；trusted publisher 已在 npm 侧绑定
+# npm-plugin.yml，复用路径会身份失配（且 id-token: write 要父/子都给）。
+# 因此让本文件直接被 tag 触发并发布，release.yml 的 publish-npm job 已删除。
+#
 # 六个包按「4 平台二进制包 -> websearch-mcp-cli -> dsh-websearch-mcpserver」
-# 顺序发布，版本一律取自 tag（v3.10.5 -> 3.10.5），预发布版本走 --tag next。
-# 前置条件：仓库 Secret NPM_TOKEN（npm granular/automation token）。
+# 顺序发布，版本一律取自 tag（v3.10.5-npm -> 3.10.5），预发布版本走 --tag next。
+#
 # 安全约定（改本文件时不要破坏）：
-#   - NPM_TOKEN 只以 Actions secret 形式存在，值不写入仓库任何文件；
-#     调用方用显式 secrets: 映射传递，绝不用 secrets: inherit。
-#   - NODE_AUTH_TOKEN 只注入到「Pack and publish」这一个 step 的 env，
-#     由 setup-node 写成 ${NODE_AUTH_TOKEN} 变量引用（不落明文），job 结束自动清理。
-#   - 不启用 set -x / bash -x，不打印 env，不上传 workspace 为 artifact；
-#     npm 日志里若出现 secret，GitHub 会自动打码，但打进 tarball 就是永久公开。
-#   - 发布前有 Credential leak guard + publish.sh 的二次扫描兜底。
-# 不要在 -registry / -preview tag 上跑：release.yml 的调用方已经过滤。
+#   - 不注入 NPM_TOKEN / NODE_AUTH_TOKEN；npm CLI 自动用 GitHub OIDC 换取
+#     短期、绑定本工作流的发布凭据，并自动生成 provenance。
+#   - 不写 .npmrc：setup-node 的 registry-url 会生成带 ${NODE_AUTH_TOKEN} 的
+#     占位符，OIDC 下没有该变量反而可能干扰认证，也避免任何 token 落盘。
+#   - 不开 set -x / bash -x，不打印 env，不上传 workspace 为 artifact。
+#   - Credential leak guard + publish.sh 打包前二次扫描仍然保留：防的是有人
+#     误把长期 token 提交进包，OIDC 时代这条同样成立。
 
 name: npm / dsh plugin
 
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: 'Tag to package: base tag (v3.10.5) or -npm trigger tag (v3.10.5-npm)'
-        required: true
-        type: string
-      dry_run:
-        description: 'Pack only, do not publish'
-        required: false
-        default: false
-        type: boolean
-    secrets:
-      NPM_TOKEN:
-        description: 'npm granular token with publish rights on the six packages'
-        required: true
+  push:
+    tags:
+      - 'v*-npm'
   workflow_dispatch:
     inputs:
       tag:
@@ -54,39 +46,49 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
     name: Pack and publish 6 npm packages
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # 必须与 npm 包 Settings -> Trusted publishers 里填的 Environment name 完全一致
+    # （大小写敏感）。npm 侧若没填 Environment，把这一行删掉，否则 OIDC subject
+    # 会多出 environment 声明导致校验失配。
+    environment: PANDA
     permissions:
       contents: read      # gh release download
-      id-token: write     # npm publish --provenance (OIDC)
+      id-token: write     # OIDC: npm CLI 换取短期凭据 + 自动 provenance
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '24'
+          # 刻意不设 registry-url：默认 registry 就是 npmjs.org，而 setup-node
+          # 会写出带 ${NODE_AUTH_TOKEN} 的 .npmrc，OIDC 下反而添乱。
+
+      # Trusted publishing 要求 npm >= 11.5.1 / Node >= 22.14；
+      # dist-tag 与 staged publish 分别要 11.21.0 / 11.15.0，统一升到 npm 11 最新。
+      - name: Upgrade npm for trusted publishing
+        run: |
+          npm install -g npm@11
+          npm --version
 
       - name: Structural checks
         run: bash npm/scripts/check.sh
 
-      # npm tarballs 是公开且不可撤回的：token 一旦被打进包里，GitHub 的
-      # 日志打码救不回来。这个 step 不接触 secret，只查仓库里有没有明文凭据，
-      # 且只报文件名、不回显命中行（避免把误提交的 token 再打进 CI 日志）。
+      # npm tarballs 公开且不可撤回；扫描只报文件名、不回显命中行。
       - name: Credential leak guard
         run: bash npm/scripts/check-credentials.sh
 
-      # NODE_AUTH_TOKEN 只在这一步可见；不开 xtrace、不打印 env、不传 artifact。
       - name: Pack and publish
         env:
           GH_TOKEN: ${{ github.token }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          TAG: ${{ inputs.tag }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          # push 事件没有 inputs，用触发的 tag；dispatch 用填写的 tag。
+          TAG: ${{ inputs.tag || github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
         run: bash npm/scripts/publish.sh

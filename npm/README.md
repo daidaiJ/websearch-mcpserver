@@ -27,28 +27,45 @@
 ## 版本与前置条件
 
 - `TAG=vX.Y.Z`（或触发 tag `vX.Y.Z-npm`）→ npm `version=X.Y.Z`。`-npm` 只是触发标记：`publish.sh` 先剥掉它，用 base tag 找 Release、用 base 版本号发 npm，不会把 `-npm` 发成 `3.10.5-npm` 这种 next 通道版本。base 版本含 `-preview` / `-rc` 后缀时自动用 `--tag next`，正式版用 `latest`。
-- 仓库 Secret **`NPM_TOKEN`**（npm granular access token，只授予这 6 个包的 publish 权限并设过期时间）。首次发布前确认 6 个名字都未被占用：`npm view <name> version` 返回 404 即可用。
-- 工作流需要 `id-token: write`（`npm publish --provenance` 的 OIDC）。
+- 前置：6 个包在 npmjs.com 各自绑定一条 Trusted Publisher（字段见下节），工作流 job 需 `id-token: write`。CI 用 **Node 24 + npm 11**（Trusted Publishing 要求 npm ≥ 11.5.1 / Node ≥ 22.14）。仓库与 CI **不保存任何长期 npm token**。首次发布前确认 6 个名字都未被占用：`npm view <name> version` 返回 404 即可用。
 - **npm 版本不可复用**：同版本二次 publish 必报 403。`publish.sh` 先 `npm view <name>@<version>`，已存在就跳过并打 notice，所以重跑工作流是安全的；但内容改了就必须换版本号。
 
-## 凭据安全（发布链路）
+## 凭据安全（Trusted Publishing / OIDC）
 
-**token 只有一个存放位置：GitHub Actions repository secret `NPM_TOKEN`。** 它是加密存储的，网页/API 只能写不能读，CI 日志里 GitHub 会自动打码，fork PR 拿不到；仓库里任何文件都不含明文 token。
+**仓库与 CI 里没有任何长期 npm token。** 每次发布由 npm CLI 用 GitHub OIDC 现场换取短期凭据：绑定仓库 + 工作流文件名 +（如配置）Environment，不可从日志提取或复用；npm 还会自动生成 provenance 签名。
 
-- 本机**不要**为了发布建 `.npmrc`（里面的 auth token 赋值会落盘），也不要把 token 写进 `.env`、脚本、文档或提交信息。`.gitignore` 已忽略 `.npmrc` / `.env*` / `*.tgz`。本地要出包用 `PACK_OUT` 模式，完全不需要 token。
-- `release.yml` 用**显式 `secrets:` 映射**把 `NPM_TOKEN` 传给可复用工作流，不用 `secrets: inherit`（后者会把仓库所有 secret 暴露给被调用工作流的每个 step）。
-- `npm-plugin.yml` 把 `NODE_AUTH_TOKEN` **只注入「Pack and publish」这一个 step** 的 env；`actions/setup-node` 写出的是 `${NODE_AUTH_TOKEN}` 变量引用而非明文，job 结束时清理。不开 `set -x`、不打印 env、不上传 workspace artifact。
-- 两道兜底扫描：`npm/scripts/check-credentials.sh` 在 PR 的 `npm-plugin-check` 与发布工作流里都跑一次（本地 `check.sh` 也会调用），`publish.sh` 的 `assert_no_credentials` 在**每个包打包前**再扫一次 staged 文本文件——出现 `.npmrc`、auth token 赋值或疑似 npm token 字符串就中止。扫描只报文件名、不回显命中行。因为 npm 包公开且版本不可撤回，日志打码救不回打进 tarball 的凭据。
-- 设置/轮换 secret：优先在 GitHub 网页 `Settings → Secrets and variables → Actions` 直接粘贴；命令行则从 stdin 读，且**不要带尾随换行**（`printf '%s' "$TOKEN" | gh secret set NPM_TOKEN --repo daidaiJ/websearch-mcpserver`，`TOKEN` 从本机安全输入，别把值写进命令参数或 shell 历史，否则 token 尾部多一个字符会 401）。**token 一旦以明文出现在聊天、终端或日志里，就在 npmjs.com → Access Tokens 撤销并重新签发**，再用 `gh secret list`（只列名字）确认。granular token 记得勾选 publish 权限、设过期时间，6 个包首发后把授权范围从「全部包」收紧到这 6 个包。
-- 更彻底的方向是 npm **Trusted Publishing（OIDC）**：6 个包首发成功后，在 npm 包设置里逐个绑定本仓库的 `npm-plugin.yml` 为 trusted publisher，CI 升级到 npm 11.5.1+（Node 24），之后发布只需 `id-token: write`，可以删掉 `NPM_TOKEN` 这个长期凭据。首发仍需 token，所以本链路暂时保留它。
-- 边界要说清：repository secret 对协作者「值不可见」，但有仓库写权限的人理论上可以改 workflow 把值外带。若以后引入外部协作者，把 secret 挪到 `npm-publish` **Environment secret** 并配 required reviewers / 仅 tag 分支的 deployment policy。
+### npm 侧配置（6 个包逐个设置）
+
+在 npmjs.com → 包 Settings → Trusted publishers 各加一条：
+
+| 字段 | 值 |
+|------|-----|
+| Organization or user | `daidaiJ` |
+| Repository | `websearch-mcpserver` |
+| Workflow filename | `npm-plugin.yml`（**只填文件名**，不能填 `release.yml`） |
+| Environment name | 与 workflow job 的 `environment:` 完全一致（当前 `PANDA`）；没填就把那行删掉 |
+| Allowed actions | 勾 `npm publish`（我们直发）；`npm stage publish` 可选 |
+
+几个必须记住的坑：
+
+- **不能经 `workflow_call` 转发**。npm 官方 troubleshooting 明确：复用工作流被调用时，校验的是「调用方」工作流文件名，而不是实际跑 `npm publish` 的文件。所以 `release.yml` 已删掉 `publish-npm` job，`vX.Y.Z-npm` tag 由 `npm-plugin.yml` 自己接（`workflow_dispatch` 同理，调用方仍是它自己）。
+- npm 的 trusted publisher 配置**不能编辑，只能删掉重建**。改字段前先确认，尤其是 Environment name 的大小写。
+- 新建后状态是 `Pending validation`，**必须在页面提示的截止时间内用 OIDC 成功 publish 一次**才转正。npm 版本不可复用：重跑已发布的 `v3.10.5-npm` 只会 6 个包全部跳过，不算验证；需要下一个真实版本（如 `v3.10.6` → `v3.10.6-npm`）来过这一关。
+- 验证通过后再把包 Settings → Publishing access 设为 **"Require two-factor authentication and disallow tokens"**，彻底关掉长期 token 通道；早期设的 Actions secret 那时可删（仓库里已无任何文件引用）。
+- 预发布走 `--tag next`：OIDC 下改 dist-tag 需 npm 侧另勾 `Allow npm dist-tag` 且 npm ≥ 11.21.0。正式版刻意不传 `--tag`，用默认 `latest`，少一个权限依赖。
+
+### 仓库侧仍保留的兜底
+
+- 本机**不要**为发布建 `.npmrc`（auth token 赋值会落盘），也不要把任何 token 写进 `.env`、脚本、文档或提交信息。`.gitignore` 已忽略 `.npmrc` / `.env*` / `*.tgz`；本地出包用 `PACK_OUT` 模式，完全不需要凭据。
+- 两道扫描照旧：`npm/scripts/check-credentials.sh` 在 PR 的 `npm-plugin-check` 与发布工作流都跑（本地 `check.sh` 也会调用），`publish.sh` 的 `assert_no_credentials` 在**每个包打包前**再扫一次 staged 文本文件——出现 `.npmrc`、auth token 赋值或疑似 npm token 就中止，且只报文件名、不回显命中行。OIDC 时代这防的是「有人误把长期 token 提交进包」：npm 包公开且版本不可撤回，日志打码救不回来。
+- 不开 `set -x`、不打印 env、不上传 workspace artifact；`setup-node` 不设 `registry-url`，避免生成带 token 占位符的 `.npmrc` 干扰 OIDC 认证（`npm-plugin.yml` 里已注明）。
 
 ## 发布链路
 
 发布矩阵与仓库既有约定对称：**普通 tag 只发 Release + GHCR，`vX.Y.Z-npm` 单独发 npm，正如 `vX.Y.Z-registry` 单独发 MCP Registry**。
 
 1. 普通 `vX.Y.Z` tag：`release.yml` 的 `build` → `release` 产出 8 个裸二进制 + `.sha256` + 整包，`docker.yml` 推 GHCR；**不发 npm 包**。
-2. 产物就绪后另打 `vX.Y.Z-npm`。`release.yml` 的 `build` / `release` job 与 `docker.yml` 都跳过这个后缀（不重编译、不建 Release、不推镜像），只有 `publish-npm` job（`if: endsWith(github.ref_name, '-npm')`）调用 `.github/workflows/npm-plugin.yml`，并把 `-npm` tag 作为 `tag` 输入传下去。
+2. 产物就绪后另打 `vX.Y.Z-npm`。`release.yml` 的 `on.push.tags` 已排除 `-npm`（不再产生全 job 跳过的空 run），`docker.yml` 同样跳过；只有 `npm-plugin.yml` 被这个 tag 直接触发，**调用方工作流就是它自己**，OIDC 身份才与 npm 侧绑定匹配。不重编译、不建 Release、不推镜像。
 3. `publish.sh` 剥掉 `-npm` 得到 base tag `vX.Y.Z`，从 **base tag 的 GitHub Release** 下载 `websearch-mcp-cli-*`、逐个用 Release 的 `.sha256` 校验，再依次发布 **4 个平台包 → `websearch-mcp-cli` → `dsh-websearch-mcpserver`**（平台包必须先可解析，否则父包上线到能装之间会有窗口）。
 4. 校验和随二进制一起进 npm 包（`bin/websearch-mcp-cli*.sha256`），来源可复验。
 5. 失败或需要补发：Actions 里手动跑 `npm-plugin.yml`，tag 填 `vX.Y.Z` 或 `vX.Y.Z-npm` 都行；`dry_run=true` 只打包不发布。npm 版本不可复用，`publish.sh` 对已存在版本会跳过，重跑安全。
@@ -70,7 +87,7 @@ TAG=v3.10.5 PACK_OUT=/tmp/websearch-npm DIST_DIR=./dist bash npm/scripts/publish
 dsh plugin --profile web add /tmp/websearch-npm/dsh-websearch-mcpserver-3.10.5.tgz
 ```
 
-`PACK_OUT` 模式下 `publish.sh` 只跑 `npm pack`，不查 registry、不需要 `NPM_TOKEN`。平台包的依赖按同版本钉死，本地验收时把 4 个平台 tgz 一起装（`dsh plugin` 会按 `os`/`cpu` 只挑一个）。
+`PACK_OUT` 模式下 `publish.sh` 只跑 `npm pack`，不查 registry、不需要任何凭据。平台包的依赖按同版本钉死，本地验收时把 4 个平台 tgz 一起装（`dsh plugin` 会按 `os`/`cpu` 只挑一个）。
 
 `ci.yml` 的 `npm-plugin-check` job 在 PR 上跑的正是前两条中的 fake-binaries 组合。
 

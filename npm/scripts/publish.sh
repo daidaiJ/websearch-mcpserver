@@ -7,8 +7,11 @@
 #   TAG             required, base tag (v3.10.5 / v3.10.6-preview.1) or the
 #                   -npm trigger tag (v3.10.5-npm). The -npm suffix is stripped
 #                   to locate the base Release and to derive the npm version.
-#   NODE_AUTH_TOKEN required unless DRY_RUN=true or FAKE_BINARIES=true
 #   GH_TOKEN        required when downloading from a GitHub Release
+#
+# Auth: CI 走 npm Trusted Publishing (OIDC) —— job 需 id-token: write，npm CLI
+#       自动换取短期凭据并生成 provenance，仓库不保存任何长期 token。本地
+#       调试可临时用 NODE_AUTH_TOKEN，但绝不写进仓库或 .npmrc。
 #   DRY_RUN         true = npm pack --dry-run only, never publish
 #   FAKE_BINARIES   true = generate placeholder binaries (local / PR validation)
 #   PACK_OUT        directory to write real .tgz files into, without publishing;
@@ -56,11 +59,15 @@ else
   DIST_TAG=latest
 fi
 log "tag=$TAG release-tag=$RELEASE_TAG version=$VERSION dist-tag=$DIST_TAG dry-run=$DRY_RUN pack-out=${PACK_OUT:-<none>}"
+log "npm=$(npm --version 2>/dev/null || echo missing) oidc=$([ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] && echo yes || echo no)"
 [ -z "$PACK_OUT" ] || mkdir -p "$PACK_OUT"
 
+# 真正发布时至少要有一条认证路径：GitHub Actions OIDC（首选）或本地 token。
+# 不再硬性要求 NODE_AUTH_TOKEN —— Trusted Publishing 下它本来就不该存在。
 if [ "$DRY_RUN" != "true" ] && [ "$FAKE_BINARIES" != "true" ] \
-   && [ -z "$PACK_OUT" ] && [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-  die "NODE_AUTH_TOKEN is empty; add the NPM_TOKEN repository secret"
+   && [ -z "$PACK_OUT" ] && [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] \
+   && [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+  die "no publish credential: run in GitHub Actions with id-token: write (Trusted Publishing), or set NODE_AUTH_TOKEN locally"
 fi
 
 binary_ext() {
@@ -131,8 +138,9 @@ package_name() {
   '
 }
 
-# npm tarballs are public and immutable. GitHub masks NODE_AUTH_TOKEN in the
-# Actions log, but a token that reaches a published tarball is exposed forever.
+# npm tarballs are public and immutable. OIDC means the publish job no longer
+# holds a long-lived token, but a token someone accidentally commits into a
+# package source is still exposed forever (log masking cannot undo that).
 # Scan the staged text files (never the binaries) right before packing.
 assert_no_credentials() {
   local dir="$1" hit
@@ -167,15 +175,26 @@ publish() {
   (cd "$dir" && npm pack --dry-run)
 
   if [ "$DRY_RUN" = "true" ]; then
-    echo "[dry-run] would publish $name@$VERSION (--tag $DIST_TAG)"
+    echo "[dry-run] would publish $name@$VERSION (dist-tag $DIST_TAG)"
     return
   fi
   if npm view "$name@$VERSION" version > /dev/null 2>&1; then
     echo "::notice::$name@$VERSION already on npm; skipping (npm versions are immutable)"
     return
   fi
-  log "publishing $name@$VERSION"
-  (cd "$dir" && npm publish --access public --provenance --tag "$DIST_TAG")
+  local publish_args=(--access public)
+  # Trusted Publishing 下 npm 自动生成 provenance，显式 --provenance 是多余的；
+  # 本地用长期 token 发布时才手动加签名参数。
+  if [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+    publish_args+=(--provenance)
+  fi
+  # 正式版走默认 latest，不显式写 --tag：OIDC 下改 dist-tag 需要 npm 侧单独
+  # 勾选 "Allow npm dist-tag"，能不碰就不碰。预发布才需要 --tag next。
+  if [ "$DIST_TAG" != "latest" ]; then
+    publish_args+=(--tag "$DIST_TAG")
+  fi
+  log "publishing $name@$VERSION (${publish_args[*]})"
+  (cd "$dir" && npm publish "${publish_args[@]}")
 }
 
 stage_common() {

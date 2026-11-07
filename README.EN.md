@@ -148,14 +148,30 @@ npm i -g websearch-mcp-cli
 > **Important: a fresh install only gets you "it runs". Getting the best results requires a personalized config.**
 > With no config file the stdio binary uses in-memory defaults (`mode: engine`): search works, but you miss the zero-key hosted-MCP cascade, multi-provider key pools, academic-source weighting, fetch fallbacks, proxy handling, language and result budgets — the parts that actually decide result quality. The same server behaves very differently with a scenario-tuned config.
 
-**Read the docs yourself, or have your agent read them** (recommended, saves time): humans start with the tuning path in [docs/HUMAN_GUIDE.en.md](docs/HUMAN_GUIDE.en.md) and the full reference in [docs/configuration.en.md](docs/configuration.en.md); agents should read [docs/AGENT_GUIDE.en.md](docs/AGENT_GUIDE.en.md) plus `docs/configuration.en.md` and `config.example.yaml`. You can paste this prompt:
+**Read the docs yourself, or have your agent read them** (recommended, saves time): humans start with the tuning path in [docs/HUMAN_GUIDE.en.md](docs/HUMAN_GUIDE.en.md) and the full reference in [docs/configuration.en.md](docs/configuration.en.md); agents should read [docs/AGENT_GUIDE.en.md](docs/AGENT_GUIDE.en.md) plus `docs/configuration.en.md` and `config.example.yaml`.
+
+An npm install only gives you the Go binary — **the repo source is usually not on your machine**. The prompt below is therefore self-contained: it names the repository and the exact doc URLs, so you can paste it straight from the GitHub page into any agent without "this project" being ambiguous. If you already work inside a checkout, drop the fetch step.
 
 ```text
-Read docs/AGENT_GUIDE.en.md, docs/configuration.en.md and config.example.yaml.
-First ask me about my network (do I need a proxy), which API keys I have, and my
-main use case (Chinese web / academic papers / code docs / deep research). Then
-generate ~/.config/websearch/config.yaml with only the necessary overrides,
+I installed websearch-mcp-cli / dsh-websearch-mcpserver via npm and need a
+personalized config for it.
+The repository is https://github.com/daidaiJ/websearch-mcpserver ; the config
+docs live only there and I may not have the source on this machine. First check
+whether the current directory is a checkout of that repo: if so read it directly;
+otherwise clone it shallowly with
+git clone --depth 1 https://github.com/daidaiJ/websearch-mcpserver to a temp dir,
+or fetch these raw files:
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/docs/AGENT_GUIDE.en.md
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/docs/configuration.en.md
+  https://raw.githubusercontent.com/daidaiJ/websearch-mcpserver/master/config.example.yaml
+Then ask me about my OS, network (do I need a proxy), which API keys I have, and
+my main use case (Chinese web / academic papers / code docs / deep research).
+Generate config.yaml at an absolute path on my machine
+(Windows: %USERPROFILE%\.config\websearch\config.yaml;
+ otherwise ~/.config/websearch/config.yaml) with only the necessary overrides,
 explain each choice, skip engines I do not use, and never write secrets in plain text.
+Finally tell me the exact absolute path to put in WEBSEARCH_MCP_CONFIG and how to
+verify it took effect.
 ```
 
 Then export `WEBSEARCH_MCP_CONFIG=/abs/path/to/config.yaml` before launching dsh (the plugin shim turns it into `-c`); other clients can set the same variable under `mcpServers.websearch.env`, or pass `args: ["-c", "/abs/path/config.yaml"]`. Tune first: `mode` (`mcphub` for zero key / `apipool` with keys / `engine` fully local), `mcp_hub.preset` and `fallback_engines`, `sk_list`, system proxy, `language`, `fetch_mode`, academic engine switches, result count and timeout budgets, `cache`.

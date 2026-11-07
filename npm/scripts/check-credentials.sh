@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Fail if any publishable package source contains a plaintext credential.
 #
-# GitHub masks Actions secrets in logs, but npm tarballs are public and versions
-# are immutable: a token that reaches a published tarball is exposed forever.
-# This script never reads NPM_TOKEN and never prints the matched line -- only
-# file names, so a real leaked value is not echoed into CI logs either.
+# Publishing itself uses OIDC short-lived credentials (no long-lived token in
+# CI), but someone can still commit a token into a package source by accident.
+# npm tarballs are public and immutable: a token in a published tarball is
+# exposed forever. Never print the matched line -- only file names, so a real
+# leaked value is not echoed into CI logs either.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
