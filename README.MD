@@ -125,7 +125,7 @@ autostart.vbs
 
 ### 通过 npm 安装（dsh 插件 / 通用 MCP 客户端）
 
-每个 Release tag 同步发一组 npm 包：四平台预编译二进制按 `os` / `cpu` 自动挑选，无 postinstall、无运行时下载、无需 API Key。Go 二进制随平台子包分发，Node 侧只有一个轻量的启动 shim。
+每个版本的 Release 产物就绪后，由单独的 `vX.Y.Z-npm` tag 发一组 npm 包（`v3.10.5-npm` → npm `3.10.5`）：四平台预编译二进制按 `os` / `cpu` 自动挑选，无 postinstall、无运行时下载、无需 API Key。Go 二进制随平台子包分发，Node 侧只有一个轻量的启动 shim。
 
 ```bash
 # DeepSeek Harness：一行装成 dsh 插件（web profile）

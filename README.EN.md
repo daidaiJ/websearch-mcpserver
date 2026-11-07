@@ -125,7 +125,7 @@ Or use MCP Hooks for session auto start/stop (Qwen Code example; full details in
 
 ### Install via npm (dsh plugin / any MCP client)
 
-Every release tag also publishes a set of npm packages: prebuilt per-platform binaries are selected automatically via `os` / `cpu`, with no postinstall, no runtime download and no API key. The Go binary ships in platform subpackages; the Node side is a ~90-line launcher shim.
+Once a version's Release assets are ready, a separate `vX.Y.Z-npm` tag publishes the npm packages (`v3.10.5-npm` -> npm `3.10.5`): prebuilt per-platform binaries are selected automatically via `os` / `cpu`, with no postinstall, no runtime download and no API key. The Go binary ships in platform subpackages; the Node side is a ~90-line launcher shim.
 
 ```bash
 # DeepSeek Harness: install as a one-line plugin (web profile)

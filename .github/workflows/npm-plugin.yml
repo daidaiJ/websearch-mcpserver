@@ -1,10 +1,13 @@
 # npm / dsh 插件发布。
 #
 # 两种触发方式：
-#   1. release.yml 的 publish-npm job 用 workflow_call 调用（正式 tag 发完
-#      GitHub Release 后自动跑，二进制从该 tag 的 Release 下载并校验 sha256）；
-#   2. Actions 手动 workflow_dispatch，补发 / 重跑 / dry_run（npm 版本不可复用，
-#      publish.sh 已对已存在的版本做跳过，重跑是安全的）。
+#   1. release.yml 的 publish-npm job 用 workflow_call 调用，**只在 vX.Y.Z-npm
+#      后缀 tag 上触发**（与 -registry 对称）：普通 tag 发完 Release、产物就绪后
+#      再单独打 -npm tag；二进制从 base tag 的 Release 下载并校验 sha256，
+#      不重编译、不建 Release、不推镜像。
+#   2. Actions 手动 workflow_dispatch，补发 / 重跑 / dry_run（tag 填 base tag
+#      或 -npm tag 均可，publish.sh 会剥掉 -npm 后缀）。npm 版本不可复用，
+#      publish.sh 已对已存在的版本做跳过，重跑是安全的。
 #
 # 六个包按「4 平台二进制包 -> websearch-mcp-cli -> dsh-websearch-mcpserver」
 # 顺序发布，版本一律取自 tag（v3.10.5 -> 3.10.5），预发布版本走 --tag next。
@@ -25,7 +28,7 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: 'Release tag to package, e.g. v3.10.5'
+        description: 'Tag to package: base tag (v3.10.5) or -npm trigger tag (v3.10.5-npm)'
         required: true
         type: string
       dry_run:
@@ -40,7 +43,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to package, e.g. v3.10.5'
+        description: 'Tag to package: base tag (v3.10.5) or -npm trigger tag (v3.10.5-npm)'
         required: true
         type: string
       dry_run:

@@ -301,7 +301,7 @@ Config shares the same YAML as HTTP; see [configuration.en.md#stdio-cli-configur
 
 ## npm / dsh Plugin Distribution
 
-Use npm if you do not want to manage Release binaries by hand. Every release tag publishes six packages at the same version (`v3.10.5` -> `3.10.5`). Four platform packages are selected automatically through `optionalDependencies` by `os` / `cpu`; there are **no postinstall / prepare scripts**, so pnpm 10+ `allowBuilds` gating and install-time downloads are both avoided.
+Use npm if you do not want to manage Release binaries by hand. Once a version's Release assets are ready, a separate `vX.Y.Z-npm` tag publishes six packages at the base version (`v3.10.5-npm` -> `3.10.5`). Four platform packages are selected automatically through `optionalDependencies` by `os` / `cpu`; there are **no postinstall / prepare scripts**, so pnpm 10+ `allowBuilds` gating and install-time downloads are both avoided.
 
 | Package | Purpose |
 |---|---|

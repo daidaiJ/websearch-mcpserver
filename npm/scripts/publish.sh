@@ -4,7 +4,9 @@
 # identical for all six packages.
 #
 # Inputs (environment):
-#   TAG             required, e.g. v3.10.5 / v3.10.6-preview.1
+#   TAG             required, base tag (v3.10.5 / v3.10.6-preview.1) or the
+#                   -npm trigger tag (v3.10.5-npm). The -npm suffix is stripped
+#                   to locate the base Release and to derive the npm version.
 #   NODE_AUTH_TOKEN required unless DRY_RUN=true or FAKE_BINARIES=true
 #   GH_TOKEN        required when downloading from a GitHub Release
 #   DRY_RUN         true = npm pack --dry-run only, never publish
@@ -42,15 +44,18 @@ FAKE_BINARIES="${FAKE_BINARIES:-false}"
 PACK_OUT="${PACK_OUT:-}"
 DIST_DIR="${DIST_DIR:-}"
 
-[[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
-  || die "TAG must look like v3.10.5 or v3.10.6-preview.1 (got: '${TAG}')"
-VERSION="${TAG#v}"
+# vX.Y.Z-npm 只是触发标记：二进制在 base tag 的 Release 上，npm 版本也等于
+# base 版本（不能把 -npm 发成 3.10.5-npm 这种 next 通道版本）。
+RELEASE_TAG="${TAG%-npm}"
+[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+  || die "TAG must look like v3.10.5, v3.10.6-preview.1 or v3.10.5-npm (got: '${TAG}')"
+VERSION="${RELEASE_TAG#v}"
 if [[ "$VERSION" == *-* ]]; then
   DIST_TAG=next
 else
   DIST_TAG=latest
 fi
-log "tag=$TAG version=$VERSION dist-tag=$DIST_TAG dry-run=$DRY_RUN pack-out=${PACK_OUT:-<none>}"
+log "tag=$TAG release-tag=$RELEASE_TAG version=$VERSION dist-tag=$DIST_TAG dry-run=$DRY_RUN pack-out=${PACK_OUT:-<none>}"
 [ -z "$PACK_OUT" ] || mkdir -p "$PACK_OUT"
 
 if [ "$DRY_RUN" != "true" ] && [ "$FAKE_BINARIES" != "true" ] \
@@ -81,15 +86,15 @@ elif [ "$FAKE_BINARIES" = "true" ]; then
     (cd "$DOWNLOADS" && sha256sum "websearch-mcp-cli-$p$ext" > "websearch-mcp-cli-$p$ext.sha256")
   done
 else
-  log "downloading websearch-mcp-cli-* from GitHub Release $TAG"
-  gh release download "$TAG" --pattern 'websearch-mcp-cli-*' --dir "$DOWNLOADS" --clobber \
-    || die "failed to download release assets for $TAG (GH_TOKEN / release missing?)"
+  log "downloading websearch-mcp-cli-* from GitHub Release $RELEASE_TAG"
+  gh release download "$RELEASE_TAG" --pattern 'websearch-mcp-cli-*' --dir "$DOWNLOADS" --clobber \
+    || die "failed to download release assets for $RELEASE_TAG (GH_TOKEN / release missing?)"
 fi
 
 for p in "${PLATFORMS[@]}"; do
   ext="$(binary_ext "$p")"
   file="websearch-mcp-cli-$p$ext"
-  [ -f "$DOWNLOADS/$file" ] || die "missing release binary $file for $TAG"
+  [ -f "$DOWNLOADS/$file" ] || die "missing release binary $file for $RELEASE_TAG"
   if [ -f "$DOWNLOADS/$file.sha256" ]; then
     (cd "$DOWNLOADS" && sha256sum -c "$file.sha256") > /dev/null \
       || die "checksum mismatch for $file"

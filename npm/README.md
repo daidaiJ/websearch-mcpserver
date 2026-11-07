@@ -26,7 +26,7 @@
 
 ## 版本与前置条件
 
-- `TAG=vX.Y.Z` → npm `version=X.Y.Z`；含 `-preview` / `-rc` 等后缀时自动用 `--tag next`，正式版用 `latest`。
+- `TAG=vX.Y.Z`（或触发 tag `vX.Y.Z-npm`）→ npm `version=X.Y.Z`。`-npm` 只是触发标记：`publish.sh` 先剥掉它，用 base tag 找 Release、用 base 版本号发 npm，不会把 `-npm` 发成 `3.10.5-npm` 这种 next 通道版本。base 版本含 `-preview` / `-rc` 后缀时自动用 `--tag next`，正式版用 `latest`。
 - 仓库 Secret **`NPM_TOKEN`**（npm granular access token，只授予这 6 个包的 publish 权限并设过期时间）。首次发布前确认 6 个名字都未被占用：`npm view <name> version` 返回 404 即可用。
 - 工作流需要 `id-token: write`（`npm publish --provenance` 的 OIDC）。
 - **npm 版本不可复用**：同版本二次 publish 必报 403。`publish.sh` 先 `npm view <name>@<version>`，已存在就跳过并打 notice，所以重跑工作流是安全的；但内容改了就必须换版本号。
@@ -45,11 +45,13 @@
 
 ## 发布链路
 
-1. `release.yml` 的 `build` → `release` 照旧产出 8 个裸二进制 + `.sha256` + 整包。
-2. `release.yml` 的 `publish-npm` job（`needs: release`，跳过 `-registry` 与 `-preview` tag）调用可复用工作流 `.github/workflows/npm-plugin.yml`。
-3. `npm-plugin.yml` 里 `publish.sh` 从**该 tag 的 GitHub Release** 下载 `websearch-mcp-cli-*`、逐个用 Release 的 `.sha256` 校验，再依次发布 **4 个平台包 → `websearch-mcp-cli` → `dsh-websearch-mcpserver`**（平台包必须先可解析，否则父包上线到能装之间会有窗口）。
+发布矩阵与仓库既有约定对称：**普通 tag 只发 Release + GHCR，`vX.Y.Z-npm` 单独发 npm，正如 `vX.Y.Z-registry` 单独发 MCP Registry**。
+
+1. 普通 `vX.Y.Z` tag：`release.yml` 的 `build` → `release` 产出 8 个裸二进制 + `.sha256` + 整包，`docker.yml` 推 GHCR；**不发 npm 包**。
+2. 产物就绪后另打 `vX.Y.Z-npm`。`release.yml` 的 `build` / `release` job 与 `docker.yml` 都跳过这个后缀（不重编译、不建 Release、不推镜像），只有 `publish-npm` job（`if: endsWith(github.ref_name, '-npm')`）调用 `.github/workflows/npm-plugin.yml`，并把 `-npm` tag 作为 `tag` 输入传下去。
+3. `publish.sh` 剥掉 `-npm` 得到 base tag `vX.Y.Z`，从 **base tag 的 GitHub Release** 下载 `websearch-mcp-cli-*`、逐个用 Release 的 `.sha256` 校验，再依次发布 **4 个平台包 → `websearch-mcp-cli` → `dsh-websearch-mcpserver`**（平台包必须先可解析，否则父包上线到能装之间会有窗口）。
 4. 校验和随二进制一起进 npm 包（`bin/websearch-mcp-cli*.sha256`），来源可复验。
-5. 失败或需要补发：Actions 里手动跑 `npm-plugin.yml`，填 tag；`dry_run=true` 只打包不发布。
+5. 失败或需要补发：Actions 里手动跑 `npm-plugin.yml`，tag 填 `vX.Y.Z` 或 `vX.Y.Z-npm` 都行；`dry_run=true` 只打包不发布。npm 版本不可复用，`publish.sh` 对已存在版本会跳过，重跑安全。
 
 ## 本地校验
 

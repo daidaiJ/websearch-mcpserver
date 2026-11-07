@@ -301,7 +301,7 @@ CLI 子命令：无参数 = stdio；`init` 写示例配置；`version` 显示版
 
 ## npm / dsh 插件分发
 
-不想手动管二进制就用 npm：每个 Release tag 同步发布一组 6 个包，版本与 tag 同源（`v3.10.5` → `3.10.5`）。四个平台二进制包按 `os` / `cpu` 由 `optionalDependencies` 自动挑选；**没有 postinstall / prepare 脚本**，不会触发 pnpm 10+ 的 `allowBuilds` 门禁，也不在安装时联网下载。
+不想手动管二进制就用 npm：每个版本的 Release 产物就绪后，由单独的 `vX.Y.Z-npm` tag 发布一组 6 个包，版本与 base tag 同源（`v3.10.5-npm` → `3.10.5`）。四个平台二进制包按 `os` / `cpu` 由 `optionalDependencies` 自动挑选；**没有 postinstall / prepare 脚本**，不会触发 pnpm 10+ 的 `allowBuilds` 门禁，也不在安装时联网下载。
 
 | 包 | 用途 |
 |----|------|

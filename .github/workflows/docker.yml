@@ -3,7 +3,8 @@
 # 发布矩阵拆分：本工作流只构建容器 linux/amd64 + linux/arm64（closes #4）。
 # GitHub Release 不含 linux-arm64 / windows-arm64 二进制；MCP mcpb 跟 Release 四平台。
 #
-# Trigger: 普通 semver tag（v3.4.0）推 GHCR；发完后再打的 -registry 后缀不重复推镜像
+# Trigger: 普通 semver tag（v3.4.0）推 GHCR；发完后再打的 -registry / -npm
+#   后缀不重复推镜像（前者发 MCP Registry，后者发 npm 包，都只复用 base Release 产物）
 #   - Go 交叉编译在 Dockerfile BUILDPLATFORM 阶段完成；QEMU 仅用于安装 qpdf
 #   - 失败不影响 GitHub Release / MCP Registry 工作流
 
@@ -15,6 +16,7 @@ on:
       - 'v*'
       - '!v*-registry'
       - '!v*-preview*'
+      - '!v*-npm'
 
 permissions:
   contents: read
@@ -23,8 +25,8 @@ permissions:
 jobs:
   docker:
     name: Build & push GHCR image
-    # -registry 后缀不重复推镜像；预览 tag（如 v3.6.0-preview.1）不推官方镜像
-    if: ${{ !endsWith(github.ref_name, '-registry') && !contains(github.ref_name, '-preview') }}
+    # -registry / -npm 后缀不重复推镜像；预览 tag（如 v3.6.0-preview.1）不推官方镜像
+    if: ${{ !endsWith(github.ref_name, '-registry') && !contains(github.ref_name, '-preview') && !endsWith(github.ref_name, '-npm') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
