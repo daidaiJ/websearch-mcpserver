@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="1000" height="620" role="img" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+<title>两种接入形态：npm stdio 与 HTTP daemon</title>
+<desc>npm / dsh 路径经 Node shim 启动 Go cmd/cli 的 stdio 进程；Release / GHCR 路径运行 HTTP daemon。两者共用同一个 mcp.NewMCPServer 内核与同一份 config.yaml，工具能力等价，管控与观测面仅 HTTP daemon 具备。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#5C8AA6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+
+<rect x="16" y="16" width="968" height="588" rx="22" fill="#0B1725" stroke="#1E3A50" stroke-width="1"/>
+
+<text x="48" y="66" font-size="30" font-weight="700" fill="#F0F7FC">两种接入形态</text>
+<text x="48" y="98" font-size="15" fill="#8FA9BC">同一套工具内核，两种 transport：stdio 单进程 · HTTP daemon 全特性</text>
+<rect x="744" y="48" width="208" height="34" rx="17" fill="none" stroke="#2BC79B" stroke-width="1"/>
+<text x="848" y="69" text-anchor="middle" font-size="13" fill="#2BC79B">stdio · Streamable HTTP</text>
+<line x1="48" y1="118" x2="952" y2="118" stroke="#1E3A50" stroke-width="1"/>
+
+<rect x="48" y="136" width="4" height="20" rx="2" fill="#4A9EEA"/>
+<text x="62" y="152" font-size="17" font-weight="600" fill="#EAF4FA">npm / dsh（stdio）</text>
+<rect x="250" y="132" width="130" height="26" rx="13" fill="#12283C" stroke="#2A4E68" stroke-width="1"/>
+<text x="315" y="149" text-anchor="middle" font-size="12" fill="#7FB6E8">零配置 · 单客户端</text>
+
+<rect x="516" y="136" width="4" height="20" rx="2" fill="#2BC79B"/>
+<text x="530" y="152" font-size="17" font-weight="600" fill="#EAF4FA">Release / GHCR（HTTP daemon）</text>
+<rect x="820" y="132" width="132" height="26" rx="13" fill="#102E2A" stroke="#1F5A4A" stroke-width="1"/>
+<text x="886" y="149" text-anchor="middle" font-size="12" fill="#5BD9B3">全特性形态</text>
+
+<rect x="48" y="166" width="436" height="284" rx="14" fill="#0F2132" stroke="#1C3950" stroke-width="1"/>
+<rect x="516" y="166" width="436" height="284" rx="14" fill="#0F2132" stroke="#1C3950" stroke-width="1"/>
+
+<rect x="64" y="186" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
+<text x="82" y="212" font-size="15.5" font-weight="600" fill="#EAF4FA">dsh mcp client</text>
+<text x="82" y="233" font-size="12.5" fill="#8FA9BC">transport: stdio · 宿主拉起一个子进程</text>
+<rect x="532" y="186" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
+<text x="550" y="212" font-size="15.5" font-weight="600" fill="#EAF4FA">MCP HTTP 客户端</text>
+<text x="550" y="233" font-size="12.5" fill="#8FA9BC">POST /mcp · 多客户端共享同一进程</text>
+
+<path d="M266 250 L266 270" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M734 250 L734 270" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="64" y="272" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
+<text x="82" y="298" font-size="15.5" font-weight="600" fill="#EAF4FA">Node 启动 shim（.cjs）</text>
+<text x="82" y="319" font-size="12.5" fill="#8FA9BC">解析平台包 · 转发 -c · spawn；不连 HTTP</text>
+<rect x="532" y="272" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
+<text x="550" y="298" font-size="15.5" font-weight="600" fill="#EAF4FA">Go cmd/main daemon</text>
+<text x="550" y="319" font-size="12.5" fill="#8FA9BC">start / stop · refcount · PID · :8338</text>
+
+<path d="M266 336 L266 356" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M734 336 L734 356" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="64" y="358" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
+<text x="82" y="384" font-size="15.5" font-weight="600" fill="#EAF4FA">Go cmd/cli 二进制</text>
+<text x="82" y="405" font-size="12.5" fill="#8FA9BC">stdin/stdout JSON-RPC · 不监听端口</text>
+<rect x="532" y="358" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
+<text x="550" y="384" font-size="15.5" font-weight="600" fill="#EAF4FA">HTTP 附加面</text>
+<text x="550" y="405" font-size="12.5" fill="#8FA9BC">dashboard · /metrics · /searxng · auth_token</text>
+
+<path d="M266 452 L266 480" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M734 452 L734 480" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="48" y="484" width="904" height="104" rx="14" fill="#0E2B30" stroke="#2A6A5C" stroke-width="1"/>
+<text x="72" y="522" font-size="18" font-weight="600" fill="#E4FBF3">共用内核：mcp.NewMCPServer(conf)</text>
+<text x="72" y="550" font-size="13.5" fill="#93BDB4">同一批工具 · 同一份 config.yaml · 共用搜索 / 抓取 / 缓存 / 摘要编排</text>
+<rect x="770" y="508" width="156" height="30" rx="15" fill="none" stroke="#2BC79B" stroke-width="1"/>
+<text x="848" y="528" text-anchor="middle" font-size="12.5" fill="#5BD9B3">工具能力等价</text>
+</svg>

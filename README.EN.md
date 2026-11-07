@@ -40,6 +40,24 @@ Layered design: clients see up to five MCP tools; the engine group is assembled 
 | **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao / Yuanbao / TinyFish / Keenable + 4 hosted MCP upstreams; 9 academic sources in parallel |
 | **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary, Everything |
 
+### Two access modes: stdio and HTTP daemon
+
+Both paths share the same `mcp.NewMCPServer(conf)` and the same `config.yaml`, so tool capabilities are equal. The difference is the transport and the management / observability surface:
+
+<p align="center">
+  <img src="docs/images/transport-modes.en.svg" alt="npm / dsh stdio path versus Release / GHCR HTTP daemon path, both built on the same mcp.NewMCPServer core" width="900">
+</p>
+
+| | npm / dsh (stdio) | Release / GHCR (HTTP daemon) |
+|---|----|----|
+| Process | the dsh MCP client spawns one `cmd/cli` child per session | `websearch-mcpserver start` stays resident; refcount / PID across clients |
+| Protocol | stdin/stdout JSON-RPC, no listening port | `POST /mcp` Streamable HTTP, `127.0.0.1:8338` by default |
+| Tools | the same set of up to 5 tools | the same set of up to 5 tools |
+| Exclusive | Node shim only resolves the platform package and `spawn`s it; no postinstall, no runtime download | `/dashboard/`, `/metrics`, `/searxng/search`, `/__admin`, `auth_token`, SSE progress |
+| Config | falls back to in-memory `mode: engine` defaults; point `WEBSEARCH_MCP_CONFIG` at a personalized `config.yaml` | `start` writes a complete preset `config.yaml` on first run |
+
+> **The HTTP daemon is the full-featured form.** stdio is not a stripped-down build, and it is not a thin client that starts the daemon: the Node shim only `spawn`s a binary, and that Go binary is already a complete MCP server — it simply listens on no port and has no management / observability surface. Config files are interchangeable between the two; see [docs/configuration.en.md](docs/configuration.en.md) for the field differences.
+
 Fallback chain, proxy detection, and embedding details: [docs/architecture.en.md](docs/architecture.en.md).
 
 ---

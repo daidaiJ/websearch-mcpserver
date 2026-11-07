@@ -40,6 +40,24 @@
 | **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包 / 元宝 / TinyFish / Keenable + 4 个托管 MCP 上游；学术 9 源并行 |
 | **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要、Everything |
 
+### 两种接入形态：stdio 与 HTTP daemon
+
+两条链路共用同一个 `mcp.NewMCPServer(conf)` 和同一份 `config.yaml`，工具能力等价；差别在 transport 与管控 / 观测面：
+
+<p align="center">
+  <img src="docs/images/transport-modes.svg" alt="npm / dsh 的 stdio 链路与 Release / GHCR 的 HTTP daemon 链路对比，两者共用 mcp.NewMCPServer 内核" width="900">
+</p>
+
+| | npm / dsh（stdio） | Release / GHCR（HTTP daemon） |
+|---|----|----|
+| 进程 | dsh 的 MCP client 每个会话拉起一个 `cmd/cli` 子进程 | `websearch-mcpserver start` 常驻，refcount / PID 管理多客户端 |
+| 协议 | stdin/stdout JSON-RPC，不监听端口 | `POST /mcp` Streamable HTTP，默认 `127.0.0.1:8338` |
+| 工具 | 同一批最多 5 个工具 | 同一批最多 5 个工具 |
+| 独有 | Node shim 只做平台包解析与 `spawn`，无 postinstall、无运行时下载 | `/dashboard/`、`/metrics`、`/searxng/search`、`/__admin`、`auth_token`、SSE 进度推送 |
+| 配置 | 缺省时走 `mode: engine` 内存默认值，建议用 `WEBSEARCH_MCP_CONFIG` 指向个性化 `config.yaml` | `start` 首次自动生成完整 `config.yaml` |
+
+> **HTTP daemon 是全特性的完全形态**；stdio 不是功能裁剪版，也不是「轻客户端拉起 daemon」——npm 里的 Node shim 只负责 `spawn`，被拉起的 Go 二进制本身就是完整 MCP server，只是不监听端口、没有管控与观测面。两种形态的配置文件通用，字段差异见 [docs/configuration.md](docs/configuration.md)。
+
 更完整的回退链、代理检测与嵌入方式见 [docs/architecture.md](docs/architecture.md)。
 
 ---
