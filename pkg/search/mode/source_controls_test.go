@@ -19,6 +19,13 @@ func allAPIsDisabled() config.Config {
 	}
 }
 
+func allPools(pool *provider.KeyPool) ProviderPools {
+	return ProviderPools{
+		Anysearch: pool, Baidu: pool, Tavily: pool, Exa: pool,
+		Doubao: pool, Yuanbao: pool, Tinyfish: pool, Keenable: pool,
+	}
+}
+
 func TestDisabledAPISingleModes(t *testing.T) {
 	pool, err := provider.NewKeyPool([]string{"stored-test-key"})
 	if err != nil {
@@ -83,19 +90,19 @@ func TestPoolAndHybridSourceControls(t *testing.T) {
 	}
 	conf := allAPIsDisabled()
 	conf.Apipool.Engines = []string{"anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable"}
-	if got := BuildHybridMode(conf, pool, pool, pool, pool, pool, pool, pool, pool, EngineAdapters{}, nil); got != nil {
+	if got := BuildHybridMode(conf, allPools(pool), EngineAdapters{}, nil); got != nil {
 		t.Fatal("hybrid must not install disabled APIs even with stored keys")
 	}
-	if got := BuildHybridMode(conf, nil, nil, nil, nil, nil, nil, nil, nil, EngineAdapters{}, nil); got != nil {
+	if got := BuildHybridMode(conf, ProviderPools{}, EngineAdapters{}, nil); got != nil {
 		t.Fatal("hybrid must not re-enable anonymous AnySearch")
 	}
-	if got := BuildApipoolMode(conf, pool, pool, pool, pool, pool, pool, pool, pool, nil); got != nil {
+	if got := BuildApipoolMode(conf, allPools(pool), nil); got != nil {
 		t.Fatal("apipool must not install disabled APIs even with stored keys")
 	}
 	for _, name := range conf.Apipool.Engines {
 		t.Run(name, func(t *testing.T) {
 			conf.Apipool.Engines = []string{name}
-			if got := BuildApipoolMode(conf, pool, pool, pool, pool, pool, pool, pool, pool, nil); got != nil {
+			if got := BuildApipoolMode(conf, allPools(pool), nil); got != nil {
 				t.Fatalf("disabled %s was installed", name)
 			}
 		})
@@ -103,8 +110,8 @@ func TestPoolAndHybridSourceControls(t *testing.T) {
 	conf.Anysearch.Enabled = nil
 	conf.Apipool.Engines = []string{"anysearch"}
 	if BuildAnysearchMode(conf, nil, nil) == nil ||
-		BuildApipoolMode(conf, nil, nil, nil, nil, nil, nil, nil, nil, nil) == nil ||
-		BuildHybridMode(conf, nil, nil, nil, nil, nil, nil, nil, nil, EngineAdapters{}, nil) == nil {
+		BuildApipoolMode(conf, ProviderPools{}, nil) == nil ||
+		BuildHybridMode(conf, ProviderPools{}, EngineAdapters{}, nil) == nil {
 		t.Fatal("omitted AnySearch switch must preserve anonymous mode")
 	}
 	conf.Baidu.WebEnabled = true
