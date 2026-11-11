@@ -22,6 +22,26 @@ func TestRequestIDRoundTripAndCollector(t *testing.T) {
 	}
 }
 
+func TestClientUserAgentRoundTrip(t *testing.T) {
+	ctx := WithClientUserAgent(t.Context(), "  WorkBuddy/1  ")
+	if got := ClientUserAgentFromContext(ctx); got != "WorkBuddy/1" {
+		t.Fatalf("ClientUserAgentFromContext = %q, want WorkBuddy/1", got)
+	}
+	for _, invalid := range []string{"", "   ", "node\nprivate", "x\x7fy"} {
+		ctx := WithClientUserAgent(t.Context(), invalid)
+		if got := ClientUserAgentFromContext(ctx); got != "" {
+			t.Fatalf("ClientUserAgentFromContext(%q) = %q, want empty", invalid, got)
+		}
+	}
+	long := make([]byte, maxClientUserAgentLen+1)
+	for i := range long {
+		long[i] = 'a'
+	}
+	if got := ClientUserAgentFromContext(WithClientUserAgent(t.Context(), string(long))); got != "" {
+		t.Fatalf("overlong User-Agent = %q, want empty", got)
+	}
+}
+
 func TestEventFilterMatchesRequestID(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "telemetry.db"), 30)
 	if err != nil {

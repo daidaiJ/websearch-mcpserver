@@ -434,6 +434,8 @@ pdf_parser:
 # （需 cleanfetch.enabled=true；mode=mcphub 时复用搜索 hub）
 # 注意：托管 MCP 的 exa/anysearch 与 apipool 的同名供应商指向同一上游服务的不同入口
 # （前者多走匿名档、按出口 IP 限流；后者用你配置的 Key），两者额度口径独立但共用出口 IP。
+# 调用上游时透传入站 MCP 请求的 User-Agent（agent 宿主的真实 UA）；
+# stdio、后台任务或 UA 非法时回退内置桌面 UA。
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority（默认，稳定优先）/ round-robin（跨请求轮转起始 server）
