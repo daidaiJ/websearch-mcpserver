@@ -14,6 +14,9 @@
 
 ### 变更
 
+- **`/metrics` 增加进程内指标**：始终输出在飞 HTTP 请求数、进程 uptime、goroutine 数、堆分配字节与 `websearch_telemetry_enabled`；控制中心启用时再追加原有工具/供应商聚合。控制台关闭时端点从 503 改为 200，仅省略遥测序列，避免监控在关闭控制台后整段失明
+- **provider Key 池改为命名结构体 `mode.ProviderPools`**：`BuildApipoolMode` / `BuildHybridMode` 由 8–9 个同类型 `*KeyPool` 位置参数改为按供应商命名的字段，新增供应商不会再因参数错位而静默接错池
+- **`core.ShowMeta` 改为原子访问**：由包级 bool 改为 `atomic.Bool` + `SetShowMeta` / `ShowMetaEnabled`，消除并发读取全局配置值的数据竞争
 - **`depth` / `max_chars` / `fetch_top_n` 的作用域显式化**：三者只塑造 web 分节的正文；`sources` 仅请求 `academic` 时显式传这三个参数会返回错误，避免参数被静默忽略。同时请求 web 与 academic 时，学术分节按自身默认返回；工具描述与 server instructions 同步写明这一边界
 
 ### 修复

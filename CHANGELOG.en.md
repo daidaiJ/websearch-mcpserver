@@ -14,6 +14,9 @@
 
 ### Changed
 
+- **`/metrics` gains in-process metrics**: always reports in-flight HTTP requests, process uptime, goroutine count, heap-allocated bytes and `websearch_telemetry_enabled`; tool/provider aggregates are appended when the dashboard is enabled. With the dashboard disabled the endpoint now returns 200 and omits only the telemetry series instead of returning 503, so monitoring does not go blind
+- **Provider key pools use the named `mode.ProviderPools` struct**: `BuildApipoolMode` / `BuildHybridMode` replace 8–9 positional `*KeyPool` parameters with per-provider fields, so adding a provider cannot silently bind the wrong pool through argument drift
+- **`core.ShowMeta` uses atomic access**: the package-level bool became `atomic.Bool` with `SetShowMeta` / `ShowMetaEnabled`, removing a data race on the global configuration value
 - **Explicit scope for `depth` / `max_chars` / `fetch_top_n`**: all three shape web-section bodies only. An academic-only request (`sources: ["academic"]`) that passes any of them explicitly now returns an error instead of silently ignoring the parameter. In a mixed request the academic section follows its own defaults; tool descriptions and server instructions document the boundary
 
 ### Fixed

@@ -78,7 +78,8 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | Add a hosted MCP server / adjust cascade order | presets and `config.MCPHubConfig.GetServers` in `pkg/search/provider/mcphub/hub.go`; fetch order lives in `fetchPageWithFallback` in `mcp/tool_cleanfetch.go` |
 | Adjust mode composition / fallback order | `pkg/search/mode/factory.go`; the mode switch lives in root `factory.go` |
 | Change multi-engine dedup/merge/per-engine filtering | `pkg/search/hybrid/hybrid.go` |
-| Change apipool rotation strategy / key invalidation | `pkg/search/apipool/apipool.go` (key-pool primitive in `provider/keypool.go`) |
+| Change apipool rotation strategy / key invalidation | `pkg/search/apipool/apipool.go` (key-pool primitive in `provider/keypool.go`); provider pools are passed through the named fields of `mode.ProviderPools` |
+| Change `/metrics` series | In-process metrics live in `renderProcessMetrics` in `server/metrics.go`; tool/provider aggregates come from `pkg/telemetry` |
 | Change scoring (RRF/boosts/threshold/MMR) | `pkg/search/enhance/` (web) and `enhance/academic_enhance.go` (academic); the ScoreBucket struct lives in `search/core`; run `bench/quality` afterwards and check P@8 / R@8 / MRR@8 |
 | Change failure classification / add an error code | Add the code in `pkg/errcode`; `core.ClassifyFailure`, `telemetry.ClassifyErrorKind` and `mcp.isAntiBotFailure` read it first and fall back to English/Chinese keywords |
 | Change result Markdown rendering | `pkg/search/core/format_md.go` (shared by all engines) |
