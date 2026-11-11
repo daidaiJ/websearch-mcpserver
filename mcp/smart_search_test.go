@@ -144,6 +144,35 @@ func TestSmartSearchBatchOverMCP(t *testing.T) {
 	t.Fatal("smartsearch tool not listed")
 }
 
+func TestValidateSourcePresets(t *testing.T) {
+	n := 3
+	chars := 1000
+	cases := []struct {
+		name     string
+		web      bool
+		academic bool
+		fetch    *int
+		depth    string
+		maxChars *int
+		wantErr  bool
+	}{
+		{"academic only with depth", false, true, nil, "deep", nil, true},
+		{"academic only balanced", false, true, nil, "balanced", nil, false},
+		{"academic only fetch", false, true, &n, "", nil, true},
+		{"academic only max chars", false, true, nil, "", &chars, true},
+		{"mixed sources allow presets", true, true, &n, "deep", &chars, false},
+		{"web only allow presets", true, false, &n, "deep", &chars, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSourcePresets(tc.web, tc.academic, tc.fetch, tc.depth, tc.maxChars)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestDoSmartSearchAcademicSource(t *testing.T) {
 	initTestLogger()
 	restoreGlobals(t)

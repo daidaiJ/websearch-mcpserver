@@ -329,10 +329,12 @@ Degradation and safety:
 | `queries` | string[] | ❌ | Batch queries (up to 5), mutually exclusive with `query`; each runs independently and results are returned in per-query sections, so one failure does not hide the others |
 | `intent` | string | ❌ | Search intent (only effective when LLM is enabled; auto-removed to save context when disabled) |
 | `time_range` | int | ❌ | Search time range in months, default 3. `1`=last month, `6`=last 6 months, `12`=last year, `0`=unlimited. Doubao Custom maps this to `OneDay`/`OneWeek`/`OneMonth`/`OneYear`; Yuanbao maps it to `dN`/`mN`/`yN`; Doubao Global has no time-filter API and ignores it |
-| `depth` | string | ❌ | Depth preset: `fast` (no body fetch) / `balanced` (default, follows `fetch_top_n`) / `deep` (fetches the top 3 bodies and enables a 24,000-character budget by default); explicit `fetch_top_n` / `max_chars` win |
+| `depth` | string | ❌ | Depth preset: `fast` (no body fetch) / `balanced` (default, follows `fetch_top_n`) / `deep` (fetches the top 3 bodies and enables a 24,000-character budget by default); explicit `fetch_top_n` / `max_chars` win. Shapes web result bodies only |
 | `sources` | string[] | ❌ | Source types: `web` (default) / `academic`; both may be requested, and `academic` requires `academic.enabled=true` |
-| `max_chars` | int | ❌ | Total body-character budget for this call, shared across results and split evenly; omit or `0` for no extra trimming. When exceeded, each body is truncated with a hint to read the full text via `cleanfetch` |
+| `max_chars` | int | ❌ | Total web-body character budget for this call, shared across web results and split evenly; omit or `0` for no extra trimming. When exceeded, each body is truncated with a hint to read the full text via `cleanfetch`. Affects web sources only |
 | `fetch_top_n` | int | ❌ | Body-fetch mode: when omitted, behaves as before — only engine/provider-provided content is returned (server config `smartsearch.fetch_top_n` can change the default, default `0` = no fetch); `0` means title+snippet+URL only; `1-5` obtains page-original text for the top N results — API engines that support full-text params (Tavily/Exa/Doubao) use the fast path directly, web engines fetch internally (no `cleanfetch.enabled` needed, webfetch lazily initializes); results already carrying sufficient body text are skipped; anti-bot blocks (JS challenge/WAF) are explicitly annotated on the result |
+
+`depth`, `max_chars` and `fetch_top_n` shape the web section's bodies only. An academic-only request (`sources: ["academic"]`) that passes any of them explicitly returns an error instead of silently ignoring the parameter; in a mixed request the academic section follows its own defaults.
 
 Results include engine source and relevance score by default (for engines that support scores like Tavily / Doubao Custom). Disable via `smartsearch.show_meta: false`.
 

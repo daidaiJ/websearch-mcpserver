@@ -47,6 +47,9 @@ func doSmartSearch(ctx context.Context, req *mcp.CallToolRequest, request smartS
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := validateSourcePresets(web, academic, request.FetchTopN, request.Depth, request.MaxChars); err != nil {
+		return nil, nil, err
+	}
 
 	months := effectiveTimeRangeMonths(request.TimeRange)
 	if len(queries) == 1 {
@@ -119,6 +122,27 @@ func normalizeSources(sources []string) (web, academic bool, err error) {
 		return true, false, nil
 	}
 	return web, academic, nil
+}
+
+// validateSourcePresets rejects body-shaping parameters on an academic-only
+// request. depth / fetch_top_n / max_chars govern web page bodies; silently
+// ignoring them there would make the parameters look broken.
+func validateSourcePresets(web, academic bool, fetchTopN *int, depth string, maxChars *int) error {
+	if !academic || web {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(depth)) {
+	case "", "balanced":
+	default:
+		return errors.New(i18n.T("tool.search.preset_web_only", "Param", "depth"))
+	}
+	if fetchTopN != nil && *fetchTopN > 0 {
+		return errors.New(i18n.T("tool.search.preset_web_only", "Param", "fetch_top_n"))
+	}
+	if maxChars != nil && *maxChars > 0 {
+		return errors.New(i18n.T("tool.search.preset_web_only", "Param", "max_chars"))
+	}
+	return nil
 }
 
 // resolveSearchDepth maps the per-call preset to a fetch count and content

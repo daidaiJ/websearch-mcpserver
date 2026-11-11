@@ -717,3 +717,49 @@ func TestRegisterRouter_StatefulMode(t *testing.T) {
 		}
 	})
 }
+
+func TestNewMCPServer_Instructions(t *testing.T) {
+	initTestLogger()
+	restoreGlobals(t)
+
+	instructions := func(t *testing.T, opts *mcp.ServerOptions) string {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		t1, t2 := mcp.NewInMemoryTransports()
+		ss, err := NewMCPServer(config.Config{}, opts).Connect(ctx, t1, nil)
+		if err != nil {
+			t.Fatalf("server connect: %v", err)
+		}
+		defer ss.Close()
+		cs, err := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "0"}, nil).Connect(ctx, t2, nil)
+		if err != nil {
+			t.Fatalf("client connect: %v", err)
+		}
+		defer cs.Close()
+		return cs.InitializeResult().Instructions
+	}
+
+	t.Run("default zh", func(t *testing.T) {
+		got := instructions(t, nil)
+		if !strings.Contains(got, "smartsearch") || !strings.Contains(got, "cleanfetch") {
+			t.Fatalf("instructions missing tool guidance: %q", got)
+		}
+	})
+
+	t.Run("explicit override", func(t *testing.T) {
+		got := instructions(t, &mcp.ServerOptions{Instructions: "custom instructions"})
+		if got != "custom instructions" {
+			t.Fatalf("instructions = %q, want caller value", got)
+		}
+	})
+
+	t.Run("english", func(t *testing.T) {
+		i18n.Configure(i18n.En)
+		t.Cleanup(func() { i18n.Configure(i18n.Zh) })
+		got := instructions(t, nil)
+		if !strings.Contains(got, "Tool choice") {
+			t.Fatalf("english instructions missing: %q", got)
+		}
+	})
+}
