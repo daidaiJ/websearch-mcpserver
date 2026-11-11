@@ -658,7 +658,7 @@ func (h *Hub) MergeContent(query string, results []core.SearchResult) (string, e
 	b.Grow(1024 * len(results))
 	b.WriteString(core.MDSearchHeader(query, len(results)))
 	for i, r := range results {
-		if core.ShowMeta {
+		if core.ShowMetaEnabled() {
 			b.WriteString(core.FormatMDScore(i+1, r.Title, r.Url, r.Engine, core.FormatScore(r.Score), core.FormatDateSource(r.PublishDate, r.DateSource), r.Content))
 		} else {
 			b.WriteString(core.FormatMD(i+1, r.Title, r.Url, r.Content))
