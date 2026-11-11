@@ -94,7 +94,7 @@
 | SSRF 防护 | `cleanfetch` URL 协议校验、内网地址黑名单 |
 | DNS rebinding 检测 | 抓取前 DNS 解析目标域名，检查所有 IP 是否为内网/私有地址（与 go-webfetch 的 BlockPrivateIP 双重防护） |
 | HEAD 预检 | 抓取前检查 Content-Length，超过 `max_fetch_size_mb`（默认 10MB）直接拒绝 |
-| TLS 指纹伪装 | go-webfetch 使用 tls-client Chrome 131 指纹，增强反爬能力 |
+| TLS 指纹伪装（仅抓取链路） | go-webfetch 使用 tls-client Chrome 131 指纹；搜索请求走 UA/Accept 轮换，不做 TLS 指纹伪装 |
 | 429 限流重试 | 所有 HTTP 客户端自动处理 429，读取 `Retry-After` 头等待后重试 |
 | arXiv 限流保护 | 内置 1 req/s 限流器，避免触发 arXiv 官方限流 |
 

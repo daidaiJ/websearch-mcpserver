@@ -105,7 +105,7 @@ mcp/server.go registerTools (registers With/NoIntent schema pair depending on LL
         │                                / apipool.ApipoolSearchImpl (rotation)
         │                                / provider.* (single provider)
         │          each provider/adapter ─► pkg/search/engine/* or external APIs
-        │                                  ─► pkg/antirobot (rate limit/TLS/UA)
+        │                                  ─► pkg/antirobot (rate limit / UA rotation; TLS fingerprint only in webfetch)
         ├► postSearchFilter (single-engine score/maxsize filtering, FilterByScore from core)
         ├► enrichFetchedTopN ─► ensureWebFetch (lazily initializes when cleanfetch/pdf_parser are off)
         │                      └► pkg/fetch/webfetch (fetch_top_n body extraction, SSRF+HEAD pre-checks+byte cap)

@@ -76,6 +76,8 @@ Only initializes components and returns an `http.Handler` with all routes regist
 
 Suitable for embedding scenarios — the caller creates its own `http.Server`, reusing existing port, TLS config, or middleware stack.
 
+**Embedding boundary**: initialization is eager, and a failed search-engine or cache construction panics so configuration errors surface at startup; embedded callers should validate config first or recover at the boundary and return their own error. Assembly uses package-level singletons and is designed for one instance per process; multiple `Server` values share the same components, so run separate processes for multiple instances. `Run` returns an error for listen failures and does not panic.
+
 ### Usage Examples
 
 #### Option 1: Full Hosting (CLI / Standalone)

@@ -94,7 +94,7 @@ Combined with MCP Hooks (SessionStart / SessionEnd), sessions can auto-start/sto
 | SSRF protection | `cleanfetch` URL scheme validation, private-address blacklist |
 | DNS rebinding detection | Resolves the target domain before fetching and checks all IPs for private/loopback addresses (double protection with go-webfetch's BlockPrivateIP) |
 | HEAD pre-check | Checks Content-Length before fetching; rejects files over `max_fetch_size_mb` (default 10MB) |
-| TLS fingerprint spoofing | go-webfetch uses tls-client Chrome 131 fingerprint for anti-bot |
+| TLS fingerprint spoofing (fetch path only) | go-webfetch uses a tls-client Chrome 131 fingerprint; search requests rotate UA/Accept headers and do not spoof TLS |
 | 429 rate-limit retry | All HTTP clients handle 429 automatically, reading the `Retry-After` header |
 | arXiv rate-limit protection | Built-in 1 req/s limiter to avoid arXiv's official rate limit |
 

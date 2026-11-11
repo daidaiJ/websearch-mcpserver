@@ -103,7 +103,7 @@ mcp/server.go registerTools（按 LLM 开关注册 With/NoIntent 两套 schema�
         │                                / apipool.ApipoolSearchImpl（轮转）
         │                                / provider.*（单供应商）
         │          每个 provider/adapter ─► pkg/search/engine/* 或外部 API
-        │                                  ─► pkg/antirobot（限流/TLS/UA）
+        │                                  ─► pkg/antirobot（限流 / UA 轮换；TLS 指纹只在 webfetch）
         ├► postSearchFilter（单引擎模式的 score/maxsize 过滤，FilterByScore 来自 core）
         ├► enrichFetchedTopN ─► ensureWebFetch（未启用 cleanfetch/pdf_parser 时惰性初始化）
         │                      └► pkg/fetch/webfetch（fetch_top_n 抓正文，SSRF+HEAD 预检+字节上限）
