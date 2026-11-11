@@ -6,6 +6,7 @@
 package googlenews
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -74,6 +75,8 @@ func NewGoogleNews(opts GoogleNewsOpts) antirobot.Engine {
 func (e *gnewsEngine) Name() string                    { return "googlenews" }
 func (e *gnewsEngine) Region() antirobot.NetworkRegion { return antirobot.RegionInternational }
 
+var _ antirobot.ContextEngine = (*gnewsEngine)(nil)
+
 // editionParams 常用新闻版本的 RSS 区域参数（hl 语言 / gl 地区 / ceid 版本标识）。
 var editionParams = map[string][3]string{
 	"zh-CN": {"zh-CN", "CN", "CN:zh-Hans"},
@@ -108,6 +111,17 @@ type rssItem struct {
 }
 
 func (e *gnewsEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止。
+func (e *gnewsEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// RSS 无翻页参数，第 2 页起返回空
 	if page > 1 {
 		return &antirobot.SearchResponse{Engine: "googlenews", Results: []antirobot.Result{}}, nil
@@ -118,7 +132,7 @@ func (e *gnewsEngine) Search(query string, page int, timeRange antirobot.TimeRan
 	}
 
 	u := e.buildURL(query, timeRange)
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
