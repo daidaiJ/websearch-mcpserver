@@ -197,16 +197,18 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### 搜索质量闭环（分支 `feat/search-quality-loop`）— done（2026-11-11，待发版）
+### 搜索质量闭环 — done（2026-11-11，已合入 master `61427d4`，未发版）
 
-- **当前状态：** 从 `master` 切出，合入今天远端两个分支（`feat/search-budget-and-params` 的批量/depth/sources/内容预算、`fix/hosted-mcp-ua` 的入站 UA 透传），在合并结果上落地 D1 / D2 / D5，D3 部分落地；未推送、未发版
+- **当前状态：** 分支 `feat/search-quality-loop` 已合入 master 并推送，未打 tag、未发 Release/GHCR/Registry；合入内容包含今天远端两个分支（`feat/search-budget-and-params` 的批量/depth/sources/内容预算、`fix/hosted-mcp-ua` 的入站 UA 透传）与 D1 / D2 / D5、D3 部分落地，以及 KeyPool / ShowMeta / 进程内指标三项工程债治理
 - **D5：** `NewMCPServer` 在 `ServerOptions.Instructions` 下发中英双语工具选择纪律（发现 / 读正文 / 查论文 / 本地文件 / 历史），调用方显式设置时尊重其值；`skills/websearch-mcp/SKILL.md` 增补「参数纪律」
 - **D2：** 新增叶子包 `pkg/errcode`（稳定码 + `CodeOf` / `Message`）；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 改为码优先、关键词兜底；`antirobot.ErrLocalRateLimit`、`provider.KeyError`、`webfetch` 分类附码；`adapter/baidu_fallback.go` 双失败用 `errcode.Message` 保留主备原因
 - **D3（部分）：** `googlenews` / `wikipedia` 补 `ContextEngine`（`NewRequestWithContext`）；`hybrid` 的包装 goroutine 与 `cleanfetch` 统一预算未动
 - **D1：** `bench/quality` 20 条中英固定 fixture，逐 case 与聚合输出 P@8 / R@8 / MRR@8，聚合门槛拦退化；合成候选集只衡量排序回归，真实 HTML fixture 仍归 T2
+- **工程债：** provider Key 池改为命名结构体 `mode.ProviderPools`；`core.ShowMeta` 改为 `atomic.Bool` + setter；`/metrics` 增加进程内指标（在飞请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时返回 200 并省略遥测序列
+- **解析契约：** Bing 与 DDG 补 HTML parser fixture；baidu（JSON feed）、google、so360、googlenews（RSS）、wikipedia（JSON）已有解析测试
 - **工具面取舍：** `depth` / `max_chars` / `fetch_top_n` 只塑造 web 正文；仅 academic 时显式传这三个参数返回错误，避免静默无效。未新增任何 MCP 参数或工具
-- **暂缓：** D4（citation / untrusted 边界，改输出契约）、D6（垂直源）、D7（配置分层）、D8（指标/DI）
-- **验收：** `go build ./...`、`go vet ./...`、`go test -short -count=1 ./...` 与 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` 复跑全绿（`pkg/academic` 的 PubMed 真网测试曾一次 `unexpected EOF`，单跑通过，属既有 flake）；`go test ./pkg/i18n/ ./pkg/errcode/ ./bench/quality/` 绿；`gofmt -l` 干净
+- **暂缓：** D4（citation / untrusted 边界，改输出契约）、D6（垂直源）、D7（配置分层）、D8 tracing 与显式 DI、真实检索快照/定时 live smoke、SearXNG 完整参数兼容
+- **验收：** `go build ./...`、`go vet ./...`、`go test -short -count=1 ./...` 与 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` 复跑全绿；`go test -race -short ./server/ ./pkg/search/{hybrid,core,mode}/` 绿；`go test ./pkg/i18n/ ./pkg/errcode/ ./bench/quality/` 绿；`pkg/academic` 的 PubMed 真网测试偶发 `unexpected EOF`，单跑通过，属既有 flake
 
 ### 发布整包（含 Skill）+ log_level 生效 / 并发失败留痕 + SQLite 连接池上限 — done（2026-11-05，随 v3.10.4 发布；本次未发 MCP Registry）
 
