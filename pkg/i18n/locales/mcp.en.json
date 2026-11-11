@@ -107,5 +107,5 @@
   "mcp.param.history.limit": "Maximum number of history entries to return (default 10, hard cap 50)",
   "mcp.param.history.offset": "Paging offset (default 0)",
 
-  "mcp.server.instructions": "Tool choice: use smartsearch to discover sources; use cleanfetch to read a page and follow result_ref offsets for long pages; use academicsearch for papers when registered; use file_search for local file names; use search_history for past queries. Keep defaults: queries compares several searches in one call, sources only for mixed web and academic retrieval; depth and max_chars shape web bodies only and are worth adjusting only to control body size, with an explicit fetch_top_n winning. Do not re-fetch bodies already inlined in search results."
+  "mcp.server.instructions": "Tool choice: use smartsearch to discover sources; use cleanfetch to read a page and follow result_ref offsets for long pages; use academicsearch for papers when registered; use file_search for local file names when registered; use search_history for past queries when registered. Keep defaults: queries compares several searches in one call, sources only for mixed web and academic retrieval; depth and max_chars shape web bodies only and are worth adjusting only to control body size, with an explicit fetch_top_n winning. Do not re-fetch bodies already inlined in search results."
 }
