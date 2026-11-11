@@ -257,6 +257,8 @@ apipool:
 
 `mode: mcphub` 不要求 API Key：按 `mcp_hub.servers` 顺序调用托管 MCP server，单次请求命中一个；失败后该 server 进入冷却（默认 60s），自动级联到下一个。轮转池全部失败后按 `fallback_engines` 降级，最终由 `smartsearch` 回退 Bing（`bing.enabled=true` 时）。这是**路由/降级**，不会把多家结果合并后一起返回。
 
+调用上游时透传入站 MCP 请求的 `User-Agent`（agent 宿主的真实 UA）；stdio、后台任务或 UA 非法时回退内置桌面 UA。
+
 | server | MCP 端点 | Keyless | 代理 | 搜索 / 抓取工具 | Key 获取（可选） |
 |--------|----------|---------|-----------|-----------------|------------------|
 | `parallel` | `https://search.parallel.ai/mcp` | ✅ | ❌（直连） | `web_search` / `web_fetch` | https://platform.parallel.ai/ |

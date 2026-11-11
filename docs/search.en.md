@@ -257,6 +257,8 @@ apipool:
 
 `mode: mcphub` needs no API key: it calls hosted MCP servers in `mcp_hub.servers` order, one per request. A failed server cools down (60s by default) and the hub cascades to the next. After the whole rotation pool fails, the hub degrades through `fallback_engines` and finally the existing `smartsearch` Bing fallback (`bing.enabled=true`). This is routing/failover, not result merging across providers.
 
+Outbound calls forward the inbound MCP request's `User-Agent` (the agent host's real UA); stdio, background work, or an invalid UA falls back to the built-in desktop UA.
+
 | Server | MCP endpoint | Keyless | Proxy | Search / fetch tool | Optional key |
 |--------|--------------|---------|------------------|---------------------|--------------|
 | `parallel` | `https://search.parallel.ai/mcp` | ✅ | ❌ (direct) | `web_search` / `web_fetch` | https://platform.parallel.ai/ |

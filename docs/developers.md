@@ -37,7 +37,7 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `search/core` | 类型契约叶子层：所有子包共用，**禁止** import 其它 search 子包 | `SearchInf`、`SearchResult`、`SearchTimeRanger`、`ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`、`DiagnosticsSearcher`/`ContextDiagnosticsSearcher`、`AcademicSearcher`、`ScoreBucket`、`FilterByScore/SortByScore`、`NormalizeURL`、`FormatMD` 系列结果格式化 |
 | `search/engine` | 底层网页引擎（HTTP 抓取 + 反检测参数），实现 `antirobot.Engine` | `baidu/bing/ddg/google` 各自的 `Engine` + `Opts` |
 | `search/provider` | API 供应商适配器（实现 `SearchInf`）+ Key 池 | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`、`KeyPool`（单供应商 SK 轮转；`Next`/`NextUsable`、`MarkInvalid`/`MarkInvalidFor`）、`KeyError`（带 `Kind` 分类：auth/rate_limit/transport/content）|
-| `search/provider/mcphub` | 托管 MCP 级联 hub（实现 `SearchInf` + `Fetch`） | `New`、presets（parallel/anysearch/exa/firecrawl）、MCP Streamable HTTP 客户端、`priority`/`round-robin`、搜索/抓取独立冷却、结果解析 |
+| `search/provider/mcphub` | 托管 MCP 级联 hub（实现 `SearchInf` + `Fetch`） | `New`、presets（parallel/anysearch/exa/firecrawl）、MCP Streamable HTTP 客户端（透传入站 UA）、`priority`/`round-robin`、搜索/抓取独立冷却、结果解析 |
 | `search/adapter` | 把「非 API 供应商」适配成 `SearchInf` | `EngineSearchAdapter`（antirobot.Engine → SearchInf）、`BingSearchAdapter`、`BaiduWithFallback`、`AcademicAdapter`（学术 → SearchInf/AcademicSearcher） |
 | `search/apipool` | 跨供应商轮转策略（与 hybrid 同级实现） | `ApipoolSearchImpl`（round-robin/priority/weighted）、`ApipoolProvider` |
 | `search/hybrid` | 多引擎并发编排策略 | `HybridSearchImpl`（并发调用、请求 ctx 下传与 per-engine 软超时、去重合并、`EngineFilter` per-engine 过滤、失败诊断） |

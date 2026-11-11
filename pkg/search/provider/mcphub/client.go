@@ -9,11 +9,14 @@ import (
 	"time"
 
 	"websearch/pkg/i18n"
+	"websearch/pkg/telemetry"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+// defaultUserAgent is used when the inbound MCP call has no usable User-Agent
+// (stdio, background work, or a malformed header).
+const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 // ErrEmptyResults 后端返回 200 但零结果/空正文的稳定哨兵（errors.Is 判定）。
 // 空结果按失败处理并参与冷却（B11），判定走哨兵而非错误文本关键词。
@@ -32,14 +35,20 @@ type toolCaller interface {
 }
 
 // headerTransport 为每个请求加 User-Agent 与可选鉴权头。
+// userAgent 为空时回退到内置桌面 UA。
 type headerTransport struct {
-	base    http.RoundTripper
-	headers map[string]string
+	base      http.RoundTripper
+	headers   map[string]string
+	userAgent string
 }
 
 func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
-	clone.Header.Set("User-Agent", userAgent)
+	ua := t.userAgent
+	if ua == "" {
+		ua = defaultUserAgent
+	}
+	clone.Header.Set("User-Agent", ua)
 	for k, v := range t.headers {
 		if v != "" {
 			clone.Header.Set(k, v)
@@ -64,8 +73,12 @@ func (c *mcpCaller) Call(ctx context.Context, s *server, tool string, args map[s
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "websearch-mcphub", Version: "1.0"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:             s.url,
-		HTTPClient:           &http.Client{Transport: &headerTransport{base: c.base, headers: headers}},
+		Endpoint: s.url,
+		HTTPClient: &http.Client{Transport: &headerTransport{
+			base:      c.base,
+			headers:   headers,
+			userAgent: telemetry.ClientUserAgentFromContext(ctx),
+		}},
 		DisableStandaloneSSE: true,
 		MaxRetries:           -1,
 	}, nil)

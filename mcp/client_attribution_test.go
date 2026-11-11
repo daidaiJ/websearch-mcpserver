@@ -227,6 +227,9 @@ func TestClientAttributionRequestIdentity(t *testing.T) {
 				if got := telemetry.ClientFromContext(ctx); got != tc.want {
 					t.Fatalf("client = %q, want %q", got, tc.want)
 				}
+				if got := telemetry.ClientUserAgentFromContext(ctx); got != tc.ua {
+					t.Fatalf("client User-Agent = %q, want %q", got, tc.ua)
+				}
 				return &mcp.CallToolResult{}, nil
 			})
 			if _, err := handler(context.Background(), "tools/call", req); err != nil {
