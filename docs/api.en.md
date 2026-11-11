@@ -7,7 +7,6 @@
 - [Go Module API (server package)](#go-module-api-server-package)
 - [HTTP API](#http-api)
   - [MCP Endpoint](#mcp-endpoint)
-  - [SearXNG Compatible Endpoint](#searxng-compatible-endpoint)
   - [Observability Endpoint](#observability-endpoint)
   - [Admin Endpoints](#admin-endpoints)
 
@@ -62,7 +61,7 @@ Returns the current reference count value.
 func (s *Server) Run(conf config.Config, onListening ...func()) error
 ```
 
-Full startup flow: initializes search engine, MCP routes, SearXNG routes, Admin routes, cache cleanup goroutine, then listens on the port (default `127.0.0.1:8338`) and blocks until `SIGINT`/`SIGTERM` signal or reference count reaches zero. `onListening` callbacks run only after the listener is bound (e.g. write the PID file); a listen failure (e.g. port in use) returns an error instead of panicking. On exit, performs graceful shutdown (stop cache cleanup → HTTP Shutdown → close WebFetch → close SQLite → clean PID file).
+Full startup flow: initializes search engine, MCP routes, Admin routes, cache cleanup goroutine, then listens on the port (default `127.0.0.1:8338`) and blocks until `SIGINT`/`SIGTERM` signal or reference count reaches zero. `onListening` callbacks run only after the listener is bound (e.g. write the PID file); a listen failure (e.g. port in use) returns an error instead of panicking. On exit, performs graceful shutdown (stop cache cleanup → HTTP Shutdown → close WebFetch → close SQLite → clean PID file).
 
 Suitable for CLI or standalone deployment scenarios.
 
@@ -76,7 +75,7 @@ Only initializes components and returns an `http.Handler` with all routes regist
 
 Suitable for embedding scenarios — the caller creates its own `http.Server`, reusing existing port, TLS config, or middleware stack.
 
-**Embedding boundary**: initialization is eager, and a failed search-engine or cache construction panics so configuration errors surface at startup; embedded callers should validate config first or recover at the boundary and return their own error. Assembly uses package-level singletons and is designed for one instance per process; multiple `Server` values share the same components, so run separate processes for multiple instances. `Run` returns an error for listen failures and does not panic.
+**Embedding boundary**: initialization is eager; `Run` returns search-engine/cache construction failures as errors, while `Handler` still panics (fail-fast at startup), so embedded callers should validate config first or recover at the boundary and return their own error. Assembly uses package-level singletons and is designed for one instance per process; multiple `Server` values share the same components, so run separate processes for multiple instances. `Run` returns an error for listen failures and does not panic.
 
 ### Usage Examples
 
@@ -211,53 +210,6 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
     }
   }
 }
-```
-
----
-
-### SearXNG Compatible Endpoint
-
-| Property | Value |
-|----------|-------|
-| Path | `GET /searxng/search` |
-| Parameters | `q` — search keyword |
-| Content-Type | `application/json` |
-
-Provides a SearXNG-compatible search interface, works with LiteLLM and similar frameworks.
-
-> **Compatibility scope**: this is a JSON subset that reads only `q`; `categories`, `engines`, `pageno` and non-JSON `format` values are not supported. For per-engine selection, paging or other output formats, use MCP `smartsearch` (`sources` / `queries`) or filter on the client side.
-
-> **Auth**: when `auth_token` is set, requests must carry `Authorization: Bearer <token>` or `X-API-Key: <token>`, otherwise 401; empty `q` returns 400; no engine available returns 503.
-
-#### Request Example
-
-```
-GET /searxng/search?q=golang+concurrency
-```
-
-#### Response Format
-
-```json
-{
-  "query": "golang concurrency",
-  "results": [
-    {
-      "title": "...",
-      "url": "https://...",
-      "content": "..."
-    }
-  ]
-}
-```
-
-#### LiteLLM Config Example
-
-```yaml
-search_tools:
-  - search_tool_name: searxng-search
-    litellm_params:
-      search_provider: searxng
-      api_base: http://localhost:8338/searxng
 ```
 
 ---

@@ -21,6 +21,7 @@
 
 ### Fixed
 
+- **Initialization failures no longer panic out of the CLI / daemon**: `ServerOption` now returns an error and `Init` propagates it, so search-engine, cache-namespace and cache construction failures surface through `Run` / `cmd/cli` as the usual "failed to start server" message instead of a stack trace; the embedded `Handler` path still panics at the boundary as documented. Three new bilingual `tool.init.*` strings
 - **Failure classification no longer depends on localized text**: `core.ClassifyFailure`, `telemetry.ClassifyErrorKind` and `mcp.isAntiBotFailure` matched English/Chinese keywords, so changing language or wording shifted the result. They now read the stable `pkg/errcode` code first (`antirobot`'s local-limit sentinel, `provider.KeyError`, and webfetch's WAF/timeout/empty-shell classes all attach one), and fall back to keywords for upstream errors that do not carry a code yet
 - **Baidu API fallback keeps both causes when both engines fail**: `adapter/baidu_fallback.go` returned the fallback result directly after a primary failure, so a fallback failure surfaced only its own error. `errcode.Message` now combines both reasons while `errors.Is` still reaches either original error
 - **`ContextEngine` for googlenews / wikipedia**: neither engine accepted a request context, so requests kept running after the orchestrator's soft timeout. `SearchContext` now uses `NewRequestWithContext` to abort promptly, and `Search` delegates to it
@@ -28,6 +29,10 @@
 - **CI build cache no longer frozen (`-fuzz` recompiles)**: the `setup-go` built-in cache keeps its exact key after a hit and never writes back, so `~/.cache/go-build` stayed frozen at its first build. The coverage-instrumented binaries required by `-fuzz` were therefore recompiled from scratch every run (~70s, about two thirds of that step's 105s). `ci.yml` disables the built-in cache and restores both caches explicitly: the module cache reuses the `go-module-cache.yml` path and key (restore-only), and the build cache now uses a rolling key `go-build-<os>-<hash(go.sum)>-<run_number>` with a restore-key prefix, saved on master only and restored read-only on PRs
 - **Docker cache backend moved to the registry**: `type=gha` never hit in this repository — the workflow is tag-triggered only, and gha caches are ref-scoped so tags cannot see each other (master builds no images). Three consecutive tags imported three different cache manifests with zero `CACHED` lines, while 69 buildkit entries still consumed about 2.4GB of the cache quota. Now `type=registry` against `ghcr.io/<repo>:buildcache`, shared across tags and outside the Actions cache quota
 - **Docs-only pushes skip the full build**: `ci.yml` gained a shared `paths-ignore` (a YAML anchor) on both triggers, built from broad globs rather than a per-file list — `**.md` / `**.MD`, `docs/**`, `skills/**`, plus `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt` at the repository root — so new docs directories or root-level images do not require editing the list. A run is skipped only when every changed path matches, so mixed commits still trigger. Images are ignored at the root only (`*` does not cross directories): `cmd/assets/*.ico` and `pkg/dashboard/web/logo-*.png` are `go:embed` compiler inputs, and `**/*.png` would let an icon change skip rebuilding the binary
+
+### Removed
+
+- **Removed the `/searxng/search` compatibility endpoint**: it implemented only a JSON subset of SearXNG (reading `q`; no `engines` / `pageno` / non-JSON `format`), duplicating MCP `smartsearch` / `cleanfetch` with no real usage. The `searxng/` package, its route registration and `mcp.GetSearchGroup` (which existed only for it) are gone, along with the `log.searxng.*` strings, the auth comment in the sample config, and every documentation/diagram reference. **Breaking change**: clients that used the endpoint should switch to the MCP endpoint or adapt on their side
 
 ## v3.10.6 — 2026-11-07 (npm distribution, install/config guidance, follow-up research)
 
@@ -45,6 +50,7 @@
 - npm install instructions added to both READMEs and both installation guides (`dsh plugin --profile web add ...`, `npm i -g websearch-mcp-cli`, `mcpServers` snippet), plus non-`web` profiles, platform matrix, checksums and trust boundaries
 - **"It runs" is not "it works well"**: with no config the binary uses in-memory defaults (`mode: engine`) and misses the zero-key hosted-MCP cascade, provider key pools, academic weighting, fetch fallbacks, proxy handling and result budgets. Two paths are documented: read HUMAN_GUIDE / configuration yourself, or have your agent do it
 - **Self-contained agent prompt**: copying it straight from the GitHub page no longer leaves "this project" ambiguous — it states the repository URL, `git clone --depth 1` and three raw doc links, an absolute output path on the user's machine, and asks the agent to report which absolute path belongs in `WEBSEARCH_MCP_CONFIG`
+- **Stale claims corrected**: roadmap D8 / T2 status (`ShowMeta` is atomic; `bing` / `ddg` have parser fixtures) and `/metrics` returning 503 without the dashboard (now in-process metrics are always served), plus the README `/metrics` wording
 
 ### Follow-up research
 

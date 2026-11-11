@@ -37,12 +37,11 @@ The stdio binary uses the same config schema as the HTTP service (`config.exampl
 |------|-------------|-------------------------------|
 | Config required? | `start` **must** load a config file | **Optional**: if no file is found, in-memory defaults apply (`mode: engine`, Bing/academic on) |
 | `-c` / `WEBSEARCH_CONFIG` points to a missing file | Error and exit | Error and exit (does not silently fall back to defaults) |
-| `port` | Listen port (default 8338); admin / SearXNG depend on it | **Ignored** (no HTTP listener) |
+| `port` | Listen port (default 8338); admin / console depend on it | **Ignored** (no HTTP listener) |
 | `host` | Listen address (default `127.0.0.1`, loopback only) | **Ignored** (no HTTP listener) |
 | `auth_token` | Bearer token for business endpoints (empty = no auth) | **Ignored** (stdio has no HTTP surface) |
 | Console logs | stdout | **stderr** (file log remains `websearch.log`) |
 | Process management | `start`/`stop`/`kill`, refcount, PID, Windows `install` | None; the MCP client starts/stops the process |
-| SearXNG `/searxng/search` | Yes | No |
 
 **Recommended minimal config (stdio, zero keys):**
 

@@ -109,18 +109,16 @@ curl -s http://127.0.0.1:8338/__admin/health   # 期望 {"ref_count":N,"message"
 | 已有 DOI / arXiv id | id 直接作 `academicsearch` 的 `query` |
 | 读网页全文 / 批量读 | `cleanfetch` |
 | 读 PDF / 论文全文 | `pdf_parser` |
-| 已有 SearXNG / LiteLLM 工具链 | `/searxng/search` 兼容端点，零改动接入 |
 
 ## 机器契约
 
 | 端点 | 说明 |
 |------|------|
 | `POST /mcp` | MCP 协议入口（streamable HTTP）；配置 `auth_token` 时需 `Authorization` 头 |
-| `GET /searxng/search` | SearXNG 兼容 JSON，LiteLLM 直接可用 |
 | `GET /__admin/health` | `{"ref_count":N,"message":"running"}`，远程可访问 |
 | `GET /__admin/status` | 引用计数 / PID 等，仅本机 |
 | `GET /__admin/api/providers` · `/api/metrics` | 来源状态机 / Prometheus 指标（只读） |
-| `GET /metrics` | 标准 Prometheus 抓取端点（只读脱敏，需 `dashboard.enabled`；未启用 503） |
+| `GET /metrics` | 标准 Prometheus 抓取端点（只读脱敏）；进程内指标始终输出，控制台启用时追加今日遥测聚合 |
 | `POST /__admin/refcount` · `/shutdown` | 引用计数 / 关停，仅本机 |
 
 结果附带来源引擎与相关性分数（`show_meta` 控制）；缓存 6h 过期；限流默认 3/s、60/min。完整 API 见 [api.md](api.md)。

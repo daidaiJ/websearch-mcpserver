@@ -37,12 +37,11 @@ stdio 二进制与 HTTP 服务使用同一配置 schema（`config.example.yaml` 
 |----|-------------|-------------------------------|
 | 配置是否必需 | `start` **必须**能读到配置文件 | **可选**：未找到文件时用内存默认值（`mode: engine`，Bing/学术默认开） |
 | `-c` / `WEBSEARCH_CONFIG` 指向不存在的文件 | 报错退出 | 报错退出（不会静默回落到默认值） |
-| `port` | 监听端口（默认 8338），admin / SearXNG 依赖 | **忽略**（不监听 HTTP） |
+| `port` | 监听端口（默认 8338），admin / 控制台依赖 | **忽略**（不监听 HTTP） |
 | `host` | 监听地址（默认 `127.0.0.1`，只绑本机） | **忽略**（不监听 HTTP） |
 | `auth_token` | 业务端点鉴权 token（空 = 不鉴权） | **忽略**（stdio 无 HTTP 暴露面） |
 | 日志控制台 | stdout | **stderr**（文件日志仍为 `websearch.log`） |
 | 进程管理 | `start`/`stop`/`kill`、refcount、PID、Windows `install` | 无；由 MCP 客户端拉起/结束进程 |
-| SearXNG `/searxng/search` | 有 | 无 |
 
 **推荐最小配置（stdio，零 Key）**：
 

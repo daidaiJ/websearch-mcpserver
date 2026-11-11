@@ -116,7 +116,7 @@ handler := srv.Handler(*conf)
 
 `server` 包提供两种使用方式：
 
-- **`Run(conf)`** — 完整启动流程：初始化搜索引擎、MCP 路由、SearXNG 路由、Admin 路由、缓存清理协程，启动 HTTP Server 并阻塞直到收到信号或引用计数归零
+- **`Run(conf)`** — 完整启动流程：初始化搜索引擎、MCP 路由、Admin 路由、缓存清理协程，启动 HTTP Server 并阻塞直到收到信号或引用计数归零
 - **`Handler(conf)`** — 仅初始化组件并返回注册了所有路由的 `http.Handler`，不启动 HTTP Server，适合嵌入已有服务（可复用端口、TLS、中间件栈）
 
 完整 API 文档见 [api.md](api.md)。

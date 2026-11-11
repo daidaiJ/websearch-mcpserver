@@ -8,7 +8,7 @@ import (
 )
 
 // 类型契约层已下沉到子包 core（供 provider/adapter/enhance/hybrid 子包与编排层共用，避免循环引用）。
-// 这里保留类型别名：外部包（mcp/cache/searxng）继续使用 search.XXX。
+// 这里保留类型别名：外部包（mcp/cache）继续使用 search.XXX。
 type (
 	SearchResult            = core.SearchResult
 	SearchInf               = core.SearchInf

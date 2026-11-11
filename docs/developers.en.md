@@ -18,7 +18,7 @@ cmd/ ──► server/ ──► mcp/ ──► pkg/search (composition root) �
                                         │                                └──► core (type contracts, leaf)
                                         └──► pkg/academic ──► antirobot
 mcp/ ──► pkg/fetch/{webfetch,jina,mineru} ──► go-webfetch / MinerU
-mcp/ searxng/ ──► pkg/search (root); pkg/cache  pkg/llm ──► pkg/search/core (contract leaf only)
+mcp/ ──► pkg/search (root); pkg/cache  pkg/llm ──► pkg/search/core (contract leaf only)
 all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
 
@@ -32,7 +32,6 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 |---------|----------------|----------------------|
 | `cmd/` | Entry point: config loading, platform init (Windows proxy detection etc.) | `main` |
 | `server/` | HTTP lifecycle, routing, graceful shutdown | `Run`; shutdown order references `mcp.GetWebFetch/GetCache` |
-| `searxng/` | SearXNG-compatible endpoint, reuses the same engine group | `mcp.GetSearchGroup()` |
 | `mcp/` | MCP protocol layer: registration & schemas & handlers of the 4 tools, cache & summary orchestration | `server.go registerTools`, `tool.go` (params/wiring), `tool_search.go`, `tool_academic.go`, `tool_cleanfetch.go`, `tool_pdf.go`, `tool_summarize.go`, `security.go` (SSRF/HEAD pre-checks + per-hop redirect re-checks), `options.go` (webfetch lazily initializes for fetch_top_n) |
 
 ### pkg/search — search orchestration (7 subpackages)
@@ -210,7 +209,7 @@ Two languages are supported, `zh` and `en`, selected by the main config `languag
 |---|---|---|
 | Logs | process default (`i18n.Configure(conf.Language)`) | at startup |
 | MCP tool descriptions and parameter schemas | process default | fixed at tool registration; changing it needs a restart |
-| HTTP (control center, SearXNG endpoint) | `Accept-Language` negotiation, falling back to the process default | per request |
+| HTTP (control center) | `Accept-Language` negotiation, falling back to the process default | per request |
 
 **Catalogs**: `pkg/i18n/locales/<domain>.<lang>.json` — flat JSON, symbolic stable keys, values in go-i18n template syntax (`{{.Name}}` placeholders, `{"one": …, "other": …}` plural forms). Adding a language means adding one file per domain and appending its tag to `supported` in `pkg/i18n/language.go`; changing wording touches JSON only, never code.
 

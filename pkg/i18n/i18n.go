@@ -14,7 +14,7 @@
 // 三种生命周期各取所需：
 //   - 日志：进程默认语言（Configure 注入，见 pkg/log）；
 //   - MCP 工具描述与参数 Schema：注册时固化，切换语言需重启进程；
-//   - HTTP（控制中心 / SearXNG 兼容端点）：每请求协商，见 HTTP 中间件。
+//   - HTTP（控制中心）：每请求协商，见 HTTP 中间件。
 package i18n
 
 import (

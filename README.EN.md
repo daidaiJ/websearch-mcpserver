@@ -18,7 +18,7 @@
   <img src="docs/images/hero-banner.png" alt="Multi-engine search fusion: Baidu, Bing, DuckDuckGo, API engines and 9 academic sources merge locally into search results, papers, pages/PDFs and local files" width="900">
 </p>
 
-An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines, four zero-key hosted MCP upstreams (Parallel / AnySearch / Exa / Firecrawl), and 9 academic search engines. Search, scoring, and caching all happen locally. Use it as MCP tools in Claude Code, Qwen Code, or Cursor, or embed it as a Go module in your own service.
+An MCP search service written in Go. Built-in Baidu web search, Bing, DuckDuckGo and other general-purpose engines, four zero-key hosted MCP upstreams (Parallel / AnySearch / Exa / Firecrawl), and 9 academic search engines. Search, scoring, and caching all happen locally. Use it as MCP tools in Claude Code, Qwen Code, or Cursor, or embed it as a single-instance Go module in your own service (boundaries in [docs/api.en.md](docs/api.en.md)).
 
 **Free, China-friendly, LLM-ready.** Works with zero keys; keys are used only when you provide them.
 
@@ -35,7 +35,7 @@ Layered design: clients see up to five MCP tools; the engine group is assembled 
 | Layer | Role |
 |-------|------|
 | **Client** | Claude Code / Qwen Code / Cursor / HTTP API / embed as a Go module |
-| **Protocol** | `/mcp` up to five tools · `/searxng/search` for LiteLLM · `/__admin` process management · `/dashboard` optional local console · `/metrics` Prometheus observability |
+| **Protocol** | `/mcp` up to five tools · `/__admin` process management · `/dashboard` optional local console · `/metrics` Prometheus observability |
 | **Orchestration** | `factory` / `mode` · `hybrid` / `apipool` / `mcphub` · `enhance` (RRF / Boost / MMR) |
 | **Engines** | General: Baidu web / Qianfan / Bing / DDG / Tavily / Exa / AnySearch / Doubao / Yuanbao / TinyFish / Keenable + 4 hosted MCP upstreams; 9 academic sources in parallel |
 | **Support** | SQLite cache, system-proxy auto-detect, webfetch (SSRF), MinerU, streaming LLM summary, Everything |
@@ -53,7 +53,7 @@ Both paths share the same `mcp.NewMCPServer(conf)` and the same `config.yaml`, s
 | Process | the dsh MCP client spawns one `cmd/cli` child per session | `websearch-mcpserver start` stays resident; refcount / PID across clients |
 | Protocol | stdin/stdout JSON-RPC, no listening port | `POST /mcp` Streamable HTTP, `127.0.0.1:8338` by default |
 | Tools | the same set of up to 5 tools | the same set of up to 5 tools |
-| Exclusive | Node shim only resolves the platform package and `spawn`s it; no postinstall, no runtime download | `/dashboard/`, `/metrics`, `/searxng/search`, `/__admin`, `auth_token`, SSE progress |
+| Exclusive | Node shim only resolves the platform package and `spawn`s it; no postinstall, no runtime download | `/dashboard/`, `/metrics`, `/__admin`, `auth_token`, SSE progress |
 | Config | falls back to in-memory `mode: engine` defaults; point `WEBSEARCH_MCP_CONFIG` at a personalized `config.yaml` | `start` writes a complete preset `config.yaml` on first run |
 
 > **The HTTP daemon is the full-featured form.** stdio is not a stripped-down build, and it is not a thin client that starts the daemon: the Node shim only `spawn`s a binary, and that Go binary is already a complete MCP server — it simply listens on no port and has no management / observability surface. Config files are interchangeable between the two; see [docs/configuration.en.md](docs/configuration.en.md) for the field differences.
@@ -86,8 +86,8 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
-| Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits, plus Prometheus-format `GET /metrics` (off by default) |
-| Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a Go module |
+| Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits; `GET /metrics` always serves in-process metrics and adds sanitized telemetry aggregates when the console is enabled |
+| Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a single-instance Go module |
 | Chinese / English | `language: auto|zh|en` covers logs, MCP tool descriptions and parameter docs, and the console UI in one switch; `auto` follows the system language, and the console additionally negotiates per request from the browser language |
 
 ---
@@ -227,7 +227,7 @@ With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a loc
 
 ![Control center overview](docs/images/dashboard-overview.jpg)
 
-To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; loopback-only reads by default, writes require `admin_password`. `GET /metrics` additionally exposes read-only, sanitized aggregates in Prometheus/OpenMetrics text; it requires `dashboard.enabled: true` and returns 503 otherwise.
+To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; loopback-only reads by default, writes require `admin_password`. `GET /metrics` additionally exposes Prometheus/OpenMetrics text (read-only): in-process metrics (in-flight requests, uptime, goroutines, heap allocation, telemetry flag) are always present, while tool/provider aggregates come from the sanitized telemetry store and are appended once `dashboard.enabled: true`.
 
 > Page details, every config key, shortcut placement, the security model and call attribution: [docs/dashboard.en.md](docs/dashboard.en.md).
 
@@ -246,7 +246,7 @@ To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yam
 | 📚 Reference | [docs/search.md](docs/search.md) | Search modes, engine reference, relevance scoring, MCP tool parameters |
 | 📚 Reference | [docs/architecture.md](docs/architecture.md) | Architecture, fallback chain, proxy detection, caching, Go module embedding, web-researcher extension |
 | 📚 Reference | [docs/design.md](docs/design.md) | Design background & goals: project motivation, comparison with existing solutions, design principles |
-| 📚 Reference | [docs/api.md](docs/api.md) | Go Module API and HTTP API (MCP / SearXNG / Admin endpoints) |
+| 📚 Reference | [docs/api.md](docs/api.md) | Go Module API and HTTP API (MCP / Admin / observability endpoints) |
 | 📚 Reference | [docs/dashboard.md](docs/dashboard.md) | Local dashboard: every config key, write-operation security model, privacy boundaries |
 | 📚 Reference | [docs/developers.md](docs/developers.md) | Developer guide: package layout, interface contracts, tool call chains, change touchpoints |
 | 📚 Reference | [CHANGELOG.md](CHANGELOG.md) | Version changelog |

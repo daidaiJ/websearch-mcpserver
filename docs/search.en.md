@@ -164,7 +164,7 @@ Response behaviors introduced in phases 1-3, shared by `smartsearch` and `academ
 
 **Off-topic calibration replay**: guard decisions in `shadow` mode are recorded as `guard` telemetry events (mode, reference echo ratio, and each engine bucket's echo ratio/count — no URLs or page text). `go run ./tools/guardreplay -db <dashboard.db>` replays them against candidate thresholds such as 0.15/0.25/0.35/0.5 and reports which buckets enforce would drop, how many queries are affected, and samples; `-json` emits machine-readable output.
 
-**Prometheus observability**: `GET /metrics` exposes today's tool/provider request, success/failure, cache-hit counts and latency buckets in standard text format (read-only, privacy-preserving, sourced from the telemetry store; requires `dashboard.enabled: true`). See [docs/api.en.md](api.en.md#observability-endpoint).
+**Prometheus observability**: `GET /metrics` exposes in-process metrics (in-flight requests, uptime, goroutines, heap allocation) in standard text format, and appends today's tool/provider request, success/failure, cache-hit counts and latency buckets when the dashboard is enabled (read-only, privacy-preserving, sourced from the telemetry store). See [docs/api.en.md](api.en.md#observability-endpoint).
 
 ---
 

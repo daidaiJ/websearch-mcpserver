@@ -53,7 +53,7 @@
 <text x="82" y="405" font-size="12.5" fill="#8FA9BC">stdin/stdout JSON-RPC · 不监听端口</text>
 <rect x="532" y="358" width="404" height="62" rx="10" fill="#14293C" stroke="#264A63" stroke-width="1"/>
 <text x="550" y="384" font-size="15.5" font-weight="600" fill="#EAF4FA">HTTP 附加面</text>
-<text x="550" y="405" font-size="12.5" fill="#8FA9BC">dashboard · /metrics · /searxng · auth_token</text>
+<text x="550" y="405" font-size="12.5" fill="#8FA9BC">dashboard · /metrics · auth_token</text>
 
 <path d="M266 452 L266 480" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M734 452 L734 480" fill="none" stroke="#5C8AA6" stroke-width="1.5" marker-end="url(#arrow)"/>

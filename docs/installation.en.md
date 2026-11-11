@@ -103,7 +103,7 @@ services:
       - "8338:8338"
 ```
 
-**Port**: the image exposes **8338 only** (`EXPOSE 8338`) — MCP (`/mcp`), SearXNG (`/searxng/search`) and the console (`/dashboard/`) all share it. The v3.6.0 control center **adds no new port**, so no change to your port mappings. With `network_mode: host`, make sure port 8338 is free on the host.
+**Port**: the image exposes **8338 only** (`EXPOSE 8338`) — MCP (`/mcp`) and the console (`/dashboard/`) share it. The v3.6.0 control center **adds no new port**, so no change to your port mappings. With `network_mode: host`, make sure port 8338 is free on the host.
 
 **Volume mappings** (`/app` is the image workdir; relative paths in the config resolve against it):
 
@@ -153,7 +153,7 @@ go build -ldflags="-X main.version=v1.0.0" -o websearch-mcp-cli ./cmd/cli
 
 After the service starts (HTTP daemon listens on `http://localhost:8338/mcp`), register it with your client. Both **Claude Code** and **Qwen Code** configurations are shown below.
 
-> **Auth**: if `auth_token` is set (or env `WEBSEARCH_TOKEN`), clients must send `Authorization: Bearer <token>` to `/mcp` and `/searxng/search`, otherwise 401. With no token, no header is needed.
+> **Auth**: if `auth_token` is set (or env `WEBSEARCH_TOKEN`), clients must send `Authorization: Bearer <token>` to `/mcp`, otherwise 401. With no token, no header is needed.
 
 ### Claude Code
 

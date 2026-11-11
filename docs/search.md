@@ -164,7 +164,7 @@ smartsearch:
 
 **off-topic 校准回放**：`shadow` 模式下的守卫判定会以 `guard` 事件落入遥测库（只存模式、参照回声率与各引擎桶的「回声率/条数」，不含 URL 与原文）。`go run ./tools/guardreplay -db <dashboard.db>` 按 0.15/0.25/0.35/0.5 等候选阈值回放，输出「若 enforce 会丢弃哪些桶、影响多少查询」与样例，用于把阈值从初值校准到实测值；`-json` 输出机器可读结果。
 
-**Prometheus 观测**：`GET /metrics` 以标准文本格式暴露今日工具/供应商请求数、成功失败、缓存命中与延迟分桶（只读、脱敏，来自遥测库；需 `dashboard.enabled: true`）。详见 [docs/api.md](api.md#观测端点)。
+**Prometheus 观测**：`GET /metrics` 以标准文本格式暴露进程内指标（在飞请求、uptime、goroutine、堆分配），控制中心启用时再追加今日工具/供应商请求数、成功失败、缓存命中与延迟分桶（只读、脱敏，来自遥测库）。详见 [docs/api.md](api.md#观测端点)。
 
 ---
 

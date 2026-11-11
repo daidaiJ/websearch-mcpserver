@@ -116,7 +116,7 @@ handler := srv.Handler(*conf)
 
 The `server` package offers two usage modes:
 
-- **`Run(conf)`** — full startup: initializes engines, MCP routes, SearXNG routes, Admin routes, cache cleanup goroutine, starts the HTTP server and blocks until a signal or the reference count reaches zero
+- **`Run(conf)`** — full startup: initializes engines, MCP routes, Admin routes, cache cleanup goroutine, starts the HTTP server and blocks until a signal or the reference count reaches zero
 - **`Handler(conf)`** — initializes components and returns an `http.Handler` with all routes registered, without starting the HTTP server; ideal for embedding in an existing service (reuse port, TLS, middleware stack)
 
 Full API docs: [api.md](api.md).

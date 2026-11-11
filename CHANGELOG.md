@@ -21,6 +21,7 @@
 
 ### 修复
 
+- **初始化失败不再以 panic 终止 CLI / daemon**：`ServerOption` 改为返回 error，`Init` 逐项传播，搜索引擎、缓存命名空间与缓存构造失败沿 `Run` / `cmd/cli` 返回，由入口打印「failed to start server」等提示，不再直接抛堆栈；`Handler` 嵌入路径仍按文档 fail-fast panic。新增 3 条 `tool.init.*` 中英文案
 - **错误判类不再依赖本地化文案**：`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 三处此前按中英关键词匹配，切换语言或改文案就会漂移。现在优先读取 `pkg/errcode` 的稳定错误码（`antirobot` 本端限流哨兵、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类均已附码），未知错误继续回落关键词，兼容尚未接码的上游错误
 - **百度 API 回退双失败保留主备两侧原因**：`adapter/baidu_fallback.go` 此前主引擎失败后直接返回回退结果，回退再失败时只剩回退错误。现在用 `errcode.Message` 组合两侧原因，`errors.Is` 仍可命中任一原始错误
 - **googlenews / wikipedia 补齐 `ContextEngine`**：两个引擎此前不接收请求 ctx，编排层软超时后请求仍会跑完。现在 `SearchContext` 用 `NewRequestWithContext` 及时中止，`Search` 委托到同一实现
@@ -28,6 +29,10 @@
 - **CI 构建缓存不再冻结（`-fuzz` 插桩重编）**：`setup-go` 内置缓存命中 primary key 后不再回写，`~/.cache/go-build` 冻结在首次构建，导致 `-fuzz` 所需的覆盖率插桩二进制每次运行从零重编（实测约 70 秒，约占该步 105 秒的三分之二）。`ci.yml` 关闭内置缓存，改为显式恢复：模块缓存沿用 `go-module-cache.yml` 的路径与键（只恢复、不重复上传），构建缓存改用滚动键 `go-build-<os>-<hash(go.sum)>-<run_number>` + 前缀回退，仅 master 推送回写、PR 只读恢复
 - **Docker 缓存后端改为镜像仓库**：`type=gha` 在本仓库从未命中——该工作流只由 tag 触发，而 gha 缓存按 ref 隔离、tag 之间互不可见（master 不构建镜像），实测连续三个 tag 导入的 cache manifest 各不相同、`CACHED` 零出现，同时 69 个 buildkit 条目白占约 2.4GB 缓存配额。改用 `type=registry` 指向 `ghcr.io/<repo>:buildcache`，跨 tag 共享且不占 Actions 缓存配额
 - **纯文档推送不再跑全量构建**：`ci.yml` 的 `push` / `pull_request` 增加共享的 `paths-ignore`（YAML 锚点），用宽通配而非逐文件白名单——`**.md` / `**.MD`、`docs/**`、`skills/**`，加仓库根目录的 `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt`，新增文档目录或根目录配图都不必再改清单。只有全部改动路径都命中才跳过，混合提交照常触发。图片只忽略根目录（`*` 不跨目录）：`cmd/assets/*.ico` 与 `pkg/dashboard/web/logo-*.png` 是 `go:embed` 的编译输入，加 `**/*.png` 会让改图标不重编二进制
+
+### 移除
+
+- **移除 `/searxng/search` 兼容端点**：该端点只实现 SearXNG JSON 子集（仅读取 `q`，不支持 `engines` / `pageno` / 非 JSON `format`），与 MCP 的 `smartsearch` / `cleanfetch` 重复且实际使用面为零。删除 `searxng/` 包、路由注册与仅为它存在的 `mcp.GetSearchGroup`，同步清理 `log.searxng.*` 文案、配置样例的鉴权注释与全部文档/图源引用。**破坏性变更**：依赖该端点的客户端需改用 MCP 端点或自行适配
 
 ## v3.10.6 — 2026-11-07（新增 npm 分发方式、安装与配置引导、后续改进参考）
 
@@ -45,6 +50,7 @@
 - README / installation 中英四份补齐 npm 安装方式（`dsh plugin --profile web add ...`、`npm i -g websearch-mcp-cli`、`mcpServers` 片段），并说明非 web profile、平台矩阵、校验和与权限边界
 - **强调「装完只是能跑」**：零配置只跑 `mode: engine`，拿不到零 Key 托管 MCP 级联、多供应商 Key 池、学术源权重、抓取回退、代理适配与结果预算；给出「自己读 HUMAN_GUIDE / configuration」与「让 agent 代读」两条路径
 - **agent 提示词自包含**：从 GitHub 网页直接复制也不会出现「本项目」指代不明——写明仓库地址、`git clone --depth 1` 与三个 raw 文档链接、配置文件的本机绝对路径，并要求最后回报 `WEBSEARCH_MCP_CONFIG` 该设什么、怎么确认生效
+- **校正过期口径**：roadmap 的 D8 / T2 状态（`ShowMeta` 已原子化、`bing` / `ddg` 已有解析 fixture）与 `/metrics` 未启用 503（改为进程内指标常开），README 同步 `/metrics` 的常开与追加关系
 
 ### 后续改进参考
 

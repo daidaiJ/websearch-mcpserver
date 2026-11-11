@@ -122,7 +122,9 @@ var (
 func Init(conf config.Config, opts ...ServerOption) error {
 	publishTools(pendingTools())
 	for _, opt := range opts {
-		opt()
+		if err := opt(); err != nil {
+			return err
+		}
 	}
 
 	if searchapi == nil {
@@ -182,11 +184,6 @@ func withinCall(occurredAt string, started time.Time) bool {
 
 func GetCache() *cache.Cache {
 	return cacheInst
-}
-
-// GetSearchGroup 返回搜索引擎组（供 server 包与 SearXNG 共用同一套引擎）。
-func GetSearchGroup() *search.SearchGroup {
-	return searchGroup
 }
 
 // GetWebFetch 返回 WebFetch 引擎实例（供 server 包关闭时清理）。

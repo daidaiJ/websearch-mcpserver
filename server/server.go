@@ -22,7 +22,6 @@ import (
 	"websearch/pkg/dashboard"
 	"websearch/pkg/log"
 	"websearch/pkg/telemetry"
-	"websearch/searxng"
 )
 
 // Server 封装了 MCP 服务的生命周期管理。
@@ -244,10 +243,8 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	); err != nil {
 		return err
 	}
-	searxng.Init(mcpserver.GetSearchGroup())
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux, conf)
-	searxng.RegisterRouter(mux, conf)
 	s.registerAdminHandlers(mux, conf, metrics)
 	s.registerMetricsHandler(mux, metrics)
 
@@ -340,7 +337,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	return nil
 }
 
-// Handler 返回注册了 MCP、SearXNG 和 admin 路由的 http.Handler。
+// Handler 返回注册了 MCP 和 admin 路由的 http.Handler。
 // 适用于需要自行管理 http.Server 生命周期的嵌入场景。
 func (s *Server) Handler(conf config.Config) http.Handler {
 	if err := mcpserver.Init(conf,
@@ -355,10 +352,8 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 	); err != nil {
 		panic(err)
 	}
-	searxng.Init(mcpserver.GetSearchGroup())
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux, conf)
-	searxng.RegisterRouter(mux, conf)
 	s.registerAdminHandlers(mux, conf, nil)
 	s.registerMetricsHandler(mux, nil)
 	return s.instrument(mux)

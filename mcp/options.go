@@ -15,6 +15,7 @@ import (
 	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/history"
+	"websearch/pkg/i18n"
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
@@ -23,49 +24,49 @@ import (
 )
 
 // ServerOption 服务器组件初始化选项。
-type ServerOption func()
+type ServerOption func() error
 
 // WithSearchEngine 初始化搜索引擎（Bing 引擎 + 按模式选择主引擎）。
 func WithSearchEngine(conf config.Config) ServerOption {
-	return func() { applySearchEngine(conf) }
+	return func() error { return applySearchEngine(conf) }
 }
 
 // WithSummarizer 在 LLM 配置就绪时初始化摘要器。
 func WithSummarizer(conf config.Config) ServerOption {
-	return func() { applySummarizer(conf) }
+	return func() error { applySummarizer(conf); return nil }
 }
 
 // WithCache 在缓存配置就绪时初始化缓存。
 func WithCache(conf config.Config) ServerOption {
-	return func() { applyCache(conf) }
+	return func() error { return applyCache(conf) }
 }
 
 // WithJinaReader 在 Jina API Key 配置就绪时初始化 Jina Reader。
 func WithJinaReader(conf config.Config) ServerOption {
-	return func() { applyJinaReader(conf) }
+	return func() error { applyJinaReader(conf); return nil }
 }
 
 // WithWebFetch 在 CleanFetch 启用时初始化 go-webfetch 引擎；
 // 未启用时保留配置，供 fetch_top_n 惰性初始化。
 func WithWebFetch(conf config.Config) ServerOption {
-	return func() { applyWebFetch(conf) }
+	return func() error { applyWebFetch(conf); return nil }
 }
 
 // WithMCPHubFetch 在 mcp_hub.fetch_mode 非 off 时初始化托管 MCP 抓取增强。
 func WithMCPHubFetch(conf config.Config) ServerOption {
-	return func() { applyMCPHubFetch(conf) }
+	return func() error { applyMCPHubFetch(conf); return nil }
 }
 
 // WithSearchHistory 在 search_history.enabled=true 时初始化本地搜索历史（FTS5）。
 // 默认关闭：不建库、不注册工具。
 func WithSearchHistory(conf config.Config) ServerOption {
-	return func() { applySearchHistory(conf) }
+	return func() error { applySearchHistory(conf); return nil }
 }
 
-func applySearchHistory(conf config.Config) {
+func applySearchHistory(conf config.Config) error {
 	if !conf.SearchHistoryEnabled() {
 		log.InfoT("log.mcp.search_history_disabled_by_default_set")
-		return
+		return nil
 	}
 	retentionDays := conf.SearchHistory.RetentionDays
 	if retentionDays <= 0 {
@@ -74,10 +75,11 @@ func applySearchHistory(conf config.Config) {
 	h, err := history.NewWithMaxOpenConns(conf.GetSearchHistoryStoragePath(), retentionDays, conf.SearchHistory.GetMaxOpenConns())
 	if err != nil {
 		log.ErrorT("log.mcp.search_history_initialization_failed_search_history", "err", err)
-		return
+		return nil
 	}
 	historyInst = h
 	log.InfoT("log.mcp.search_history_enabled_retained_for_days", "searchHistoryStoragePath", conf.GetSearchHistoryStoragePath(), "retentionDays", retentionDays)
+	return nil
 }
 
 // WithEverything 保存 Everything HTTP Server 配置；探测延迟到首个 MCP
@@ -85,18 +87,18 @@ func applySearchHistory(conf config.Config) {
 // 启动期探测会因时序竞争在 Everything 未就绪时误判不可用，导致
 // file_search 工具整个进程周期缺失。
 func WithEverything(conf config.Config) ServerOption {
-	return func() { applyEverything(conf) }
+	return func() error { applyEverything(conf); return nil }
 }
 
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
 
-func applySearchEngine(conf config.Config) {
+func applySearchEngine(conf config.Config) error {
 	// 引擎冷却落盘（P1-5）：与缓存数据库同目录的 engine_health.json，
 	// 跨进程复用冷却状态；须在引擎构造（收养落盘状态）之前设置
 	antirobot.SetHealthStore(filepath.Join(filepath.Dir(conf.GetCacheStoragePath()), "engine_health.json"))
 	g, err := search.NewFromConfig(conf)
 	if err != nil {
-		panic(fmt.Sprintf("搜索引擎初始化失败: %v", err))
+		return fmt.Errorf("%s: %w", i18n.T("tool.init.search_engine_failed"), err)
 	}
 	searchGroup = g
 	searchapi = g.Primary
@@ -105,51 +107,56 @@ func applySearchEngine(conf config.Config) {
 	smartSearchConf = conf.SmartSearch
 	// smartsearch 超限落盘目录沿用 cleanfetch file_output_dir 约定（search_dump.go 未配置时回退 exe 同目录 fetchdata/）
 	searchDumpDir = conf.CleanFetch.FileOutputDir
+	return nil
 }
 
-func applySummarizer(conf config.Config) {
+func applySummarizer(conf config.Config) error {
 	if !conf.LLMEnabled() {
-		return
+		return nil
 	}
 	summarizerInst = llm.NewSummarizerWithTimeout(conf.LLM.BaseURL, conf.LLM.APIKey, conf.LLM.ModelId, conf.LLM.GetTimeout())
 	summaryProgressInterval = conf.LLM.GetSummaryProgressInterval()
 	log.InfoT("log.mcp.llm_summary_enabled")
+	return nil
 }
 
-func applyCache(conf config.Config) {
+func applyCache(conf config.Config) error {
 	if !conf.CacheEnabled() {
-		return
+		return nil
 	}
 	namespace, err := searchCacheNamespace(conf)
 	if err != nil {
-		panic(fmt.Sprintf("缓存命名空间初始化失败: %v", err))
+		return fmt.Errorf("%s: %w", i18n.T("tool.init.cache_namespace_failed"), err)
 	}
 	c, err := cache.NewWithMaxOpenConns(conf.GetCacheStoragePath(), conf.Cache.GetMaxOpenConns())
 	if err != nil {
-		panic(fmt.Sprintf("缓存初始化失败: %v", err))
+		return fmt.Errorf("%s: %w", i18n.T("tool.init.cache_failed"), err)
 	}
 	cacheInst = c
 	cacheNamespace = namespace
+	return nil
 }
 
-func applyJinaReader(conf config.Config) {
+func applyJinaReader(conf config.Config) error {
 	jinaInst = jina.NewFromConfig(conf.Jina, conf.Proxy)
 	if jinaInst != nil {
 		log.InfoT("log.mcp.jina_reader_enabled")
 	}
+	return nil
 }
 
 // applyEverything 保存 Everything 配置供惰性探测，不在启动期发请求。
 // 未配置 url 且非 Windows 时不保存（file_search 永不启用）。
-func applyEverything(conf config.Config) {
+func applyEverything(conf config.Config) error {
 	if conf.Everything.URL == "" {
 		log.InfoT("log.mcp.everything_url_not_configured_and_platform")
-		return
+		return nil
 	}
 	if runtime.GOOS != "windows" {
 		log.WarnT("log.mcp.current_platform_is_everything_only_supports", "gOOS", runtime.GOOS, "uRL", conf.Everything.URL)
 	}
 	everythingLazyCfg = &conf.Everything
+	return nil
 }
 
 // ensureEverything 惰性探测 Everything HTTP Server：连通且鉴权通过才初始化
@@ -182,13 +189,14 @@ func ensureEverything() bool {
 	return true
 }
 
-func applyWebFetch(conf config.Config) {
+func applyWebFetch(conf config.Config) error {
 	siteFetchGitHub = sitefetch.NewGitHubFetcher(conf.GitHub.EffectiveTokenList())
 	webfetchLazyCfg = &conf
 	if !conf.CleanFetch.Enabled && !conf.PDFParser.Enabled {
-		return
+		return nil
 	}
 	ensureWebFetch()
+	return nil
 }
 
 // nativeFetchProxy 返回原生 cleanfetch 使用的代理端点。
@@ -217,15 +225,15 @@ func (a providerFetchAdapter) Fetch(ctx context.Context, rawURL string) (string,
 // applyMCPHubFetch 初始化 cleanfetch 的托管 MCP 增强层。
 // 默认 off，不改变既有抓取顺序；失败时仅记录并退回本地 webfetch/Jina。
 // 远端抓取链顺序：供应商 fetch API（按 URL 计数的免费额度优先）→ mcphub 托管 MCP。
-func applyMCPHubFetch(conf config.Config) {
+func applyMCPHubFetch(conf config.Config) error {
 	mcpHubFetchMode = conf.MCPHub.GetFetchMode()
 	if mcpHubFetchMode == config.MCPHubFetchOff {
-		return
+		return nil
 	}
 	if !conf.CleanFetch.Enabled {
 		log.InfoT("log.mcp.cleanfetch_enabled_false_mcp_fetch_enhancement")
 		mcpHubFetchMode = config.MCPHubFetchOff
-		return
+		return nil
 	}
 	providerFetchers = nil
 	if conf.APISourceEnabled("tinyfish") && len(conf.TinyFish.EffectiveSKList()) > 0 {
@@ -251,20 +259,21 @@ func applyMCPHubFetch(conf config.Config) {
 	if hub, ok := searchapi.(*mcphub.Hub); ok {
 		mcpHubFetchInst = hub
 		log.InfoT("log.mcp.mcp_fetch_enhancement_reuses_the_search", "mcpHubFetchMode", mcpHubFetchMode)
-		return
+		return nil
 	}
 	hub, err := mcphub.New(conf.MCPHub, conf.Proxy.ProxyResolver(), nil)
 	if err != nil {
 		if len(providerFetchers) > 0 {
 			log.InfoT("log.mcp.mcp_hub_unavailable_cleanfetch_remote_fetching", "err", err)
-			return
+			return nil
 		}
 		log.ErrorT("log.mcp.mcp_fetch_enhancement_not_enabled", "err", err)
 		mcpHubFetchMode = config.MCPHubFetchOff
-		return
+		return nil
 	}
 	mcpHubFetchInst = hub
 	log.InfoT("log.mcp.mcp_fetch_enhancement_enabled_fetch_mode", "mcpHubFetchMode", mcpHubFetchMode, "len", len(providerFetchers), "rotationNames", hub.RotationNames())
+	return nil
 }
 
 // ensureWebFetch 确保 webfetch 可用：cleanfetch/pdf_parser 已启用时在 Init 阶段

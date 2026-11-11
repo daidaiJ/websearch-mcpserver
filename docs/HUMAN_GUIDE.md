@@ -27,7 +27,7 @@
 | 了解搜索模式、引擎、评分、工具参数细节 | [search.md](search.md) |
 | 理解架构、回退链、代理检测、嵌入 Go 模块 | [architecture.md](architecture.md) |
 | 了解为什么做这个项目、设计原则 | [design.md](design.md) |
-| 直接调 HTTP API（MCP / SearXNG / Admin） | [api.md](api.md) |
+| 直接调 HTTP API（MCP / Admin） | [api.md](api.md) |
 | 启用本机控制中心（dashboard） | [dashboard.md](dashboard.md) |
 | 参与开发、读懂代码结构 | [developers.md](developers.md) |
 

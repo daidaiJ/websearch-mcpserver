@@ -18,7 +18,7 @@
   <img src="docs/images/hero-banner.png" alt="多引擎搜索融合示意：百度 / Bing / DuckDuckGo / API 引擎 / 9 大学术源汇入本地编排，输出搜索结果、论文、网页 PDF 与本地文件" width="900">
 </p>
 
-用 Go 编写的 MCP 搜索服务。内置百度网页、Bing、DuckDuckGo 等通用引擎、Parallel / AnySearch / Exa / Firecrawl 四个零 Key 托管 MCP 上游和 9 个学术引擎，搜索、评分、缓存全部在本地完成。可作为 MCP 工具接入 Claude Code、Qwen Code、Cursor，也可作为 Go 模块嵌入自有服务。
+用 Go 编写的 MCP 搜索服务。内置百度网页、Bing、DuckDuckGo 等通用引擎、Parallel / AnySearch / Exa / Firecrawl 四个零 Key 托管 MCP 上游和 9 个学术引擎，搜索、评分、缓存全部在本地完成。可作为 MCP 工具接入 Claude Code、Qwen Code、Cursor，也可作为 Go 模块单实例嵌入自有服务（边界见 [docs/api.md](docs/api.md)）。
 
 **免费、国内可用、结果可直接给 LLM 消费。** 无 Key 也能搜；有 Key 才用 Key。
 
@@ -35,7 +35,7 @@
 | 层 | 做什么 |
 |----|--------|
 | **接入** | Claude Code / Qwen Code / Cursor / HTTP API / 嵌入 Go 模块 |
-| **协议** | `/mcp` 最多五个工具 · `/searxng/search` 兼容 LiteLLM · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 · `/metrics` Prometheus 观测 |
+| **协议** | `/mcp` 最多五个工具 · `/__admin` 进程管理 · `/dashboard` 可选本机控制台 · `/metrics` Prometheus 观测 |
 | **编排** | `factory` / `mode` 组装 · `hybrid` / `apipool` / `mcphub` · `enhance`（RRF / Boost / MMR） |
 | **引擎** | 通用：百度网页 / 千帆 / Bing / DDG / Tavily / Exa / AnySearch / 豆包 / 元宝 / TinyFish / Keenable + 4 个托管 MCP 上游；学术 9 源并行 |
 | **支撑** | SQLite 缓存、系统代理自动检测、webfetch（SSRF 防护）、MinerU、LLM 流式摘要、Everything |
@@ -53,7 +53,7 @@
 | 进程 | dsh 的 MCP client 每个会话拉起一个 `cmd/cli` 子进程 | `websearch-mcpserver start` 常驻，refcount / PID 管理多客户端 |
 | 协议 | stdin/stdout JSON-RPC，不监听端口 | `POST /mcp` Streamable HTTP，默认 `127.0.0.1:8338` |
 | 工具 | 同一批最多 5 个工具 | 同一批最多 5 个工具 |
-| 独有 | Node shim 只做平台包解析与 `spawn`，无 postinstall、无运行时下载 | `/dashboard/`、`/metrics`、`/searxng/search`、`/__admin`、`auth_token`、SSE 进度推送 |
+| 独有 | Node shim 只做平台包解析与 `spawn`，无 postinstall、无运行时下载 | `/dashboard/`、`/metrics`、`/__admin`、`auth_token`、SSE 进度推送 |
 | 配置 | 缺省时走 `mode: engine` 内存默认值，建议用 `WEBSEARCH_MCP_CONFIG` 指向个性化 `config.yaml` | `start` 首次自动生成完整 `config.yaml` |
 
 > **HTTP daemon 是全特性的完全形态**；stdio 不是功能裁剪版，也不是「轻客户端拉起 daemon」——npm 里的 Node shim 只负责 `spawn`，被拉起的 Go 二进制本身就是完整 MCP server，只是不监听端口、没有管控与观测面。两种形态的配置文件通用，字段差异见 [docs/configuration.md](docs/configuration.md)。
@@ -86,8 +86,8 @@
 | LLM 摘要 | 可选接入 OpenAI 兼容 API 生成结构化摘要，支持流式推送 |
 | 系统代理 | Clash 等开启系统代理后，海外引擎 / Jina Reader 自动走代理 |
 | 本地文件检索 | `file_search` 基于 Everything 索引毫秒级定位本地文件，目录白名单防越界，词汇对齐二次过滤防上下文爆炸（需 Everything HTTP Server） |
-| 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改，以及 Prometheus 格式的 `GET /metrics`（默认关闭） |
-| 轻量部署 | 单二进制、无 CGO、引用计数进程管理，可嵌入 Go 模块 |
+| 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改；`GET /metrics` 始终提供进程内指标，启用控制台后追加脱敏遥测聚合 |
+| 轻量部署 | 单二进制、无 CGO、引用计数进程管理，可作为单实例 Go 模块嵌入 |
 | 中文 / 英文 | `language: auto|zh|en` 统一控制日志、MCP 工具描述与参数说明、控制中心界面；`auto` 按系统语言适配，控制中心另按浏览器语言每请求协商 |
 
 ---
@@ -222,7 +222,7 @@ npm 装到的只有 Go 二进制，**本机通常没有这个仓库的源码**�
 
 ![控制中心总览](docs/images/dashboard-overview.jpg)
 
-启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅本机 loopback 可读，写操作需 `admin_password`。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读、只含脱敏聚合），需 `dashboard.enabled: true`，未启用返回 503。
+启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅本机 loopback 可读，写操作需 `admin_password`。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读）：进程内指标（在飞请求、uptime、goroutine、堆分配、遥测开关）始终输出；工具/供应商聚合来自脱敏遥测库，启用 `dashboard.enabled: true` 后追加，未启用时仅省略该部分。
 
 > 页面明细、全部配置键、快捷方式落位、安全模型与调用归属见 [docs/dashboard.md](docs/dashboard.md)。
 
@@ -241,7 +241,7 @@ npm 装到的只有 Go 二进制，**本机通常没有这个仓库的源码**�
 | 📚 参考 | [docs/search.md](docs/search.md) | 搜索模式详解、引擎对照、相关性评分、MCP 工具参数 |
 | 📚 参考 | [docs/architecture.md](docs/architecture.md) | 架构设计、回退链、代理检测、缓存、Go 模块嵌入、web-researcher 扩展 |
 | 📚 参考 | [docs/design.md](docs/design.md) | 设计背景与目标：立项动机、与现成方案对比、设计原则 |
-| 📚 参考 | [docs/api.md](docs/api.md) | Go Module API 与 HTTP API（MCP / SearXNG / Admin 端点） |
+| 📚 参考 | [docs/api.md](docs/api.md) | Go Module API 与 HTTP API（MCP / Admin / 观测端点） |
 | 📚 参考 | [docs/dashboard.md](docs/dashboard.md) | 本机控制中心：全部配置键、写操作安全模型、隐私边界 |
 | 📚 参考 | [docs/developers.md](docs/developers.md) | 开发者指南：包结构、接口契约、工具调用链、改动落点 |
 | 📚 参考 | [CHANGELOG.md](CHANGELOG.md) | 版本变更日志 |

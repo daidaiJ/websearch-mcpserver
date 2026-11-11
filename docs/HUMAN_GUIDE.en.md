@@ -27,7 +27,7 @@ The detailed docs are split by topic; this manual is their reading router:
 | Understand search modes, engines, scoring, tool parameters | [search.en.md](search.en.md) |
 | Understand the architecture, fallback chain, proxy detection, Go module embedding | [architecture.en.md](architecture.en.md) |
 | Learn why this project exists and its design principles | [design.en.md](design.en.md) |
-| Call the HTTP API directly (MCP / SearXNG / Admin) | [api.en.md](api.en.md) |
+| Call the HTTP API directly (MCP / Admin) | [api.en.md](api.en.md) |
 | Enable the local dashboard | [dashboard.en.md](dashboard.en.md) |
 | Contribute code, understand the codebase | [developers.en.md](developers.en.md) |
 

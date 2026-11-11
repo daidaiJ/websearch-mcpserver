@@ -42,7 +42,6 @@
 cmd/              # 入口：main.go + 平台初始化（Windows 代理检测等）
 mcp/              # MCP 协议层：工具注册、请求处理
 server/           # HTTP 服务：生命周期、路由
-searxng/          # SearXNG 兼容 HTTP 端点
 
 pkg/
 ├── search/       # ★ 搜索编排层（factory.go 为组合根，只做装配与类型别名）
@@ -197,6 +196,19 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
+### 初始化失败不再 panic — done（2026-11-11，未发版）
+
+- **当前状态：** `ServerOption` 从 `func()` 改为 `func() error`，`Init` 逐项传播；搜索引擎、缓存命名空间与缓存构造失败沿 `Run` / `cmd/cli` 返回，入口打印友好错误而不是堆栈。`Handler` 嵌入路径仍按文档在边界 fail-fast panic
+- **附带：** 新增 `tool.init.search_engine_failed` / `cache_namespace_failed` / `cache_failed` 三条中英文案；`docs/api` 的嵌入边界同步区分 `Run` 返回 error 与 `Handler` panic
+- **验证：** `go build ./...`、`go vet ./...`、`go test -short ./...`、`go test ./pkg/i18n/`
+
+### SearXNG 兼容端点移除 — done（2026-11-11，未发版）
+
+- **当前状态：** 删除 `searxng/` 包与 `GET /searxng/search` 路由，移除仅服务于它的 `mcp.GetSearchGroup`；清理 `log.searxng.*` 文案、配置样例鉴权注释与文档/图源中的端点引用
+- **理由：** 该端点只实现 JSON 子集（仅读取 `q`），与 MCP 的 `smartsearch` / `cleanfetch` 能力重复，实际使用面为零；保留需要持续维护 LiteLLM 兼容口径与文档，收益低于成本
+- **影响：** 破坏性变更，记入 CHANGELOG Unreleased；LiteLLM 等 SearXNG 客户端改走 MCP 端点或客户端侧适配
+- **验证：** `go build ./...`、`go test -short ./...`、`go test ./pkg/i18n/`
+
 ### 搜索质量闭环 — done（2026-11-11，已合入 master `61427d4`，未发版）
 
 - **当前状态：** 分支 `feat/search-quality-loop` 已合入 master 并推送，未打 tag、未发 Release/GHCR/Registry；合入内容包含今天远端两个分支（`feat/search-budget-and-params` 的批量/depth/sources/内容预算、`fix/hosted-mcp-ua` 的入站 UA 透传）与 D1 / D2 / D5、D3 部分落地，以及 KeyPool / ShowMeta / 进程内指标三项工程债治理
@@ -207,7 +219,7 @@ docker build -t websearch-mcpserver .
 - **工程债：** provider Key 池改为命名结构体 `mode.ProviderPools`；`core.ShowMeta` 改为 `atomic.Bool` + setter；`/metrics` 增加进程内指标（在飞请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时返回 200 并省略遥测序列
 - **解析契约：** Bing 与 DDG 补 HTML parser fixture；baidu（JSON feed）、google、so360、googlenews（RSS）、wikipedia（JSON）已有解析测试
 - **工具面取舍：** `depth` / `max_chars` / `fetch_top_n` 只塑造 web 正文；仅 academic 时显式传这三个参数返回错误，避免静默无效。未新增任何 MCP 参数或工具
-- **暂缓：** D4（citation / untrusted 边界，改输出契约）、D6（垂直源）、D7（配置分层）、D8 tracing 与显式 DI、真实检索快照/定时 live smoke、SearXNG 完整参数兼容
+- **暂缓：** D4（citation / untrusted 边界，改输出契约）、D6（垂直源）、D7（配置分层）、D8 tracing 与显式 DI、真实检索快照/定时 live smoke
 - **验收：** `go build ./...`、`go vet ./...`、`go test -short -count=1 ./...` 与 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` 复跑全绿；`go test -race -short ./server/ ./pkg/search/{hybrid,core,mode}/` 绿；`go test ./pkg/i18n/ ./pkg/errcode/ ./bench/quality/` 绿；`pkg/academic` 的 PubMed 真网测试偶发 `unexpected EOF`，单跑通过，属既有 flake
 
 ### 发布整包（含 Skill）+ log_level 生效 / 并发失败留痕 + SQLite 连接池上限 — done（2026-11-05，随 v3.10.4 发布；本次未发 MCP Registry）

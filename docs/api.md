@@ -7,7 +7,6 @@
 - [Go Module API（server 包）](#go-module-api-server-包)
 - [HTTP API](#http-api)
   - [MCP 端点](#mcp-端点)
-  - [SearXNG 兼容端点](#searxng-兼容端点)
   - [观测端点](#观测端点)
   - [Admin 端点](#admin-端点)
 
@@ -62,7 +61,7 @@ func (s *Server) RefCount() int32
 func (s *Server) Run(conf config.Config, onListening ...func()) error
 ```
 
-完整启动流程：初始化搜索引擎、MCP 路由、SearXNG 路由、Admin 路由、缓存清理协程，然后监听端口（默认 `127.0.0.1:8338`）并阻塞直到收到 `SIGINT`/`SIGTERM` 信号或引用计数归零。监听成功后才调用 `onListening` 回调（可用于写 PID 文件）；监听失败（如端口占用）返回错误，不 panic。退出时自动执行优雅关闭（停止缓存清理 → HTTP Shutdown → 关闭 WebFetch → 关闭 SQLite → 清理 PID 文件）。
+完整启动流程：初始化搜索引擎、MCP 路由、Admin 路由、缓存清理协程，然后监听端口（默认 `127.0.0.1:8338`）并阻塞直到收到 `SIGINT`/`SIGTERM` 信号或引用计数归零。监听成功后才调用 `onListening` 回调（可用于写 PID 文件）；监听失败（如端口占用）返回错误，不 panic。退出时自动执行优雅关闭（停止缓存清理 → HTTP Shutdown → 关闭 WebFetch → 关闭 SQLite → 清理 PID 文件）。
 
 适合 CLI 或独立部署场景。
 
@@ -76,7 +75,7 @@ func (s *Server) Handler(conf config.Config) http.Handler
 
 适合嵌入场景——调用方自行创建 `http.Server`，可复用已有端口、TLS 配置或中间件栈。
 
-**嵌入边界**：组件初始化是急切的，搜索引擎/缓存等构造失败会 panic（便于启动期暴露配置错误）；嵌入方应在调用前校验配置，或在边界 `recover` 后转为自身错误返回。装配使用包级单例，按进程单实例设计，多个 `Server` 实例共享同一组组件；需要多实例请拆进程。`Run` 的端口监听失败返回 error，不 panic。
+**嵌入边界**：组件初始化是急切的，`Run` 会把搜索引擎/缓存构造失败作为 error 返回；`Handler` 仍以 panic 暴露（便于启动期 fail-fast），嵌入方应在调用前校验配置，或在边界 `recover` 后转为自身错误返回。装配使用包级单例，按进程单实例设计，多个 `Server` 实例共享同一组组件；需要多实例请拆进程。`Run` 的端口监听失败返回 error，不 panic。
 
 ### 使用示例
 
@@ -211,53 +210,6 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
     }
   }
 }
-```
-
----
-
-### SearXNG 兼容端点
-
-| 属性 | 值 |
-|------|-----|
-| 路径 | `GET /searxng/search` |
-| 参数 | `q` — 搜索关键词 |
-| Content-Type | `application/json` |
-
-提供与 SearXNG 兼容的搜索接口，可对接 LiteLLM 等框架。
-
-> **兼容范围**：这是 JSON 子集，只读取 `q`；不支持 `categories` / `engines` / `pageno` 与 JSON 之外的 `format`。需要按引擎筛选、翻页或多种输出格式时，请使用 MCP 的 `smartsearch`（`sources` / `queries`）或客户端侧过滤。
-
-> **鉴权**：配置了 `auth_token` 时需携带 `Authorization: Bearer <token>` 或 `X-API-Key: <token>` 头，否则返回 401；`q` 为空返回 400；无可用引擎返回 503。
-
-#### 请求示例
-
-```
-GET /searxng/search?q=golang+concurrency
-```
-
-#### 响应格式
-
-```json
-{
-  "query": "golang concurrency",
-  "results": [
-    {
-      "title": "...",
-      "url": "https://...",
-      "content": "..."
-    }
-  ]
-}
-```
-
-#### LiteLLM 配置示例
-
-```yaml
-search_tools:
-  - search_tool_name: searxng-search
-    litellm_params:
-      search_provider: searxng
-      api_base: http://localhost:8338/searxng
 ```
 
 ---

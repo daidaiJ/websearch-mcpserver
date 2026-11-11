@@ -14,7 +14,7 @@ cmd/ ──► server/ ──► mcp/ ──► pkg/search（组合根）──�
                                         │                    └──► core（类型契约，叶子）
                                         └──► pkg/academic ──► antirobot
 mcp/ ──► pkg/fetch/{webfetch,jina,mineru} ──► go-webfetch / MinerU
-mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──► 仅依赖 pkg/search/core（契约叶子）
+mcp/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──► 仅依赖 pkg/search/core（契约叶子）
 所有包 ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
 
@@ -28,7 +28,6 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 |----|------|--------------|
 | `cmd/` | 入口：配置加载、平台初始化（Windows 代理检测等） | `main` |
 | `server/` | HTTP 服务生命周期、路由、优雅关停 | `Run`、关机顺序引用 `mcp.GetWebFetch/GetCache` |
-| `searxng/` | SearXNG 兼容端点，复用同一套引擎组 | `mcp.GetSearchGroup()` |
 | `mcp/` | MCP 协议层：工具注册、schema、handler、缓存与摘要编排 | `server.go registerTools`、`tool.go`（参数/装配）、`tool_search.go`、`tool_academic.go`、`tool_cleanfetch.go`、`tool_pdf.go`、`tool_result.go`（正文引用/读取）、`tool_filesearch.go`、`tool_summarize.go`、`security.go`（SSRF/HEAD 预检 + 重定向逐跳复查）、`options.go` 按需装配（webfetch 支持 fetch_top_n 惰性初始化、everything 接入时惰性探测门控） |
 
 ### pkg/search — 搜索编排（分 7 个子包）
@@ -223,7 +222,7 @@ CI 在 `test` job 内跑 10s 短窗口（种子语料始终随 `go test` 执行�
 |---|---|---|
 | 日志 | 进程默认（`i18n.Configure(conf.Language)`） | 启动时 |
 | MCP 工具描述与参数 Schema | 进程默认 | 工具注册时固化，改语言需重启 |
-| HTTP（控制中心、SearXNG 端点） | `Accept-Language` 协商 → 回退进程默认 | 每请求 |
+| HTTP（控制中心） | `Accept-Language` 协商 → 回退进程默认 | 每请求 |
 
 **目录**：`pkg/i18n/locales/<域>.<语言>.json`，扁平 JSON，key 是符号化稳定标识，值用 go-i18n 模板语法（`{{.Name}}` 占位符，`{"one": …, "other": …}` 复数形态）。加一门语言 = 加一组同域文件并把标签加进 `pkg/i18n/language.go` 的 `supported`；改文案只动 JSON，不动代码。
 

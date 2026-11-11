@@ -103,7 +103,7 @@ services:
       - "8338:8338"
 ```
 
-**端口**：镜像只暴露 8338（`EXPOSE 8338`），MCP（`/mcp`）、SearXNG（`/searxng/search`）与控制台（`/dashboard/`）共用这一个端口。v3.6.0 的控制中心**没有新增端口**，端口映射不用改。容器内用 `network_mode: host` 时注意主机 8338 未被占用。
+**端口**：镜像只暴露 8338（`EXPOSE 8338`），MCP（`/mcp`）与控制台（`/dashboard/`）共用这一个端口。v3.6.0 的控制中心**没有新增端口**，端口映射不用改。容器内用 `network_mode: host` 时注意主机 8338 未被占用。
 
 **卷映射**（`/app` 是镜像工作目录，配置里的相对路径都相对它解析）：
 
@@ -153,7 +153,7 @@ go build -ldflags="-X main.version=v1.0.0" -o websearch-mcp-cli ./cmd/cli
 
 服务启动后（HTTP daemon 监听 `http://localhost:8338/mcp`），按客户端注册。以下同时给出 **Claude Code** 与 **Qwen Code** 两种配置方式。
 
-> **鉴权**：若配置了 `auth_token`（或环境变量 `WEBSEARCH_TOKEN`），客户端需携带 `Authorization: Bearer <token>` 头访问 `/mcp` 与 `/searxng/search`，否则返回 401。未配置 token 时无需任何头。
+> **鉴权**：若配置了 `auth_token`（或环境变量 `WEBSEARCH_TOKEN`），客户端需携带 `Authorization: Bearer <token>` 头访问 `/mcp`，否则返回 401。未配置 token 时无需任何头。
 
 ### Claude Code
 

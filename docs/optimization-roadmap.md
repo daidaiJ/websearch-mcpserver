@@ -39,11 +39,11 @@
 
 ### 可观测性与测试护栏
 
-- [ ] **T2. 引擎包测试密度**：`pkg/search/engine/{baidu,bing,google}` 各仅 1 个测试文件，解析函数（HTML→结构化结果）适合表驱动 + 固定 fixture 补齐。
+- [ ] **T2. 引擎解析契约与真实快照（部分落地 2026-11-11）**：`bing` / `ddg` 已补内联 HTML 解析契约 fixture（选择器、广告过滤、重定向解码），`so360` 沿用真实出口 fixture；`baidu` 的 JSON 解析与 `google` 的 HTML 解析已有既有表驱动用例。**剩余**：把 `google` / `bing` / `baidu` 的真实响应快照纳入 fixture 并加定期线上冒烟，现有 fixture 均为合成样本，防不住上游改版导致的静默零结果。
 
 ### DSH 生态调研衍生的改进参考（2026-11-07）
 
-> 横向评估 DeepSeek Harness 插件市场与开源搜索 MCP 后识别的**代码侧**方向。D1 / D2 / D5 已于 2026-11-11 落地（见勾选项与说明），D3 部分落地；其余仍未拍板。参照对象最强的是 `@fffangchenghao/dsh-web-search`（8 引擎 RRF + 20-query 离线评测集 + 81 组参数扫描）、`dsh-free-search`（20+ 引擎回退）、Wigolo（本地 rerank + citation）。本项目在零 Key + 9 学术源 + 单二进制上工程深度更高，短板集中在「质量闭环」而非「功能广度」。
+> 横向评估 DeepSeek Harness 插件市场与开源搜索 MCP 后识别的**代码侧**方向。D1 / D2 / D5 已于 2026-11-11 落地（见勾选项与说明），D3 / D8 部分落地；其余仍未拍板。参照对象最强的是 `@fffangchenghao/dsh-web-search`（8 引擎 RRF + 20-query 离线评测集 + 81 组参数扫描）、`dsh-free-search`（20+ 引擎回退）、Wigolo（本地 rerank + citation）。本项目在零 Key + 9 学术源 + 单二进制上工程深度更高，短板集中在「质量闭环」而非「功能广度」。
 
 - [x] **D1. 离线检索质量评测集（与 T2 合并做，2026-11-11 落地）**：`bench/quality` 固定 20 条中英 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），回放 `enhance.EnhanceResults` 输出逐 case 与聚合的 P@8 / R@8 / MRR@8；逐 case 断言命中数与首个相关结果排名，聚合门槛拦退化。零网络依赖。**边界**：fixture 为合成候选集，衡量评分与排序回归，不代表真实检索召回；真实引擎 HTML fixture 仍归 T2。
 - [x] **D2. 失败模型哨兵化 + 命名错误码（2026-11-11 落地）**：新增叶子包 `pkg/errcode`（`timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`，支持 `errors.As` 穿透与 `Message` 换文案保错误链）；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 改为错误码优先、中英关键词兜底；`antirobot.ErrLocalRateLimit`、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类附码；`adapter/baidu_fallback.go` 双失败用 `errcode.Message` 保留主备原因。**遗留**：尚未给所有引擎/供应商的原始错误逐点附码，关键词兜底仍参与。
@@ -52,7 +52,7 @@
 - [x] **D5. 工具面与 server instructions（2026-11-11 落地）**：`NewMCPServer` 在 `ServerOptions.Instructions` 下发中英双语工具选择纪律（发现 / 读正文 / 查论文 / 本地文件 / 历史），说明参数默认值与作用域；调用方显式设置时尊重其值。`skills/websearch-mcp/SKILL.md` 增补「参数纪律」。长度控制在数行，避免常驻系统提示膨胀。
 - [ ] **D6. 垂直源 / 官方源窄查（只做 optional action）**：对标插件有 34 垂直源与 2.5s 官方源 lookup；本项目已有 9 学术引擎与 GitHub 特判，可只补包管理 registry + 官方发布源一路，**不要全量扩面**——与「深耕不扩面」定位冲突。
 - [ ] **D7. 配置分层与热重载**：`config.go` 1,863 行 / 236 字段、`config.example.yaml` 559 行，dashboard 只能改白名单、不能热重载装配。引入 preset 分层（profile → bundle → patch）比继续堆字段划算。
-- [ ] **D8. 实时指标与显式 DI**：`/metrics` 是从 SQLite 回读当天事件而非进程内 counter，全仓无 tracing；`mcp/options.go:93-108` 与 `searxng/handler.go` 的全局 service-locator 装配不支持多实例，`core.ShowMeta` 存在无锁读写。
+- [ ] **D8. 实时指标与显式 DI（部分落地 2026-11-11）**：`/metrics` 已补进程内 gauge（在飞 HTTP 请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时不再 503；工具/供应商计数仍从 SQLite 当日回读，全仓无 tracing；`mcp/options.go` 的包级变量 + `ServerOption func() error` 全局装配不支持多实例；`core.ShowMeta` 已改为 `atomic.Bool`，但仍是包级全局状态。
 
 **不跟**：Wigolo 的 1.5GB 本地模型 + 浏览器池（毁掉单二进制轻量定位）、10+ 工具面（与「客户端最多 5 工具」的省 token 设计冲突）、PTC 全套（可降维成 `search_many` 式批量 query 并发，与 E1 一起评估）。
 
@@ -65,7 +65,7 @@
 | **R3** 缓存并发读 | DSN 级 WAL / `busy_timeout` / `synchronous=NORMAL`，连接池 1→4；原实现只注释声明 WAL、从未执行 PRAGMA | `b780769` |
 | **Q1** URL 归一化 | `antirobot.NormalizeURL`（core 转发）：scheme/host 小写、去 fragment、剥追踪参数、参数排序、去尾斜杠；接入两处 hybrid 去重键与 `DeduplicateResults` | `b780769` |
 | **Q2** 守卫校准 | `guard` 遥测事件（脱敏）+ `go run ./tools/guardreplay -db <dashboard.db>` 阈值回放 | `b780769` |
-| **O1** metrics 端点 | `GET /metrics` 零依赖手写 Prometheus 文本；只读脱敏，遥测未启用返回 503 | `b780769` |
+| **O1** metrics 端点 | `GET /metrics` 零依赖手写 Prometheus 文本；只读脱敏，遥测未启用返回 503（2026-11-11 起进程内指标常开、不再 503，见 D8） | `b780769` |
 | **T1** SSRF fuzz | 三个 Fuzz 目标覆盖 `validateURLSecurity` / `isPublicIP` / `isPrivateHostFast`，CI 跑 10s 短窗口 | `b780769` |
 | **T3** CI 护栏 | `go test -race -short` 步骤 + golangci-lint v2 job（`--new-from-rev` 只拦新增代码） | `b780769` |
 | **N-llm** LLM 调用有界 deadline | `llm.timeout_sec`（默认 60s，含流式全程）；调用方 ctx 更早 deadline 优先；超时按摘要失败回退原始结果。原拟「智谱 webSearchPrime mcphub preset」经评审不做——会消耗 GLM Coding Plan 套餐额度，与零增量额度定位冲突 | `01dd2fa` |

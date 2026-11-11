@@ -12,7 +12,7 @@ port: 8338
 # host: "127.0.0.1"
 
 # 业务端点鉴权 token（可选，默认空 = 不鉴权）
-# 配置后访问 /mcp 与 /searxng/search 需携带 Authorization: Bearer <token> 或 X-API-Key: <token>
+# 配置后访问 /mcp 需携带 Authorization: Bearer <token> 或 X-API-Key: <token>
 # 环境变量: WEBSEARCH_TOKEN
 # auth_token: ""
 
