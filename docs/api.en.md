@@ -269,9 +269,9 @@ search_tools:
 | Path | `GET /metrics` |
 | Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
 
-Read-only aggregates in Prometheus / OpenMetrics text format: today's MCP tool calls (by tool name) and search provider calls (by provider name) with request, success/failure, cache-hit counts and latency buckets. All data comes from the privacy-preserving telemetry store (queries are stored as hashes and keywords only; no URLs, raw text or secrets) and nothing is actively probed.
+Read-only aggregates in Prometheus / OpenMetrics text format. In-process metrics are always available: in-flight HTTP requests, process uptime, goroutine count, heap-allocated bytes and `websearch_telemetry_enabled`. When the dashboard is enabled, today's MCP tool calls (by tool name) and search provider calls (by provider name) are appended with request, success/failure, cache-hit counts and latency buckets; that part comes from the privacy-preserving telemetry store (queries are stored as hashes and keywords only; no URLs, raw text or secrets) and nothing is actively probed.
 
-- Requires `dashboard.enabled: true` (the telemetry store ships with the dashboard); otherwise 503.
+- In-process metrics do not require the dashboard; telemetry series appear with `dashboard.enabled: true` and are omitted otherwise, with `websearch_telemetry_enabled` set to 0.
 - Read-only and independent of the write guard; accepts `GET` / `HEAD` only.
 - Example: `curl -s http://127.0.0.1:8338/metrics`
 

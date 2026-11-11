@@ -177,7 +177,7 @@ Recognized DBLP Anubis challenge pages are recorded as human-verification failur
 
 ### External observability (Prometheus)
 
-`GET /metrics` is served by the main service (independent of the dashboard access boundary) and renders today's tool/provider request, success/failure, cache-hit counts and latency buckets in Prometheus text format, sourced from the same privacy-preserving telemetry store. With the dashboard disabled (`dashboard.enabled: false`) the endpoint returns 503. It is read-only, accepts GET/HEAD only, and exposes no raw queries, URLs or secrets; the contract lives in [docs/api.en.md](api.en.md#observability-endpoint).
+`GET /metrics` is served by the main service (independent of the dashboard access boundary) and always renders in-process metrics (in-flight HTTP requests, uptime, goroutines, heap allocation and `websearch_telemetry_enabled`). With the dashboard enabled it appends today's tool/provider request, success/failure, cache-hit counts and latency buckets from the same privacy-preserving telemetry store. With the dashboard disabled (`dashboard.enabled: false`) the endpoint still returns 200, omits the telemetry series and sets `websearch_telemetry_enabled` to 0. It is read-only, accepts GET/HEAD only, and exposes no raw queries, URLs or secrets; the contract lives in [docs/api.en.md](api.en.md#observability-endpoint).
 
 ## Source management and saving
 

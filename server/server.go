@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -30,13 +31,25 @@ type Server struct {
 	refMu      sync.Mutex // 保护 refCount 的「检查 + 更新」复合操作
 	refCount   int32
 	shutdownCh chan struct{}
+	startedAt  time.Time
+	inflight   atomic.Int64 // 正在处理的 HTTP 请求数（进程内指标）
 }
 
 // New 创建一个新的 Server 实例。
 func New() *Server {
 	return &Server{
 		shutdownCh: make(chan struct{}, 1),
+		startedAt:  time.Now(),
 	}
+}
+
+// instrument 统计正在处理的 HTTP 请求数，供 /metrics 的进程内 gauge 使用。
+func (s *Server) instrument(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.inflight.Add(1)
+		defer s.inflight.Add(-1)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // SetRefCount 设置初始引用计数（通常在首次启动时调用，设为 1）。
@@ -265,7 +278,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           s.instrument(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -348,5 +361,5 @@ func (s *Server) Handler(conf config.Config) http.Handler {
 	searxng.RegisterRouter(mux, conf)
 	s.registerAdminHandlers(mux, conf, nil)
 	s.registerMetricsHandler(mux, nil)
-	return mux
+	return s.instrument(mux)
 }

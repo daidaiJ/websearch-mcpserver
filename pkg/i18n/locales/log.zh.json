@@ -166,6 +166,7 @@
   "log.server.invalid_dashboard_allowed_networks_dashboard_falls": "dashboard.allowed_networks 配置非法，控制台回退为仅本机访问: {{.err}}",
   "log.server.listening_address_is_open_on_all": "监听地址 {{.addr}} 对所有网卡开放且未配置 auth_token，局域网内任意主机可访问业务端点，强烈建议配置 token",
   "log.server.received_signal": "received signal: {{.sig}}",
+  "log.server.metrics_query_failed": "指标查询失败: {{.err}}",
   "log.server.refcount_reached_zero_initiating_graceful_shutdown": "refcount reached zero, initiating graceful shutdown",
   "log.server.server_exited_gracefully": "server exited gracefully",
   "log.server.server_shutdown_failed": "server shutdown failed: {{.err}}",
