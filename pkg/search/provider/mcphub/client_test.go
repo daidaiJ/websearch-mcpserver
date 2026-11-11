@@ -37,9 +37,11 @@ func TestHeaderTransportUserAgent(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := transport.RoundTrip(req); err != nil {
+			resp, err := transport.RoundTrip(req)
+			if err != nil {
 				t.Fatal(err)
 			}
+			_ = resp.Body.Close()
 			if got != tc.want {
 				t.Fatalf("User-Agent = %q, want %q", got, tc.want)
 			}

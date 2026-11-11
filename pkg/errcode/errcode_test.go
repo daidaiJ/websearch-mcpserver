@@ -31,7 +31,7 @@ func (e externalCoded) Error() string   { return "external" }
 func (e externalCoded) ErrorCode() Code { return e.code }
 
 func TestCodeOfExternalCoder(t *testing.T) {
-	var err error = fmt.Errorf("wrapped: %w", externalCoded{code: RateLimit})
+	err := fmt.Errorf("wrapped: %w", externalCoded{code: RateLimit})
 	if got := CodeOf(err); got != RateLimit {
 		t.Fatalf("CodeOf = %q, want %q", got, RateLimit)
 	}
