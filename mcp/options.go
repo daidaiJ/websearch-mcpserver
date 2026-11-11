@@ -33,7 +33,7 @@ func WithSearchEngine(conf config.Config) ServerOption {
 
 // WithSummarizer 在 LLM 配置就绪时初始化摘要器。
 func WithSummarizer(conf config.Config) ServerOption {
-	return func() error { applySummarizer(conf); return nil }
+	return func() error { return applySummarizer(conf) }
 }
 
 // WithCache 在缓存配置就绪时初始化缓存。
@@ -43,24 +43,24 @@ func WithCache(conf config.Config) ServerOption {
 
 // WithJinaReader 在 Jina API Key 配置就绪时初始化 Jina Reader。
 func WithJinaReader(conf config.Config) ServerOption {
-	return func() error { applyJinaReader(conf); return nil }
+	return func() error { return applyJinaReader(conf) }
 }
 
 // WithWebFetch 在 CleanFetch 启用时初始化 go-webfetch 引擎；
 // 未启用时保留配置，供 fetch_top_n 惰性初始化。
 func WithWebFetch(conf config.Config) ServerOption {
-	return func() error { applyWebFetch(conf); return nil }
+	return func() error { return applyWebFetch(conf) }
 }
 
 // WithMCPHubFetch 在 mcp_hub.fetch_mode 非 off 时初始化托管 MCP 抓取增强。
 func WithMCPHubFetch(conf config.Config) ServerOption {
-	return func() error { applyMCPHubFetch(conf); return nil }
+	return func() error { return applyMCPHubFetch(conf) }
 }
 
 // WithSearchHistory 在 search_history.enabled=true 时初始化本地搜索历史（FTS5）。
 // 默认关闭：不建库、不注册工具。
 func WithSearchHistory(conf config.Config) ServerOption {
-	return func() error { applySearchHistory(conf); return nil }
+	return func() error { return applySearchHistory(conf) }
 }
 
 func applySearchHistory(conf config.Config) error {
@@ -87,7 +87,7 @@ func applySearchHistory(conf config.Config) error {
 // 启动期探测会因时序竞争在 Everything 未就绪时误判不可用，导致
 // file_search 工具整个进程周期缺失。
 func WithEverything(conf config.Config) ServerOption {
-	return func() error { applyEverything(conf); return nil }
+	return func() error { return applyEverything(conf) }
 }
 
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
