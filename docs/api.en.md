@@ -225,6 +225,8 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 
 Provides a SearXNG-compatible search interface, works with LiteLLM and similar frameworks.
 
+> **Compatibility scope**: this is a JSON subset that reads only `q`; `categories`, `engines`, `pageno` and non-JSON `format` values are not supported. For per-engine selection, paging or other output formats, use MCP `smartsearch` (`sources` / `queries`) or filter on the client side.
+
 > **Auth**: when `auth_token` is set, requests must carry `Authorization: Bearer <token>` or `X-API-Key: <token>`, otherwise 401; empty `q` returns 400; no engine available returns 503.
 
 #### Request Example

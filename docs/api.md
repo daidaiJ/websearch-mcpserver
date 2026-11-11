@@ -225,6 +225,8 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 
 提供与 SearXNG 兼容的搜索接口，可对接 LiteLLM 等框架。
 
+> **兼容范围**：这是 JSON 子集，只读取 `q`；不支持 `categories` / `engines` / `pageno` 与 JSON 之外的 `format`。需要按引擎筛选、翻页或多种输出格式时，请使用 MCP 的 `smartsearch`（`sources` / `queries`）或客户端侧过滤。
+
 > **鉴权**：配置了 `auth_token` 时需携带 `Authorization: Bearer <token>` 或 `X-API-Key: <token>` 头，否则返回 401；`q` 为空返回 400；无可用引擎返回 503。
 
 #### 请求示例
