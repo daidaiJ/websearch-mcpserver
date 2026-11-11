@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"websearch/pkg/errcode"
 	"websearch/pkg/search/core"
 )
 
@@ -36,6 +37,22 @@ func (f *fakeSearch) SearchRawContext(ctx context.Context, query string) ([]core
 }
 func (f *fakeSearch) MergeContent(query string, results []core.SearchResult) (string, error) {
 	return strings.Join([]string{query, f.name}, "|"), nil
+}
+
+func TestBaiduWithFallbackBothFail(t *testing.T) {
+	primaryErr := errcode.New(errcode.RateLimit, "上游限流")
+	fallbackErr := errcode.New(errcode.Timeout, "回退超时")
+	w := NewBaiduWithFallback(&fakeSearch{name: "qianfan", err: primaryErr}, &fakeSearch{name: "baidu", err: fallbackErr})
+	_, err := w.SearchRaw("q")
+	if err == nil {
+		t.Fatal("both engines failed but no error returned")
+	}
+	if !errors.Is(err, primaryErr) || !errors.Is(err, fallbackErr) {
+		t.Fatalf("combined error must keep both causes: %v", err)
+	}
+	if !strings.Contains(err.Error(), "上游限流") || !strings.Contains(err.Error(), "回退超时") {
+		t.Fatalf("combined error must expose both reasons: %v", err)
+	}
 }
 
 func TestGitHubWithFallbackPrimaryWins(t *testing.T) {

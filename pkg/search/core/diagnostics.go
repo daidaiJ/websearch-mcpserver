@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 )
 
@@ -95,11 +96,21 @@ func ShortReason(err error) string {
 	return s
 }
 
-// ClassifyFailure 按错误消息关键词归类失败类型。
-// 各引擎错误消息为中文描述或上游原始信息，按常见关键词匹配；无法归类时为 error。
+// ClassifyFailure 归类失败类型：优先读取错误携带的稳定错误码，未知时回落到
+// 中英关键词匹配（兼容尚未接错误码的引擎与上游原始错误）。
 func ClassifyFailure(err error) FailureKind {
 	if err == nil {
 		return FailureError
+	}
+	switch errcode.CodeOf(err) {
+	case errcode.Timeout:
+		return FailureTimeout
+	case errcode.RateLimit:
+		return FailureRateLimit
+	case errcode.Challenge:
+		return FailureChallenge
+	case errcode.OffTopic:
+		return FailureOffTopic
 	}
 	msg := strings.ToLower(err.Error())
 	switch {

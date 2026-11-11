@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"websearch/pkg/config"
+	"websearch/pkg/errcode"
 	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/mineru"
 	"websearch/pkg/i18n"
@@ -182,10 +183,10 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 
 	res, err := f.engine.Fetch(ctx, rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", classifyError(err), err)
+		return nil, wrapClassified(err)
 	}
 	if res.Mode == "inline" && !fetchcontent.HasPageBody(res.Markdown, res.Title) {
-		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.webfetch.empty_body_js"), &webfetch.EmptyContentError{URL: rawURL, Title: res.Title, CharCount: res.TotalChars})
+		return nil, fmt.Errorf("%w: %w", errcode.New(errcode.Challenge, i18n.T("fetch.webfetch.empty_body_js")), &webfetch.EmptyContentError{URL: rawURL, Title: res.Title, CharCount: res.TotalChars})
 	}
 	return &Result{
 		Title:       res.Title,
@@ -335,9 +336,9 @@ func (f *Fetcher) FetchPDFWithPages(ctx context.Context, rawURL string, pages []
 	}
 	if err != nil {
 		if mineruErr != nil {
-			return nil, fmt.Errorf("%s: %w; %s: %s: %w", i18n.T("fetch.webfetch.mineru_parse_failed"), mineruErr, i18n.T("fetch.webfetch.text_fallback_failed"), classifyError(err), err)
+			return nil, fmt.Errorf("%s: %w; %s: %w", i18n.T("fetch.webfetch.mineru_parse_failed"), mineruErr, i18n.T("fetch.webfetch.text_fallback_failed"), wrapClassified(err))
 		}
-		return nil, fmt.Errorf("%s: %w", classifyError(err), err)
+		return nil, wrapClassified(err)
 	}
 
 	out := &Result{
@@ -607,8 +608,9 @@ func (f *Fetcher) CleanExpiredFiles() (int, error) {
 	return count, nil
 }
 
-// classifyError 将 go-webfetch 的错误分类为面向用户的错误信息（按当前语言渲染）。
-func classifyError(err error) string {
+// classifyError 将 go-webfetch 的错误分类为面向用户的错误信息（按当前语言渲染）
+// 并给出稳定错误码；文案随语言变化，错误码保持不变。
+func classifyError(err error) (string, errcode.Code) {
 	var notFound *webfetch.NotFoundError
 	var waf *webfetch.WAFError
 	var empty *webfetch.EmptyContentError
@@ -617,16 +619,26 @@ func classifyError(err error) string {
 
 	switch {
 	case errors.As(err, &notFound):
-		return i18n.T("fetch.webfetch.err_page_not_found", "Status", notFound.StatusCode)
+		return i18n.T("fetch.webfetch.err_page_not_found", "Status", notFound.StatusCode), errcode.NoResult
 	case errors.As(err, &waf):
-		return i18n.T("fetch.webfetch.err_waf")
+		return i18n.T("fetch.webfetch.err_waf"), errcode.Challenge
 	case errors.As(err, &empty):
-		return i18n.T("fetch.webfetch.err_empty_maybe_antibot")
+		return i18n.T("fetch.webfetch.err_empty_maybe_antibot"), errcode.Challenge
 	case errors.As(err, &ssrf):
-		return i18n.T("fetch.webfetch.err_private_address")
+		return i18n.T("fetch.webfetch.err_private_address"), errcode.Blocked
 	case errors.As(err, &timeout):
-		return i18n.T("fetch.webfetch.err_timeout")
+		return i18n.T("fetch.webfetch.err_timeout"), errcode.Timeout
 	default:
-		return i18n.T("fetch.webfetch.err_fetch_failed", "Err", err)
+		return i18n.T("fetch.webfetch.err_fetch_failed", "Err", err), errcode.Unknown
 	}
+}
+
+// wrapClassified 在保留原有「本地化描述: 原始错误」文本的同时附上错误码。
+// Unknown 不附加错误码，留给调用方的关键词兜底。
+func wrapClassified(err error) error {
+	prefix, code := classifyError(err)
+	if code == "" || code == errcode.Unknown {
+		return fmt.Errorf("%s: %w", prefix, err)
+	}
+	return fmt.Errorf("%w: %w", errcode.New(code, prefix), err)
 }

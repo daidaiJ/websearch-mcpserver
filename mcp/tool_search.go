@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"websearch/pkg/cache"
+	"websearch/pkg/errcode"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
@@ -199,7 +200,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 			haveDiag = false // 回退改用单引擎，主编排的诊断不再归属本次响应
 			// 回退也失败时，错误信息带上主引擎失败原因，保证空结果可归因
 			if err != nil {
-				return nil, nil, errors.New(i18n.T("tool.search.main_engine_also_failed", "Err", err, "MainErr", mainErr))
+				return nil, nil, errcode.Message(i18n.T("tool.search.main_engine_also_failed", "Err", err, "MainErr", mainErr), errors.Join(err, mainErr))
 			}
 		}
 		if err != nil {
@@ -533,9 +534,15 @@ func annotateFetchFailure(snippet string, err error) string {
 }
 
 // isAntiBotFailure 判断抓取错误是否为反爬防护类。
-// webfetch.Fetch 把底层错误分类为人类可读描述（webfetch.go classifyError），这里按关键词识别；
-// 关键词中英并列，文案随语言切换不影响判类。
+// 优先读 webfetch 附带的稳定错误码；未附码的错误（上游原始信息）按中英关键词兜底。
 func isAntiBotFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch errcode.CodeOf(err) {
+	case errcode.Challenge:
+		return true
+	}
 	msg := strings.ToLower(err.Error())
 	for _, kw := range []string{"反爬", "挑战", "验证码", "waf", "captcha", "challenge", "anti-bot", "antibot"} {
 		if strings.Contains(msg, kw) {
