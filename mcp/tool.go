@@ -28,9 +28,13 @@ type projectParams struct {
 // 通过匿名嵌入组合：字段与 jsonschema 描述只在一处维护，SDK 会提升嵌入字段。
 type searchBaseParams struct {
 	projectParams
-	Query     string `json:"query" jsonschema:"mcp.param.search.query"`
-	TimeRange *int   `json:"time_range,omitempty" jsonschema:"mcp.param.search.time_range"`
-	FetchTopN *int   `json:"fetch_top_n,omitempty" jsonschema:"mcp.param.search.fetch_top_n"`
+	Query     string   `json:"query,omitempty" jsonschema:"mcp.param.search.query"`
+	Queries   []string `json:"queries,omitempty" jsonschema:"mcp.param.search.queries"`
+	Depth     string   `json:"depth,omitempty" jsonschema:"mcp.param.search.depth"`
+	Sources   []string `json:"sources,omitempty" jsonschema:"mcp.param.search.sources"`
+	MaxChars  *int     `json:"max_chars,omitempty" jsonschema:"mcp.param.search.max_chars"`
+	TimeRange *int     `json:"time_range,omitempty" jsonschema:"mcp.param.search.time_range"`
+	FetchTopN *int     `json:"fetch_top_n,omitempty" jsonschema:"mcp.param.search.fetch_top_n"`
 }
 
 type SearchParamsWithIntent struct {

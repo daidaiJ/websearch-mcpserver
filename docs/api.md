@@ -76,6 +76,8 @@ func (s *Server) Handler(conf config.Config) http.Handler
 
 适合嵌入场景——调用方自行创建 `http.Server`，可复用已有端口、TLS 配置或中间件栈。
 
+**嵌入边界**：组件初始化是急切的，搜索引擎/缓存等构造失败会 panic（便于启动期暴露配置错误）；嵌入方应在调用前校验配置，或在边界 `recover` 后转为自身错误返回。装配使用包级单例，按进程单实例设计，多个 `Server` 实例共享同一组组件；需要多实例请拆进程。`Run` 的端口监听失败返回 error，不 panic。
+
 ### 使用示例
 
 #### 方式一：完整托管（CLI / 独立部署）
@@ -159,7 +161,7 @@ MCP 客户端通过此端点完成协议握手、工具列表获取和工具调�
 
 | 工具名 | 说明 | 参数 |
 |--------|------|------|
-| `smartsearch` | 网络检索 | `query`（必填）、`intent`（可选，LLM 启用时可用）、`time_range`（可选，月；省略/null 为 3，显式 0 不发送时间筛选，负数拒绝；上游粒度不同）、`fetch_top_n`（可选：不传与旧版一致只返回自带内容（服务端默认 0 可配），传 0 只要标题摘要和 URL，传 1-5 获取前 N 条页面原文——API 引擎走快速路径、网页引擎内部抓取，反爬拦截会显式标注） |
+| `smartsearch` | 网络检索 | `query`（与 `queries` 二选一）、`queries`（最多 5 条批量）、`intent`（可选，LLM 启用时可用）、`time_range`（可选，月；省略/null 为 3，显式 0 不发送时间筛选，负数拒绝；上游粒度不同）、`depth`（`fast`/`balanced`/`deep`）、`sources`（`web`/`academic`）、`max_chars`（共享正文预算）、`fetch_top_n`（可选：不传与旧版一致只返回自带内容（服务端默认 0 可配），传 0 只要标题摘要和 URL，传 1-5 获取前 N 条页面原文——API 引擎走快速路径、网页引擎内部抓取，反爬拦截会显式标注） |
 | `academicsearch` | 学术论文检索（arXiv / Crossref / OpenAlex / PubMed / Europe PMC / DBLP / DOAJ 等） | `query`（必填；也可直接传 DOI 或 arXiv id 走单篇精确查询，忽略 `time_range`/`page`，仍遵守已启用来源与指定 `engines`）、`engines`（可选）、`time_range`（可选：`year`/`month`/`week`/`day`）、`page`（可选） |
 | `cleanfetch` | URL 抓取返回 Markdown，或读取已保存正文；始终注册 | `url`/`urls`（抓取，合并去重最多 5 个，需 `cleanfetch.enabled=true`）；或 `result_ref`（引用读取）及 `offset`（默认 0）、`limit`（默认/0 为 4096，上限 8192）；两种模式互斥，分页字段仅用于引用模式 |
 | `pdf_parser` | PDF 解析，支持 MinerU AI 增强（表格/公式/多栏识别） | `path`（新解析必填，本地路径或远程 URL；与 `task_ref` 互斥）、`task_ref`（续查原 MinerU 任务）、`wait_seconds`（0-1800，每任务新解析默认 300，续查默认 0）、`pages`（可选页码范围，如 1-10；单个区间宽度上限 1000 页） — 需配置 `pdf_parser.enabled`，可选 `mineru_token`；省略 pages 时受 `max_pages`（默认 20）约束。请求页码超出单任务上限（默认 600，`mineru_page_limit` 可调）或 MinerU 拒绝原件页数／URL 时，本地裁切所选页再上传（`mineru_page_batch_size` 可开启自动分批，`mineru_page_budget` 控制单次页数预算；分批进度经 MCP progress notification 实时推送）；精准 API 返回含图片 ZIP 地址，轻量 API 单次上限 20 页 |
@@ -223,6 +225,8 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 
 提供与 SearXNG 兼容的搜索接口，可对接 LiteLLM 等框架。
 
+> **兼容范围**：这是 JSON 子集，只读取 `q`；不支持 `categories` / `engines` / `pageno` 与 JSON 之外的 `format`。需要按引擎筛选、翻页或多种输出格式时，请使用 MCP 的 `smartsearch`（`sources` / `queries`）或客户端侧过滤。
+
 > **鉴权**：配置了 `auth_token` 时需携带 `Authorization: Bearer <token>` 或 `X-API-Key: <token>` 头，否则返回 401；`q` 为空返回 400；无可用引擎返回 503。
 
 #### 请求示例
@@ -265,9 +269,9 @@ search_tools:
 | 路径 | `GET /metrics` |
 | Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
 
-Prometheus / OpenMetrics 文本格式的只读聚合：今日 MCP 工具调用（按工具名）与搜索供应商调用（按供应商名）的请求数、成功/失败数、缓存命中数、延迟分桶，数据全部来自遥测库的脱敏记录（查询只存哈希与关键词，不含 URL、原文或密钥），不做主动探测。
+Prometheus / OpenMetrics 文本格式的只读聚合。进程内指标始终可用：在飞 HTTP 请求数、进程 uptime、goroutine 数、堆分配字节数与 `websearch_telemetry_enabled`。控制中心启用时再追加今日 MCP 工具调用（按工具名）与搜索供应商调用（按供应商名）的请求数、成功/失败数、缓存命中数与延迟分桶；这部分来自遥测库的脱敏记录（查询只存哈希与关键词，不含 URL、原文或密钥），不做主动探测。
 
-- 需 `dashboard.enabled: true`（遥测库随控制中心启用）；未启用返回 503。
+- 进程内指标不依赖控制中心；遥测序列随 `dashboard.enabled: true` 出现，关闭时省略并在 `websearch_telemetry_enabled` 标 0。
 - 端点只读，与写操作守卫无关；只接受 `GET` / `HEAD`。
 - 示例：`curl -s http://127.0.0.1:8338/metrics`
 

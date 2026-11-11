@@ -75,9 +75,7 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 			return nil, nil, err
 		}
 		count = 1
-		result := textResult(string(body))
-		result.StructuredContent = page
-		return result, nil, nil
+		return textResult(string(body)), nil, nil
 	}
 	if params.Offset != nil || params.Limit != nil {
 		return nil, nil, errors.New(i18n.T("tool.cleanfetch.offset_requires_ref"))

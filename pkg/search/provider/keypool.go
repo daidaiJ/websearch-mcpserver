@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
@@ -187,6 +188,21 @@ func (e *KeyError) Error() string {
 }
 
 func (e *KeyError) Unwrap() error { return e.Err }
+
+// ErrorCode exposes the stable failure code for diagnostics and telemetry.
+// The provider-level Kind is more specific than an HTTP status, so map from it.
+func (e *KeyError) ErrorCode() errcode.Code {
+	switch e.Kind {
+	case KeyErrorAuth:
+		return errcode.AccessDenied
+	case KeyErrorRateLimit:
+		return errcode.RateLimit
+	case KeyErrorContent:
+		return errcode.Unknown
+	default:
+		return errcode.Network
+	}
+}
 
 // ErrNoAvailableKey 池内无可用 key 的稳定哨兵（errors.Is 判定），自身文本不做本地化。
 var ErrNoAvailableKey = errors.New("provider: no available key")

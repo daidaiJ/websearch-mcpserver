@@ -2,10 +2,10 @@ package antirobot
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 )
 
@@ -17,9 +17,9 @@ import (
 // ClassifyFailure 与 telemetry.ClassifyErrorKind 都看不到限流这一类（B12）。
 // 统一返回本哨兵后，归因链路（失败清单 / 控制中心失败构成）才完整。
 //
-// 哨兵自身文本固定为英文（不做本地化）：它是 errors.Is 的身份，同时「rate limit」
-// 也落在 core.ClassifyFailure / telemetry.ClassifyErrorKind 的关键词表内。
-var ErrLocalRateLimit = errors.New("local rate limit")
+// 哨兵自身文本固定为英文（不做本地化）：它是 errors.Is 的身份；同时带上
+// rate_limit 错误码，判类不再依赖「rate limit」这个英文关键词。
+var ErrLocalRateLimit = errcode.New(errcode.RateLimit, "local rate limit")
 
 // LocalRateLimitReason 本端限流的短原因（本地化，进失败清单与日志）。
 func LocalRateLimitReason() string {

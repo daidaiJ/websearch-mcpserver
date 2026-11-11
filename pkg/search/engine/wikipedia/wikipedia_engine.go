@@ -4,6 +4,7 @@
 package wikipedia
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,6 +74,8 @@ type wikipediaEngine struct {
 func (e *wikipediaEngine) Name() string                    { return "wikipedia" }
 func (e *wikipediaEngine) Region() antirobot.NetworkRegion { return antirobot.RegionInternational }
 
+var _ antirobot.ContextEngine = (*wikipediaEngine)(nil)
+
 // wikiSearchResp MediaWiki list=search 响应（仅取用到的字段）。
 type wikiSearchResp struct {
 	Error struct {
@@ -89,6 +92,17 @@ type wikiSearchResp struct {
 }
 
 func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+// SearchContext 实现 antirobot.ContextEngine：ctx 取消后请求立即中止。
+func (e *wikipediaEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// MediaWiki list=search 无时间过滤参数，freshness 请求退化为普通搜索
 	if !e.limiter.Allow() {
 		// 本端限流：返回哨兵错误而不是「空结果 + nil」（B12）
@@ -102,7 +116,7 @@ func (e *wikipediaEngine) Search(query string, page int, timeRange antirobot.Tim
 	query = sanitizeWikiQuery(query)
 
 	u := e.buildURL(query, page)
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}

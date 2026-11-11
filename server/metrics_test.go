@@ -25,7 +25,7 @@ func newMetricsTestMux(t *testing.T) (*http.ServeMux, *telemetry.Store) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	(&Server{}).registerMetricsHandler(mux, store)
+	New().registerMetricsHandler(mux, store)
 	return mux, store
 }
 
@@ -47,6 +47,10 @@ func TestMetricsEndpointRendersPrometheusText(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
+		`websearch_process_inflight_requests 0`,
+		`websearch_process_uptime_seconds `,
+		`websearch_process_goroutines `,
+		`websearch_telemetry_enabled 1`,
 		`websearch_tool_requests_total{tool="smartsearch"} 1`,
 		`websearch_tool_cache_hit_total{tool="smartsearch"} 1`,
 		`websearch_provider_failure_total{provider="bing"} 1`,
@@ -58,14 +62,52 @@ func TestMetricsEndpointRendersPrometheusText(t *testing.T) {
 	}
 }
 
-// TestMetricsEndpointDisabledWithoutTelemetry 遥测未启用时返回 503，不泄露数据。
-func TestMetricsEndpointDisabledWithoutTelemetry(t *testing.T) {
+// TestMetricsEndpointWithoutTelemetry 遥测未启用时仍输出进程内指标。
+func TestMetricsEndpointWithoutTelemetry(t *testing.T) {
 	mux := http.NewServeMux()
-	(&Server{}).registerMetricsHandler(mux, nil)
+	New().registerMetricsHandler(mux, nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("状态码 %d, 期望 503", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("状态码 %d, 期望 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`websearch_process_inflight_requests `,
+		`websearch_process_uptime_seconds `,
+		`websearch_telemetry_enabled 0`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("输出缺少 %q\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "websearch_tool_requests_total") {
+		t.Errorf("遥测关闭时不应输出工具聚合\n%s", body)
+	}
+}
+
+// TestInstrumentTracksInflight instrument 在请求处理期间递增、结束后归零。
+func TestInstrumentTracksInflight(t *testing.T) {
+	s := New()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := s.instrument(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+	}))
+	done := make(chan struct{})
+	go func() {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+		close(done)
+	}()
+	<-started
+	if got := s.inflight.Load(); got != 1 {
+		t.Fatalf("inflight = %d, want 1", got)
+	}
+	close(release)
+	<-done
+	if got := s.inflight.Load(); got != 0 {
+		t.Fatalf("inflight after response = %d, want 0", got)
 	}
 }
 

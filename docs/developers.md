@@ -18,6 +18,8 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 所有包 ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
 
+`pkg/errcode` 是叶子包（只依赖标准库）：`core`、`telemetry`、`provider`、`webfetch`、`mcp` 共享同一套稳定错误码，判类不再依赖本地化文案。
+
 ## 2. 各包职责与关键接口
 
 ### 顶层装配
@@ -37,7 +39,7 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `search/core` | 类型契约叶子层：所有子包共用，**禁止** import 其它 search 子包 | `SearchInf`、`SearchResult`、`SearchTimeRanger`、`ContextSearcher`/`ContextTimeRanger`/`ContextAcademicSearcher`、`DiagnosticsSearcher`/`ContextDiagnosticsSearcher`、`AcademicSearcher`、`ScoreBucket`、`FilterByScore/SortByScore`、`NormalizeURL`、`FormatMD` 系列结果格式化 |
 | `search/engine` | 底层网页引擎（HTTP 抓取 + 反检测参数），实现 `antirobot.Engine` | `baidu/bing/ddg/google` 各自的 `Engine` + `Opts` |
 | `search/provider` | API 供应商适配器（实现 `SearchInf`）+ Key 池 | `NewTavilySearch/NewExaSearchWithResults/NewAnysearchSearch/NewDoubaoSearch/NewYuanbaoSearch/NewBaiduAISearch/NewBaiduSeach`、`KeyPool`（单供应商 SK 轮转；`Next`/`NextUsable`、`MarkInvalid`/`MarkInvalidFor`）、`KeyError`（带 `Kind` 分类：auth/rate_limit/transport/content）|
-| `search/provider/mcphub` | 托管 MCP 级联 hub（实现 `SearchInf` + `Fetch`） | `New`、presets（parallel/anysearch/exa/firecrawl）、MCP Streamable HTTP 客户端、`priority`/`round-robin`、搜索/抓取独立冷却、结果解析 |
+| `search/provider/mcphub` | 托管 MCP 级联 hub（实现 `SearchInf` + `Fetch`） | `New`、presets（parallel/anysearch/exa/firecrawl）、MCP Streamable HTTP 客户端（透传入站 UA）、`priority`/`round-robin`、搜索/抓取独立冷却、结果解析 |
 | `search/adapter` | 把「非 API 供应商」适配成 `SearchInf` | `EngineSearchAdapter`（antirobot.Engine → SearchInf）、`BingSearchAdapter`、`BaiduWithFallback`、`AcademicAdapter`（学术 → SearchInf/AcademicSearcher） |
 | `search/apipool` | 跨供应商轮转策略（与 hybrid 同级实现） | `ApipoolSearchImpl`（round-robin/priority/weighted）、`ApipoolProvider` |
 | `search/hybrid` | 多引擎并发编排策略 | `HybridSearchImpl`（并发调用、请求 ctx 下传与 per-engine 软超时、去重合并、`EngineFilter` per-engine 过滤、失败诊断） |
@@ -60,6 +62,8 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `pkg/proxy` | 系统代理检测（注册表/WinHTTP，10s TTL）+ transport 池 | `DetectSystemProxy` |
 | `pkg/daemon` | 引用计数进程管理 | — |
 | `pkg/log` / `pkg/xml`(已并入 search/core) | 日志配置 / — | — |
+| `pkg/errcode` | 跨包稳定错误码（timeout / rate_limit / challenge / blocked / access_denied / parse / no_result / network / off_topic） | `CodeOf`、`New`、`Wrap`、`Message` |
+| `bench/quality` | 离线检索质量回放：固定中英 fixture，输出 P@8 / R@8 / MRR@8 并设回归门槛 | `go test ./bench/quality/` |
 
 ## 3. 「我要改 X」对照表
 
@@ -70,8 +74,10 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | 新增托管 MCP server / 调整级联顺序 | `pkg/search/provider/mcphub/hub.go` 的 presets 与 `config.MCPHubConfig.GetServers`；抓取顺序在 `mcp/tool_cleanfetch.go` 的 `fetchPageWithFallback` |
 | 调整搜索模式组合逻辑 / 兜底顺序 | `pkg/search/mode/factory.go`；模式开关在根包 `factory.go` 的 switch |
 | 改多引擎去重/合并/per-engine 过滤 | `pkg/search/hybrid/hybrid.go` |
-| 改 apipool 轮转策略、SK 失效标记 | `pkg/search/apipool/apipool.go`（Key 池原语在 `provider/keypool.go`） |
-| 改评分（RRF/Boost/阀值/MMR） | `pkg/search/enhance/`（web）与 `enhance/academic_enhance.go`（学术）；scoreBucket 结构在 `search/core` |
+| 改 apipool 轮转策略、SK 失效标记 | `pkg/search/apipool/apipool.go`（Key 池原语在 `provider/keypool.go`）；供应商 Key 池按 `mode.ProviderPools` 的命名字段传入 |
+| 改 `/metrics` 指标 | 进程内指标在 `server/metrics.go` 的 `renderProcessMetrics`；工具/供应商聚合来自 `pkg/telemetry` |
+| 改评分（RRF/Boost/阀值/MMR） | `pkg/search/enhance/`（web）与 `enhance/academic_enhance.go`（学术）；scoreBucket 结构在 `search/core`；改完跑 `bench/quality` 看 P@8 / R@8 / MRR@8 |
+| 改失败判类 / 新增错误码 | 新码加在 `pkg/errcode`；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 先读码，未知时回落中英关键词 |
 | 改结果输出格式（Markdown 样式） | `pkg/search/core/format_md.go`（所有引擎共用） |
 | 改某引擎限流/反检测参数 | `pkg/antirobot/` 层 + 引擎 Opts；**勿**在引擎包内重复实现限流 |
 | 学术源增删 / DOI 单篇 / OA 补全 | `pkg/academic/`；学术工具描述在 `mcp/server.go buildAcademicToolDescription` |
@@ -98,7 +104,7 @@ mcp/server.go registerTools（按 LLM 开关注册 With/NoIntent 两套 schema�
         │                                / apipool.ApipoolSearchImpl（轮转）
         │                                / provider.*（单供应商）
         │          每个 provider/adapter ─► pkg/search/engine/* 或外部 API
-        │                                  ─► pkg/antirobot（限流/TLS/UA）
+        │                                  ─► pkg/antirobot（限流 / UA 轮换；TLS 指纹只在 webfetch）
         ├► postSearchFilter（单引擎模式的 score/maxsize 过滤，FilterByScore 来自 core）
         ├► enrichFetchedTopN ─► ensureWebFetch（未启用 cleanfetch/pdf_parser 时惰性初始化）
         │                      └► pkg/fetch/webfetch（fetch_top_n 抓正文，SSRF+HEAD 预检+字节上限）

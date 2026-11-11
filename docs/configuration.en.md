@@ -426,6 +426,8 @@ pdf_parser:
 # Note: the hosted MCP exa/anysearch and the same-named apipool providers point at different
 # entrances of the same upstream (the former usually the anonymous per-egress-IP tier, the
 # latter your configured key); allowances are separate but share the egress IP.
+# Outbound calls forward the inbound MCP request's User-Agent (the agent host's real UA);
+# stdio, background work, or an invalid UA falls back to the built-in desktop UA.
 # mcp_hub:
 #   enabled: true
 #   strategy: priority      # priority (default, stability first) / round-robin

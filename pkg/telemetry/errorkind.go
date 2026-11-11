@@ -3,6 +3,8 @@ package telemetry
 import (
 	"regexp"
 	"strings"
+
+	"websearch/pkg/errcode"
 )
 
 // Error kinds classify why a tool or provider call failed. They are derived
@@ -26,10 +28,27 @@ var (
 )
 
 // ClassifyErrorKind returns a stable category for an error. Recording applies
-// this automatically; callers may also invoke it directly.
+// this automatically; callers may also invoke it directly. Errors carrying a
+// stable code are classified without reading localized text.
 func ClassifyErrorKind(err error) string {
 	if err == nil {
 		return ErrorKindNone
+	}
+	switch errcode.CodeOf(err) {
+	case errcode.Timeout:
+		return ErrorKindTimeout
+	case errcode.RateLimit:
+		return ErrorKindRateLimit
+	case errcode.Challenge:
+		return ErrorKindCaptcha
+	case errcode.Blocked, errcode.AccessDenied:
+		return ErrorKindAccessDenied
+	case errcode.Parse:
+		return ErrorKindParse
+	case errcode.NoResult:
+		return ErrorKindNoResult
+	case errcode.Network:
+		return ErrorKindNetwork
 	}
 	return classifyErrorMessage(strings.ToLower(err.Error()))
 }

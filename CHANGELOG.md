@@ -4,8 +4,27 @@
 
 ## Unreleased
 
+### 新增
+
+- **MCP `initialize` 下发工具选择 instructions**：服务端在 `ServerOptions.Instructions` 中返回一段中英双语的选择纪律（smartsearch 发现来源、cleanfetch 读正文、academicsearch 查论文、file_search 查本地文件、search_history 查历史），并说明参数默认值与作用域；调用方显式设置 `Instructions` 时尊重其值。此前该字段为空，客户端无法把工具分工并入系统提示
+- **离线检索质量评测集 `bench/quality`**：20 条中英固定 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），输出逐 case 的 P@8 / R@8 / MRR@8 与聚合均值；断言命中数与首个相关结果排名，聚合门槛用于拦截评分权重/阈值退化。零网络依赖、随 `go test ./...` 运行
+- **稳定错误码 `pkg/errcode`**：`timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`；支持 `errors.As` 穿透包装，并可用 `Message` 替换展示文案而保留原始错误链
+- **smartsearch 增加批量、深度、来源与上下文预算参数**：`queries` 最多 5 条（与 `query` 互斥，逐条独立检索、分节返回，单条失败不影响其它；批量只记一条 tool 事件）；`depth` 支持 `fast` / `balanced` / `deep`（deep 默认抓前 3 条正文并启用 24000 字符预算，显式 `fetch_top_n` / `max_chars` 优先）；`sources` 支持 `web` / `academic`（可同时指定，academic 走现有学术缓存与逐引擎错误）；`max_chars` 为所有结果共享的正文总预算，按条均分，超出时截断并提示用 cleanfetch 读全文
+- **cleanfetch 的 `result_ref` 不再重复正文**：此前同一份分页 JSON 同时写入文本内容与 `structuredContent`，大页面等于传输两遍；现在只保留文本 JSON，客户端按 `content` 读取
+
+### 变更
+
+- **`/metrics` 增加进程内指标**：始终输出在飞 HTTP 请求数、进程 uptime、goroutine 数、堆分配字节与 `websearch_telemetry_enabled`；控制中心启用时再追加原有工具/供应商聚合。控制台关闭时端点从 503 改为 200，仅省略遥测序列，避免监控在关闭控制台后整段失明
+- **provider Key 池改为命名结构体 `mode.ProviderPools`**：`BuildApipoolMode` / `BuildHybridMode` 由 8–9 个同类型 `*KeyPool` 位置参数改为按供应商命名的字段，新增供应商不会再因参数错位而静默接错池
+- **`core.ShowMeta` 改为原子访问**：由包级 bool 改为 `atomic.Bool` + `SetShowMeta` / `ShowMetaEnabled`，消除并发读取全局配置值的数据竞争
+- **`depth` / `max_chars` / `fetch_top_n` 的作用域显式化**：三者只塑造 web 分节的正文；`sources` 仅请求 `academic` 时显式传这三个参数会返回错误，避免参数被静默忽略。同时请求 web 与 academic 时，学术分节按自身默认返回；工具描述与 server instructions 同步写明这一边界
+
 ### 修复
 
+- **错误判类不再依赖本地化文案**：`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 三处此前按中英关键词匹配，切换语言或改文案就会漂移。现在优先读取 `pkg/errcode` 的稳定错误码（`antirobot` 本端限流哨兵、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类均已附码），未知错误继续回落关键词，兼容尚未接码的上游错误
+- **百度 API 回退双失败保留主备两侧原因**：`adapter/baidu_fallback.go` 此前主引擎失败后直接返回回退结果，回退再失败时只剩回退错误。现在用 `errcode.Message` 组合两侧原因，`errors.Is` 仍可命中任一原始错误
+- **googlenews / wikipedia 补齐 `ContextEngine`**：两个引擎此前不接收请求 ctx，编排层软超时后请求仍会跑完。现在 `SearchContext` 用 `NewRequestWithContext` 及时中止，`Search` 委托到同一实现
+- **托管 MCP 上游改用 agent 的真实 User-Agent**：`mcphub` 调用 Parallel / AnySearch / Exa / Firecrawl 时，此前固定发内置 Chrome UA，入站 MCP 客户端的 UA 完全不下发。现在透传入站 `tools/call` 请求的 `User-Agent`（agent 宿主身份），stdio、后台任务或非法/超长 UA 回退内置桌面 UA；上游看到的不再是统一的浏览器伪装
 - **CI 构建缓存不再冻结（`-fuzz` 插桩重编）**：`setup-go` 内置缓存命中 primary key 后不再回写，`~/.cache/go-build` 冻结在首次构建，导致 `-fuzz` 所需的覆盖率插桩二进制每次运行从零重编（实测约 70 秒，约占该步 105 秒的三分之二）。`ci.yml` 关闭内置缓存，改为显式恢复：模块缓存沿用 `go-module-cache.yml` 的路径与键（只恢复、不重复上传），构建缓存改用滚动键 `go-build-<os>-<hash(go.sum)>-<run_number>` + 前缀回退，仅 master 推送回写、PR 只读恢复
 - **Docker 缓存后端改为镜像仓库**：`type=gha` 在本仓库从未命中——该工作流只由 tag 触发，而 gha 缓存按 ref 隔离、tag 之间互不可见（master 不构建镜像），实测连续三个 tag 导入的 cache manifest 各不相同、`CACHED` 零出现，同时 69 个 buildkit 条目白占约 2.4GB 缓存配额。改用 `type=registry` 指向 `ghcr.io/<repo>:buildcache`，跨 tag 共享且不占 Actions 缓存配额
 - **纯文档推送不再跑全量构建**：`ci.yml` 的 `push` / `pull_request` 增加共享的 `paths-ignore`（YAML 锚点），用宽通配而非逐文件白名单——`**.md` / `**.MD`、`docs/**`、`skills/**`，加仓库根目录的 `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt`，新增文档目录或根目录配图都不必再改清单。只有全部改动路径都命中才跳过，混合提交照常触发。图片只忽略根目录（`*` 不跨目录）：`cmd/assets/*.ico` 与 `pkg/dashboard/web/logo-*.png` 是 `go:embed` 的编译输入，加 `**/*.png` 会让改图标不重编二进制

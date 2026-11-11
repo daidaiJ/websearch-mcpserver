@@ -231,11 +231,29 @@ func BuildYuanbaoMode(conf config.Config, pool *provider.KeyPool, fallback *adap
 	return newYuanbaoFromConf(pool, conf)
 }
 
+// ProviderPools groups the optional API-key pools by provider. Named fields
+// keep call sites readable and stop a new provider from silently shifting
+// positional arguments.
+type ProviderPools struct {
+	Anysearch *provider.KeyPool
+	Baidu     *provider.KeyPool
+	Tavily    *provider.KeyPool
+	Exa       *provider.KeyPool
+	Doubao    *provider.KeyPool
+	Yuanbao   *provider.KeyPool
+	Tinyfish  *provider.KeyPool
+	Keenable  *provider.KeyPool
+}
+
 // BuildApipoolMode API Key 池轮转模式：每次请求只调用一个供应商，失败自动切换下一个。
 // 跨请求时供应商选择由策略决定（round-robin / priority / weighted），Key 均 round-robin 轮转。
 // 供应商顺序由 conf.Apipool.Engines 配置控制（默认 anysearch → baidu → tavily → exa）。
 // 百度端点由 baidu.enable_ai_search 配置控制（默认 true=智能搜索）。
-func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool *provider.KeyPool, baiduWeb *adapter.EngineSearchAdapter) core.SearchInf {
+func BuildApipoolMode(conf config.Config, pools ProviderPools, baiduWeb *adapter.EngineSearchAdapter) core.SearchInf {
+	anysearchPool, baiduPool := pools.Anysearch, pools.Baidu
+	tavilyPool, exaPool := pools.Tavily, pools.Exa
+	doubaoPool, yuanbaoPool := pools.Doubao, pools.Yuanbao
+	tinyfishPool, keenablePool := pools.Tinyfish, pools.Keenable
 	// 按配置顺序构建供应商（web 兜底始终追加在末尾）
 	var providers []apipool.ApipoolProvider
 	for _, name := range conf.Apipool.GetEngines() {
@@ -310,7 +328,11 @@ func BuildApipoolMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, 
 }
 
 // BuildHybridMode 全引擎混合模式：Anysearch（有 Key 走轮转 / 无 Key 匿名档）+ 百度搜索 + 百度网页 + 360 + Wikipedia + Google News + Tavily + Exa + 豆包（有 Key 时）+ Bing + Google + DuckDuckGo。
-func BuildHybridMode(conf config.Config, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool *provider.KeyPool, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
+func BuildHybridMode(conf config.Config, pools ProviderPools, ads EngineAdapters, fallback *adapter.BingSearchAdapter) core.SearchInf {
+	anysearchPool, baiduPool := pools.Anysearch, pools.Baidu
+	tavilyPool, exaPool := pools.Tavily, pools.Exa
+	doubaoPool, yuanbaoPool := pools.Doubao, pools.Yuanbao
+	tinyfishPool, keenablePool := pools.Tinyfish, pools.Keenable
 	var engines []core.SearchInf
 	if conf.APISourceEnabled("anysearch") {
 		// A nil pool uses the anonymous tier, governed by the same source switch.

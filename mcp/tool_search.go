@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"websearch/pkg/cache"
+	"websearch/pkg/errcode"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
@@ -29,12 +30,20 @@ import (
 
 // WebSearchWithIntent LLM 启用时的 tool handler。
 func WebSearchWithIntent(ctx context.Context, req *mcp.CallToolRequest, params *SearchParamsWithIntent) (*mcp.CallToolResult, any, error) {
-	return doWebSearch(ctx, req, params.Query, params.Intent, effectiveTimeRangeMonths(params.TimeRange), params.FetchTopN)
+	return doSmartSearch(ctx, req, smartSearchRequest{
+		Query: params.Query, Queries: params.Queries, Intent: params.Intent,
+		TimeRange: params.TimeRange, FetchTopN: params.FetchTopN,
+		Depth: params.Depth, Sources: params.Sources, MaxChars: params.MaxChars,
+	})
 }
 
 // WebSearchNoIntent LLM 未启用时的 tool handler。
 func WebSearchNoIntent(ctx context.Context, req *mcp.CallToolRequest, params *SearchParamsNoIntent) (*mcp.CallToolResult, any, error) {
-	return doWebSearch(ctx, req, params.Query, "", effectiveTimeRangeMonths(params.TimeRange), params.FetchTopN)
+	return doSmartSearch(ctx, req, smartSearchRequest{
+		Query: params.Query, Queries: params.Queries,
+		TimeRange: params.TimeRange, FetchTopN: params.FetchTopN,
+		Depth: params.Depth, Sources: params.Sources, MaxChars: params.MaxChars,
+	})
 }
 
 func effectiveTimeRangeMonths(months *int) int {
@@ -44,10 +53,43 @@ func effectiveTimeRangeMonths(months *int) int {
 	return *months
 }
 
+type webSearchStats struct {
+	engineName  string
+	cacheHit    bool
+	resultCount int
+}
+
+type webSearchOptions struct {
+	maxContentChars int
+	recordEvent     bool
+	stats           *webSearchStats
+}
+
+type webSearchOption func(*webSearchOptions)
+
+// withMaxContentChars caps the total Content characters returned by a search.
+func withMaxContentChars(n int) webSearchOption {
+	return func(o *webSearchOptions) { o.maxContentChars = n }
+}
+
+// withoutToolEvent leaves the tool event to a batch wrapper so one MCP call
+// does not inflate the dashboard's tool-call count.
+func withoutToolEvent() webSearchOption {
+	return func(o *webSearchOptions) { o.recordEvent = false }
+}
+
+func withSearchStats(stats *webSearchStats) webSearchOption {
+	return func(o *webSearchOptions) { o.stats = stats }
+}
+
 // doWebSearch 通用网页搜索逻辑。
 // timeRangeMonths 控制搜索时间范围（月），默认 3，0 表示不限。
 // 摘要阶段优先流式推送（MCP progress notification），客户端可实时看到生成过程。
-func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent string, timeRangeMonths int, fetchTopN *int) (result *mcp.CallToolResult, extra any, err error) {
+func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent string, timeRangeMonths int, fetchTopN *int, options ...webSearchOption) (result *mcp.CallToolResult, extra any, err error) {
+	opts := webSearchOptions{recordEvent: true}
+	for _, apply := range options {
+		apply(&opts)
+	}
 	started := time.Now()
 	engineName := ""
 	cacheHit := false
@@ -58,12 +100,17 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		ctx = telemetry.WithRequestID(ctx, requestID)
 	}
 	defer func() {
+		if opts.stats != nil {
+			opts.stats.engineName, opts.stats.cacheHit, opts.stats.resultCount = engineName, cacheHit, resultCount
+		}
 		// 失败留痕：并发下上游限流会让 smartsearch 成片失败，此前只有遥测
 		// （控制台可见）而日志里查不到，排障只能靠复现。
 		if err != nil {
 			log.ErrorT("log.mcp.smartsearch_failed", "query", query, "engine", engineName, "err", err)
 		}
-		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "smartsearch", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 12)})
+		if opts.recordEvent {
+			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "smartsearch", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 12)})
+		}
 		if !cacheHit && engineName != "" && engineName != "hybrid" && engineName != "apipool" {
 			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: resultCount, Error: err, RequestID: requestID})
 		}
@@ -88,7 +135,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		if err != nil {
 			log.ErrorT("log.mcp.cache_query_error_skipping_cache", "err", err)
 		} else if rec != nil && !rec.Academic {
-			if result, ok := finishCachedWebSearch(ctx, rec, hitType, query, intent, cacheQuery, requestCache); ok {
+			if result, ok := finishCachedWebSearch(ctx, rec, hitType, query, intent, cacheQuery, requestCache, opts.maxContentChars); ok {
 				cacheHit = true
 				if parsed, parseErr := rec.GetRawResults(); parseErr == nil {
 					resultCount = len(parsed)
@@ -105,6 +152,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 					cacheHit = true
 					resultCount = len(results)
 					results = enrichFetchedTopN(ctx, results, n)
+					results = applyContentBudget(results, opts.maxContentChars)
 					// 缓存命中不带诊断：失败清单不写入缓存（与学术搜索同策略）
 					return finishWebSearch(ctx, req, query, intent, cacheQuery, results, nil, 0, cacheProvenance(rec.CreatedAt), requestCache)
 				}
@@ -152,7 +200,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 			haveDiag = false // 回退改用单引擎，主编排的诊断不再归属本次响应
 			// 回退也失败时，错误信息带上主引擎失败原因，保证空结果可归因
 			if err != nil {
-				return nil, nil, errors.New(i18n.T("tool.search.main_engine_also_failed", "Err", err, "MainErr", mainErr))
+				return nil, nil, errcode.Message(i18n.T("tool.search.main_engine_also_failed", "Err", err, "MainErr", mainErr), errors.Join(err, mainErr))
 			}
 		}
 		if err != nil {
@@ -175,6 +223,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 	}
 
 	results = enrichFetchedTopN(ctx, results, n)
+	results = applyContentBudget(results, opts.maxContentChars)
 	resultCount = len(results)
 	return finishWebSearch(ctx, req, query, intent, cacheQuery, results, responseDiagnostics(diag, haveDiag), cacheTTLForMonths(timeRangeMonths), provenance{retrievedAt: time.Now()}, requestCache)
 }
@@ -248,10 +297,13 @@ func webSearchCacheQuery(query string, months, n int) string {
 	return "web:v3:" + string(key)
 }
 
-func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, query, intent, cacheQuery string, requestCache *cache.Cache) (*mcp.CallToolResult, bool) {
+func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, query, intent, cacheQuery string, requestCache *cache.Cache, maxContentChars int) (*mcp.CallToolResult, bool) {
 	results, parseErr := rec.GetRawResults()
 	if parseErr == nil && hasTransientResultFiles(results) {
 		return nil, false
+	}
+	if parseErr == nil {
+		results = applyContentBudget(results, maxContentChars)
 	}
 	switch hitType {
 	case "exact_intent":
@@ -482,9 +534,15 @@ func annotateFetchFailure(snippet string, err error) string {
 }
 
 // isAntiBotFailure 判断抓取错误是否为反爬防护类。
-// webfetch.Fetch 把底层错误分类为人类可读描述（webfetch.go classifyError），这里按关键词识别；
-// 关键词中英并列，文案随语言切换不影响判类。
+// 优先读 webfetch 附带的稳定错误码；未附码的错误（上游原始信息）按中英关键词兜底。
 func isAntiBotFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch errcode.CodeOf(err) {
+	case errcode.Challenge:
+		return true
+	}
 	msg := strings.ToLower(err.Error())
 	for _, kw := range []string{"反爬", "挑战", "验证码", "waf", "captcha", "challenge", "anti-bot", "antibot"} {
 		if strings.Contains(msg, kw) {

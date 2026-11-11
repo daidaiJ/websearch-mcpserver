@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 )
@@ -56,6 +57,52 @@ func ClientFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// clientUserAgentContextKey carries the inbound MCP client's raw User-Agent
+// so outbound hosted-MCP calls can identify the originating host.
+type clientUserAgentContextKey struct{}
+
+// maxClientUserAgentLen bounds the value forwarded to third-party upstreams.
+const maxClientUserAgentLen = 256
+
+// WithClientUserAgent attaches the inbound request's User-Agent to the context.
+// Control characters and overlong values are dropped; callers fall back to a
+// built-in UA when absent.
+func WithClientUserAgent(ctx context.Context, ua string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ua = normalizeClientUserAgent(ua)
+	if ua == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, clientUserAgentContextKey{}, ua)
+}
+
+// ClientUserAgentFromContext returns the inbound User-Agent attached by
+// WithClientUserAgent, if any.
+func ClientUserAgentFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v, ok := ctx.Value(clientUserAgentContextKey{}).(string); ok {
+		return v
+	}
+	return ""
+}
+
+func normalizeClientUserAgent(ua string) string {
+	ua = strings.TrimSpace(ua)
+	if ua == "" || len(ua) > maxClientUserAgentLen {
+		return ""
+	}
+	for _, r := range ua {
+		if r < 0x20 || r == 0x7f {
+			return ""
+		}
+	}
+	return ua
 }
 
 // RequestID returns the identifier attached by WithRequestID, if any.

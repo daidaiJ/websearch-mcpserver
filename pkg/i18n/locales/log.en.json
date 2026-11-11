@@ -166,6 +166,7 @@
   "log.server.invalid_dashboard_allowed_networks_dashboard_falls": "invalid dashboard.allowed_networks, dashboard falls back to loopback-only access: {{.err}}",
   "log.server.listening_address_is_open_on_all": "listening address {{.addr}} is open on all interfaces without auth_token; any host on the LAN can reach the business endpoints, configuring a token is strongly recommended",
   "log.server.received_signal": "received signal: {{.sig}}",
+  "log.server.metrics_query_failed": "metrics query failed: {{.err}}",
   "log.server.refcount_reached_zero_initiating_graceful_shutdown": "refcount reached zero, initiating graceful shutdown",
   "log.server.server_exited_gracefully": "server exited gracefully",
   "log.server.server_shutdown_failed": "server shutdown failed: {{.err}}",

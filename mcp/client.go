@@ -55,6 +55,7 @@ func ClientAttributionMiddleware(next mcp.MethodHandler) mcp.MethodHandler {
 				}
 			}
 			if extra := req.GetExtra(); extra != nil {
+				ctx = telemetry.WithClientUserAgent(ctx, extra.Header.Get("User-Agent"))
 				if explicit := explicitClientName(extra.Header.Get("X-WebSearch-Client")); explicit != "" {
 					client = explicit
 				} else if client == "unknown" || client == "websearch" {

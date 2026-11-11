@@ -76,6 +76,8 @@ Only initializes components and returns an `http.Handler` with all routes regist
 
 Suitable for embedding scenarios — the caller creates its own `http.Server`, reusing existing port, TLS config, or middleware stack.
 
+**Embedding boundary**: initialization is eager, and a failed search-engine or cache construction panics so configuration errors surface at startup; embedded callers should validate config first or recover at the boundary and return their own error. Assembly uses package-level singletons and is designed for one instance per process; multiple `Server` values share the same components, so run separate processes for multiple instances. `Run` returns an error for listen failures and does not panic.
+
 ### Usage Examples
 
 #### Option 1: Full Hosting (CLI / Standalone)
@@ -159,7 +161,7 @@ MCP clients use this endpoint for protocol handshake, tool listing, and tool inv
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `smartsearch` | Web search | `query` (required), `intent` (optional, when LLM is enabled), `time_range` (optional, months; default 3), `fetch_top_n` (optional: omitted → same as before, only engine/provider-provided content (server default 0, configurable), 0 = title+snippet+URL only, 1-5 = obtain page-original text for top N — API engines use the fast path, web engines fetch internally, anti-bot blocks are annotated) |
+| `smartsearch` | Web search | `query` (one of `query`/`queries`), `queries` (batch, up to 5), `intent` (optional, when LLM is enabled), `time_range` (optional, months; default 3), `depth` (`fast`/`balanced`/`deep`), `sources` (`web`/`academic`), `max_chars` (shared body budget), `fetch_top_n` (optional: omitted → same as before, only engine/provider-provided content (server default 0, configurable), 0 = title+snippet+URL only, 1-5 = obtain page-original text for top N — API engines use the fast path, web engines fetch internally, anti-bot blocks are annotated) |
 | `academicsearch` | Academic paper search (arXiv / Crossref / OpenAlex / PubMed / Europe PMC / DBLP / DOAJ, etc.) | `query` (required; a DOI or arXiv id can be passed directly for single-paper lookup, ignoring `time_range`/`page` but respecting enabled sources and requested `engines`), `engines` (optional), `time_range` (optional: `year`/`month`/`week`/`day`), `page` (optional) |
 | `cleanfetch` | URL fetch returns Markdown, or reads saved bodies; always registered | `url`/`urls` (fetch, deduplicated up to 5, requires `cleanfetch.enabled=true`); or `result_ref` with `offset` (default 0) and `limit` (default/0 = 4096, maximum 8192); mutually exclusive modes, paging fields only for references |
 | `pdf_parser` | PDF parsing with MinerU AI enhancement (table/formula/multi-column recognition) | `path` (required for new parses, local path or remote URL; mutually exclusive with `task_ref`), `task_ref` (resume an existing MinerU job), `wait_seconds` (0-1800 per job, default 300 for new parses, 0 for resumption), `pages` (optional page range, e.g. 1-10; a single range is capped at 1000 pages wide) — requires `pdf_parser.enabled`, optional `mineru_token`; when pages omitted, capped by `max_pages` (default 20). When requested pages exceed the per-task limit (default 600, tunable via `mineru_page_limit`) or MinerU rejects the source page count/URL, selected pages are cropped locally and uploaded (`mineru_page_batch_size` enables auto-batching with `mineru_page_budget` capping pages per call; batch progress is streamed via MCP progress notifications); the Standard API returns a ZIP URL with images, while Agent requests allow at most 20 pages |
@@ -223,6 +225,8 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 
 Provides a SearXNG-compatible search interface, works with LiteLLM and similar frameworks.
 
+> **Compatibility scope**: this is a JSON subset that reads only `q`; `categories`, `engines`, `pageno` and non-JSON `format` values are not supported. For per-engine selection, paging or other output formats, use MCP `smartsearch` (`sources` / `queries`) or filter on the client side.
+
 > **Auth**: when `auth_token` is set, requests must carry `Authorization: Bearer <token>` or `X-API-Key: <token>`, otherwise 401; empty `q` returns 400; no engine available returns 503.
 
 #### Request Example
@@ -265,9 +269,9 @@ search_tools:
 | Path | `GET /metrics` |
 | Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
 
-Read-only aggregates in Prometheus / OpenMetrics text format: today's MCP tool calls (by tool name) and search provider calls (by provider name) with request, success/failure, cache-hit counts and latency buckets. All data comes from the privacy-preserving telemetry store (queries are stored as hashes and keywords only; no URLs, raw text or secrets) and nothing is actively probed.
+Read-only aggregates in Prometheus / OpenMetrics text format. In-process metrics are always available: in-flight HTTP requests, process uptime, goroutine count, heap-allocated bytes and `websearch_telemetry_enabled`. When the dashboard is enabled, today's MCP tool calls (by tool name) and search provider calls (by provider name) are appended with request, success/failure, cache-hit counts and latency buckets; that part comes from the privacy-preserving telemetry store (queries are stored as hashes and keywords only; no URLs, raw text or secrets) and nothing is actively probed.
 
-- Requires `dashboard.enabled: true` (the telemetry store ships with the dashboard); otherwise 503.
+- In-process metrics do not require the dashboard; telemetry series appear with `dashboard.enabled: true` and are omitted otherwise, with `websearch_telemetry_enabled` set to 0.
 - Read-only and independent of the write guard; accepts `GET` / `HEAD` only.
 - Example: `curl -s http://127.0.0.1:8338/metrics`
 

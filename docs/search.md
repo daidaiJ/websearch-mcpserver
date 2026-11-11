@@ -257,6 +257,8 @@ apipool:
 
 `mode: mcphub` 不要求 API Key：按 `mcp_hub.servers` 顺序调用托管 MCP server，单次请求命中一个；失败后该 server 进入冷却（默认 60s），自动级联到下一个。轮转池全部失败后按 `fallback_engines` 降级，最终由 `smartsearch` 回退 Bing（`bing.enabled=true` 时）。这是**路由/降级**，不会把多家结果合并后一起返回。
 
+调用上游时透传入站 MCP 请求的 `User-Agent`（agent 宿主的真实 UA）；stdio、后台任务或 UA 非法时回退内置桌面 UA。
+
 | server | MCP 端点 | Keyless | 代理 | 搜索 / 抓取工具 | Key 获取（可选） |
 |--------|----------|---------|-----------|-----------------|------------------|
 | `parallel` | `https://search.parallel.ai/mcp` | ✅ | ❌（直连） | `web_search` / `web_fetch` | https://platform.parallel.ai/ |
@@ -323,10 +325,16 @@ mcp_hub:
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `query` | string | ✅ | 搜索关键词 |
+| `query` | string | ❌ | 搜索关键词；与 `queries` 二选一 |
+| `queries` | string[] | ❌ | 批量查询（最多 5 条），与 `query` 二选一；每条独立检索，结果按查询分节返回，单条失败不影响其它查询 |
 | `intent` | string | ❌ | 搜索意图（仅 LLM 启用时生效，未启用时自动移除该参数节省上下文） |
 | `time_range` | int | ❌ | 搜索时间范围（月），默认 3。`1`=近 1 个月，`6`=近半年，`12`=近一年，`0`=不限。豆包 Custom 会映射为 `OneDay`/`OneWeek`/`OneMonth`/`OneYear`；元宝映射为 `dN`/`mN`/`yN`；豆包 Global 无时间过滤接口，忽略 |
+| `depth` | string | ❌ | 检索深度预设：`fast`（不抓正文）/ `balanced`（默认，沿用 `fetch_top_n`）/ `deep`（默认抓前 3 条正文并启用 24000 字符预算）；显式 `fetch_top_n` / `max_chars` 优先。仅作用于 web 来源正文 |
+| `sources` | string[] | ❌ | 来源类型：`web`（默认）/ `academic`；可同时指定，`academic` 需 `academic.enabled=true` |
+| `max_chars` | int | ❌ | 本次调用的网页正文总字符预算，所有 web 结果共享、按条均分；不传或 `0` 表示不额外裁剪。超出时每条正文截断并提示用 `cleanfetch` 读取全文。仅作用于 web 来源 |
 | `fetch_top_n` | int | ❌ | 正文抓取模式：不传时与旧版一致，只返回引擎/供应商自带内容（服务端 `smartsearch.fetch_top_n` 可改默认，默认 `0` 不抓）；传 `0` 表示只要标题摘要和 URL；传 `1-5` 表示为前 N 条获取页面原文——支持原文传参的 API 引擎（Tavily/Exa/豆包）直接走快速路径，网页引擎内部抓取（无需 `cleanfetch.enabled`，webfetch 惰性初始化）；已有足量正文的条目自动跳过；抓取被反爬防护（JS 挑战/WAF）拦截时在该条结果上显式标注 |
+
+`depth`、`max_chars` 与 `fetch_top_n` 只塑造 web 分节的正文。只请求 `sources: ["academic"]` 时，显式传这三个参数会返回错误，避免参数被静默忽略；混合请求时学术分节按自身默认返回。
 
 返回结果默认附带来源引擎和相关性分数（Tavily / 豆包 Custom 等支持 score 的引擎）。可通过 `smartsearch.show_meta: false` 关闭。
 
@@ -418,7 +426,7 @@ URL 抓取需配置 `cleanfetch.enabled: true`；引用读取不受此开关限�
 
 #### cleanfetch 引用读取
 
-始终注册，只接受本服务返回的 `result_ref`。调用 `cleanfetch(result_ref, offset=0, limit=4096)`，按 `next_offset` 续读到 `eof=true`；单次最多 8192 Unicode 字符，正文在 `content`。无需 Docker 或宿主文件权限，不重新请求来源；沿用 `/mcp` 鉴权。引用跨 MCP 会话有效，重启、过期/清理或检测到文件身份/大小/修改时间变化后失效。完整契约见 [API 文档](api.md#长结果读取)。
+始终注册，只接受本服务返回的 `result_ref`。调用 `cleanfetch(result_ref, offset=0, limit=4096)`，按 `next_offset` 续读到 `eof=true`；单次最多 8192 Unicode 字符，正文在 `content`。响应只返回一份 JSON 文本，不再把同一份正文重复放进 `structuredContent`。无需 Docker 或宿主文件权限，不重新请求来源；沿用 `/mcp` 鉴权。引用跨 MCP 会话有效，重启、过期/清理或检测到文件身份/大小/修改时间变化后失效。完整契约见 [API 文档](api.md#长结果读取)。
 
 ### `file_search` — 本地文件快速检索
 

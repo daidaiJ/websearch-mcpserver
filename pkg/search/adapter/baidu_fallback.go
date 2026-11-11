@@ -2,7 +2,10 @@ package adapter
 
 import (
 	"context"
+	"errors"
 
+	"websearch/pkg/errcode"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
 )
 
@@ -42,8 +45,12 @@ func (b *BaiduWithFallback) SearchRawContext(ctx context.Context, query string) 
 		if ctx.Err() != nil {
 			return nil, ctx.Err() // 请求已取消/超时，不再触发回退
 		}
-		// SK 调用失败，回退到百度网页搜索
-		return searchWithContext(ctx, b.fallback, query)
+		// SK 调用失败，回退到百度网页搜索；双失败时保留两侧原因与错误码
+		fallbackResults, fallbackErr := searchWithContext(ctx, b.fallback, query)
+		if fallbackErr != nil {
+			return nil, errcode.Message(i18n.T("tool.search.main_engine_also_failed", "Err", fallbackErr, "MainErr", err), errors.Join(err, fallbackErr))
+		}
+		return fallbackResults, nil
 	}
 	return results, nil
 }

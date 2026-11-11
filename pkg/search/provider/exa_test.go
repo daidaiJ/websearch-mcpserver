@@ -62,8 +62,8 @@ func TestExaSearchImpl_MergeContent(t *testing.T) {
 		{Title: "Result 2", Url: "https://example.com/2", Content: "Content 2", Engine: "exa"},
 	}
 
-	// 测试 core.ShowMeta = true
-	core.ShowMeta = true
+	// 测试 core.SetShowMeta(true)
+	core.SetShowMeta(true)
 	output, err := exa.MergeContent("test query", results)
 	if err != nil {
 		t.Fatalf("MergeContent failed: %v", err)
@@ -75,21 +75,21 @@ func TestExaSearchImpl_MergeContent(t *testing.T) {
 		t.Error("output should contain first result title")
 	}
 	if !strings.Contains(output, "**来源**: exa") {
-		t.Error("output should contain engine source when core.ShowMeta=true")
+		t.Error("output should contain engine source when core.ShowMetaEnabled()=true")
 	}
 
-	// 测试 core.ShowMeta = false
-	core.ShowMeta = false
+	// 测试 core.SetShowMeta(false)
+	core.SetShowMeta(false)
 	output, err = exa.MergeContent("test query", results)
 	if err != nil {
 		t.Fatalf("MergeContent failed: %v", err)
 	}
 	if strings.Contains(output, "**来源**") {
-		t.Error("output should not contain source field when core.ShowMeta=false")
+		t.Error("output should not contain source field when core.ShowMetaEnabled()=false")
 	}
 
 	// 恢复默认值
-	core.ShowMeta = true
+	core.SetShowMeta(true)
 }
 
 func TestExaSearchImpl_MergeContent_Empty(t *testing.T) {

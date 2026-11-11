@@ -177,7 +177,7 @@ DBLP 返回已识别的 Anubis 挑战页时，工具和来源事件记为人机�
 
 ### 外部观测接入（Prometheus）
 
-`GET /metrics` 由主服务提供（不依赖控制台访问边界），输出今日工具/供应商请求数、成功失败、缓存命中与延迟分桶的 Prometheus 文本，数据来自同一遥测库且已脱敏。控制台关闭（`dashboard.enabled: false`）时该端点返回 503。端点只读、只接受 GET/HEAD，不暴露查询原文、URL 或密钥；契约见 [docs/api.md](api.md#观测端点)。
+`GET /metrics` 由主服务提供（不依赖控制台访问边界），始终输出进程内指标（在飞 HTTP 请求、uptime、goroutine、堆分配与 `websearch_telemetry_enabled`），控制台启用时再追加今日工具/供应商请求数、成功失败、缓存命中与延迟分桶的 Prometheus 文本（来自同一遥测库且已脱敏）。控制台关闭（`dashboard.enabled: false`）时端点仍返回 200，只是省略遥测序列并把 `websearch_telemetry_enabled` 标 0。端点只读、只接受 GET/HEAD，不暴露查询原文、URL 或密钥；契约见 [docs/api.md](api.md#观测端点)。
 
 ## 源管理与保存
 

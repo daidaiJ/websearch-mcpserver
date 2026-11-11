@@ -24,6 +24,10 @@ func NewMCPServer(conf config.Config, opts *mcp.ServerOptions) *mcp.Server {
 	if opts.KeepAlive == 0 {
 		opts.KeepAlive = 30 * time.Second
 	}
+	// 工具选择纪律随 initialize 下发，客户端会并入系统提示；调用方显式设置时尊重其值。
+	if opts.Instructions == "" {
+		opts.Instructions = i18n.T("mcp.server.instructions")
+	}
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "websearch server",
@@ -62,6 +66,7 @@ func registerTools(server *mcp.Server, conf config.Config) {
 			searchDesc += i18n.T("mcp.tool.smartsearch.intent")
 		}
 		searchDesc += i18n.T("mcp.tool.smartsearch.fetch")
+		searchDesc += i18n.T("mcp.tool.smartsearch.params")
 		if fallbackSearch != nil {
 			searchDesc += i18n.T("mcp.tool.smartsearch.fallback")
 		}

@@ -405,9 +405,9 @@ func TestHybridSearch_AllFail_ErrorSummarizesEngines(t *testing.T) {
 // ── HybridSearchImpl.MergeContent ───────────────────────────────────────────
 
 func TestMergeContent_ShowMeta(t *testing.T) {
-	oldShowMeta := core.ShowMeta
-	core.ShowMeta = true
-	defer func() { core.ShowMeta = oldShowMeta }()
+	oldShowMeta := core.ShowMetaEnabled()
+	core.SetShowMeta(true)
+	defer func() { core.SetShowMeta(oldShowMeta) }()
 
 	hs := NewHybridSearch(&mockEngine{name: "a"})
 	results := []core.SearchResult{
@@ -426,9 +426,9 @@ func TestMergeContent_ShowMeta(t *testing.T) {
 }
 
 func TestMergeContent_HideMeta(t *testing.T) {
-	oldShowMeta := core.ShowMeta
-	core.ShowMeta = false
-	defer func() { core.ShowMeta = oldShowMeta }()
+	oldShowMeta := core.ShowMetaEnabled()
+	core.SetShowMeta(false)
+	defer func() { core.SetShowMeta(oldShowMeta) }()
 
 	hs := NewHybridSearch(&mockEngine{name: "a"})
 	results := []core.SearchResult{

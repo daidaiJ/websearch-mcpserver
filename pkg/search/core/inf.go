@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync/atomic"
+
 	"websearch/pkg/antirobot"
 )
 
-// ShowMeta 控制 MergeContent 输出中是否显示引擎来源和 score。
+var showMeta atomic.Bool
+
+func init() { showMeta.Store(true) }
+
+// SetShowMeta 控制 MergeContent 输出中是否显示引擎来源和 score。
 // 由工厂函数根据 smartsearch.show_meta 配置设置，默认 true。
-var ShowMeta = true
+func SetShowMeta(v bool) { showMeta.Store(v) }
+
+// ShowMetaEnabled 返回当前是否显示引擎来源和 score。
+func ShowMetaEnabled() bool { return showMeta.Load() }
 
 // 日期来源注记三态（与 antirobot.Result.DateSource 同名透传）。
 //   - structured：引擎 API / 结构化字段给出的日期（强，可直接采信）

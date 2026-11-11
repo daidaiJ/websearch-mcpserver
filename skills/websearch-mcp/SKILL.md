@@ -31,6 +31,10 @@ description: "使用 WebSearch MCP 检索网页与论文、获取原文并核验
 
 参数示例、论文全文衔接和失败后的选择，按需读 [检索流程](references/retrieval-workflows.md)。时间筛选、分页、PDF 分支、缓存或 Docker 文件访问涉及细节时，读 [运行行为](references/runtime-behavior.md) 的对应小节。
 
+## 参数纪律
+
+默认值优先。只有确实要一次比较多个并列问题时才用 `queries`；只有论文与网页需要同一次对照时才用 `sources` 同时请求。`depth` 与 `max_chars` 只塑造网页正文，仅请求学术来源时不要传，`fetch_top_n` 同理。搜索结果里已内联的正文直接使用，不要再对同一 URL 调用 `cleanfetch`。
+
 ## 根据返回内容决定下一步
 
 - **摘要或元数据**：用于筛选、定位和有限的背景判断；涉及原文细节、准确引述或争议结论时继续获取对应段落。

@@ -212,7 +212,7 @@ func (b *BaiduAISearchImpl) MergeContent(query string, results []core.SearchResu
 	for i := startIdx; i < len(results); i++ {
 		val := results[i]
 		idx := i - startIdx + 1
-		if core.ShowMeta {
+		if core.ShowMetaEnabled() {
 			buf.WriteString(core.FormatMDScore(idx, val.Title, val.Url, val.Engine, core.FormatScore(val.Score), core.FormatDateSource(val.PublishDate, val.DateSource), val.Content))
 		} else {
 			buf.WriteString(core.FormatMD(idx, val.Title, val.Url, val.Content))

@@ -23,7 +23,7 @@ type SearchGroup struct {
 func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	g := &SearchGroup{conf: conf}
 
-	core.ShowMeta = conf.SmartSearch.ShowMeta
+	core.SetShowMeta(conf.SmartSearch.ShowMeta)
 
 	// ── 初始化 Bing 引擎（兜底） ──
 	g.Fallback = mode.InitBingEngine(conf)
@@ -69,6 +69,16 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	yuanbaoPool := newKeyPoolFromList(conf.Yuanbao.EffectiveSKList(), "yuanbao")
 	tinyfishPool := newKeyPoolFromList(conf.TinyFish.EffectiveSKList(), "tinyfish")
 	keenablePool := newKeyPoolFromList(conf.Keenable.EffectiveSKList(), "keenable")
+	pools := mode.ProviderPools{
+		Anysearch: anysearchPool,
+		Baidu:     baiduPool,
+		Tavily:    tavilyPool,
+		Exa:       exaPool,
+		Doubao:    doubaoPool,
+		Yuanbao:   yuanbaoPool,
+		Tinyfish:  tinyfishPool,
+		Keenable:  keenablePool,
+	}
 
 	// ── 按模式选择主引擎 ──
 	switch conf.GetMode() {
@@ -92,11 +102,11 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 		g.Primary = mode.BuildYuanbaoMode(conf, yuanbaoPool, g.Fallback)
 
 	case config.ModeApipool:
-		g.Primary = mode.BuildApipoolMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool, baiduWebAdapter)
+		g.Primary = mode.BuildApipoolMode(conf, pools, baiduWebAdapter)
 		log.InfoT("log.search.search_mode_apipool_api_key_pool")
 
 	case config.ModeHybrid:
-		g.Primary = mode.BuildHybridMode(conf, anysearchPool, baiduPool, tavilyPool, exaPool, doubaoPool, yuanbaoPool, tinyfishPool, keenablePool, ads, g.Fallback)
+		g.Primary = mode.BuildHybridMode(conf, pools, ads, g.Fallback)
 
 	case config.ModeMCPHub:
 		g.Primary = mode.BuildMCPHubMode(conf, ads, g.Fallback)

@@ -2,7 +2,10 @@ package telemetry
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+
+	"websearch/pkg/errcode"
 )
 
 func TestClassifyErrorKind(t *testing.T) {
@@ -25,6 +28,10 @@ func TestClassifyErrorKind(t *testing.T) {
 		{"network", errors.New("dial tcp: connection refused"), ErrorKindNetwork},
 		{"server error", errors.New("upstream returned status 502"), ErrorKindNetwork},
 		{"unknown", errors.New("something odd happened"), ErrorKindUnknown},
+		{"coded challenge localized", errcode.New(errcode.Challenge, "被拦截"), ErrorKindCaptcha},
+		{"coded rate limit wrapped", fmt.Errorf("outer: %w", errcode.New(errcode.RateLimit, "稍后再试")), ErrorKindRateLimit},
+		{"coded access denied", errcode.New(errcode.AccessDenied, "无权限"), ErrorKindAccessDenied},
+		{"coded no result", errcode.New(errcode.NoResult, "空"), ErrorKindNoResult},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

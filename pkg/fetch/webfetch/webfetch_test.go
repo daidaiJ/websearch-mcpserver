@@ -11,6 +11,7 @@ import (
 	"time"
 	"websearch/internal/testenv"
 	"websearch/pkg/config"
+	"websearch/pkg/errcode"
 	"websearch/pkg/fetch/mineru"
 
 	webfetch "github.com/daidaiJ/go-webfetch"
@@ -110,21 +111,23 @@ func TestFetchPDF(t *testing.T) {
 
 func TestClassifyErrors(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    error
-		expected string
+		name  string
+		input error
+		code  errcode.Code
 	}{
-		{"nil error", nil, ""},
+		{"waf", &webfetch.WAFError{Reason: "challenge_detected"}, errcode.Challenge},
+		{"empty body", &webfetch.EmptyContentError{URL: "https://example.com"}, errcode.Challenge},
+		{"not found", &webfetch.NotFoundError{StatusCode: 404}, errcode.NoResult},
+		{"ssrf", &webfetch.SSRFError{Host: "localhost"}, errcode.Blocked},
+		{"timeout", &webfetch.TimeoutError{URL: "https://example.com"}, errcode.Timeout},
+		{"plain", errors.New("boom"), errcode.Unknown},
 	}
 	for _, tt := range tests {
-		if tt.input != nil {
-			t.Run(tt.name, func(t *testing.T) {
-				got := classifyError(tt.input)
-				if !strings.Contains(got, tt.expected) {
-					t.Errorf("classifyError(%v) = %q, want contains %q", tt.input, got, tt.expected)
-				}
-			})
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if _, code := classifyError(tt.input); code != tt.code {
+				t.Fatalf("classifyError(%v) code = %q, want %q", tt.input, code, tt.code)
+			}
+		})
 	}
 }
 
