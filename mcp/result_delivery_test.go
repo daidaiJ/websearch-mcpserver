@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -193,9 +192,8 @@ func readAllResultOverMCP(t *testing.T, endpoint, ref string, limit int) string 
 		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 			t.Fatal(err)
 		}
-		structured := msg["result"].(map[string]any)["structuredContent"]
-		if !reflect.DeepEqual(structured, decoded) {
-			t.Fatalf("structured and text outputs differ: %v / %s", structured, text)
+		if structured := msg["result"].(map[string]any)["structuredContent"]; structured != nil {
+			t.Fatalf("cleanfetch must not duplicate the page in structuredContent: %v", structured)
 		}
 		chars := utf8.RuneCountInString(page.Content)
 		if chars > limit || page.NextOffset != offset+chars {

@@ -2,6 +2,7 @@
   "mcp.tool.smartsearch.desc": "General-purpose web search for real-time information (news, technical docs, products, data). Keep the query focused and precise; piling up synonyms and secondary terms into a keyword list dilutes relevance.",
   "mcp.tool.smartsearch.intent": " Use the intent parameter to describe the goal of the search and get a more precise structured summary.",
   "mcp.tool.smartsearch.fetch": " Use fetch_top_n to fetch the full text of the top N scored results (default 0 = no fetch, max 5).",
+  "mcp.tool.smartsearch.params": " Supports queries batches (up to 5), depth (fast/balanced/deep), sources (web/academic), and a max_chars context budget.",
   "mcp.tool.smartsearch.fallback": " Falls back to Bing when the primary engine is unavailable.",
   "mcp.tool.smartsearch.scope": " Scope: time-sensitive facts, web leads and document lookup; for systematic literature reviews or academic questions that need citations, use academicsearch instead.",
 
@@ -68,6 +69,10 @@
   "mcp.param.search.query": "Search keywords: express the core intent precisely and concisely (2-6 keywords or one short phrase recommended), keeping only the terms that best pin down the target. Do not pile synonyms, process words and modifiers into a keyword list, which dilutes relevance. For example use 'Go generics performance' rather than 'Go generics type parameters compile runtime performance benchmark comparison optimization usage'.",
   "mcp.param.search.time_range": "Search time range in months, limiting results to the last N months. For example 1 = last month, 3 = last 3 months, 6 = last 6 months, 12 = last year. Defaults to 3; 0 means no limit.",
   "mcp.param.search.fetch_top_n": "Full-text fetch mode: when omitted, behavior matches older versions and only engine/provider-supplied content is returned (the server-side smartsearch.fetch_top_n can change the default, which is 0 = no fetch). 0 returns titles, snippets and URLs only; 1-5 fetches the page text of the top N results — API engines that accept full text take a fast path, other engines fetch the page internally. Results blocked by anti-bot protection (JS challenge/WAF) are annotated.",
+  "mcp.param.search.queries": "Batch query list (up to 5), mutually exclusive with query. Each query runs independently and results are returned in per-query sections; use it to compare distinct questions, not to pile up paraphrases.",
+  "mcp.param.search.depth": "Search depth preset: fast (no body fetch, lowest latency) / balanced (default, follows fetch_top_n) / deep (fetches the top 3 bodies and enables a 24,000-character context budget by default). An explicit fetch_top_n or max_chars overrides the preset.",
+  "mcp.param.search.sources": "Source types: web (general web, default) / academic (scholarly engines). Both may be requested; academic requires academic.enabled=true on the server.",
+  "mcp.param.search.max_chars": "Total body-character budget for this call, shared across results and split evenly; omit or 0 for no extra trimming. When exceeded, each body is truncated with a hint to read the full text via cleanfetch.",
   "mcp.param.search.intent": "Search intent: describe what you want to solve or learn. For example 'how goroutine scheduling works', 'compare the React and Vue ecosystems', 'find usage examples for an API'. Providing intent yields a more precise structured summary.",
   "mcp.param.academic.query": "Academic search keywords, for example 'transformer attention mechanism' or 'CRISPR gene editing'",
   "mcp.param.academic.engines": "Specify a subset of engines (empty uses every enabled engine). Examples: [\"pubmed\"] for medical papers, [\"arxiv\"] for CS preprints, [\"arxiv\",\"crossref\"] for physics/math",

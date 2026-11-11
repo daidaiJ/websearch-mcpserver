@@ -323,9 +323,13 @@ Degradation and safety:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | ✅ | Search keyword |
+| `query` | string | ❌ | Search keyword; provide exactly one of `query` or `queries` |
+| `queries` | string[] | ❌ | Batch queries (up to 5), mutually exclusive with `query`; each runs independently and results are returned in per-query sections, so one failure does not hide the others |
 | `intent` | string | ❌ | Search intent (only effective when LLM is enabled; auto-removed to save context when disabled) |
 | `time_range` | int | ❌ | Search time range in months, default 3. `1`=last month, `6`=last 6 months, `12`=last year, `0`=unlimited. Doubao Custom maps this to `OneDay`/`OneWeek`/`OneMonth`/`OneYear`; Yuanbao maps it to `dN`/`mN`/`yN`; Doubao Global has no time-filter API and ignores it |
+| `depth` | string | ❌ | Depth preset: `fast` (no body fetch) / `balanced` (default, follows `fetch_top_n`) / `deep` (fetches the top 3 bodies and enables a 24,000-character budget by default); explicit `fetch_top_n` / `max_chars` win |
+| `sources` | string[] | ❌ | Source types: `web` (default) / `academic`; both may be requested, and `academic` requires `academic.enabled=true` |
+| `max_chars` | int | ❌ | Total body-character budget for this call, shared across results and split evenly; omit or `0` for no extra trimming. When exceeded, each body is truncated with a hint to read the full text via `cleanfetch` |
 | `fetch_top_n` | int | ❌ | Body-fetch mode: when omitted, behaves as before — only engine/provider-provided content is returned (server config `smartsearch.fetch_top_n` can change the default, default `0` = no fetch); `0` means title+snippet+URL only; `1-5` obtains page-original text for the top N results — API engines that support full-text params (Tavily/Exa/Doubao) use the fast path directly, web engines fetch internally (no `cleanfetch.enabled` needed, webfetch lazily initializes); results already carrying sufficient body text are skipped; anti-bot blocks (JS challenge/WAF) are explicitly annotated on the result |
 
 Results include engine source and relevance score by default (for engines that support scores like Tavily / Doubao Custom). Disable via `smartsearch.show_meta: false`.
@@ -418,7 +422,7 @@ When `pages` is omitted, the first `pdf_parser.max_pages` (default 20) pages are
 
 #### cleanfetch Saved Result Reading
 
-Always registered; accepts only this service's `result_ref`. Start with `cleanfetch(result_ref, offset=0, limit=4096)` and continue with `next_offset` until `eof=true`; each page returns up to 8192 Unicode code points in `content`. No Docker or host file access is needed, and the source is not requested again. Existing `/mcp` authentication applies. References survive MCP session changes but not restart, expiry, cleanup or detected identity/size/modification-time changes. See the [API contract](api.en.md#reading-long-results).
+Always registered; accepts only this service's `result_ref`. Start with `cleanfetch(result_ref, offset=0, limit=4096)` and continue with `next_offset` until `eof=true`; each page returns up to 8192 Unicode code points in `content`. The response carries a single JSON text body and no longer duplicates it in `structuredContent`. No Docker or host file access is needed, and the source is not requested again. Existing `/mcp` authentication applies. References survive MCP session changes but not restart, expiry, cleanup or detected identity/size/modification-time changes. See the [API contract](api.en.md#reading-long-results).
 
 ### `file_search` — Local File Quick Search
 
