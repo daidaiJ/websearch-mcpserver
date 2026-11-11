@@ -2,6 +2,7 @@
   "mcp.tool.smartsearch.desc": "通用联网检索工具，获取实时信息（新闻/技术文档/产品/数据等）。查询词需精准凝练、聚焦核心意图，避免堆砌大量同义/次要词形成关键词列表（会稀释相关性）。",
   "mcp.tool.smartsearch.intent": "可用 intent 参数说明检索目的以获得更精准的结构化摘要。",
   "mcp.tool.smartsearch.fetch": "可用 fetch_top_n 对评分最高的前 N 条抓取正文（默认 0 不抓，上限 5）。",
+  "mcp.tool.smartsearch.params": "支持 queries 批量（最多 5 条）、depth（fast/balanced/deep）、sources（web/academic）与 max_chars 上下文预算。",
   "mcp.tool.smartsearch.fallback": "主引擎不可用时自动回退 Bing。",
   "mcp.tool.smartsearch.scope": "适用边界：时效性事实、网页线索与文档检索；系统性文献综述、需要引用数据的学术问题请改用 academicsearch。",
 
@@ -68,6 +69,10 @@
   "mcp.param.search.query": "搜索关键词：需精准凝练地表达核心检索意图（建议 2-6 个关键词或一个短句），只保留最能定位目标的词；不要把同义词、过程词、修饰词一股脑堆砌成关键词列表，否则会稀释相关性。例如用 'Go 泛型 性能' 而非 'Go 泛型 类型参数 编译 运行时 性能 基准 对比 优化 使用方法'",
   "mcp.param.search.time_range": "搜索时间范围（月），限制搜索最近N个月的内容。例如 1=近1个月，3=近3个月，6=近半年，12=近一年。默认3，0表示不限",
   "mcp.param.search.fetch_top_n": "正文抓取模式：不传时与旧版一致，只返回引擎/供应商自带的内容（服务端 smartsearch.fetch_top_n 可改默认，默认 0 不抓）；传 0 表示只要标题摘要和 URL；传 1-5 表示为前 N 条获取页面原文——支持原文传参的 API 引擎直接走快速路径，其余引擎内部抓取页面。抓取被反爬防护（JS 挑战/WAF）拦截时会在该条结果上标注",
+  "mcp.param.search.queries": "批量查询列表（最多 5 条），与 query 互斥。每条查询独立检索，结果按查询分节返回；适合一次比较多个独立问题，不适合把同义改写堆在一起",
+  "mcp.param.search.depth": "检索深度预设：fast（不抓正文，延迟最低）/ balanced（默认，沿用 fetch_top_n）/ deep（默认抓前 3 条正文并启用 24000 字符上下文预算）。显式 fetch_top_n / max_chars 优先于预设",
+  "mcp.param.search.sources": "来源类型：web（通用网页，默认）/ academic（学术引擎）。可同时指定；academic 需要服务端 academic.enabled=true",
+  "mcp.param.search.max_chars": "本次调用的正文总字符预算，所有结果共享、按条均分；不传或 0 表示不额外裁剪。超出时每条正文截断并提示用 cleanfetch 读取全文",
   "mcp.param.search.intent": "搜索意图，描述你希望通过搜索解决什么问题或获取什么信息。例如 '了解goroutine调度原理' '对比React和Vue的生态差异' '查找某API的用法示例'。提供意图后可获得更精准的结构化摘要",
   "mcp.param.academic.query": "学术搜索关键词，例如 'transformer attention mechanism' 或 'CRISPR gene editing'",
   "mcp.param.academic.engines": "指定引擎子集（为空则使用全部已启用引擎）。示例: 医学论文用 [\"pubmed\"], CS预印本用 [\"arxiv\"], 物理/数学用 [\"arxiv\",\"crossref\"]",

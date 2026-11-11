@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### Added
+
+- **smartsearch gains batch, depth, source and context-budget parameters**: `queries` accepts up to 5 entries (mutually exclusive with `query`; each runs independently and results are returned in per-query sections, so one failure does not hide the others, and the batch records a single tool event); `depth` supports `fast` / `balanced` / `deep` (deep fetches the top 3 bodies and enables a 24,000-character budget by default; an explicit `fetch_top_n` / `max_chars` wins); `sources` supports `web` / `academic` (both may be requested; academic reuses the existing academic cache and per-engine errors); `max_chars` is a shared body-character budget split evenly across results, truncating with a hint to read the full text via cleanfetch
+- **cleanfetch `result_ref` no longer duplicates the body**: the same paginated JSON used to be written to both the text content and `structuredContent`, transferring large pages twice; it now keeps only the text JSON, and clients read from `content`
+
 ### Fixed
 
 - **CI build cache no longer frozen (`-fuzz` recompiles)**: the `setup-go` built-in cache keeps its exact key after a hit and never writes back, so `~/.cache/go-build` stayed frozen at its first build. The coverage-instrumented binaries required by `-fuzz` were therefore recompiled from scratch every run (~70s, about two thirds of that step's 105s). `ci.yml` disables the built-in cache and restores both caches explicitly: the module cache reuses the `go-module-cache.yml` path and key (restore-only), and the build cache now uses a rolling key `go-build-<os>-<hash(go.sum)>-<run_number>` with a restore-key prefix, saved on master only and restored read-only on PRs

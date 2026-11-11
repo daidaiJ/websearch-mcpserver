@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### 新增
+
+- **smartsearch 增加批量、深度、来源与上下文预算参数**：`queries` 最多 5 条（与 `query` 互斥，逐条独立检索、分节返回，单条失败不影响其它；批量只记一条 tool 事件）；`depth` 支持 `fast` / `balanced` / `deep`（deep 默认抓前 3 条正文并启用 24000 字符预算，显式 `fetch_top_n` / `max_chars` 优先）；`sources` 支持 `web` / `academic`（可同时指定，academic 走现有学术缓存与逐引擎错误）；`max_chars` 为所有结果共享的正文总预算，按条均分，超出时截断并提示用 cleanfetch 读全文
+- **cleanfetch 的 `result_ref` 不再重复正文**：此前同一份分页 JSON 同时写入文本内容与 `structuredContent`，大页面等于传输两遍；现在只保留文本 JSON，客户端按 `content` 读取
+
 ### 修复
 
 - **CI 构建缓存不再冻结（`-fuzz` 插桩重编）**：`setup-go` 内置缓存命中 primary key 后不再回写，`~/.cache/go-build` 冻结在首次构建，导致 `-fuzz` 所需的覆盖率插桩二进制每次运行从零重编（实测约 70 秒，约占该步 105 秒的三分之二）。`ci.yml` 关闭内置缓存，改为显式恢复：模块缓存沿用 `go-module-cache.yml` 的路径与键（只恢复、不重复上传），构建缓存改用滚动键 `go-build-<os>-<hash(go.sum)>-<run_number>` + 前缀回退，仅 master 推送回写、PR 只读恢复

@@ -62,6 +62,7 @@ func registerTools(server *mcp.Server, conf config.Config) {
 			searchDesc += i18n.T("mcp.tool.smartsearch.intent")
 		}
 		searchDesc += i18n.T("mcp.tool.smartsearch.fetch")
+		searchDesc += i18n.T("mcp.tool.smartsearch.params")
 		if fallbackSearch != nil {
 			searchDesc += i18n.T("mcp.tool.smartsearch.fallback")
 		}
