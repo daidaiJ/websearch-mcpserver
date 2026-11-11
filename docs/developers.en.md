@@ -22,6 +22,8 @@ mcp/ searxng/ ──► pkg/search (root); pkg/cache  pkg/llm ──► pkg/sear
 all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
 
+`pkg/errcode` is a leaf package (standard library only): `core`, `telemetry`, `provider`, `webfetch` and `mcp` share one set of stable error codes, so classification no longer depends on localized text.
+
 ## 2. Package Responsibilities & Key Interfaces
 
 ### Top-level assembly
@@ -64,6 +66,8 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | `pkg/proxy` | System proxy detection (registry/WinHTTP, 10s TTL) + transport pool | `DetectSystemProxy` |
 | `pkg/daemon` | Reference-counted process management | — |
 | `pkg/log` | Logging setup | — |
+| `pkg/errcode` | Stable cross-package error codes (timeout / rate_limit / challenge / blocked / access_denied / parse / no_result / network / off_topic) | `CodeOf`, `New`, `Wrap`, `Message` |
+| `bench/quality` | Offline ranking replay: fixed English/Chinese fixtures, P@8 / R@8 / MRR@8 output and regression floors | `go test ./bench/quality/` |
 
 ## 3. "I want to change X" Lookup Table
 
@@ -75,7 +79,8 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | Adjust mode composition / fallback order | `pkg/search/mode/factory.go`; the mode switch lives in root `factory.go` |
 | Change multi-engine dedup/merge/per-engine filtering | `pkg/search/hybrid/hybrid.go` |
 | Change apipool rotation strategy / key invalidation | `pkg/search/apipool/apipool.go` (key-pool primitive in `provider/keypool.go`) |
-| Change scoring (RRF/boosts/threshold/MMR) | `pkg/search/enhance/` (web) and `enhance/academic_enhance.go` (academic); the ScoreBucket struct lives in `search/core` |
+| Change scoring (RRF/boosts/threshold/MMR) | `pkg/search/enhance/` (web) and `enhance/academic_enhance.go` (academic); the ScoreBucket struct lives in `search/core`; run `bench/quality` afterwards and check P@8 / R@8 / MRR@8 |
+| Change failure classification / add an error code | Add the code in `pkg/errcode`; `core.ClassifyFailure`, `telemetry.ClassifyErrorKind` and `mcp.isAntiBotFailure` read it first and fall back to English/Chinese keywords |
 | Change result Markdown rendering | `pkg/search/core/format_md.go` (shared by all engines) |
 | Change engine rate limits / anti-detection | `pkg/antirobot/` layer + engine Opts; **do not** re-implement rate limiting inside engine packages |
 | Add/remove academic sources / DOI lookup / OA completion | `pkg/academic/`; the academic tool description is in `mcp/server.go buildAcademicToolDescription` |

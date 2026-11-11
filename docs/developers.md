@@ -18,6 +18,8 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 所有包 ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
 
+`pkg/errcode` 是叶子包（只依赖标准库）：`core`、`telemetry`、`provider`、`webfetch`、`mcp` 共享同一套稳定错误码，判类不再依赖本地化文案。
+
 ## 2. 各包职责与关键接口
 
 ### 顶层装配
@@ -60,6 +62,8 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | `pkg/proxy` | 系统代理检测（注册表/WinHTTP，10s TTL）+ transport 池 | `DetectSystemProxy` |
 | `pkg/daemon` | 引用计数进程管理 | — |
 | `pkg/log` / `pkg/xml`(已并入 search/core) | 日志配置 / — | — |
+| `pkg/errcode` | 跨包稳定错误码（timeout / rate_limit / challenge / blocked / access_denied / parse / no_result / network / off_topic） | `CodeOf`、`New`、`Wrap`、`Message` |
+| `bench/quality` | 离线检索质量回放：固定中英 fixture，输出 P@8 / R@8 / MRR@8 并设回归门槛 | `go test ./bench/quality/` |
 
 ## 3. 「我要改 X」对照表
 
@@ -71,7 +75,8 @@ mcp/ searxng/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──►
 | 调整搜索模式组合逻辑 / 兜底顺序 | `pkg/search/mode/factory.go`；模式开关在根包 `factory.go` 的 switch |
 | 改多引擎去重/合并/per-engine 过滤 | `pkg/search/hybrid/hybrid.go` |
 | 改 apipool 轮转策略、SK 失效标记 | `pkg/search/apipool/apipool.go`（Key 池原语在 `provider/keypool.go`） |
-| 改评分（RRF/Boost/阀值/MMR） | `pkg/search/enhance/`（web）与 `enhance/academic_enhance.go`（学术）；scoreBucket 结构在 `search/core` |
+| 改评分（RRF/Boost/阀值/MMR） | `pkg/search/enhance/`（web）与 `enhance/academic_enhance.go`（学术）；scoreBucket 结构在 `search/core`；改完跑 `bench/quality` 看 P@8 / R@8 / MRR@8 |
+| 改失败判类 / 新增错误码 | 新码加在 `pkg/errcode`；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 先读码，未知时回落中英关键词 |
 | 改结果输出格式（Markdown 样式） | `pkg/search/core/format_md.go`（所有引擎共用） |
 | 改某引擎限流/反检测参数 | `pkg/antirobot/` 层 + 引擎 Opts；**勿**在引擎包内重复实现限流 |
 | 学术源增删 / DOI 单篇 / OA 补全 | `pkg/academic/`；学术工具描述在 `mcp/server.go buildAcademicToolDescription` |

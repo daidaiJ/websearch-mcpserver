@@ -43,13 +43,13 @@
 
 ### DSH 生态调研衍生的改进参考（2026-11-07）
 
-> 横向评估 DeepSeek Harness 插件市场与开源搜索 MCP 后识别的**代码侧**方向，全部**未拍板**。参照对象最强的是 `@fffangchenghao/dsh-web-search`（8 引擎 RRF + 20-query 离线评测集 + 81 组参数扫描）、`dsh-free-search`（20+ 引擎回退）、Wigolo（本地 rerank + citation）。本项目在零 Key + 9 学术源 + 单二进制上工程深度更高，短板集中在「质量闭环」而非「功能广度」。
+> 横向评估 DeepSeek Harness 插件市场与开源搜索 MCP 后识别的**代码侧**方向。D1 / D2 / D5 已于 2026-11-11 落地（见勾选项与说明），D3 部分落地；其余仍未拍板。参照对象最强的是 `@fffangchenghao/dsh-web-search`（8 引擎 RRF + 20-query 离线评测集 + 81 组参数扫描）、`dsh-free-search`（20+ 引擎回退）、Wigolo（本地 rerank + citation）。本项目在零 Key + 9 学术源 + 单二进制上工程深度更高，短板集中在「质量闭环」而非「功能广度」。
 
-- [ ] **D1. 离线检索质量评测集（与 T2 合并做）**：`pkg/search/enhance/` 的阈值权重是经验常量，目前只有 oracle 等价性单测，改权重不可测。建 `bench/`：固定中英 query + 预期域名 fixture，输出 P@8 / R@8 / MRR@8 与逐 query 明细，CI 设回归门槛；顺带把 T2 的 HTML 解析 fixture 一起补上，缓解 8 个零 Key 引擎硬编码 CSS 选择器、上游改版即静默零结果的风险。
-- [ ] **D2. 失败模型哨兵化 + 命名错误码**：`pkg/search/core/diagnostics.go:98-117` 的 `ClassifyFailure` 靠错误字符串关键词判类，i18n 后口径会漂（AGENTS.md 已记着「改错误文案须核对三处」）。改为哨兵 + 命名错误码（`SEARCH_BLOCKED` / `SEARCH_PARSE` / `SEARCH_EMPTY` / `SEARCH_THROTTLED`）+ 结构化 `fallbackOn` 策略，并特判「HTTP 200 但实为验证码页」。这与 v3.10.5 推行的哨兵化方向一致。
-- [ ] **D3. 共享 per-request 预算与 abort 传播**：`hybrid/hybrid.go:178-208` 软超时后另起 goroutine，被放弃的请求仍在后台推进共享状态（注释自认）；v3.10.5 的 `ContextEngine` 只覆盖部分引擎。升级为「预算对象贯穿全链 + 显式 abort」，同时修可用性（两源到齐即放 tail）与竞态。
+- [x] **D1. 离线检索质量评测集（与 T2 合并做，2026-11-11 落地）**：`bench/quality` 固定 20 条中英 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），回放 `enhance.EnhanceResults` 输出逐 case 与聚合的 P@8 / R@8 / MRR@8；逐 case 断言命中数与首个相关结果排名，聚合门槛拦退化。零网络依赖。**边界**：fixture 为合成候选集，衡量评分与排序回归，不代表真实检索召回；真实引擎 HTML fixture 仍归 T2。
+- [x] **D2. 失败模型哨兵化 + 命名错误码（2026-11-11 落地）**：新增叶子包 `pkg/errcode`（`timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`，支持 `errors.As` 穿透与 `Message` 换文案保错误链）；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 改为错误码优先、中英关键词兜底；`antirobot.ErrLocalRateLimit`、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类附码；`adapter/baidu_fallback.go` 双失败用 `errcode.Message` 保留主备原因。**遗留**：尚未给所有引擎/供应商的原始错误逐点附码，关键词兜底仍参与。
+- [ ] **D3. 共享 per-request 预算与 abort 传播（部分落地 2026-11-11）**：`googlenews` / `wikipedia` 已补 `ContextEngine`；`hybrid` 软超时的包装 goroutine 仍存在，`cleanfetch` 抓取链尚无统一预算对象。剩余工作集中在 `hybrid` 与 `cleanfetch`，收益与并发风险需单独评估。
 - [ ] **D4. citation ID 与证据包**：现有 `result_ref` + `cleanfetch(offset/next_offset/eof)` 分段读回比竞品完整，值得保留；缺稳定引用 ID、source span、cited evidence pack，以及把网页正文包进 `<untrusted-web-content>` 代码标记防提示注入。dsh research 模式明确要求「给有来源的结论」。
-- [ ] **D5. 工具面与 server instructions**：`mcp/server.go:28-31` 建 server 时未设 Instructions，而 dsh MCP client 会把它并入系统提示。补一段「何时搜 / 何时读 / 何时 research」的工具选择策略，`skills/websearch-mcp/` 已有基础，几乎零成本提升召回。
+- [x] **D5. 工具面与 server instructions（2026-11-11 落地）**：`NewMCPServer` 在 `ServerOptions.Instructions` 下发中英双语工具选择纪律（发现 / 读正文 / 查论文 / 本地文件 / 历史），说明参数默认值与作用域；调用方显式设置时尊重其值。`skills/websearch-mcp/SKILL.md` 增补「参数纪律」。长度控制在数行，避免常驻系统提示膨胀。
 - [ ] **D6. 垂直源 / 官方源窄查（只做 optional action）**：对标插件有 34 垂直源与 2.5s 官方源 lookup；本项目已有 9 学术引擎与 GitHub 特判，可只补包管理 registry + 官方发布源一路，**不要全量扩面**——与「深耕不扩面」定位冲突。
 - [ ] **D7. 配置分层与热重载**：`config.go` 1,863 行 / 236 字段、`config.example.yaml` 559 行，dashboard 只能改白名单、不能热重载装配。引入 preset 分层（profile → bundle → patch）比继续堆字段划算。
 - [ ] **D8. 实时指标与显式 DI**：`/metrics` 是从 SQLite 回读当天事件而非进程内 counter，全仓无 tracing；`mcp/options.go:93-108` 与 `searxng/handler.go` 的全局 service-locator 装配不支持多实例，`core.ShowMeta` 存在无锁读写。
