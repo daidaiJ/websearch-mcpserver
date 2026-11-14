@@ -14,6 +14,18 @@
   `pkg/llm/llm.go` 的 `ChatRequest` 只有 Model/Messages/Stream，无 `max_tokens`、温度透传；摘要 prompt 拼入结果的长度控制未见配置项。
   方向：配置项 + prompt 截断预算，减少快速供应商下的无谓 token 开销。配置变更须同步两份 `config.example.yaml` 与 docs。
 
+### PDF 本地解析
+
+- [ ] **P1. PDFium 动态库加载路线对比与优化（下个版本，2026-11-14 记录）**
+  现状：`pkg/fetch/pdfium` 用 purego 在进程内懒加载 `pdfium.dll` / `libpdfium.so` / `libpdfium.dylib`，首次解析才 `LoadLibrary` / `dlopen`，所有调用走进程级互斥串行；`fallback` 在 ledongthuc 失败后试一次，`primary` 优先 PDFium。优点是零 CGO、启动零成本；限制是 C 层 SIGSEGV 无法被 Go recover，且首次解析与热路径共用 MCP 主进程。
+  下个版本对比验证的路线（按性能与限制两轴）：
+  - 进程内懒加载（现状）：首次加载延迟、常驻内存、无隔离；
+  - 独立 worker 进程：崩溃隔离、可超时重启，代价是 IPC、常驻内存与部署复杂度；
+  - 启动预加载 / 常驻：去掉首次解析抖动，代价是启动时间与空跑内存；
+  - 短生命周期加载（按请求 / 按批）：隔离性最好，加载与卸载开销最大；
+  - 纯 Go 替代（wasm/wazero 或其他解析器）：无 C 依赖，代价是内存、冷启动与抽取质量。
+  验收：固定 corpus 上首解 / 热解延迟、常驻与峰值内存、畸形输入存活率、部署与配置复杂度；结论回写 `docs/pdf-parser.md`，再决定是否调整默认加载策略与 worker 方案。当前先保持实验性进程内实现，不做行为变更。
+
 ### MCP 生态跟进
 
 - [x] **N1. TinyFish Search/Fetch REST provider（2026-10-24 拍板并落地）**

@@ -199,12 +199,13 @@ docker build -t websearch-mcpserver .
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
 
-### pdf-parser-backends — done（2026-11-14，未发版）
+### pdf-parser-backends — done（2026-11-14，随 v3.10.7 发布）
 
-- **当前状态：** 实验性 PDFium DLL 接入已落地：`pkg/fetch/pdfium` 懒加载 + `pdf_parser.pdfium.{enabled,path,mode}`；fallback 先走 ledongthuc+guard、失败后试一次 PDFium，primary 可配置为默认本地后端。Release 整包、GHCR 镜像、MCP Registry `.mcpb` 与 npm 平台包统一通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152`，按架构随各自产物分发
+- **当前状态：** 实验性 PDFium DLL 接入已落地并随 v3.10.7 发布：`pkg/fetch/pdfium` 懒加载 + `pdf_parser.pdfium.{enabled,path,mode}`；fallback 先走 ledongthuc+guard、失败后试一次 PDFium，primary 可配置为默认本地后端。Release 整包、GHCR 镜像、MCP Registry `.mcpb` 与 npm 平台包统一通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152`，按架构随各自产物分发。发布验证：GHCR `3.10.7` 在 linux/amd64 与 linux/arm64 运行层均读到 `VERSION=159.0.8152.0`；MCP Registry `3.10.7` active，`.mcpb` 的 registry `fileSha256` 与 Release 校验和逐条一致；npm 6 个包 `3.10.7` 已发布，linux 平台包 tarball 内含 `bin/third_party/pdfium/linux-x64/libpdfium.so`
 - **关键数据：** 病态 34 条 PDFium 无挂死/panic；20 页 warm 中位 ledongthuc 2.40ms / DLL 9.15ms / wasm 18.83ms；DLL 常驻 22.5MB、冷启动约 34ms
 - **关键证据：** [`docs/pdf-parser.md`](docs/pdf-parser.md)（含处理状态图）；`pkg/fetch/pdfium/`；`third_party/pdfium/`；`pkg/fetch/webfetch/pdfium_*_test.go`；[`bench/pdfcorpus/`](bench/pdfcorpus/)；分支 `feat/absorb-pr30-pr31` 另有未提交 guard
-- **验收标准：** [x] 真实 DLL 抽取 + fallback/primary 测试；[x] 配置解析与默认值；[x] `go build ./...` / `go vet ./...` / `go test -short ./...` 全绿 / i18n 审计 / CGO=0；[x] Linux `.so` 在 WSL 实测（Ubuntu 22.04 / Go 1.27.1，`TestExtractFromBundledPath`、`TestExtractWithDLL` 与真实 production primary/fallback 均通过）；[ ] 真实 PDF 长跑；[ ] Release 整包实跑（本地只验脚本与打包映射）
+- **下个版本待办：** 对比验证 PDFium 动态库加载的不同路线（进程内懒加载 / 独立 worker / 启动预加载 / 短生命周期 / 纯 Go 替代），按首解与热解延迟、内存、畸形存活率、部署复杂度出结论；当前保持现状，见 [`docs/optimization-roadmap.md`](docs/optimization-roadmap.md) P1
+- **验收标准：** [x] 真实 DLL 抽取 + fallback/primary 测试；[x] 配置解析与默认值；[x] `go build ./...` / `go vet ./...` / `go test -short ./...` 全绿 / i18n 审计 / CGO=0；[x] Linux `.so` 在 WSL 实测（Ubuntu 22.04 / Go 1.27.1，`TestExtractFromBundledPath`、`TestExtractWithDLL` 与真实 production primary/fallback 均通过）；[x] GHCR 双架构 / MCPB / npm 内含 PDFium 已实测；[ ] 真实 PDF 长跑；[ ] Release 整包实跑（本地只验脚本与打包映射）
 - **详情指针：** [`.handoff/pdf-parser-backends.md`](.handoff/pdf-parser-backends.md)
 
 ### 未验证事项
