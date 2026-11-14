@@ -146,6 +146,47 @@ func TestTitleFromText(t *testing.T) {
 	}
 }
 
+func TestExtractFromBundledPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// A loaded DLL stays locked until process exit, so t.TempDir cannot
+		// remove the copied file. Discovery on Windows is covered by
+		// TestResolveBundledPath; Linux/macOS exercise the full load path.
+		t.Skip("loaded PDFium locks the temp directory on Windows")
+	}
+	src := testDLLPath()
+	if src == "" {
+		t.Skip("PDFium dynamic library not available; set WEBSEARCH_PDFIUM_DLL to run")
+	}
+	sub := BundledSubdir()
+	if sub == "" {
+		t.Skip("platform has no bundled PDFium layout")
+	}
+	base := t.TempDir()
+	dir := filepath.Join(base, sub)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, defaultLibraryName()), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	parser := New(Config{SearchDirs: SearchDirs(base)})
+	path := filepath.Join(t.TempDir(), "bundled.pdf")
+	if err := os.WriteFile(path, testPDF("bundled page"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := parser.Extract(context.Background(), path, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Markdown, "bundled page") {
+		t.Fatalf("bundled extraction markdown = %q", res.Markdown)
+	}
+}
+
 func TestExtractWithDLL(t *testing.T) {
 	dll := testDLLPath()
 	if dll == "" {

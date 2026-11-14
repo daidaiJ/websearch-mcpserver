@@ -8,7 +8,7 @@
 
 ### 新增
 
-- **实验性 PDFium 动态库文本后端（可选）**：`pdf_parser.pdfium` 省略 `enabled` 时自动检测 exe 目录、配置目录及其 `third_party/pdfium/<架构>/` 下的 `pdfium.dll`（Windows）/ `libpdfium.so`（Linux）/ `libpdfium.dylib`（macOS），库存在才按需加载；平台整包通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152` 并按架构随 zip/tar.gz 分发；`mode: fallback`（默认）在 ledongthuc 失败后先试一次 PDFium，再进入 guard/MinerU 链路，`mode: primary` 可把 PDFium 设为本地默认后端。主程序保持纯 Go / 无 CGO / MIT，库缺失或加载失败自动回退；调用在进程内串行，C 层崩溃无法被 Go recover（生产建议 worker 隔离）。选型与 34 条病态输入数据见 `docs/pdf-parser.md`
+- **实验性 PDFium 动态库文本后端（可选）**：`pdf_parser.pdfium` 省略 `enabled` 时自动检测 exe 目录、配置目录及其 `third_party/pdfium/<架构>/` 下的 `pdfium.dll`（Windows）/ `libpdfium.so`（Linux）/ `libpdfium.dylib`（macOS），库存在才按需加载；平台整包通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152` 并按架构随 zip/tar.gz 分发；`mode: fallback`（默认）在 ledongthuc 失败后先试一次 PDFium，再进入 guard/MinerU 链路，`mode: primary` 可把 PDFium 设为本地默认后端。主程序保持纯 Go / 无 CGO / MIT，库缺失或加载失败自动回退；调用在进程内串行，C 层崩溃无法被 Go recover（生产建议 worker 隔离）。选型与 34 条病态输入数据见 `docs/pdf-parser.md`；Linux `libpdfium.so` 已在 WSL（Ubuntu 22.04）实测通过
 - **本地 PDF 精准归档与断点复用**（PR #31，@MattLYT）：配置 MinerU Token 后，本地 `pdf_parser` 默认以整本为目标，按单次预算分批接续；Markdown、图片、原始 ZIP 与页码记录保存在 PDF 旁同名 `.mineru/`。支持重启后续跑、重叠页去重、源文件更新后成功才替换自动生成文件、用户自放资料保留；目标目录不可写时上传前报错，可用 `output_dir` 指定。远程 PDF 与无 Token 的本地文本提取保持原路线
 - **MCP `initialize` 下发工具选择 instructions**：服务端在 `ServerOptions.Instructions` 中返回一段中英双语的选择纪律（smartsearch 发现来源、cleanfetch 读正文、academicsearch 查论文、file_search 查本地文件、search_history 查历史），并说明参数默认值与作用域；调用方显式设置 `Instructions` 时尊重其值。此前该字段为空，客户端无法把工具分工并入系统提示
 - **离线检索质量评测集 `bench/quality`**：20 条中英固定 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），输出逐 case 的 P@8 / R@8 / MRR@8 与聚合均值；断言命中数与首个相关结果排名，聚合门槛用于拦截评分权重/阈值退化。零网络依赖、随 `go test ./...` 运行
