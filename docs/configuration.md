@@ -687,6 +687,8 @@ dashboard:
 | `log.max_size` | 1 (MB) | |
 | `log.max_age` | 1 (day) | |
 
+配置 MinerU Token 后，本地 `pdf_parser` 默认在 PDF 旁做整本精准归档。`max_pages` 继续约束远程/文本提取请求；`mineru_page_budget` 限制每次新增本地解析页数，本地 `mineru_page_batch_size: 0` 则按单任务页限分批。关闭远程 PDF 开关或 OCR 回退不会禁止本地精准上传。
+
 ---
 
 ## 最小配置

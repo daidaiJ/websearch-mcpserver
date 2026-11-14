@@ -1,7 +1,7 @@
 interface:
   display_name: "WebSearch 协作检索"
-  short_description: "协同检索网页、论文和原文，按可用能力定位本地文件"
-  default_prompt: "使用 $websearch-mcp 调查这个问题，按需要衔接网页、论文和全文读取，并给出有出处的结论。"
+  short_description: "检索网页与论文，按需阅读或精准归档 PDF 并复用资料"
+  default_prompt: "使用 $websearch-mcp 处理这个问题，按需要衔接网页、论文与 PDF 阅读；先检查可复用资料，完整阅读或归档时精准解析，并给出有出处的结论。"
 dependencies:
   tools:
     - type: "mcp"

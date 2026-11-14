@@ -508,14 +508,14 @@ func (c CleanFetchConfig) AutoProxyEnabled() bool {
 
 type PDFParserConfig struct {
 	Enabled         bool   `mapstructure:"enabled"`           // 总开关（默认 false）
-	MaxPages        int    `mapstructure:"max_pages"`         // 省略 pages 时最多解析的页数（默认 20，与 MinerU 轻量档对齐）
-	MinerUToken     string `mapstructure:"mineru_token"`      // MinerU API Token（精准解析 API 需要）
+	MaxPages        int    `mapstructure:"max_pages"`         // 远程/无 Token 文本提取的页数上限（默认 20）；本地精准归档以整本为目标
+	MinerUToken     string `mapstructure:"mineru_token"`      // MinerU API Token（本地精准归档及远程精准解析需要）
 	MinerUModel     string `mapstructure:"mineru_model"`      // 模型版本: pipeline(默认) / vlm
 	MinerUOcr       bool   `mapstructure:"mineru_ocr"`        // OCR 识别（默认 false）
 	MinerUFormula   *bool  `mapstructure:"mineru_formula"`    // 公式识别（nil=默认 true）
 	MinerUTable     *bool  `mapstructure:"mineru_table"`      // 表格识别（nil=默认 true）
 	MinerULang      string `mapstructure:"mineru_lang"`       // 文档语言（默认 ch）
-	MinerURemotePDF bool   `mapstructure:"mineru_remote_pdf"` // 远程 PDF URL 走 MinerU 精准 API（默认 true；false 则远程一律不走 MinerU，只保留本地 PDF OCR 回退）
+	MinerURemotePDF bool   `mapstructure:"mineru_remote_pdf"` // 远程 PDF URL 走 MinerU 精准 API（默认 true；false 则远程不走精准 API；本地精准归档不受此开关影响）
 	// MinerUPageLimit 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）。
 	// 请求页码超出该上限时触发本地 qpdf 裁切后分批上传，而不是直接拒绝。
 	MinerUPageLimit int `mapstructure:"mineru_page_limit"`

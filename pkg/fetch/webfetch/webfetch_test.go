@@ -229,6 +229,19 @@ type spyMineru struct {
 	resumeCalls    int
 	parseFileErr   error
 	parseFileCalls int
+	localResult    *mineru.LocalResult
+	localErr       error
+	localCalls     int
+}
+
+func (s *spyMineru) ParseLocalArchive(ctx context.Context, source, output string, pages []int, batchSize, budget int) (*mineru.LocalResult, error) {
+	s.localCalls++
+	s.pages = pages
+	return s.localResult, s.localErr
+}
+
+func (s *spyMineru) ResumeLocalArchive(ctx context.Context, ref string) (*mineru.LocalResult, error) {
+	return nil, nil
 }
 
 func (s *spyMineru) HasToken() bool { return s.hasToken }

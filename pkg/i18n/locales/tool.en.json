@@ -135,5 +135,6 @@
   "tool.pdf.preamble_batched": "> the original PDF has {{.Total}} pages; it was cropped locally and uploaded to MinerU in {{.Batches}} batches (at most {{.BatchSize}} pages each, submitted serially). Page numbers restart at 1 per batch and the original page numbers appear in each section heading. This call parsed original pages {{.From}}-{{.To}} ({{.Pages}} pages).",
   "tool.pdf.page_budget_used": "\n> the {{.Budget}}-page budget for one call is used up; call again and select the remaining pages with pages (e.g. \"{{.From}}-{{.To}}\").",
   "tool.pdf.pages_spec_invalid": "invalid pages format: \"{{.Spec}}\"; examples: 1-10 or 1,3,5-7",
-  "tool.pdf.pages_range_over_limit": "the pages range {{.From}}-{{.To}} expands to more than the {{.Cap}}-page limit; list the specific pages with pages (e.g. \"1-{{.Cap}}\")"
+  "tool.pdf.pages_range_over_limit": "the pages range {{.From}}-{{.To}} expands to more than the {{.Cap}}-page limit; list the specific pages with pages (e.g. \"1-{{.Cap}}\")",
+  "tool.pdf.output_dir_local_only": "output_dir is only available for local PDF precise archival with a configured MinerU token"
 }

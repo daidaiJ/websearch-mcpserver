@@ -29,6 +29,7 @@ type PDFParserParams struct {
 	Pages       string `json:"pages,omitempty" jsonschema:"mcp.param.pdf.pages"`
 	TaskRef     string `json:"task_ref,omitempty" jsonschema:"mcp.param.pdf.task_ref"`
 	WaitSeconds *int   `json:"wait_seconds,omitempty" jsonschema:"mcp.param.pdf.wait_seconds"`
+	OutputDir   string `json:"output_dir,omitempty" jsonschema:"mcp.param.pdf.output_dir"`
 }
 
 // CleanFetch 通过 go-webfetch 抓取网页，失败时回退到 Jina Reader。
@@ -92,7 +93,7 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		notifyProgress(ctx, req, 0, 1, "MinerU: "+status)
 	})
 	if params.TaskRef != "" {
-		if params.Path != "" || params.Pages != "" {
+		if params.Path != "" || params.Pages != "" || params.OutputDir != "" {
 			return nil, nil, errors.New(i18n.T("tool.pdf.taskref_page_hint"))
 		}
 		if webfetchInst == nil {
@@ -101,7 +102,11 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		result, resumeErr := webfetchInst.ResumeMinerUTask(ctx, params.TaskRef)
 		if errors.As(resumeErr, &pending) {
 			parseEngine = "mineru-task"
-			status, statusErr := pdfTaskResult(nil, pending, resumeErr)
+			var partial *mcp.CallToolResult
+			if result != nil {
+				partial = textResult(formatWebFetchResult(result))
+			}
+			status, statusErr := pdfTaskResult(partial, pending, resumeErr)
 			return status, nil, statusErr
 		}
 		if resumeErr != nil {
@@ -122,7 +127,12 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 	if maxPages <= 0 {
 		maxPages = 20
 	}
-	if len(pages) > maxPages {
+	pdfPath, remote := resolvePDFPath(params.Path)
+	localArchive := !remote && webfetchInst != nil && webfetchInst.CanUseMinerULocalPDF()
+	if params.OutputDir != "" && !localArchive {
+		return nil, nil, errors.New(i18n.T("tool.pdf.output_dir_local_only"))
+	}
+	if !localArchive && len(pages) > maxPages {
 		return nil, nil, errors.New(i18n.T("tool.pdf.pages_over_limit", "Count", len(pages), "Max", maxPages))
 	}
 
@@ -130,7 +140,6 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 		return nil, nil, errors.New(i18n.T("tool.pdf.webfetch_not_initialized"))
 	}
 
-	pdfPath, remote := resolvePDFPath(params.Path)
 	if remote {
 		if err := validateURLSecurity(pdfPath); err != nil {
 			return nil, nil, err
@@ -183,10 +192,13 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 				}
 			}
 		}
+	} else if localArchive {
+		result, err = webfetchInst.ParseLocalPDFArchive(ctx, pdfPath, params.OutputDir, pages)
+		errors.As(err, &pending)
 	} else {
 		result, err = webfetchInst.FetchPDFWithPages(ctx, pdfPath, pages, maxPages)
 	}
-	if err != nil {
+	if err != nil && (pending == nil || result == nil) {
 		if !remote {
 			return nil, nil, fmt.Errorf("%s: %w%s", i18n.T("tool.pdf.parse_failed"), err, i18n.T("tool.pdf.local_path_hint"))
 		}
@@ -198,7 +210,7 @@ func PDFParserHandler(ctx context.Context, req *mcp.CallToolRequest, params *PDF
 	if parseEngine != "" {
 		text = i18n.T("tool.pdf.parser_label", "Engine", parseEngine) + "\n\n" + text
 	}
-	return textResult(text), nil, nil
+	return textResult(text), nil, err
 }
 
 // pdfTaskResult keeps unfinished task state separate from document content.
@@ -216,12 +228,11 @@ func pdfTaskResult(result *mcp.CallToolResult, pending *mineru.TaskPendingError,
 		}
 		result = textResult(i18n.T("tool.pdf.task_status_no_body") + "\n\n" + message)
 		result.IsError = true
-		err = nil
 	}
 	result.Meta = mcp.Meta{"websearch/mineru_task": map[string]any{
 		"task_ref": pending.TaskRef, "status": pending.Status, "completed": false,
 	}}
-	return result, err
+	return result, nil
 }
 
 // parseRemotePDFWithCrop 远程 PDF 的本地裁切回退：MinerU 拒绝原文件（页数超限

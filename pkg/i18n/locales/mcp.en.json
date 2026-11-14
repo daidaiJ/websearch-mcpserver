@@ -5,7 +5,6 @@
   "mcp.tool.smartsearch.params": " Supports queries batches (up to 5), depth (fast/balanced/deep), sources (web/academic), and a max_chars context budget.",
   "mcp.tool.smartsearch.fallback": " Falls back to Bing when the primary engine is unavailable.",
   "mcp.tool.smartsearch.scope": " Scope: time-sensitive facts, web leads and document lookup; for systematic literature reviews or academic questions that need citations, use academicsearch instead.",
-
   "mcp.tool.academicsearch.desc": "Academic paper search: queries several scholarly databases in parallel and returns standardized Markdown results (title, authors, DOI, venue, citation count, PDF link).",
   "mcp.tool.academicsearch.engines": "Available engines (the engines parameter accepts several; empty means all):",
   "mcp.tool.academicsearch.advice": "Engine guidance: medicine/biology → pubmed, europepmc | CS/AI → arxiv, semantic_scholar, dblp | all fields → crossref, openalex, google_scholar | open access → doaj",
@@ -20,28 +19,22 @@
   "mcp.tool.academicsearch.engine.europepmc": "Europe PMC biomedical/life sciences (PubMed supplement, with citation counts)",
   "mcp.tool.academicsearch.engine.dblp": "DBLP computer science literature (CS conference/journal index)",
   "mcp.tool.academicsearch.engine.doaj": "DOAJ open access journals (open access papers across all fields)",
-
   "mcp.tool.cleanfetch.desc": "Full-text retrieval tool. url/urls fetch web pages as Markdown (merged and deduplicated, up to 5); alternatively pass a result_ref returned by another tool to read saved search, web or PDF text in segments, returning content, next_offset and eof without re-requesting the source. The two modes are mutually exclusive; offset/limit apply only to reference reads. Always registered; cleanfetch.enabled controls URL fetching only. Use smartsearch first to discover sources.",
-
   "mcp.tool.file_search.desc": "Fast local file search backed by the Everything index, returning file names and paths in milliseconds (read-only, never reads file contents). Useful for locating local files: source code, documents, PDFs. query accepts Everything syntax (wildcards, ext:, dm:, size: and so on).",
   "mcp.tool.file_search.roots": " Search is limited to {{.RootCount}} allowlisted directories; use the folder parameter to narrow it to one of them.",
   "mcp.tool.file_search.time": " Timestamp format is selectable via time_format: datetime (default, YYYY-MM-DD HH:MM:SS) / iso / filetime.",
   "mcp.tool.file_search.paging": " 10 results per page by default (max_results is adjustable, hard cap 20); page through large result sets instead of raising max_results.",
-
-  "mcp.tool.pdf_parser.desc": "PDF parsing tool. path is a local path visible to the service process, a file:// URI, or a remote http(s) PDF URL (a pdf_url from academic results can be passed directly). Docker can only read container or mounted paths, so file_search host paths do not carry over. Local text extraction is preferred and the response names the parser actually used; for long documents pass pages (e.g. '1-10'), otherwise only the first 20 pages (pdf_parser.max_pages) are parsed with a truncation notice; large documents can be stored to a temporary file.",
+  "mcp.tool.pdf_parser.desc": "PDF parsing tool. path accepts a service-visible local PDF, file:// URI, existing package directory, or remote http(s) PDF URL. With a MinerU token, local PDFs use precise parsing and default to whole-document archival when pages is omitted. Matching local packages are reused and missing pages are parsed in budgeted batches. Markdown, images, original ZIPs and task state remain in a same-name .mineru directory beside the PDF. An unwritable directory fails before upload; output_dir selects another writable package directory. Remote PDFs and local text extraction without a token still default to the first 20 pages (pdf_parser.max_pages). Reports the actual parser, completed pages and continuation instructions. For brief reading, first use existing Markdown or host reading tools. Docker paths must be visible to the service.",
   "mcp.tool.pdf_parser.ocr": " Falls back to MinerU OCR when no local text can be extracted (scanned or image-only PDFs).",
   "mcp.tool.pdf_parser.remote": " Remote URLs matching the PDF address rules are parsed by MinerU precise mode first.",
   "mcp.tool.pdf_parser.crop": " When the original exceeds the page limit or the source URL is rejected by MinerU, the selected pages are cropped locally and uploaded in batches, with live batch progress.",
   "mcp.tool.pdf_parser.wait": " MinerU waiting time is adjustable via wait_seconds (0-1800 s, 300 s per task by default); when a task_ref is returned, omit path/pages to query the original task, which is polled once and never resubmitted.",
   "mcp.tool.pdf_parser.scope": " Scope: PDF only; for fetching web page text use cleanfetch.",
-
   "mcp.tool.search_history.desc": "Local search history tool (experimental, usefulness still under evaluation; FTS5 full-text matching over past queries and result titles/snippets). Omit query to list recent history in reverse chronological order.",
   "mcp.tool.search_history.use": " Suited to \"what did I look up earlier\" and to reusing earlier results without searching the web again; use cleanfetch on the URL when you need the full text.",
   "mcp.tool.search_history.privacy": " Data stays in a local SQLite database and never leaves the machine; written automatically after every successful smartsearch (retention defaults to 30 days).",
-
   "mcp.resource.capabilities.desc": "Server capability matrix: registered tools, web engines, API providers (key counts only) and feature switches (read-only, contains no secrets).",
   "mcp.resource.health.desc": "Runtime health: engine cooldowns/circuit breaking (persisted across processes) and process uptime (JSON, contains no secrets).",
-
   "mcp.cap.version": "- version: {{.Version}}\n",
   "mcp.cap.mode": "- search mode: {{.Mode}}\n",
   "mcp.cap.tools_head": "\n## Tools (registered)\n\n",
@@ -64,7 +57,6 @@
   "mcp.cap.feature.fetch_top_n": "- fetch_top_n default: {{.Default}} (0 = titles and snippets only; an explicit agent argument wins)\n",
   "mcp.cap.feature.mineru": "- MinerU PDF enhancement: {{.Enabled}} (OCR fallback: {{.OCR}})\n",
   "mcp.cap.feature.engine_health": "- Engine cooldown persistence: engine_health.json (alongside the cache database; cooldowns survive restarts to avoid immediately retrying dead engines)\n",
-
   "mcp.param.project": "Optional project statistics label: fill in only a project short name already established in the current context (Chinese is supported); omit it when unknown, do not send paths, do not guess from the query, and do not ask the user for it. Used for statistics only; it does not affect search or fetch.",
   "mcp.param.search.query": "Search keywords: express the core intent precisely and concisely (2-6 keywords or one short phrase recommended), keeping only the terms that best pin down the target. Do not pile synonyms, process words and modifiers into a keyword list, which dilutes relevance. For example use 'Go generics performance' rather than 'Go generics type parameters compile runtime performance benchmark comparison optimization usage'.",
   "mcp.param.search.time_range": "Search time range in months, limiting results to the last N months. For example 1 = last month, 3 = last 3 months, 6 = last 6 months, 12 = last year. Defaults to 3; 0 means no limit.",
@@ -99,13 +91,13 @@
   "mcp.param.filesearch.exclude": "Exclusions (array of strings, each an Everything NOT term): e.g. [\"\\obj\\\", \"\\node_modules\\\"], \"old backup\". Matched literally against path segments or file names; keep the leading and trailing backslashes so files whose names merely contain the word are not caught",
   "mcp.param.filesearch.min_alignment": "Vocabulary alignment threshold (0-1): results whose alignment between the query terms and the file name plus path falls below it are dropped. Overrides the server-side everything.min_alignment; 0 = rerank only, no filtering. Start at 0.3 when results are too many",
   "mcp.param.filesearch.time_format": "Timestamp format: datetime (default, 2026-01-02 15:04:05) / iso (ISO 8601 UTC) / filetime (raw Windows FILETIME)",
-  "mcp.param.pdf.path": "Required for a new parse task: an absolute local PDF path visible to the service process (or file://), or a remote http(s) PDF URL. In Docker only container or mounted paths can be read, so host paths returned by file_search do not carry over. A pdf_url from academic results can be passed directly; omit when querying an existing task_ref",
-  "mcp.param.pdf.pages": "Optional page range (1-based), e.g. '1-10', '1,3,5-7'. Omitted, only the first max_pages pages are parsed (20 by default) and long documents report truncation",
-  "mcp.param.pdf.task_ref": "Task reference returned by MinerU: standard:<task_id>, batch:<batch_id> or agent:<task_id>. Queries or retrieves the original task without creating a new one; mutually exclusive with path/pages. Polled once by default, returning status and the reference while it is still processing",
+  "mcp.param.pdf.path": "A service-visible absolute local PDF path, file:// URI, existing .mineru package directory, or remote http(s) PDF URL. A package can be reread or continued. Docker requires mounted paths. Omit when querying task_ref",
+  "mcp.param.pdf.pages": "Optional original PDF pages (1-based), e.g. 1-10 or 1,3,5-7. Omitted for local MinerU archival, targets the whole document in budgeted batches. Omitted for remote PDFs or text extraction without a token, defaults to the first max_pages pages (20)",
+  "mcp.param.pdf.task_ref": "MinerU task reference standard:<id>, batch:<id> or agent:<id>. Queries the original task without resubmitting; mutually exclusive with path/pages/output_dir. Queries once by default; local task results are saved back to the original package",
   "mcp.param.pdf.wait_seconds": "MinerU polling wait in seconds per task, 0-1800. New parses default to 300 s, task_ref to 0 (single poll); on timeout the reference is kept for later queries, which does not mean upstream parsing failed",
   "mcp.param.history.query": "Keywords to search your own past searches (FTS5 full-text matching over queries and result titles/snippets); omitted or empty = most recent history, newest first",
   "mcp.param.history.limit": "Maximum number of history entries to return (default 10, hard cap 50)",
   "mcp.param.history.offset": "Paging offset (default 0)",
-
-  "mcp.server.instructions": "Tool choice: use smartsearch to discover sources; use cleanfetch to read a page and follow result_ref offsets for long pages; use academicsearch for papers when registered; use file_search for local file names when registered; use search_history for past queries when registered. Keep defaults: queries compares several searches in one call, sources only for mixed web and academic retrieval; depth and max_chars shape web bodies only and are worth adjusting only to control body size, with an explicit fetch_top_n winning. Do not re-fetch bodies already inlined in search results."
+  "mcp.server.instructions": "Tool choice: use smartsearch to discover sources; use cleanfetch to read a page and follow result_ref offsets for long pages; use academicsearch for papers when registered; use file_search for local file names when registered; use search_history for past queries when registered. Keep defaults: queries compares several searches in one call, sources only for mixed web and academic retrieval; depth and max_chars shape web bodies only and are worth adjusting only to control body size, with an explicit fetch_top_n winning. Do not re-fetch bodies already inlined in search results.",
+  "mcp.param.pdf.output_dir": "Local precise archival only: explicitly selects the package directory. Defaults to a same-name .mineru folder beside the PDF. When that directory is unwritable, use a user-selected location. Mutually exclusive with task_ref or a package directory passed as path"
 }
