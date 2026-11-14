@@ -28,6 +28,8 @@ vendor/
 /config.yaml
 /config.test.yaml
 /websearch-mcpserver
+# Downloaded PDFium layouts (fetch.sh); only fetch.sh and README.md are tracked.
+/third_party/pdfium/*/
 /websearch
 /autostart.vbs
 /start-mcp.vbs
