@@ -4,8 +4,11 @@
 
 ## Unreleased
 
+> Credits: the PDF changes in this batch come from PRs [#30](https://github.com/daidaiJ/websearch-mcpserver/pull/30) and [#31](https://github.com/daidaiJ/websearch-mcpserver/pull/31) by [@MattLYT](https://github.com/MattLYT) (Matt.Li); his commits keep their original authorship, and later commits are absorb adaptations only.
+
 ### Added
 
+- **Local PDF precise archival with resumable MinerU parsing** (PR #31, @MattLYT): with a MinerU Token configured, local `pdf_parser` calls default to the whole document and continue in budget-sized batches; Markdown, images, original ZIPs and page records are stored in a sibling `.mineru/` package. Supports resume after restart, overlapping-page dedup, replacing generated files only after a successful new parse, and keeping extra user files; an unwritable target is rejected before upload, and `output_dir` can point elsewhere. Remote PDFs and Token-less local text extraction keep their existing routes
 - **MCP `initialize` now carries tool-choice instructions**: the server returns a bilingual `ServerOptions.Instructions` block covering smartsearch (discovery), cleanfetch (bodies), academicsearch (papers), file_search (local names) and search_history (past queries), plus default parameter values and their scope. An explicit caller-provided `Instructions` value is respected. The field was previously empty, so clients could not fold tool roles into the system prompt
 - **Offline ranking benchmark `bench/quality`**: 20 fixed English/Chinese fixtures (2 expected domains plus 4 distractors each, replayed at two different engine ranks), reporting per-case P@8 / R@8 / MRR@8 and aggregate means. Per-case hit and first-relevant-rank assertions plus aggregate floors catch weight or threshold regressions. No network dependency; runs with `go test ./...`
 - **Stable error codes in `pkg/errcode`**: `timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`, readable through `errors.As`, with `Message` replacing display text while preserving the original error chain
@@ -14,6 +17,7 @@
 
 ### Changed
 
+- **Local PDFs with a Token take the precise archive path and skip text-first extraction**: disabling `mineru_ocr` does not block precise upload. Omitting `pages` now targets the whole local document instead of truncating at `max_pages` (default 20); that cap still applies to remote PDFs and Token-less text extraction. `pdf_parser` gains `output_dir`
 - **`/metrics` gains in-process metrics**: always reports in-flight HTTP requests, process uptime, goroutine count, heap-allocated bytes and `websearch_telemetry_enabled`; tool/provider aggregates are appended when the dashboard is enabled. With the dashboard disabled the endpoint now returns 200 and omits only the telemetry series instead of returning 503, so monitoring does not go blind
 - **Provider key pools use the named `mode.ProviderPools` struct**: `BuildApipoolMode` / `BuildHybridMode` replace 8–9 positional `*KeyPool` parameters with per-provider fields, so adding a provider cannot silently bind the wrong pool through argument drift
 - **`core.ShowMeta` uses atomic access**: the package-level bool became `atomic.Bool` with `SetShowMeta` / `ShowMetaEnabled`, removing a data race on the global configuration value
@@ -21,6 +25,7 @@
 
 ### Fixed
 
+- **Unbounded memory growth in PDF text extraction** (PR #30, @MattLYT): bump `ledongthuc/pdf` to include the upstream EOF-exit and cross-content-stream fixes. When a content stream ended inside an open array, or a legal array spanned content streams, the old parser kept appending EOF until the process ran out of memory. Regression tests cover `Fetch` and `FetchPDFWithPages`, with a 64 MiB heap-growth budget and a 5s timeout in a child process
 - **Initialization failures no longer panic out of the CLI / daemon**: `ServerOption` now returns an error and `Init` propagates it, so search-engine, cache-namespace and cache construction failures surface through `Run` / `cmd/cli` as the usual "failed to start server" message instead of a stack trace; the embedded `Handler` path still panics at the boundary as documented. Three new bilingual `tool.init.*` strings
 - **Failure classification no longer depends on localized text**: `core.ClassifyFailure`, `telemetry.ClassifyErrorKind` and `mcp.isAntiBotFailure` matched English/Chinese keywords, so changing language or wording shifted the result. They now read the stable `pkg/errcode` code first (`antirobot`'s local-limit sentinel, `provider.KeyError`, and webfetch's WAF/timeout/empty-shell classes all attach one), and fall back to keywords for upstream errors that do not carry a code yet
 - **Baidu API fallback keeps both causes when both engines fail**: `adapter/baidu_fallback.go` returned the fallback result directly after a primary failure, so a fallback failure surfaced only its own error. `errcode.Message` now combines both reasons while `errors.Is` still reaches either original error

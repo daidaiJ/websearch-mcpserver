@@ -4,8 +4,11 @@
 
 ## Unreleased
 
+> 致谢：本批 PDF 改动来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR [#30](https://github.com/daidaiJ/websearch-mcpserver/pull/30) 与 PR [#31](https://github.com/daidaiJ/websearch-mcpserver/pull/31)；原提交保留其署名，后续提交仅为吸收后的适配。
+
 ### 新增
 
+- **本地 PDF 精准归档与断点复用**（PR #31，@MattLYT）：配置 MinerU Token 后，本地 `pdf_parser` 默认以整本为目标，按单次预算分批接续；Markdown、图片、原始 ZIP 与页码记录保存在 PDF 旁同名 `.mineru/`。支持重启后续跑、重叠页去重、源文件更新后成功才替换自动生成文件、用户自放资料保留；目标目录不可写时上传前报错，可用 `output_dir` 指定。远程 PDF 与无 Token 的本地文本提取保持原路线
 - **MCP `initialize` 下发工具选择 instructions**：服务端在 `ServerOptions.Instructions` 中返回一段中英双语的选择纪律（smartsearch 发现来源、cleanfetch 读正文、academicsearch 查论文、file_search 查本地文件、search_history 查历史），并说明参数默认值与作用域；调用方显式设置 `Instructions` 时尊重其值。此前该字段为空，客户端无法把工具分工并入系统提示
 - **离线检索质量评测集 `bench/quality`**：20 条中英固定 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），输出逐 case 的 P@8 / R@8 / MRR@8 与聚合均值；断言命中数与首个相关结果排名，聚合门槛用于拦截评分权重/阈值退化。零网络依赖、随 `go test ./...` 运行
 - **稳定错误码 `pkg/errcode`**：`timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`；支持 `errors.As` 穿透包装，并可用 `Message` 替换展示文案而保留原始错误链
@@ -14,6 +17,7 @@
 
 ### 变更
 
+- **有 Token 时本地 PDF 走精准归档、不再先抽文本**：关闭 `mineru_ocr` 也不禁止精准上传。省略 `pages` 时本地归档目标为整本，不再受 `max_pages`（默认 20）截断；该上限仍约束远程 PDF 与无 Token 的文本提取。`pdf_parser` 新增 `output_dir`
 - **`/metrics` 增加进程内指标**：始终输出在飞 HTTP 请求数、进程 uptime、goroutine 数、堆分配字节与 `websearch_telemetry_enabled`；控制中心启用时再追加原有工具/供应商聚合。控制台关闭时端点从 503 改为 200，仅省略遥测序列，避免监控在关闭控制台后整段失明
 - **provider Key 池改为命名结构体 `mode.ProviderPools`**：`BuildApipoolMode` / `BuildHybridMode` 由 8–9 个同类型 `*KeyPool` 位置参数改为按供应商命名的字段，新增供应商不会再因参数错位而静默接错池
 - **`core.ShowMeta` 改为原子访问**：由包级 bool 改为 `atomic.Bool` + `SetShowMeta` / `ShowMetaEnabled`，消除并发读取全局配置值的数据竞争
@@ -21,6 +25,7 @@
 
 ### 修复
 
+- **PDF 文本解析无限扩容**（PR #30，@MattLYT）：升级 `ledongthuc/pdf`，纳入上游 EOF 退出与跨内容流连续解析修复。内容流在数组闭合前结束、或合法数组跨内容流时，旧解析器会反复追加 EOF 直至耗尽内存。回归测试覆盖 `Fetch` 与 `FetchPDFWithPages`，子进程设 64 MiB 堆增长保护与 5 秒超时
 - **初始化失败不再以 panic 终止 CLI / daemon**：`ServerOption` 改为返回 error，`Init` 逐项传播，搜索引擎、缓存命名空间与缓存构造失败沿 `Run` / `cmd/cli` 返回，由入口打印「failed to start server」等提示，不再直接抛堆栈；`Handler` 嵌入路径仍按文档 fail-fast panic。新增 3 条 `tool.init.*` 中英文案
 - **错误判类不再依赖本地化文案**：`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 三处此前按中英关键词匹配，切换语言或改文案就会漂移。现在优先读取 `pkg/errcode` 的稳定错误码（`antirobot` 本端限流哨兵、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类均已附码），未知错误继续回落关键词，兼容尚未接码的上游错误
 - **百度 API 回退双失败保留主备两侧原因**：`adapter/baidu_fallback.go` 此前主引擎失败后直接返回回退结果，回退再失败时只剩回退错误。现在用 `errcode.Message` 组合两侧原因，`errors.Is` 仍可命中任一原始错误
