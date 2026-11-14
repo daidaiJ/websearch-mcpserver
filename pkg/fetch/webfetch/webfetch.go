@@ -35,6 +35,7 @@ type Result struct {
 	Preamble    string // 页截断/选择说明，工具输出时置于正文前
 	ParseEngine string // PDF：实际解析器（pdf-lib / mineru-remote / mineru-ocr）
 	ParsedPages int    // PDF：本次实际解析页数；0 表示解析器未返回页数
+	Persistent  bool   // Local PDF packages outlive temporary reading references.
 }
 
 // fetchEngine 抽象 go-webfetch 抓取引擎，便于测试注入替身。
@@ -54,14 +55,18 @@ type mineruParser interface {
 	ParseStandardFile(ctx context.Context, filePath string) (string, error)
 	ResumeTask(ctx context.Context, taskRef string) (string, error)
 	ParseFileWithPages(ctx context.Context, filePath string, pages []int, maxPages int) (string, error)
+	ParseLocalArchive(ctx context.Context, source, output string, pages []int, batchSize, budget int) (*mineru.LocalResult, error)
+	ResumeLocalArchive(ctx context.Context, taskRef string) (*mineru.LocalResult, error)
 }
 
 // Fetcher 封装 go-webfetch Engine。
 type Fetcher struct {
-	engine          fetchEngine
-	mineru          mineruParser
-	mineruOCR       bool // 本地 PDF 库读不到文本时是否回退 MinerU OCR
-	mineruRemotePDF bool // 远程 PDF URL 是否走 MinerU 精准 API（配置 pdf_parser.mineru_remote_pdf）
+	engine           fetchEngine
+	mineru           mineruParser
+	mineruOCR        bool // 本地 PDF 库读不到文本时是否回退 MinerU OCR
+	mineruRemotePDF  bool // 远程 PDF URL 是否走 MinerU 精准 API（配置 pdf_parser.mineru_remote_pdf）
+	mineruPageBatch  int
+	mineruPageBudget int
 
 	outputDir      string        // 大文本落盘目录（清理范围仅限此目录）
 	fileTTL        time.Duration // 落盘文件保留时长
@@ -125,19 +130,21 @@ func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, p
 	log.InfoT("log.fetch.webfetch.webfetch_engine_enabled_output_dir_ttl", "outputDir", outputDir, "fileTTL", fileTTL, "maxInlineLines", maxInlineLines, "timeout", timeout)
 
 	f := &Fetcher{
-		engine:          engine,
-		mineruOCR:       pdfCfg.MinerUOCREnabled(),
-		mineruRemotePDF: pdfCfg.MinerURemotePDF,
-		outputDir:       outputDir,
-		fileTTL:         fileTTL,
-		maxInlineLines:  maxInlineLines,
-		maxInlineChars:  cfg.MaxInlineChars,
+		engine:           engine,
+		mineruOCR:        pdfCfg.MinerUOCREnabled(),
+		mineruRemotePDF:  pdfCfg.MinerURemotePDF,
+		outputDir:        outputDir,
+		fileTTL:          fileTTL,
+		maxInlineLines:   maxInlineLines,
+		maxInlineChars:   cfg.MaxInlineChars,
+		mineruPageBatch:  pdfCfg.GetMinerUPageBatchSize(),
+		mineruPageBudget: pdfCfg.GetMinerUPageBudget(),
 	}
 	f.startFileJanitor(fileTTL)
 
 	// 初始化 MinerU 客户端（有 Token 或开启 OCR 回退时）
 	if pdfCfg.MinerUEnabled() {
-		f.mineru = mineru.NewFromConfig(
+		client := mineru.NewFromConfig(
 			pdfCfg.MinerUToken,
 			pdfCfg.GetMinerUModel(),
 			pdfCfg.GetMinerULang(),
@@ -147,6 +154,8 @@ func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, p
 			proxyURL,
 			pdfCfg.GetMinerUPageLimit(),
 		)
+		client.SetLocalTaskDir(filepath.Join(outputDir, "mineru-local-tasks"))
+		f.mineru = client
 		if pdfCfg.MinerUOcr {
 			log.InfoT("log.fetch.webfetch.mineru_ocr_fallback_enabled_used_when", "minerUModel", pdfCfg.GetMinerUModel())
 		} else if pdfCfg.MinerUToken != "" {
@@ -258,6 +267,14 @@ func (f *Fetcher) ResumeMinerUTask(ctx context.Context, taskRef string) (*Result
 	defer f.endActivity()
 	if f.mineru == nil {
 		return nil, errors.New(i18n.T("fetch.webfetch.mineru_disabled"))
+	}
+	local, localErr := f.mineru.ResumeLocalArchive(ctx, taskRef)
+	if local != nil {
+		result, formatErr := localArchiveResult(local)
+		return result, errors.Join(localErr, formatErr)
+	}
+	if localErr != nil {
+		return nil, localErr
 	}
 	md, err := f.mineru.ResumeTask(ctx, taskRef)
 	if err != nil {

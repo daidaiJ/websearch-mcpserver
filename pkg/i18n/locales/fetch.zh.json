@@ -123,5 +123,13 @@
   "fetch.mineru.err_wrapped": "MinerU 错误 ({{.Code}}): {{.Msg}}",
   "fetch.mineru.err_agent_too_large": "文件超过轻量 API 大小限制 (10MB)",
   "fetch.mineru.err_agent_unsupported": "轻量 API 不支持该文件格式",
-  "fetch.mineru.err_agent_page_limit": "文件页数超过轻量 API 限制 (20页)；可用 pages 指定 20 页以内范围"
+  "fetch.mineru.err_agent_page_limit": "文件页数超过轻量 API 限制 (20页)；可用 pages 指定 20 页以内范围",
+  "fetch.mineru.local_output_conflict": "传入解析包目录时请省略 output_dir",
+  "fetch.mineru.local_source_invalid": "本地 PDF 必须是普通文件",
+  "fetch.mineru.local_package_invalid": "解析包无效或目标目录包含未登记的资料；请检查文件或指定其他 output_dir",
+  "fetch.mineru.local_output_unwritable": "无法在 {{.Path}} 保存解析包；尚未上传，请指定可写的 output_dir",
+  "fetch.mineru.local_source_changed": "解析期间原 PDF 已变化，请使用更新后的文件重新调用",
+  "fetch.mineru.local_section": "## 原 PDF 页码：{{.Pages}}",
+  "fetch.webfetch.local_package": "> 本地精准解析包：{{.Package}}\n> 原 PDF：{{.Source}}\n> 已保存原页码：{{.Pages}}；原文共 {{.Total}} 页；复用已有结果：{{.Reused}}。Markdown、图片和原始 ZIP 长期保存在该包中，可再次传原 PDF 或解析包目录读取。",
+  "fetch.webfetch.local_remaining": "> 尚缺原页码：{{.Pages}}。这不是完整结果；请再次调用 pdf_parser，path 传 {{.Package}} 接续，等待中的任务先使用返回的 task_ref 续查。"
 }

@@ -67,7 +67,7 @@ func savedResultReadNotice(result *webfetch.Result) string {
 	if webfetchLazyCfg != nil && webfetchLazyCfg.CleanFetch.FileTTL > 0 {
 		ttl = time.Duration(webfetchLazyCfg.CleanFetch.FileTTL) * time.Hour
 	}
-	notice, err := resultFileNotice(result.FilePath, ttl)
+	notice, err := registerResultFile(result.FilePath, ttl, result.Persistent)
 	if err != nil {
 		return i18n.T("tool.result.read_failed", "Err", err.Error())
 	}
@@ -75,6 +75,10 @@ func savedResultReadNotice(result *webfetch.Result) string {
 }
 
 func resultFileNotice(path string, ttl time.Duration) (string, error) {
+	return registerResultFile(path, ttl, false)
+}
+
+func registerResultFile(path string, ttl time.Duration, persistent bool) (string, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return "", resultUnavailableErr()
@@ -84,6 +88,9 @@ func resultFileNotice(path string, ttl time.Duration) (string, error) {
 		return "", resultUnavailableErr()
 	}
 	expires := info.ModTime().Add(ttl)
+	if persistent {
+		expires = time.Now().Add(ttl)
+	}
 	if !time.Now().Before(expires) {
 		return "", resultUnavailableErr()
 	}

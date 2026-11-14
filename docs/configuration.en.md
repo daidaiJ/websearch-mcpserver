@@ -694,6 +694,8 @@ dashboard:
 | `log.max_size` | 1 (MB) | |
 | `log.max_age` | 1 (day) | |
 
+With a MinerU token, local `pdf_parser` calls default to whole-document precise archival beside the PDF. `max_pages` continues to limit remote/text-extraction requests; `mineru_page_budget` limits new local pages per call and `mineru_page_batch_size: 0` uses the task page limit for local batches. Disabling remote PDF mode or OCR fallback does not disable local precise uploads.
+
 ---
 
 ## Minimal Config

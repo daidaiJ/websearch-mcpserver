@@ -13,6 +13,23 @@ import (
 
 // ParseStandardFile sends a locally cropped PDF through MinerU's signed upload API.
 func (c *Client) ParseStandardFile(ctx context.Context, filePath string) (string, error) {
+	ref, err := c.submitStandardFile(ctx, filePath, nil)
+	if err != nil {
+		return "", err
+	}
+	zipURL, err := c.pollTask(ctx, ref)
+	if err != nil {
+		return "", err
+	}
+	md, err := c.downloadZIP(ctx, zipURL)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, ref)
+	}
+	return i18n.T("fetch.mineru.zip_preamble", "URL", zipURL) + "\n\n" + md, nil
+}
+
+// remember persists the reference before upload, so a lost response can be resumed.
+func (c *Client) submitStandardFile(ctx context.Context, filePath string, remember func(string) error) (string, error) {
 	if c.token == "" {
 		return "", errors.New(i18n.T("fetch.mineru.token_required"))
 	}
@@ -27,18 +44,16 @@ func (c *Client) ParseStandardFile(ctx context.Context, filePath string) (string
 	if err != nil {
 		return "", err
 	}
+	ref := "batch:" + batchID
+	if remember != nil {
+		if err := remember(ref); err != nil {
+			return "", err
+		}
+	}
 	if err := c.uploadFile(ctx, uploadURL, filePath); err != nil {
-		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.upload_failed"), err, "batch:"+batchID)
+		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.upload_failed"), err, ref)
 	}
-	zipURL, err := c.pollStandardUpload(ctx, batchID)
-	if err != nil {
-		return "", err
-	}
-	md, err := c.downloadZIP(ctx, zipURL)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w (task_ref=%q)", i18n.T("fetch.mineru.result_download_failed"), err, "batch:"+batchID)
-	}
-	return i18n.T("fetch.mineru.zip_preamble", "URL", zipURL) + "\n\n" + md, nil
+	return ref, nil
 }
 
 type standardUploadResponse struct {

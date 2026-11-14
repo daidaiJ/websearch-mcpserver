@@ -123,5 +123,13 @@
   "fetch.mineru.err_wrapped": "MinerU error ({{.Code}}): {{.Msg}}",
   "fetch.mineru.err_agent_too_large": "the file exceeds the lightweight API size limit (10MB)",
   "fetch.mineru.err_agent_unsupported": "the lightweight API does not support this file format",
-  "fetch.mineru.err_agent_page_limit": "the file exceeds the lightweight API page limit (20 pages); use pages to select a range of 20 or fewer"
+  "fetch.mineru.err_agent_page_limit": "the file exceeds the lightweight API page limit (20 pages); use pages to select a range of 20 or fewer",
+  "fetch.mineru.local_output_conflict": "Omit output_dir when path is an existing package directory",
+  "fetch.mineru.local_source_invalid": "The local PDF must be a regular file",
+  "fetch.mineru.local_package_invalid": "The package is invalid or the output directory contains unmanaged files; inspect it or choose another output_dir",
+  "fetch.mineru.local_output_unwritable": "Cannot save the package in {{.Path}}; no upload has started; specify a writable output_dir",
+  "fetch.mineru.local_source_changed": "The source PDF changed during parsing; call again with the updated file",
+  "fetch.mineru.local_section": "## Original PDF pages: {{.Pages}}",
+  "fetch.webfetch.local_package": "> Local precise package: {{.Package}}\n> Source PDF: {{.Source}}\n> Saved original pages: {{.Pages}}; source total: {{.Total}}; reused results: {{.Reused}}. Markdown, images and original ZIP files remain in this package. Pass the source PDF or package directory again to read it.",
+  "fetch.webfetch.local_remaining": "> Missing original pages: {{.Pages}}. This result is incomplete. Call pdf_parser again with path={{.Package}} to continue; first resume any pending task using its returned task_ref."
 }
