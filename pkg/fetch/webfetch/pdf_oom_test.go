@@ -36,9 +36,10 @@ func TestLocalPDFUnterminatedArray(t *testing.T) {
 		}()
 
 		contents := []string{"BT /F1 12 Tf (retained text) Tj ET"}
-		if scenario == "unterminated_array" {
+		switch scenario {
+		case "unterminated_array":
 			contents[0] += " [ (truncated) 1 2"
-		} else if scenario == "split_stream" {
+		case "split_stream":
 			contents = []string{"BT /F1 12 Tf [(retained)", "( text)] TJ ET"}
 		}
 		path := filepath.Join(t.TempDir(), "synthetic.pdf")
