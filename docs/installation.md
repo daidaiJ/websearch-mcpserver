@@ -32,7 +32,7 @@
 
 从 [Release 页面](https://github.com/daidaiJ/websearch-mcpserver/releases) 下载，每个产物旁附带对应 `.sha256` 校验文件。
 
-**整包（推荐）**：每个平台一个压缩包，解压即得两个二进制、样例配置、LICENSE、README 与 `skills/`（WebSearch Skill + Everything 接入指导），不必逐个下载：
+**整包（推荐）**：每个平台一个压缩包，解压即得两个二进制、样例配置、LICENSE、README、`skills/`（WebSearch Skill + Everything 接入指导）与可选的 PDFium 动态库，不必逐个下载：
 
 | 平台 | 整包 |
 |------|------|
@@ -51,10 +51,34 @@ websearch-mcpserver-<平台>/
 ├── dashboard.example.yaml
 ├── LICENSE
 ├── README.MD / README.EN.md
-└── skills/                     # websearch-mcp + everything-http-server
+├── skills/                     # websearch-mcp + everything-http-server
+└── third_party/
+    └── pdfium/
+        └── <架构>/             # 例：win-x64、linux-x64、mac-arm64
+            ├── pdfium.dll / libpdfium.so / libpdfium.dylib
+            ├── LICENSE
+            └── licenses/
 ```
 
 解压后按[快速开始](../README.MD#快速开始)运行 `./websearch-mcpserver[.exe] start`；Skill 的安装见 [Skill / 应用项目归属](#skill--应用项目归属)。
+
+#### 可选 PDFium 本地文本后端
+
+整包按当前平台携带一份标准 PDFium 动态库，放在 `third_party/pdfium/<架构>/`。服务启动时不加载，首次解析本地 PDF 时按需打开；省略 `pdf_parser.pdfium.enabled` 时自动检测，库存在即启用 `fallback`，库缺失或加载失败自动回退纯 Go，默认行为不变。需要让所有本地 PDF 优先走 PDFium 时：
+
+```yaml
+pdf_parser:
+  pdfium:
+    mode: primary      # fallback（默认）| primary
+    # enabled: true    # 可选：强制启用；false 关闭；省略=自动检测
+```
+
+- 整包用户解压即可，无需运行下载脚本或另行获取动态库；`third_party/pdfium/fetch.sh` 只供发布 CI 和本地开发准备库文件使用。
+- 支持 Windows x86_64、Linux x86_64/ARM64、macOS Intel/Apple Silicon；动态库与主程序架构必须一致。解析结果头部出现 `PDF 解析器: pdfium` 表示本次实际使用；启动日志会打印已配置的库路径。
+- 相对 `path` 依次在可执行文件目录、其 `third_party/pdfium/<架构>/`、配置目录、其 `third_party/pdfium/<架构>/` 查找。手工替换库可放在可执行文件根目录，优先于整包副本。
+- 只下载裸二进制时整包目录不存在；可从 [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) 取对应构建放入上述目录，或直接使用整包。
+- PDFium 为 BSD-3-Clause，整包已附 `LICENSE` 与 `licenses/`；主程序仍为纯 Go、无 CGO、MIT。
+- GHCR 镜像未内置该动态库；需要时把对应架构的库放进容器 `/app/third_party/pdfium/linux-x64/`（或挂载）。
 
 **单文件下载**（只想拿一个二进制时）：
 

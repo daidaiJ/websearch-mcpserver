@@ -82,7 +82,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | Response transparency | Failure lists, date and retrieval provenance; request cancellation propagates through every engine with a per-engine soft timeout; oversize search results retain candidate previews and a `result_ref` for complete body delivery through the `cleanfetch` saved-result mode |
 | Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |
 | Web fetching | `cleanfetch` with built-in SSRF / DNS-rebinding protection and oversized-file pre-check; fallback to Jina Reader; optional `fetch_mode` reuses hosted MCP fetching |
-| PDF parsing | Local PDFs prefer text extraction; scanned PDFs can fall back to MinerU OCR; remote MinerU returns the ZIP URL with images; when the source exceeds the per-task page limit (default 600), selected pages are cropped locally with qpdf, with configurable auto-batching and a per-call page budget ; bounded MinerU waiting with state and task references for resuming existing jobs |
+| PDF parsing | With a token, local PDFs use whole-document MinerU precise archival, reusing saved pages/tasks; Markdown, images and ZIPs persist beside the PDF. Agents can inspect and reuse existing Markdown. Supports budgeted batches and restart-safe continuation. Remote PDFs retain precise parsing and text fallback. Optional experimental PDFium dynamic-library text backend (`pdf_parser.pdfium`; platform archives ship a standard library under `third_party/pdfium/<arch>/`, auto-enabled when present, falling back to pure Go when missing). |
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
@@ -114,7 +114,7 @@ The full project motivation, a dimension-by-dimension comparison with existing s
 
 ```bash
 # 1. Download: https://github.com/daidaiJ/websearch-mcpserver/releases
-#    Prefer the platform archive (Windows .zip / Linux+macOS .tar.gz): both binaries, config samples and skills/
+#    Prefer the platform archive (Windows .zip / Linux+macOS .tar.gz): both binaries, config samples, skills/ and the PDFium library
 # 2. Start (no hand-written config, no API keys)
 #    Windows auto-start on boot (optional)
 ./websearch-mcpserver.exe install

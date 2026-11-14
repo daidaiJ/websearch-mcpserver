@@ -401,20 +401,23 @@ URL 抓取需配置 `cleanfetch.enabled: true`；引用读取不受此开关限�
 
 ### `pdf_parser` — PDF 解析
 
+**本地精准归档**：配置 MinerU Token 后，本地 PDF 直接走标准上传接口，识别表格、公式与多栏版式。省略 `pages` 时目标为整本，每次新增解析量受 `mineru_page_budget` 约束；已完成页及已提交任务会复用。结果长期保存在 PDF 旁的 `<文件名>.mineru/`，包含 Markdown、图片、原始 ZIP 和来源/页码/任务记录。再次传原 PDF 或包目录可接续或重新读取。可用 `output_dir` 显式指定可写的解析包目录；默认目录不可写时在上传前报错。该参数不能与 `task_ref` 或作为 `path` 的解析包目录混用。PDF 更新后，新结果成功保存再替换登记的自动生成文件，额外放入的用户资料保留。Agent 先抽查已有 Markdown，够用就复用；少量查阅可使用宿主阅读。本地精准归档不会静默降级成普通文本提取。
+
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `path` | string | 新任务必填 | 本地 PDF 文件路径或远程 http(s) URL（学术结果的 `pdf_url` 可直接传入）；与 `task_ref` 互斥 |
-| `pages` | string | ❌ | 页码范围（1-based），如 `1-10`、`1,3,5-7`；非法格式报参数错误，显式页数超过 `max_pages` 或单个区间宽度超过 1000 页时报错并要求拆分 |
-| `task_ref` | string | ❌ | 查询/取回已有 MinerU 任务：`standard:<task_id>`、`batch:<batch_id>` 或 `agent:<task_id>`。省略 `path/pages`，保留原任务选页 |
+| `path` | string | 新任务必填 | 服务可见的本地 PDF、已有解析包目录或远程 PDF URL；查询 `task_ref` 时省略 |
+| `pages` | string | ❌ | 原页码，如 `1-10`、`1,3,5-7`。本地精准归档省略时目标为整本；远程/文本提取仍受 `max_pages` 约束；单个显式区间宽度上限 1000 页 |
+| `task_ref` | string | ❌ | 查询/取回已有 MinerU 任务：`standard:<task_id>`、`batch:<batch_id>` 或 `agent:<task_id>`。省略 `path/pages/output_dir`，保留原任务选页 |
 | `wait_seconds` | integer | ❌ | 0-1800 秒，每个 MinerU 任务的等待上限；新任务默认 300，续查默认 0（只查一次） |
+| `output_dir` | string | ❌ | 显式指定本地解析包目录，默认 PDF 旁同名 `.mineru/`；与 `task_ref` 或作为 `path` 的包目录互斥 |
 
 需配置 `pdf_parser.enabled: true`。大文档自动存储到临时文件。远程 URL 走与 `cleanfetch` 相同的 SSRF 预检和 HEAD 预检（含重定向逐跳复查），不会被拼成 `file://`。
 
 **MinerU 等待与续查**：轮询间隔从 2 秒逐步拉长，最多 30 秒；有 progress token 时推送状态与已知页进度。等待上限耗尽只表示本次停止等待，不代表 MinerU 失败。文本回退同时保留最后状态及 `task_ref`；需要精准结果时调用 `{"task_ref":"standard:<返回的任务ID>"}`，仍处理中则返回状态而非正文，完成后取回原任务结果，不重新提交 PDF。可明确设置 `wait_seconds:900` 延长等待。上传批次的续查只返回该批，页码沿用裁切后的编号；其他批次仍按原文页码另行请求。未提供页进度时不推算总页数。
 
-省略 `pages` 时请求前 `pdf_parser.max_pages`（默认 20）页。PDF 文本提取会报告已知总页数和截断情况；MinerU 不保证返回原文件总页数。远程 MinerU 精准 API 优先使用 `page_ranges`（单任务页数上限默认 600，对齐 MinerU 官方限制，可用 `pdf_parser.mineru_page_limit` 调整）；MinerU 对原件页数超限或源 URL 被拒会直接拒绝任务，此时服务下载原件，用 qpdf 裁出所需页面并上传子 PDF；主动请求超出单任务上限的页码（需调大 `pdf_parser.max_pages`，默认 20 会先拦下超宽请求）同样走该路径（原件下载上限 200MB，子文件仍须符合 MinerU 的 200MB / 600 页限制）。`pdf_parser.mineru_page_batch_size`（10-200，0=不分批）开启后超出单任务上限的页码会切成多批串行提交，累计页数受 `pdf_parser.mineru_page_budget` 预算约束，预算耗尽返回已解析部分并提示续读页码。分批全程经 MCP progress notification 推送逐批进度（下载原件、每批开始/完成），agent 无需整批盲等。结果会说明原页数与重新编号，并给出完整 ZIP 地址；Markdown 中的 `images/` 相对路径须与 ZIP 中图片一起使用。扫描件 OCR 的 Agent 轻量 API 会先裁出所需页面再上传，单次最多 20 页且子文件最多 10MB；它只提供 Markdown，不能保证相对图片资源可取回。独立运行二进制需安装 qpdf，项目 Docker 镜像已包含。
+远程 PDF 或无 Token 的本地文本提取省略 `pages` 时，请求前 `pdf_parser.max_pages`（默认 20）页。PDF 文本提取会报告已知总页数和截断情况；MinerU 不保证返回原文件总页数。远程 MinerU 精准 API 优先使用 `page_ranges`（单任务页数上限默认 600，对齐 MinerU 官方限制，可用 `pdf_parser.mineru_page_limit` 调整）；MinerU 对原件页数超限或源 URL 被拒会直接拒绝任务，此时服务下载原件，用 qpdf 裁出所需页面并上传子 PDF；主动请求超出单任务上限的页码（需调大 `pdf_parser.max_pages`，默认 20 会先拦下超宽请求）同样走该路径（原件下载上限 200MB，子文件仍须符合 MinerU 的 200MB / 600 页限制）。`pdf_parser.mineru_page_batch_size`（10-200，0=不分批）开启后超出单任务上限的页码会切成多批串行提交，累计页数受 `pdf_parser.mineru_page_budget` 预算约束，预算耗尽返回已解析部分并提示续读页码。分批全程经 MCP progress notification 推送逐批进度（下载原件、每批开始/完成），agent 无需整批盲等。结果会说明原页数与重新编号，并给出完整 ZIP 地址；Markdown 中的 `images/` 相对路径须与 ZIP 中图片一起使用。扫描件 OCR 的 Agent 轻量 API 会先裁出所需页面再上传，单次最多 20 页且子文件最多 10MB；它只提供 Markdown，不能保证相对图片资源可取回。独立运行二进制需安装 qpdf，项目 Docker 镜像已包含。
 
-**解析策略**：本地 PDF 优先用 PDF 库（ledongthuc/pdf）提取文本；无文本层时若开启 `mineru_ocr` 再回退 MinerU OCR。
+**解析策略**：本地 PDF 有 Token 时采用精准归档；没有 Token 时先提取文本，无文本层且开启 `mineru_ocr` 时回退轻量 OCR。关闭 `mineru_ocr` 不会禁止有 Token 的精准上传。
 - `mineru_ocr: true`：扫描件 / 图片型 PDF 的 OCR 回退（Agent 轻量 API，≤10MB、单次最多 20 页）
 - `mineru_token`：远程 URL 精准解析 API（≤200MB/600页）；也可与 OCR 回退共用
 - 获取 Token：https://mineru.net/apiManage

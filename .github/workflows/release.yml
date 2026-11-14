@@ -18,7 +18,8 @@
 #   - attaches every binary with its own .sha256 checksum
 #   - additionally packs one archive per platform (windows .zip, linux/darwin
 #     .tar.gz) holding both binaries, the config samples, LICENSE, both
-#     READMEs and the skills/ directory; each archive gets its own .sha256.
+#     READMEs, the skills/ directory and the matching prebuilt PDFium library
+#     under third_party/pdfium/<arch>/; each archive gets its own .sha256.
 #     Bare binaries stay published for users who want a single file.
 #   - plain tags (v3.4.0) only build the Release here: no MCPB packaging
 #   - GHCR 镜像在独立工作流 docker.yml 中随普通 tag 推送，不与本流程互相阻塞
@@ -151,7 +152,15 @@ jobs:
           merge-multiple: true
           pattern: websearch-*
 
-      # 每平台整包：两个二进制 + 配置样例 + LICENSE + README + skills/。
+      # 可选 PDFium 后端：固定版本 + SHA-256 校验，按架构落到 third_party/pdfium/。
+      # 每平台压缩包只带当前架构的一份，避免无谓放大产物。
+      - name: Fetch bundled PDFium libraries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash third_party/pdfium/fetch.sh win-x64 linux-x64 mac-x64 mac-arm64
+
+      # 每平台整包：两个二进制 + 配置样例 + LICENSE + README + skills/ +
+      # 当前架构的 PDFium 动态库与许可文件。
       # Windows 出 .zip（资源管理器可直接解压），linux/darwin 出 .tar.gz（gzip -9）。
       # 打包在 workspace 根目录做（dist/ 里的裸二进制不带源码文件），
       # 中间目录用 pkg/ 并落在 dist/ 之外，避免被下面的 dist/* 通配带进 Release。
@@ -176,10 +185,28 @@ jobs:
               echo "::error::missing $cli next to $bin"
               exit 1
             fi
+            pdfium_arch=""
+            pdfium_lib=""
+            case "$osarch" in
+              windows-amd64) pdfium_arch="win-x64"; pdfium_lib="pdfium.dll" ;;
+              linux-amd64) pdfium_arch="linux-x64"; pdfium_lib="libpdfium.so" ;;
+              darwin-amd64) pdfium_arch="mac-x64"; pdfium_lib="libpdfium.dylib" ;;
+              darwin-arm64) pdfium_arch="mac-arm64"; pdfium_lib="libpdfium.dylib" ;;
+              *)
+                echo "::error::no bundled PDFium mapping for $osarch"
+                exit 1
+                ;;
+            esac
+            if [ ! -f "third_party/pdfium/${pdfium_arch}/${pdfium_lib}" ]; then
+              echo "::error::missing third_party/pdfium/${pdfium_arch}/${pdfium_lib}"
+              exit 1
+            fi
             stage="pkg/websearch-mcpserver-${osarch}"
             mkdir -p "$stage"
             cp "$bin" "$cli" config.example.yaml dashboard.example.yaml LICENSE README.MD README.EN.md "$stage/"
             cp -R skills "$stage/skills"
+            mkdir -p "$stage/third_party/pdfium"
+            cp -R "third_party/pdfium/${pdfium_arch}" "$stage/third_party/pdfium/"
             if [ "$os" = "windows" ]; then
               (cd pkg && zip -q -9 -r "../dist/websearch-mcpserver-${osarch}.zip" "websearch-mcpserver-${osarch}")
             else

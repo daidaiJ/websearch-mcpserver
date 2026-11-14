@@ -5,7 +5,6 @@
   "mcp.tool.smartsearch.params": "支持 queries 批量（最多 5 条）、depth（fast/balanced/deep）、sources（web/academic）与 max_chars 上下文预算。",
   "mcp.tool.smartsearch.fallback": "主引擎不可用时自动回退 Bing。",
   "mcp.tool.smartsearch.scope": "适用边界：时效性事实、网页线索与文档检索；系统性文献综述、需要引用数据的学术问题请改用 academicsearch。",
-
   "mcp.tool.academicsearch.desc": "学术论文检索工具，从多个学术数据库并行搜索论文，返回标准化的 Markdown 格式结果（含标题、作者、DOI、期刊、引用数、PDF 链接）。",
   "mcp.tool.academicsearch.engines": "可用引擎（engines 参数可多选，为空则全部使用）：",
   "mcp.tool.academicsearch.advice": "引擎选择建议：医学/生物 → pubmed, europepmc | CS/AI → arxiv, semantic_scholar, dblp | 全学科 → crossref, openalex, google_scholar | 开放获取 → doaj",
@@ -20,28 +19,22 @@
   "mcp.tool.academicsearch.engine.europepmc": "Europe PMC 生物医学/生命科学（PubMed 增补，含引用数）",
   "mcp.tool.academicsearch.engine.dblp": "DBLP 计算机科学文献（CS 会议/期刊索引）",
   "mcp.tool.academicsearch.engine.doaj": "DOAJ 开放获取期刊（全学科 OA 论文）",
-
   "mcp.tool.cleanfetch.desc": "正文获取工具。url/urls 抓取网页 Markdown（合并去重最多 5 个）；或传原工具返回的 result_ref 分段读取已保存的搜索、网页或 PDF 正文，返回 content、next_offset、eof，不重新请求来源。两种模式互斥；offset/limit 仅用于引用读取。始终注册，cleanfetch.enabled 仅控制 URL 抓取。发现新来源请先用 smartsearch。",
-
   "mcp.tool.file_search.desc": "本地文件快速检索工具，基于 Everything 索引毫秒级返回文件名与路径（只读，不读文件内容）。适合定位本地文件：源码、文档、PDF 等。query 支持 Everything 语法（通配符、ext:、dm:、size: 等）。",
   "mcp.tool.file_search.roots": "检索范围限定在 {{.RootCount}} 个白名单目录内，可用 folder 参数进一步指定其中一个目录。",
   "mcp.tool.file_search.time": "时间格式可用 time_format 参数自选：datetime（默认年月日时分秒）/ iso / filetime。",
   "mcp.tool.file_search.paging": "默认每页 10 条（max_results 可调，硬上限 20）；命中多时用 page 翻页，别把 max_results 调大。",
-
-  "mcp.tool.pdf_parser.desc": "PDF 解析工具，path 为服务进程可见的本地路径、file:// 或远程 http(s) PDF URL（学术结果的 pdf_url 可直接传入）。Docker 仅能读取容器内或已挂载路径，file_search 的宿主机路径不能直接通用。本地优先提取文本，响应标明实际解析器；长文档可用 pages 指定页码（如 '1-10'），省略时默认只解析前 20 页（pdf_parser.max_pages）并提示截断；大文档可存储到临时文件。",
+  "mcp.tool.pdf_parser.desc": "PDF 解析工具，path 接受服务可见的本地 PDF 路径、file://、已有解析包目录或远程 http(s) PDF URL。已配置 MinerU Token 时，本地 PDF 直接精准解析，省略 pages 默认整本归档；先复用匹配原 PDF 和页码的自有解析包，缺页按预算分批补齐。Markdown、图片、原始 ZIP 和任务状态长期保存在 PDF 旁的同名 .mineru 目录；目录不可写时上传前报错，可用 output_dir 指定可写位置。远程 PDF 及无 Token 的本地文本提取仍默认前 20 页（pdf_parser.max_pages）。返回实际解析器、已完成页码及续跑提示。只需少量内容时先用已有 Markdown 或宿主阅读能力。Docker 路径必须对服务可见。",
   "mcp.tool.pdf_parser.ocr": "本地读不到文本时回退 MinerU OCR（扫描件/图片型 PDF）。",
   "mcp.tool.pdf_parser.remote": "符合 PDF 地址规则的远程 URL 优先使用 MinerU 精准解析。",
   "mcp.tool.pdf_parser.crop": "原件超页或源 URL 被 MinerU 拒绝时自动本地裁切所选页分批上传，并实时推送分批进度。",
   "mcp.tool.pdf_parser.wait": "MinerU 等待可用 wait_seconds 调整（0-1800秒，每任务默认300秒）；返回 task_ref 时可省略 path/pages 查询原任务，默认只查一次，不重新提交。",
   "mcp.tool.pdf_parser.scope": "适用边界：仅解析 PDF；网页正文抓取请用 cleanfetch。",
-
   "mcp.tool.search_history.desc": "本地搜索历史检索工具（试验性，实用性待验证；FTS5 全文匹配历史查询与结果标题/摘要）。省略 query 返回最近历史（按时间倒序）。",
   "mcp.tool.search_history.use": "适合「之前查过什么来着」与复用已查结果而不必重新联网搜索；需要完整正文时对对应 URL 用 cleanfetch。",
   "mcp.tool.search_history.privacy": "数据只落本地 SQLite、不出网；每次 smartsearch 成功后自动写入（保留期默认 30 天）。",
-
   "mcp.resource.capabilities.desc": "服务器能力矩阵：已注册工具、网页引擎、API 供应商（仅 Key 数量）与功能开关（只读，不含密钥）。",
   "mcp.resource.health.desc": "运行健康状态：引擎冷却/熔断（跨进程落盘共享）、进程运行时长（JSON，不含密钥）。",
-
   "mcp.cap.version": "- 版本: {{.Version}}\n",
   "mcp.cap.mode": "- 搜索模式: {{.Mode}}\n",
   "mcp.cap.tools_head": "\n## 工具（已注册）\n\n",
@@ -64,7 +57,6 @@
   "mcp.cap.feature.fetch_top_n": "- fetch_top_n 默认: {{.Default}}（0 = 仅标题摘要，agent 显式传参优先）\n",
   "mcp.cap.feature.mineru": "- MinerU PDF 增强: {{.Enabled}}（OCR 回退: {{.OCR}}）\n",
   "mcp.cap.feature.engine_health": "- 引擎冷却落盘: engine_health.json（缓存库同目录，重启后继承冷却避免重撞死引擎）\n",
-
   "mcp.param.project": "可选项目统计标签：仅填写当前上下文已明确的项目简称（支持中文）；未知则省略，不发送路径，不按查询内容猜测，也不要求用户提供。仅用于统计，不影响检索或抓取",
   "mcp.param.search.query": "搜索关键词：需精准凝练地表达核心检索意图（建议 2-6 个关键词或一个短句），只保留最能定位目标的词；不要把同义词、过程词、修饰词一股脑堆砌成关键词列表，否则会稀释相关性。例如用 'Go 泛型 性能' 而非 'Go 泛型 类型参数 编译 运行时 性能 基准 对比 优化 使用方法'",
   "mcp.param.search.time_range": "搜索时间范围（月），限制搜索最近N个月的内容。例如 1=近1个月，3=近3个月，6=近半年，12=近一年。默认3，0表示不限",
@@ -99,13 +91,13 @@
   "mcp.param.filesearch.exclude": "排除项（字符串数组，每项一条 Everything NOT 词）：如 [\"\\obj\\\", \"\\node_modules\\\"]、\"old backup\"。按字面匹配路径片段或文件名，带首尾反斜杠才不会误伤名字里含该词的文件",
   "mcp.param.filesearch.min_alignment": "词汇对齐阈值（0~1）：查询词与文件名+路径对齐率低于该值的结果被丢弃。覆盖服务端 everything.min_alignment；0=只重排不过滤。结果过多时建议 0.3 起步",
   "mcp.param.filesearch.time_format": "时间显示格式：datetime（默认，2026-01-02 15:04:05）/ iso（ISO 8601 UTC）/ filetime（Windows FILETIME 原始值）",
-  "mcp.param.pdf.path": "新解析任务必填：服务进程可见的本地 PDF 绝对路径（或 file://），或远程 http(s) PDF URL。Docker 中只能读取容器内或已挂载路径，file_search 返回的宿主机路径不能直接通用。学术搜索结果中的 pdf_url 可直接传入；查询已有 task_ref 时省略",
-  "mcp.param.pdf.pages": "可选页码范围（1-based），如 '1-10'、'1,3,5-7'。省略时仅解析前 max_pages 页（默认 20），超长文档会提示已截断",
-  "mcp.param.pdf.task_ref": "MinerU 返回的任务引用：standard:<task_id>、batch:<batch_id> 或 agent:<task_id>。查询或取回原任务，不新建任务；与 path/pages 互斥。默认只查一次，仍处理时返回状态与引用",
+  "mcp.param.pdf.path": "服务可见的本地 PDF 绝对路径、file://、已有 .mineru 解析包目录，或远程 http(s) PDF URL。已有解析包可重新读取或接续。Docker 中必须是已挂载路径。查询 task_ref 时省略",
+  "mcp.param.pdf.pages": "可选原 PDF 页码（1-based），如 1-10、1,3,5-7。本地 MinerU 精准归档省略时目标为整本，按预算逐批接续；远程 PDF 或无 Token 的文本提取省略时默认前 max_pages 页（20）",
+  "mcp.param.pdf.task_ref": "MinerU 返回的任务引用 standard:<id>、batch:<id> 或 agent:<id>。查询原任务，不重新提交；与 path/pages/output_dir 互斥。默认查一次，本地任务完成后同步保存到原解析包",
   "mcp.param.pdf.wait_seconds": "MinerU 每个任务的轮询等待秒数，0-1800。新解析默认300秒，task_ref 默认0（只查一次）；超时保留引用以便续查，不表示上游解析失败",
   "mcp.param.history.query": "检索自己查过的搜索历史的关键词（FTS5 全文匹配查询与结果标题/摘要）；省略或空 = 返回最近历史（按时间倒序）",
   "mcp.param.history.limit": "返回的历史条数上限（默认 10，硬上限 50）",
   "mcp.param.history.offset": "翻页偏移量（默认 0）",
-
-  "mcp.server.instructions": "工具选择：用 smartsearch 发现来源；需要正文时用 cleanfetch，按 result_ref 分段读取；论文检索用 academicsearch（若已注册）；本地文件名用 file_search（若已注册）；历史查询用 search_history（若已注册）。参数保持默认：queries 用于一次比较多个查询，sources 仅在网页与论文混合检索时使用；depth 与 max_chars 只作用于网页正文，且仅需控制正文长度时调整，显式 fetch_top_n 优先。搜索结果里已内联的正文不要重复抓取。"
+  "mcp.server.instructions": "工具选择：用 smartsearch 发现来源；需要正文时用 cleanfetch，按 result_ref 分段读取；论文检索用 academicsearch（若已注册）；本地文件名用 file_search（若已注册）；历史查询用 search_history（若已注册）。参数保持默认：queries 用于一次比较多个查询，sources 仅在网页与论文混合检索时使用；depth 与 max_chars 只作用于网页正文，且仅需控制正文长度时调整，显式 fetch_top_n 优先。搜索结果里已内联的正文不要重复抓取。",
+  "mcp.param.pdf.output_dir": "仅本地精准归档：显式指定解析包目录。默认 PDF 同目录的同名 .mineru 文件夹；默认目录不可写时，按用户指定的位置填写。与 task_ref 或作为 path 的解析包目录互斥"
 }

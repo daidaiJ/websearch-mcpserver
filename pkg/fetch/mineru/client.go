@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"websearch/pkg/i18n"
@@ -60,6 +61,8 @@ func (e *localizedError) Unwrap() error { return e.marker }
 
 // Client MinerU 文档解析 API 客户端。
 type Client struct {
+	localMu      sync.Mutex
+	localTaskDir string
 	token        string
 	endpoint     string
 	modelVersion string

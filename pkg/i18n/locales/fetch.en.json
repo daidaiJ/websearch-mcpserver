@@ -1,4 +1,8 @@
 {
+  "fetch.pdfium.load_failed": "loading the PDFium dynamic library failed",
+  "fetch.pdfium.no_pages": "PDFium has no parsable pages",
+  "fetch.pdfium.no_text": "PDFium extracted no text (the PDF may be scanned/image-based)",
+  "fetch.pdfium.read_failed": "reading the PDF file failed",
   "fetch.webfetch.empty_body_js": "no page body retrieved (JavaScript rendering may be required)",
   "fetch.webfetch.mineru_token_required": "the MinerU precise API requires a token",
   "fetch.webfetch.mineru_disabled": "MinerU is not enabled, so an existing task cannot be queried",
@@ -17,6 +21,11 @@
   "fetch.webfetch.ocr_fallback_too_large": "; MinerU OCR fallback failed: the file exceeds the Agent API limit (10MB)",
   "fetch.webfetch.ocr_fallback_failed": "; MinerU OCR fallback failed",
   "fetch.webfetch.pdf_parse_failed": "PDF parsing failed",
+  "fetch.webfetch.pdf_parse_timeout": "local PDF parsing exceeded the time budget",
+  "fetch.webfetch.pdf_parse_heap": "local PDF parsing exceeded the memory budget",
+  "fetch.webfetch.pdf_parse_panic": "local PDF parsing aborted after a panic",
+  "fetch.webfetch.pdf_guard_mineru_failed": "falling back to MinerU precise parsing still failed",
+  "fetch.webfetch.pdf_guard_mineru_preamble": "> the local PDF library stopped on malformed input or a resource budget ({{.Err}}); MinerU precise parsing was used instead.",
   "fetch.webfetch.err_page_not_found": "page not found ({{.Status}})",
   "fetch.webfetch.err_waf": "blocked by the site's anti-bot protection (WAF)",
   "fetch.webfetch.err_empty_maybe_antibot": "page content is empty (possibly blocked by anti-bot protection)",
@@ -123,5 +132,13 @@
   "fetch.mineru.err_wrapped": "MinerU error ({{.Code}}): {{.Msg}}",
   "fetch.mineru.err_agent_too_large": "the file exceeds the lightweight API size limit (10MB)",
   "fetch.mineru.err_agent_unsupported": "the lightweight API does not support this file format",
-  "fetch.mineru.err_agent_page_limit": "the file exceeds the lightweight API page limit (20 pages); use pages to select a range of 20 or fewer"
+  "fetch.mineru.err_agent_page_limit": "the file exceeds the lightweight API page limit (20 pages); use pages to select a range of 20 or fewer",
+  "fetch.mineru.local_output_conflict": "Omit output_dir when path is an existing package directory",
+  "fetch.mineru.local_source_invalid": "The local PDF must be a regular file",
+  "fetch.mineru.local_package_invalid": "The package is invalid or the output directory contains unmanaged files; inspect it or choose another output_dir",
+  "fetch.mineru.local_output_unwritable": "Cannot save the package in {{.Path}}; no upload has started; specify a writable output_dir",
+  "fetch.mineru.local_source_changed": "The source PDF changed during parsing; call again with the updated file",
+  "fetch.mineru.local_section": "## Original PDF pages: {{.Pages}}",
+  "fetch.webfetch.local_package": "> Local precise package: {{.Package}}\n> Source PDF: {{.Source}}\n> Saved original pages: {{.Pages}}; source total: {{.Total}}; reused results: {{.Reused}}. Markdown, images and original ZIP files remain in this package. Pass the source PDF or package directory again to read it.",
+  "fetch.webfetch.local_remaining": "> Missing original pages: {{.Pages}}. This result is incomplete. Call pdf_parser again with path={{.Package}} to continue; first resume any pending task using its returned task_ref."
 }

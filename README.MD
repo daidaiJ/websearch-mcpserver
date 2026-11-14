@@ -82,7 +82,7 @@
 | 响应透明 | 失败清单、日期与检索溯源；请求取消贯穿各引擎并带单引擎软超时；超限搜索保留候选预览，完整结果落盘后提供 `result_ref`，通过 `cleanfetch` 的引用读取模式分段读取 |
 | 学术搜索 | 9 大学术引擎并行，按引用数 / 期刊权威 / PDF 可用性 / 新鲜度评分；DOI 跨引擎去重 |
 | 网页抓取 | `cleanfetch` 内置 SSRF / DNS rebinding 防护与超大文件预检，失败回退 Jina Reader；可选 `fetch_mode` 复用托管 MCP 抓取 |
-| PDF 解析 | 本地 PDF 文本优先提取，扫描件可回退 MinerU OCR；远程 MinerU 返回含图片 ZIP 地址；原文件超出单任务上限（默认 600 页）时本地 qpdf 裁切所选页，可配置自动分批与单次页数预算后分批上传；MinerU 等待可调，超时保留状态与任务引用，可续查原任务 |
+| PDF 解析 | 有 Token 时，本地 PDF 默认 MinerU 整本精准归档，复用已保存页与任务，Markdown、图片和 ZIP 长期保存在 PDF 旁；Agent 可先抽查复用旧 Markdown。支持按预算分批与重启后接续；远程 PDF 保持精准解析及文本回退。可选实验性 PDFium 动态库文本后端（`pdf_parser.pdfium`，整包在 `third_party/pdfium/<架构>/` 携带标准库，存在时自动启用，缺失自动回退纯 Go）。 |
 | LLM 摘要 | 可选接入 OpenAI 兼容 API 生成结构化摘要，支持流式推送 |
 | 系统代理 | Clash 等开启系统代理后，海外引擎 / Jina Reader 自动走代理 |
 | 本地文件检索 | `file_search` 基于 Everything 索引毫秒级定位本地文件，目录白名单防越界，词汇对齐二次过滤防上下文爆炸（需 Everything HTTP Server） |
@@ -114,7 +114,7 @@
 
 ```bash
 # 1. 下载: https://github.com/daidaiJ/websearch-mcpserver/releases
-#    推荐整包（Windows .zip / Linux+macOS .tar.gz）：含两个二进制、样例配置与 skills/
+#    推荐整包（Windows .zip / Linux+macOS .tar.gz）：含两个二进制、样例配置、skills/ 与 PDFium 动态库
 # 2. 启动（无需手写配置，无需 API Key）
 # Windows 开机自启动 可选
 ./websearch-mcpserver.exe install

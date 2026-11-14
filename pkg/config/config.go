@@ -508,14 +508,14 @@ func (c CleanFetchConfig) AutoProxyEnabled() bool {
 
 type PDFParserConfig struct {
 	Enabled         bool   `mapstructure:"enabled"`           // 总开关（默认 false）
-	MaxPages        int    `mapstructure:"max_pages"`         // 省略 pages 时最多解析的页数（默认 20，与 MinerU 轻量档对齐）
-	MinerUToken     string `mapstructure:"mineru_token"`      // MinerU API Token（精准解析 API 需要）
+	MaxPages        int    `mapstructure:"max_pages"`         // 远程/无 Token 文本提取的页数上限（默认 20）；本地精准归档以整本为目标
+	MinerUToken     string `mapstructure:"mineru_token"`      // MinerU API Token（本地精准归档及远程精准解析需要）
 	MinerUModel     string `mapstructure:"mineru_model"`      // 模型版本: pipeline(默认) / vlm
 	MinerUOcr       bool   `mapstructure:"mineru_ocr"`        // OCR 识别（默认 false）
 	MinerUFormula   *bool  `mapstructure:"mineru_formula"`    // 公式识别（nil=默认 true）
 	MinerUTable     *bool  `mapstructure:"mineru_table"`      // 表格识别（nil=默认 true）
 	MinerULang      string `mapstructure:"mineru_lang"`       // 文档语言（默认 ch）
-	MinerURemotePDF bool   `mapstructure:"mineru_remote_pdf"` // 远程 PDF URL 走 MinerU 精准 API（默认 true；false 则远程一律不走 MinerU，只保留本地 PDF OCR 回退）
+	MinerURemotePDF bool   `mapstructure:"mineru_remote_pdf"` // 远程 PDF URL 走 MinerU 精准 API（默认 true；false 则远程不走精准 API；本地精准归档不受此开关影响）
 	// MinerUPageLimit 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）。
 	// 请求页码超出该上限时触发本地 qpdf 裁切后分批上传，而不是直接拒绝。
 	MinerUPageLimit int `mapstructure:"mineru_page_limit"`
@@ -527,6 +527,38 @@ type PDFParserConfig struct {
 	// 0 = 默认等于 mineru_page_limit（即一次调用最多消耗一个单任务的页数额度）；
 	// 正数可放宽（如 1200 允许两批）或收紧。预算耗尽时返回已解析部分并提示续读页码。
 	MinerUPageBudget int `mapstructure:"mineru_page_budget"`
+
+	// PDFium 可选动态库文本后端（实验性）。省略 enabled 时自动检测，
+	// 库不存在则保持默认纯 Go 行为。
+	PDFium PDFiumConfig `mapstructure:"pdfium"`
+}
+
+// PDFiumConfig 控制可选的 PDFium 动态库文本后端。
+// 动态库按需懒加载；Win/Linux 默认在 exe 目录、配置目录查找
+// pdfium.dll / libpdfium.so。
+type PDFiumConfig struct {
+	// Enabled 三态开关：nil=自动检测（动态库存在则启用 fallback）；
+	// true=强制启用；false=关闭。
+	Enabled *bool  `mapstructure:"enabled"`
+	Path    string `mapstructure:"path"` // 相对路径（按搜索目录解析）或绝对路径；空=平台默认文件名
+	Mode    string `mapstructure:"mode"` // fallback（默认：本地库失败后试一次）/ primary（优先 PDFium）
+}
+
+// IsEnabled 返回是否应构造 PDFium 后端。零值（nil）为自动检测：
+// 构造后仍由懒加载器在首次使用时检查动态库是否存在。
+func (c PDFiumConfig) IsEnabled() bool {
+	return c.Enabled == nil || *c.Enabled
+}
+
+// Explicit 报告用户是否显式设置了 enabled（用于区分「自动检测」与「强制启用」）。
+func (c PDFiumConfig) Explicit() bool { return c.Enabled != nil }
+
+// GetMode 返回归一化后的 PDFium 接入模式，未知值按 fallback 处理。
+func (c PDFiumConfig) GetMode() string {
+	if strings.EqualFold(strings.TrimSpace(c.Mode), "primary") {
+		return "primary"
+	}
+	return "fallback"
 }
 
 // GetMaxPages 返回省略 pages 时一次最多解析的页数，默认 20。

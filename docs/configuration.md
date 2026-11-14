@@ -352,6 +352,13 @@ pdf_parser:
   # mineru_page_limit: 600   # 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）
   # mineru_page_batch_size: 0 # 本地裁切回退的自动分批大小：0=不分批（超上限即拒绝）；10-200=每批页数，串行提交
   # mineru_page_budget: 0    # 单次调用 MinerU 页数预算（0=等于 mineru_page_limit）；耗尽时返回已解析部分并提示续读
+  # 实验性：PDFium 动态库文本后端（可选）
+  # 把 pdfium.dll（Windows）或 libpdfium.so（Linux）放到 exe 同目录即可；
+  # 动态库按需加载，缺失/加载失败时自动回退纯 Go 解析。
+  # pdfium:
+  #   enabled: true           # 三态：省略=自动检测（库存在则启用 fallback）；true=强制启用；false=关闭
+  #   path: ""                # 相对路径按 exe / exe/third_party/pdfium/<架构> / 配置目录 / 配置目录/third_party/pdfium/<架构> 依次查找；空=平台默认文件名
+  #   mode: fallback          # fallback=本地库失败后试一次；primary=优先 PDFium（实验性）
 
 # Everything 本地文件检索（file_search 工具，可选；仅 Windows + Everything HTTP Server）
 # 注意：任何 Linux 发行版不建议启用，除非 WSL 下显式配置 everything.url 指向 Windows 宿主；非 Windows 且未显式配置 url 时不会探测、工具不暴露。
@@ -660,6 +667,9 @@ dashboard:
 | `pdf_parser.mineru_page_limit` | 600 | 精准 API 单任务页数上限；请求超出时触发本地 qpdf 裁切回退 |
 | `pdf_parser.mineru_page_batch_size` | 0 | 裁切回退自动分批大小：0=不分批；10-200=每批页数（1-9 视为 0，>200 收敛到 200） |
 | `pdf_parser.mineru_page_budget` | 0 | 单次调用 MinerU 页数预算（0=等于 page_limit）；预算耗尽返回已解析部分并提示续读页码 |
+| `pdf_parser.pdfium.enabled` | 自动 | 三态：省略=自动检测（库存在则启用 fallback）；true=强制启用；false=关闭 |
+| `pdf_parser.pdfium.path` | 平台默认 | `pdfium.dll` / `libpdfium.so`；相对路径按 exe 目录、exe/third_party/pdfium/&lt;架构&gt;、配置目录、配置目录/third_party/pdfium/&lt;架构&gt; 依次查找 |
+| `pdf_parser.pdfium.mode` | fallback | fallback=本地库失败后试一次 PDFium；primary=优先 PDFium（实验性），失败后回退本地库 |
 | `smartsearch.show_meta` | true | 输出中显示引擎来源和相关性分数 |
 | `smartsearch.fetch_top_n` | 0 | 服务端默认抓取正文条数（agent 未传 `fetch_top_n` 参数时生效）；默认 0 = 与旧版一致不抓取，1-5 = 一次搜索即含正文（API 引擎走原文传参快速路径，网页引擎内部抓取） |
 | `smartsearch.enhance` | true | 本地评分增强 |
@@ -686,6 +696,10 @@ dashboard:
 | 缓存过期 | 6 小时 | 基于最近命中时间，硬编码不可配置 |
 | `log.max_size` | 1 (MB) | |
 | `log.max_age` | 1 (day) | |
+
+PDFium 是实验性可选后端：平台整包会在 `third_party/pdfium/<架构>/` 携带标准动态库，服务按需懒加载、进程内串行调用，主程序保持纯 Go / 无 CGO / MIT。省略 `enabled` 时自动检测，库存在即启用 fallback；`fallback` 先走 ledongthuc，失败后尝试一次 PDFium，再进入 guard/MinerU 链路；`primary` 先走 PDFium，失败后回退 ledongthuc。该开关同时影响 `cleanfetch` 与 `pdf_parser` 的本地 PDF 文本路径。自动检测模式下库缺失保持静默；显式 `enabled: true` 时缺失或加载失败会记一次告警。PDFium 的 C 层崩溃无法被 Go recover，生产部署建议把动态库放在独立 worker 中；当前实现是进程内实验性接入。
+
+配置 MinerU Token 后，本地 `pdf_parser` 默认在 PDF 旁做整本精准归档。`max_pages` 继续约束远程/文本提取请求；`mineru_page_budget` 限制每次新增本地解析页数，本地 `mineru_page_batch_size: 0` 则按单任务页限分批。关闭远程 PDF 开关或 OCR 回退不会禁止本地精准上传。
 
 ---
 
