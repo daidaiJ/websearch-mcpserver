@@ -35,7 +35,7 @@ require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // indirect
+	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
