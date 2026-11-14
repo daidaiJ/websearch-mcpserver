@@ -412,6 +412,14 @@ pdf_parser:
   # mineru_page_limit: 600     # 精准 API 单任务页数上限（默认 600，对齐 MinerU 官方限制）
   # mineru_page_batch_size: 0  # 分批大小：本地 0=按单任务页限；远程 0=不自动分批；10-200=每批页数
   # mineru_page_budget: 0      # 单次调用 MinerU 页数预算（0=等于 mineru_page_limit）；预算耗尽返回已解析部分并提示续读页码
+  # 实验性：PDFium 动态库文本后端（可选）
+  # 把 pdfium.dll（Windows）或 libpdfium.so（Linux）放到 exe 同目录即可；
+  # 动态库按需加载，缺失/加载失败时自动回退纯 Go 解析，不影响默认行为。
+  # pdfium:
+  #   # enabled 三态：省略=自动检测（库存在则启用 fallback）；true=强制启用；false=关闭
+  #   enabled: true
+  #   path: ""                # 相对路径按 exe / exe/third_party/pdfium/<架构> / 配置目录 / 配置目录/third_party/pdfium/<架构> 依次查找；空=平台默认文件名
+  #   mode: fallback          # fallback=本地库失败后试一次；primary=优先 PDFium（实验性）
 
 # ==============================================
 # 日志文件滚动配置（可选）

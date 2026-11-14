@@ -277,6 +277,9 @@ type stubEngine struct {
 	fetchWithOptsCalls int
 	fetchErr           error
 	pdfErr             error
+	pdfPanic           bool
+	pdfHang            bool
+	pdfCalls           int
 }
 
 func (e *stubEngine) Fetch(ctx context.Context, rawURL string) (*webfetch.FetchResult, error) {
@@ -294,6 +297,14 @@ func (e *stubEngine) FetchWithOpts(ctx context.Context, rawURL string, opts webf
 	return &webfetch.FetchResult{Title: "stub", Mode: "inline", Markdown: "stub"}, nil
 }
 func (e *stubEngine) ParsePDFFile(ctx context.Context, filePath string, opts ...webfetch.PDFOption) (*webfetch.PDFResult, error) {
+	e.pdfCalls++
+	if e.pdfPanic {
+		panic("inline image")
+	}
+	if e.pdfHang {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	if e.pdfErr != nil {
 		return nil, e.pdfErr
 	}

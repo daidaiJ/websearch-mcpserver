@@ -47,6 +47,52 @@ func TestDefault(t *testing.T) {
 	}
 }
 
+func TestPDFiumConfigMode(t *testing.T) {
+	for _, tt := range []struct {
+		in   string
+		want string
+	}{
+		{"", "fallback"},
+		{"fallback", "fallback"},
+		{"PRIMARY", "primary"},
+		{"primary", "primary"},
+		{"unknown", "fallback"},
+	} {
+		if got := (PDFiumConfig{Mode: tt.in}).GetMode(); got != tt.want {
+			t.Errorf("PDFiumConfig{Mode:%q}.GetMode() = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestPDFiumConfigEnabled(t *testing.T) {
+	if !(PDFiumConfig{}).IsEnabled() || (PDFiumConfig{}).Explicit() {
+		t.Error("zero value must auto-detect")
+	}
+	if !(PDFiumConfig{Enabled: boolPtr(true)}).IsEnabled() {
+		t.Error("explicit true must enable")
+	}
+	if (PDFiumConfig{Enabled: boolPtr(false)}).IsEnabled() {
+		t.Error("explicit false must disable")
+	}
+}
+
+func TestLoad_PDFium(t *testing.T) {
+	viper.Reset()
+	t.Setenv("WEBSEARCH_CONFIG", "")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	yaml := "pdf_parser:\n  enabled: true\n  pdfium:\n    enabled: true\n    path: lib/pdfium.dll\n    mode: primary\n"
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	conf, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conf.PDFParser.PDFium.Enabled == nil || !*conf.PDFParser.PDFium.Enabled || conf.PDFParser.PDFium.Path != "lib/pdfium.dll" || conf.PDFParser.PDFium.GetMode() != "primary" {
+		t.Fatalf("PDFium config = %+v", conf.PDFParser.PDFium)
+	}
+}
+
 func TestDefault_AppliesEnv(t *testing.T) {
 	t.Setenv("BAIDU_SK", "sk-test")
 	t.Setenv("TAVILY_SK", "tv-test")

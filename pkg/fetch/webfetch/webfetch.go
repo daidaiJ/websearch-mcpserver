@@ -16,6 +16,7 @@ import (
 	"websearch/pkg/errcode"
 	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/mineru"
+	"websearch/pkg/fetch/pdfium"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 
@@ -33,7 +34,7 @@ type Result struct {
 	AgentHint   string
 	PageCount   int    // PDF 内容：文档总页数（非 PDF 为 0）
 	Preamble    string // 页截断/选择说明，工具输出时置于正文前
-	ParseEngine string // PDF：实际解析器（pdf-lib / mineru-remote / mineru-ocr）
+	ParseEngine string // PDF：实际解析器（pdf-lib / pdfium / mineru-remote / mineru-ocr）
 	ParsedPages int    // PDF：本次实际解析页数；0 表示解析器未返回页数
 	Persistent  bool   // Local PDF packages outlive temporary reading references.
 }
@@ -59,6 +60,12 @@ type mineruParser interface {
 	ResumeLocalArchive(ctx context.Context, taskRef string) (*mineru.LocalResult, error)
 }
 
+// pdfiumParser 抽象可选的 PDFium 动态库后端，便于测试注入替身。
+type pdfiumParser interface {
+	Extract(ctx context.Context, filePath string, pages []int, maxPages int) (*pdfium.Result, error)
+	Path() string
+}
+
 // Fetcher 封装 go-webfetch Engine。
 type Fetcher struct {
 	engine           fetchEngine
@@ -67,6 +74,8 @@ type Fetcher struct {
 	mineruRemotePDF  bool // 远程 PDF URL 是否走 MinerU 精准 API（配置 pdf_parser.mineru_remote_pdf）
 	mineruPageBatch  int
 	mineruPageBudget int
+	pdfiumBackend    pdfiumParser // 可选 PDFium 动态库（实验性）
+	pdfiumMode       string       // pdfium.ModeFallback / pdfium.ModePrimary
 
 	outputDir      string        // 大文本落盘目录（清理范围仅限此目录）
 	fileTTL        time.Duration // 落盘文件保留时长
@@ -139,6 +148,20 @@ func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, p
 		maxInlineChars:   cfg.MaxInlineChars,
 		mineruPageBatch:  pdfCfg.GetMinerUPageBatchSize(),
 		mineruPageBudget: pdfCfg.GetMinerUPageBudget(),
+	}
+	if pdfCfg.PDFium.IsEnabled() {
+		backend := pdfium.New(pdfium.Config{
+			Path:          pdfCfg.PDFium.Path,
+			SearchDirs:    pdfium.SearchDirs(config.ExeBaseDir(), config.GetConfigDir()),
+			WarnIfMissing: pdfCfg.PDFium.Explicit(),
+		})
+		f.pdfiumBackend = backend
+		f.pdfiumMode = pdfCfg.PDFium.GetMode()
+		if pdfCfg.PDFium.Explicit() {
+			log.InfoT("log.fetch.webfetch.pdfium_enabled", "mode", f.pdfiumMode, "path", backend.Path())
+		} else if info, statErr := os.Stat(backend.Path()); statErr == nil && !info.IsDir() {
+			log.InfoT("log.fetch.webfetch.pdfium_enabled", "mode", f.pdfiumMode, "path", backend.Path())
+		}
 	}
 	f.startFileJanitor(fileTTL)
 
@@ -432,10 +455,41 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 		engineOpts = append(engineOpts, webfetch.WithPDFMaxPages(maxPages))
 	}
 
+	// 实验性 primary：先试 PDFium，失败后回到纯 Go 库与既有 guard/MinerU 链路。
+	if f.pdfiumPrimary() {
+		if result, pdfiumErr := f.parseWithPDFium(ctx, localPath, pages, maxPages); pdfiumErr == nil {
+			return result, nil
+		} else if ctx.Err() != nil {
+			return nil, ctx.Err()
+		} else if !errors.Is(pdfiumErr, pdfium.ErrUnavailable) {
+			log.InfoT("log.fetch.webfetch.pdfium_primary_failed", "err", pdfiumErr)
+		}
+	}
+
 	result, err := f.parsePDFFileOpts(ctx, localPath, engineOpts)
 	if err == nil {
 		result.Preamble = pdfPagesPreamble(result, pages, maxPages)
 		return result, nil
+	}
+
+	// 实验性 fallback：本地库失败后先试一次 PDFium，再走 guard/MinerU 分支。
+	if f.pdfiumFallback() && ctx.Err() == nil {
+		if result, pdfiumErr := f.parseWithPDFium(ctx, localPath, pages, maxPages); pdfiumErr == nil {
+			return result, nil
+		} else if ctx.Err() != nil {
+			return nil, ctx.Err()
+		} else if !errors.Is(pdfiumErr, pdfium.ErrUnavailable) {
+			log.InfoT("log.fetch.webfetch.pdfium_fallback_failed", "err", pdfiumErr)
+		}
+	}
+
+	if isPDFGuardFailure(err) {
+		if upgraded, upgradeErr := f.upgradeMalformedLocalPDF(ctx, localPath, pages, err); upgradeErr == nil {
+			return upgraded, nil
+		} else if upgraded != nil {
+			return upgraded, upgradeErr
+		}
+		return nil, err
 	}
 
 	if !needsOCRFallback(err) {
@@ -464,10 +518,58 @@ func (f *Fetcher) parseLocalPDFWithPages(ctx context.Context, localPath string, 
 	return nil, fmt.Errorf("%w%s: %w", err, i18n.T("fetch.webfetch.ocr_fallback_failed"), mineruErr)
 }
 
+func (f *Fetcher) pdfiumPrimary() bool {
+	return f.pdfiumBackend != nil && f.pdfiumMode == pdfium.ModePrimary
+}
+
+func (f *Fetcher) pdfiumFallback() bool {
+	return f.pdfiumBackend != nil && f.pdfiumMode == pdfium.ModeFallback
+}
+
+func (f *Fetcher) parseWithPDFium(ctx context.Context, localPath string, pages []int, maxPages int) (*Result, error) {
+	res, err := f.pdfiumBackend.Extract(ctx, localPath, pages, maxPages)
+	if err != nil {
+		return nil, err
+	}
+	result := &Result{
+		Title:       res.Title,
+		Mode:        "inline",
+		Markdown:    res.Markdown,
+		TotalLines:  res.TotalLines,
+		TotalChars:  res.TotalChars,
+		PageCount:   res.PageCount,
+		ParseEngine: "pdfium",
+		ParsedPages: len(res.Pages),
+	}
+	result.Preamble = pdfPagesPreamble(result, pages, maxPages)
+	return result, nil
+}
+
+// upgradeMalformedLocalPDF sends a parser abort (panic, timeout, heap budget)
+// through MinerU precise archival when a token is available.
+func (f *Fetcher) upgradeMalformedLocalPDF(ctx context.Context, localPath string, pages []int, cause error) (*Result, error) {
+	if !f.CanUseMinerULocalPDF() {
+		return nil, cause
+	}
+	log.InfoT("log.fetch.webfetch.local_pdf_malformed_escalating", "localPath", localPath, "err", cause)
+	local, err := f.mineru.ParseLocalArchive(ctx, localPath, "", pages, f.mineruPageBatch, f.mineruPageBudget)
+	if local == nil {
+		return nil, fmt.Errorf("%w; %s: %w", cause, i18n.T("fetch.webfetch.pdf_guard_mineru_failed"), err)
+	}
+	result, formatErr := localArchiveResult(local)
+	if result != nil {
+		result.Preamble = i18n.T("fetch.webfetch.pdf_guard_mineru_preamble", "Err", cause) + "\n" + result.Preamble
+	}
+	return result, errors.Join(err, formatErr)
+}
+
 // needsOCRFallback 判断本地解析失败是否因无文本层（扫描件等），适合 OCR 回退。
 func needsOCRFallback(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, pdfium.ErrNoText) {
+		return true
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "no text extracted") ||
@@ -481,6 +583,10 @@ func (f *Fetcher) parsePDFFile(ctx context.Context, filePath string) (*Result, e
 
 // parsePDFFileOpts 解析本地 PDF 文件，opts 传递页选择/页上限给底层引擎。
 func (f *Fetcher) parsePDFFileOpts(ctx context.Context, filePath string, opts []webfetch.PDFOption) (*Result, error) {
+	return f.parsePDFFileGuarded(ctx, filePath, opts)
+}
+
+func (f *Fetcher) parsePDFFileDirect(ctx context.Context, filePath string, opts []webfetch.PDFOption) (*Result, error) {
 	res, err := f.engine.ParsePDFFile(ctx, filePath, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.webfetch.pdf_parse_failed"), err)
