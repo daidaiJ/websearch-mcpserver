@@ -17,6 +17,14 @@ on:
       - '!v*-registry'
       - '!v*-preview*'
       - '!v*-npm'
+  # 补发 / 重跑某个版本的镜像。版本必须是普通 semver tag（如 v3.10.7）；
+  # 不用于 -registry / -npm / 预览 tag。
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build (e.g. v3.10.7)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -28,6 +36,8 @@ jobs:
     # -registry / -npm 后缀不重复推镜像；预览 tag（如 v3.6.0-preview.1）不推官方镜像
     if: ${{ !endsWith(github.ref_name, '-registry') && !contains(github.ref_name, '-preview') && !endsWith(github.ref_name, '-npm') }}
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,15 +55,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # GHCR 要求仓库名全小写；metadata-action 会转小写，但 cache ref 不会，
+      # 这里统一解析一次。
+      - name: Resolve image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # metadata-action 会自动转小写（GHCR 仓库名不含大写字母）
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
           flavor: |
             latest=auto
 
@@ -66,12 +81,12 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ env.VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # 本工作流只由 tag 触发，而 type=gha 的缓存按 ref 隔离、tag 之间互不可见
+          # 本工作流只由 tag / 手动补发触发，而 type=gha 的缓存按 ref 隔离、tag 之间互不可见
           # （master 不跑 Docker，也没有可回退的分支作用域）。实测连续三个 tag 导入的
           # cache manifest 各不相同、零命中，且 69 个 buildkit 条目白占约 2.4GB 配额。
           # 改用镜像仓库作缓存后端：跨 tag 共享，且完全不占 Actions 缓存配额。
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max
