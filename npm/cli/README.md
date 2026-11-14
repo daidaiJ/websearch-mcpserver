@@ -40,7 +40,7 @@ websearch-mcp-cli version
 
 ## 平台与校验
 
-`optionalDependencies` 按 `os` / `cpu` 只安装 `websearch-mcp-cli-<linux-amd64|windows-amd64|darwin-amd64|darwin-arm64>` 中的一个。包内 `bin/*.sha256` 与同版本 GitHub Release 的校验和一致。**没有 postinstall / prepare 脚本**，因此不会触发 pnpm 10+ 的 `allowBuilds` 门禁，也不会在安装时联网下载。
+`optionalDependencies` 按 `os` / `cpu` 只安装 `websearch-mcp-cli-<linux-amd64|windows-amd64|darwin-amd64|darwin-arm64>` 中的一个。包内 `bin/*.sha256` 与同版本 GitHub Release 的校验和一致。平台包还在 `bin/third_party/pdfium/<架构>/` 随附同版本 PDFium 动态库（固定 `chromium/8152`），本地 PDF 文本解析无需另行下载；库缺失或加载失败会自动回退纯 Go。**没有 postinstall / prepare 脚本**，因此不会触发 pnpm 10+ 的 `allowBuilds` 门禁，也不会在安装时联网下载。
 
 `linux-arm64` / `windows-arm64` 请用 GHCR 镜像或手动下载 Release 二进制 + `WEBSEARCH_MCP_CLI_BINARY`。
 

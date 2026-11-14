@@ -30,8 +30,10 @@
 #   - a follow-up tag with the "-registry" suffix (e.g. v3.4.0-registry),
 #     pushed only after the base Release exists:
 #     downloads the base release binaries, packages them as .mcpb bundles
-#     (MCP Bundle, zip + manifest.json) via mcpb-tool-cli, creates its OWN
-#     GitHub Release (the "-registry" tag) holding ONLY the .mcpb bundles,
+#     (MCP Bundle, zip + manifest.json) via mcpb-tool-cli, appends the
+#     matching PDFium layout under server/third_party/pdfium/<arch>/ with
+#     refreshed checksums, creates its OWN GitHub Release (the "-registry"
+#     tag) holding ONLY the .mcpb bundles,
 #     and publishes the server to the official MCP Registry
 #     (registry.modelcontextprotocol.io) via OIDC.
 #     server.json download URLs point at the -registry release, so the base
@@ -266,6 +268,13 @@ jobs:
       - name: Install MCPB tool
         run: go install github.com/daidaiJ/mcpb-tool-cli@3cdeb94c257c12388fea255e3d0a0151a225e269
 
+      # 与 Release 整包 / GHCR 镜像 / npm 平台包共用同一脚本与固定 chromium/8152。
+      # MCPB 跟 Release 四平台：linux/windows amd64 + darwin amd64/arm64。
+      - name: Fetch bundled PDFium libraries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash third_party/pdfium/fetch.sh linux-x64 win-x64 mac-x64 mac-arm64
+
       # MCPB 封包只发生在 -registry 流程：从 base release 拉服务端二进制，
       # 现场打包 .mcpb（base release 不承载 mcpb，两类产物分开）
       - name: Package MCPB bundles
@@ -293,6 +302,13 @@ jobs:
               ext=""; [ "$os" = "windows" ] && ext=".exe"
               bin="dist/websearch-mcpserver-$os-$arch$ext"
               [ -f "$bin" ] || continue
+              case "$os-$arch" in
+                linux-amd64) pdfium_arch=linux-x64; pdfium_lib=libpdfium.so ;;
+                windows-amd64) pdfium_arch=win-x64; pdfium_lib=pdfium.dll ;;
+                darwin-amd64) pdfium_arch=mac-x64; pdfium_lib=libpdfium.dylib ;;
+                darwin-arm64) pdfium_arch=mac-arm64; pdfium_lib=libpdfium.dylib ;;
+                *) echo "::error::no bundled PDFium mapping for $os-$arch"; exit 1 ;;
+              esac
               "$MCPB" pack \
                 --binary "$bin" \
                 --name websearch-mcpserver \
@@ -303,8 +319,23 @@ jobs:
                 --os "$os" \
                 --arch "$arch" \
                 --out mcpb-assets
+
+              # MCPB 的 entry_point 是 server/<binary>，运行时按可执行文件目录
+              # 找库，所以 PDFium 必须落在 server/third_party/pdfium/<arch>/。
+              # 追加文件后 .mcpb 内容已变，必须重算同名校验和，serverjson 读的是它。
+              bundle="mcpb-assets/websearch-mcpserver-$os-$arch.mcpb"
+              mkdir -p "mcpb-stage/server/third_party/pdfium"
+              rm -rf "mcpb-stage/server/third_party/pdfium/$pdfium_arch"
+              cp -R "third_party/pdfium/$pdfium_arch" "mcpb-stage/server/third_party/pdfium/"
+              (cd mcpb-stage && zip -q -9 -r "../$bundle" server/third_party)
+              rm -rf mcpb-stage/server
+              unzip -l "$bundle" | grep -q "server/third_party/pdfium/$pdfium_arch/$pdfium_lib" \
+                || { echo "::error::$bundle is missing server/third_party/pdfium/$pdfium_arch/$pdfium_lib"; exit 1; }
+              (cd mcpb-assets && sha256sum "$(basename "$bundle")" > "$(basename "$bundle").sha256")
             done
           done
+          (cd mcpb-assets && sha256sum -c ./*.mcpb.sha256)
+          rm -rf mcpb-stage
           ls -la mcpb-assets
 
       - name: Create registry release with MCPB bundles

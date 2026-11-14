@@ -73,12 +73,12 @@ pdf_parser:
     # enabled: true    # 可选：强制启用；false 关闭；省略=自动检测
 ```
 
-- 整包用户解压即可，无需运行下载脚本或另行获取动态库；`third_party/pdfium/fetch.sh` 只供发布 CI 和本地开发准备库文件使用。
+- 整包用户解压即可；GHCR 镜像、MCP Registry 的 `.mcpb` 与 npm 平台包也已内置同一份库，均无需运行下载脚本。`third_party/pdfium/fetch.sh` 只供发布 CI 和本地开发准备库文件使用。
 - 支持 Windows x86_64、Linux x86_64/ARM64、macOS Intel/Apple Silicon；动态库与主程序架构必须一致。解析结果头部出现 `PDF 解析器: pdfium` 表示本次实际使用；启动日志会打印已配置的库路径。
 - 相对 `path` 依次在可执行文件目录、其 `third_party/pdfium/<架构>/`、配置目录、其 `third_party/pdfium/<架构>/` 查找。手工替换库可放在可执行文件根目录，优先于整包副本。
 - 只下载裸二进制时整包目录不存在；可从 [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) 取对应构建放入上述目录，或直接使用整包。
-- PDFium 为 BSD-3-Clause，整包已附 `LICENSE` 与 `licenses/`；主程序仍为纯 Go、无 CGO、MIT。
-- GHCR 镜像未内置该动态库；需要时把对应架构的库放进容器 `/app/third_party/pdfium/linux-x64/`（或挂载）。
+- PDFium 为 BSD-3-Clause，各分发形态都附 `LICENSE` 与 `licenses/`；主程序仍为纯 Go、无 CGO、MIT。
+- GHCR 镜像按架构放在 `/app/third_party/pdfium/linux-{x64,arm64}/`；npm 平台包在 `bin/third_party/pdfium/<架构>/`，`.mcpb` 在 `server/third_party/pdfium/<架构>/`。三者与整包同源，均为固定 `chromium/8152`（PDFium 159.0.8152.0）。
 
 **单文件下载**（只想拿一个二进制时）：
 

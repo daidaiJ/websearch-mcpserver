@@ -8,7 +8,7 @@
 |---|---|---|
 | `dsh-websearch-mcpserver` | dsh 插件壳：`cordis.patch.yml` + 一份启动 shim，config-only bundle，无 `apply(ctx)` | dsh 用户 `dsh plugin --profile web add ...` |
 | `websearch-mcp-cli` | 通用 CLI 包装包：`bin` + 同一份 shim，非 dsh 客户端也能用 | `npm i -g websearch-mcp-cli` 或任意 MCP 客户端 |
-| `websearch-mcp-cli-linux-amd64` | 该平台预编译 Go 二进制 + 校验和 | 由上面两个包按 `os` / `cpu` 通过 `optionalDependencies` 自动挑选 |
+| `websearch-mcp-cli-linux-amd64` | 该平台预编译 Go 二进制 + 同版本 PDFium 动态库 + 校验和 | 由上面两个包按 `os` / `cpu` 通过 `optionalDependencies` 自动挑选 |
 | `websearch-mcp-cli-windows-amd64` | 同上（`.exe`） | 同上 |
 | `websearch-mcp-cli-darwin-amd64` | 同上 | 同上 |
 | `websearch-mcp-cli-darwin-arm64` | 同上 | 同上 |
@@ -82,12 +82,16 @@ done
 1. 普通 `vX.Y.Z` tag：`release.yml` 的 `build` → `release` 产出 8 个裸二进制 + `.sha256` + 整包，`docker.yml` 推 GHCR；**不发 npm 包**。
 2. 产物就绪后另打 `vX.Y.Z-npm`。`release.yml` 的 `on.push.tags` 已排除 `-npm`（不再产生全 job 跳过的空 run），`docker.yml` 同样跳过；只有 `npm-plugin.yml` 被这个 tag 直接触发，**调用方工作流就是它自己**，OIDC 身份才与 npm 侧绑定匹配。不重编译、不建 Release、不推镜像。
 3. `publish.sh` 剥掉 `-npm` 得到 base tag `vX.Y.Z`，从 **base tag 的 GitHub Release** 下载 `websearch-mcp-cli-*`、逐个用 Release 的 `.sha256` 校验，再依次发布 **4 个平台包 → `websearch-mcp-cli` → `dsh-websearch-mcpserver`**（平台包必须先可解析，否则父包上线到能装之间会有窗口）。
-4. 校验和随二进制一起进 npm 包（`bin/websearch-mcp-cli*.sha256`），来源可复验。
-5. 失败或需要补发：Actions 里手动跑 `npm-plugin.yml`，tag 填 `vX.Y.Z` 或 `vX.Y.Z-npm` 都行；`dry_run=true` 只打包不发布。npm 版本不可复用，`publish.sh` 对已存在版本会跳过，重跑安全。
+4. 平台包在 `bin/third_party/pdfium/<架构>/` 随附同版本 PDFium 动态库（固定 `chromium/8152`，与 Release 整包 / GHCR 镜像 / MCPB 同源），`publish.sh` 在打包前用 `third_party/pdfium/fetch.sh` 的产出做预检；缺失直接失败，`FAKE_BINARIES=true` 时放占位文件只验证打包链路。
+5. 校验和随二进制一起进 npm 包（`bin/websearch-mcp-cli*.sha256`），来源可复验。
+6. 失败或需要补发：Actions 里手动跑 `npm-plugin.yml`，tag 填 `vX.Y.Z` 或 `vX.Y.Z-npm` 都行；`dry_run=true` 只打包不发布。npm 版本不可复用，`publish.sh` 对已存在版本会跳过，重跑安全。
 
 ## 本地校验
 
 ```bash
+# 真实产物出包前准备四个架构的 PDFium；FAKE_BINARIES 模式会放占位文件
+bash third_party/pdfium/fetch.sh linux-x64 win-x64 mac-x64 mac-arm64
+
 # 结构检查：JSON 可解析、无生命周期脚本、shim 语法、patch 关键字段、平台 os/cpu
 bash npm/scripts/check.sh
 

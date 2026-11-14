@@ -21,7 +21,16 @@ bash third_party/pdfium/fetch.sh              # 全部架构
 bash third_party/pdfium/fetch.sh win-x64      # 只取指定架构
 ```
 
-脚本从 [bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) 下载固定版本 `chromium/8152`（PDFium 159.0.8152.0），按脚本内固定的 SHA-256 校验后解压。Release CI 在打包平台压缩包时调用同一脚本，把对应架构的库放进 `third_party/pdfium/<架构>/`；使用整包的用户解压即得，不需要自己运行脚本。下载物被根目录 `.gitignore` 的 `*.dll` / `*.so` / `*.dylib` 忽略，不进入版本库。
+脚本从 [bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) 下载固定版本 `chromium/8152`（PDFium 159.0.8152.0），按脚本内固定的 SHA-256 校验后解压。Release CI 在打包平台压缩包时调用同一脚本，把对应架构的库放进 `third_party/pdfium/<架构>/`；使用整包的用户解压即得，不需要自己运行脚本。GHCR 镜像、MCP Registry `.mcpb` 与 npm 平台包也复用这份产出：
+
+| 分发形态 | 库位置 |
+|----------|--------|
+| GitHub Release 整包 | `third_party/pdfium/<架构>/` |
+| GHCR 镜像 | `/app/third_party/pdfium/linux-{x64,arm64}/` |
+| MCP Registry `.mcpb` | `server/third_party/pdfium/<架构>/`（与 `server/` 内的二进制同级目录） |
+| npm 平台包 | `bin/third_party/pdfium/<架构>/`（与 `bin/` 内的二进制同级目录） |
+
+动态库被根目录 `.gitignore` 的 `*.dll` / `*.so` / `*.dylib` 忽略，不进入版本库。
 
 ## 运行时查找顺序
 

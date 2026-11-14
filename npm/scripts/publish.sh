@@ -18,6 +18,9 @@
 #                   used for local dsh acceptance testing (dsh plugin add <tgz>)
 #   DIST_DIR        local directory holding websearch-mcp-cli-* release files;
 #                   skips the GitHub Release download
+#   PDFIUM_DIR      directory with the fetched PDFium layouts (default:
+#                   third_party/pdfium); each platform package ships the
+#                   matching <arch>/ (library + LICENSE + VERSION)
 #
 # Publish order is mandatory: platform packages -> cli wrapper -> dsh bundle.
 # npm versions are immutable, so an already-published version is skipped.
@@ -46,6 +49,7 @@ DRY_RUN="${DRY_RUN:-false}"
 FAKE_BINARIES="${FAKE_BINARIES:-false}"
 PACK_OUT="${PACK_OUT:-}"
 DIST_DIR="${DIST_DIR:-}"
+PDFIUM_DIR="${PDFIUM_DIR:-$ROOT/third_party/pdfium}"
 
 # vX.Y.Z-npm 只是触发标记：二进制在 base tag 的 Release 上，npm 版本也等于
 # base 版本（不能把 -npm 发成 3.10.5-npm 这种 next 通道版本）。
@@ -74,6 +78,26 @@ binary_ext() {
   case "$1" in
     windows-*) echo ".exe" ;;
     *) echo "" ;;
+  esac
+}
+
+# npm 平台名 -> third_party/pdfium 目录名（与 Release 整包 / GHCR / MCPB 同一个
+# fetch.sh 产出，固定 chromium/8152）。
+pdfium_arch() {
+  case "$1" in
+    linux-amd64) echo "linux-x64" ;;
+    windows-amd64) echo "win-x64" ;;
+    darwin-amd64) echo "mac-x64" ;;
+    darwin-arm64) echo "mac-arm64" ;;
+    *) die "no bundled PDFium mapping for platform $1" ;;
+  esac
+}
+
+pdfium_lib() {
+  case "$1" in
+    windows-*) echo "pdfium.dll" ;;
+    darwin-*) echo "libpdfium.dylib" ;;
+    *) echo "libpdfium.so" ;;
   esac
 }
 
@@ -110,6 +134,18 @@ for p in "${PLATFORMS[@]}"; do
     echo "::warning::no .sha256 companion for $file; skipped verification"
   fi
 done
+
+# Every published platform package carries the matching PDFium build, so all
+# four layouts must be present before packing starts. FAKE_BINARIES mode only
+# validates the packaging path and stages placeholders instead.
+if [ "$FAKE_BINARIES" != "true" ]; then
+  for p in "${PLATFORMS[@]}"; do
+    arch="$(pdfium_arch "$p")"
+    [ -f "$PDFIUM_DIR/$arch/$(pdfium_lib "$p")" ] \
+      || die "missing $PDFIUM_DIR/$arch/$(pdfium_lib "$p"); run: bash third_party/pdfium/fetch.sh"
+  done
+  log "verified PDFium layouts in $PDFIUM_DIR"
+fi
 
 # ---------------------------------------------------------------------------
 # 2) Helpers: rewrite versions, validate with npm pack, publish idempotently
@@ -215,6 +251,16 @@ for p in "${PLATFORMS[@]}"; do
   cp "$ROOT/LICENSE" "$dir/LICENSE"
   cp "$DOWNLOADS/websearch-mcp-cli-$p$ext" "$dir/bin/websearch-mcp-cli$ext"
   chmod 755 "$dir/bin/websearch-mcp-cli$ext"
+  # 可执行文件在 bin/，运行时按 exe 目录查找 third_party/pdfium/<arch>/。
+  # 库缺失或加载失败会回退纯 Go 解析，所以这是随包分发的可选后端。
+  arch="$(pdfium_arch "$p")"
+  mkdir -p "$dir/bin/third_party/pdfium"
+  if [ -d "$PDFIUM_DIR/$arch" ]; then
+    cp -R "$PDFIUM_DIR/$arch" "$dir/bin/third_party/pdfium/"
+  else
+    mkdir -p "$dir/bin/third_party/pdfium/$arch"
+    printf 'placeholder pdfium for %s\n' "$p" > "$dir/bin/third_party/pdfium/$arch/$(pdfium_lib "$p")"
+  fi
   # Regenerate the checksum against the in-package filename so `sha256sum -c`
   # works out of the box; the hash itself is the one from the GitHub Release.
   (cd "$dir/bin" && sha256sum "websearch-mcp-cli$ext" > "websearch-mcp-cli$ext.sha256")

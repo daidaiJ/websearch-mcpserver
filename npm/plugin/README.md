@@ -65,7 +65,7 @@ shim 会把它转成 `-c <path>`。Go 侧原生的 `WEBSEARCH_CONFIG` 也可用�
 
 ## 支持的平台
 
-`linux-amd64`、`windows-amd64`、`darwin-amd64`、`darwin-arm64`，与 GitHub Release 四平台一致；按 `os` / `cpu` 通过 `optionalDependencies` 只下载匹配的那个二进制包，无需 postinstall，也不会触发 pnpm 10+ 的 `allowBuilds` 门禁。
+`linux-amd64`、`windows-amd64`、`darwin-amd64`、`darwin-arm64`，与 GitHub Release 四平台一致；按 `os` / `cpu` 通过 `optionalDependencies` 只下载匹配的那个二进制包，无需 postinstall，也不会触发 pnpm 10+ 的 `allowBuilds` 门禁。平台包在 `bin/third_party/pdfium/<架构>/` 随附同版本 PDFium 动态库（固定 `chromium/8152`），本地 PDF 文本解析无需另外下载；缺失或加载失败自动回退纯 Go。
 
 `linux-arm64` / `windows-arm64` 没有 npm 平台包：linux-arm64 请用 GHCR 镜像，或下载 Release 二进制后用 `WEBSEARCH_MCP_CLI_BINARY=/abs/path/to/websearch-mcp-cli` 指向它。
 

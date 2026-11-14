@@ -236,8 +236,9 @@ pdf_parser:
 分发与查找：
 
 - 平台整包（Windows `.zip`、Linux/macOS `.tar.gz`）在 `third_party/pdfium/<架构>/` 携带标准预编译库，随包附 `LICENSE`、`licenses/` 与 `VERSION`。
+- 同一份库也随 GHCR 镜像（`/app/third_party/pdfium/linux-{x64,arm64}/`）、MCP Registry `.mcpb`（`server/third_party/pdfium/<架构>/`）和 npm 平台包（`bin/third_party/pdfium/<架构>/`）分发；四处都由同一脚本、同一固定版本产出。
 - 版本固定为 [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) 的 `chromium/8152`（PDFium 159.0.8152.0，无 V8/XFA）；CI 用 `third_party/pdfium/fetch.sh` 下载并按固定 SHA-256 校验后打包。
-- 架构目录：`win-x64`、`linux-x64`、`linux-arm64`、`mac-x64`、`mac-arm64`。每个平台压缩包只带当前架构的一份；`linux-arm64` 供容器或手工部署使用，不随 GitHub Release 整包发布。
+- 架构目录：`win-x64`、`linux-x64`、`linux-arm64`、`mac-x64`、`mac-arm64`。每个平台压缩包只带当前架构的一份；`linux-arm64` 用于 GHCR 容器，不随 GitHub Release 整包发布。
 - 查找顺序：可执行文件目录 → 其 `third_party/pdfium/<架构>/` → 配置目录 → 其 `third_party/pdfium/<架构>/`。手工放在根目录的库优先于整包副本。
 - **Linux 实测（2026-11-14，WSL）**：Ubuntu 22.04 / Go 1.27.1，官方 `pdfium-linux-x64`（Chromium 8152，SHA-256 校验一致）下 `TestExtractFromBundledPath`、`TestExtractWithDLL` 与真实链路 `TestParseLocalPDF_RealPDFiumPrimary/Fallback` 通过；全量 `go test -short ./...` 仅 PubMed 既有网络 flake，单独重跑通过。
 

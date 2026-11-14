@@ -92,6 +92,13 @@ jobs:
       - name: Credential leak guard
         run: bash npm/scripts/check-credentials.sh
 
+      # 平台包随二进制携带同版本 PDFium 动态库（固定 chromium/8152），与
+      # Release 整包 / GHCR 镜像 / MCPB 共用 third_party/pdfium/fetch.sh。
+      - name: Fetch bundled PDFium libraries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash third_party/pdfium/fetch.sh linux-x64 win-x64 mac-x64 mac-arm64
+
       # 只在排障时开：npm 的 OIDC token exchange 失败会静默退回 token 认证，
       # 表面只报 ENEEDAUTH。这里解码并打印 OIDC claims（不打印 token 本身），
       # 用来核对 repo / workflow filename / environment 与 npm 侧配置是否一致。

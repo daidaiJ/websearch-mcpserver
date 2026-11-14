@@ -61,6 +61,13 @@ jobs:
         id: image
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      # 与 Release 整包 / MCPB / npm 平台包共用同一脚本与固定 chromium/8152，
+      # 保证镜像里的 PDFium 版本和校验和一致。Dockerfile 只挑 TARGETARCH 对应的一份。
+      - name: Fetch bundled PDFium libraries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash third_party/pdfium/fetch.sh linux-x64 linux-arm64
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -90,3 +97,24 @@ jobs:
           # 改用镜像仓库作缓存后端：跨 tag 共享，且完全不占 Actions 缓存配额。
           cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
           cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max
+
+      # 运行层实测镜像内容，避免「Dockerfile 写了 COPY、实际镜像里没有」。
+      # 两个架构都跑一次；arm64 走已配置的 QEMU。
+      - name: Verify bundled PDFium in image
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ env.VERSION }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          for platform in amd64 arm64; do
+            case "$platform" in
+              amd64) arch=linux-x64 ;;
+              arm64) arch=linux-arm64 ;;
+              *) echo "unsupported platform=$platform" >&2; exit 1 ;;
+            esac
+            echo "--- linux/$platform /app/third_party/pdfium/$arch ---"
+            docker run --rm --platform "linux/$platform" --entrypoint sh \
+              "$IMAGE:$version" -c \
+              "test -f /app/third_party/pdfium/$arch/libpdfium.so && ls -l /app/third_party/pdfium/$arch && cat /app/third_party/pdfium/$arch/VERSION"
+          done
