@@ -13,7 +13,7 @@ cmd/ ──► server/ ──► mcp/ ──► pkg/search（组合根）──�
                                         │                    ├──► provider / adapter / enhance
                                         │                    └──► core（类型契约，叶子）
                                         └──► pkg/academic ──► antirobot
-mcp/ ──► pkg/fetch/{webfetch,jina,mineru} ──► go-webfetch / MinerU
+mcp/ ──► pkg/fetch/{webfetch,jina,mineru,pdfium} ──► go-webfetch / MinerU / PDFium(可选动态库)
 mcp/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──► 仅依赖 pkg/search/core（契约叶子）
 所有包 ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
@@ -53,6 +53,7 @@ mcp/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──► 仅依�
 | `pkg/fetch/webfetch` | 增强抓取（SSRF/DNS rebinding 防护 + PDF 解析分支 + 大文本落盘） | `Fetcher.Fetch`、`Fetcher.FetchPDFWithPages` |
 | `pkg/fetch/jina` | Jina Reader 备选抓取（需代理） | `Reader.Fetch` |
 | `pkg/fetch/mineru` | MinerU AI 增强 PDF 解析（OCR/表格/公式） | `Client.ParseURL/ParseFile` |
+| `pkg/fetch/pdfium` | 实验性 PDFium 动态库文本后端（purego 懒加载，进程内串行；整包在 `third_party/pdfium/<架构>/` 携带标准库，缺失/加载失败回退纯 Go） | `Parser.Extract`、`ResolvePath`、`SearchDirs`、`ErrUnavailable`、`ErrNoText` |
 | `pkg/llm` | LLM Client + 搜索结果摘要 | `Client.Chat/ChatStream`、`Summarizer.Summarize/SummarizeStream` |
 | `pkg/antirobot` | 反检测公共层（**跨层共享，保持顶层**） | `Engine`、`ContextEngine`（可选 ctx 入口）、`Searcher`、限流器、`TimeRange`、`NextCooldownDuration`（冷却档位升级的唯一实现）、`ErrLocalRateLimit`（本端限流哨兵）、`LocalLimitSkipped`、`SleepCtx` |
 | `pkg/cache` | SQLite 缓存（6h 过期，key 含 intent/fetch_top_n） | `Cache.Lookup/Store/UpdateSummary`、`ErrStaleGeneration`（代次作废的写入哨兵） |
@@ -85,6 +86,7 @@ mcp/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──► 仅依�
 | 改 URL 安全校验 / 大小预检 | `mcp/security.go`（MCP 层预检）+ `pkg/fetch/webfetch`（库层 BlockPrivateIP，双重防护） |
 | 改抓取行为（UA/超时/落盘阈值） | `pkg/fetch/webfetch/webfetch.go`（底层库为 `github.com/daidaiJ/go-webfetch`） |
 | 改 PDF 页范围 / MinerU 策略 | 工具参数 `mcp/tool.go`（`pages`）+ `pkg/fetch/webfetch`（`FetchPDFWithPages`）+ 配置 `pdf_parser.max_pages` |
+| 改本地 PDF 文本后端 / PDFium 试一次 / 默认后端 | `pkg/fetch/pdfium/`（懒加载与抽取）+ `pkg/fetch/webfetch/webfetch.go` 的 `parseLocalPDFWithPages` + 配置 `pdf_parser.pdfium.{enabled,path,mode}` |
 | 改缓存语义（key/过期/命中类型） | `pkg/cache/` + `mcp/tool.go` 的 `webSearchCacheQuery` 等 |
 | 新增本地检索能力 / 改过滤策略 | `pkg/fetch/everything/`（HTTP 客户端 + ScopeQuery 白名单 + EnhanceItems 二次过滤）+ `mcp/tool_filesearch.go` + 配置 `everything.*` |
 | 用户问怎么启用/加固 Everything HTTP Server | `skills/everything-http-server/SKILL.md`（分版本流程 + 陷阱 + 验证 + 加固清单），agent 走 `/everything-http-server` |
@@ -143,7 +145,8 @@ mcp/tool.go PDFParserHandler
       ├► parsePagesSpec（pages 表达式校验："1-10"、"1,3,5-7"）
       ├► resolvePDFPath（本地路径/file:// 与远程 http(s) 分流；远程走 SSRF+HEAD 预检）
       └► pkg/fetch/webfetch Fetcher.FetchPDFWithPages（pages + pdf_parser.max_pages）
-            ├► 本地：go-webfetch ledongthuc 按页抽取（保留 CJK 清洗/结构启发式）
+            ├► 本地：go-webfetch ledongthuc 按页抽取（保留 CJK 清洗/结构启发式；对照评估见 docs/pdf-parser.md）
+            │        └► 可选 PDFium 动态库（pkg/fetch/pdfium，实验性）：整包在 third_party/pdfium/<架构>/ 携带标准库；fallback=本地库失败后试一次；primary=优先 PDFium；库缺失/加载失败自动回退，MinerU 与 guard 链路不变
             ├► 远程：MinerU 精准 API（先尝试 page_ranges；请求页码超出单任务上限（mineru_page_limit，默认 600）或原件页数／URL 被拒绝时，下载原件按 mineru_page_batch_size 分批 qpdf 裁切串行上传，累计受 mineru_page_budget 预算约束，逐批经 MCP progress notification 推送进度，返回完整 ZIP 地址）
             │        或 webfetch 管线按 Content-Type 分流 PDF 解析
             └► 截断时 Result.Preamble 说明总页数与用 pages 继续

@@ -18,7 +18,7 @@
 | **API 搜索** | API Key 池轮转模式，支持百度千帆/Tavily/Exa/AnySearch/豆包/元宝等多种 API 供应商，失败自动切换 |
 | **学术搜索** | arXiv/Crossref/OpenAlex/PubMed/Semantic Scholar/Google Scholar/Europe PMC/DBLP/DOAJ 九大学术引擎并发，DOI 跨引擎去重、逐引擎错误透传 |
 | **网页抓取** | 增强型网页内容提取（TLS 指纹伪装 + SSRF 防护 + Jina Reader 备选） |
-| **PDF 解析** | MinerU AI 增强 PDF 解析（表格/公式/多栏/图片智能识别），无 Token 自动降级 |
+| **PDF 解析** | MinerU AI 增强 PDF 解析（表格/公式/多栏/图片智能识别），无 Token 自动降级；可选实验性 PDFium 动态库文本后端 |
 
 ---
 
@@ -58,14 +58,16 @@ pkg/
 ├── fetch/        # 抓取与解析族
 │   ├── webfetch/       # 增强型网页抓取（SSRF 防护、DNS rebinding 检测、PDF 解析分支）
 │   ├── jina/           # Jina Reader 备选抓取
-│   └── mineru/         # MinerU PDF 解析
+│   ├── mineru/         # MinerU PDF 解析
+│   └── pdfium/         # 实验性 PDFium 动态库文本后端（purego 懒加载）
 ├── llm/          # LLM：Client + 搜索摘要 Summarizer
 ├── config/       # 配置加载与结构体定义
 ├── cache/        # SQLite 缓存（6h 过期，后台清理）
 ├── client/       # HTTP 客户端（API 供应商共用）
 ├── proxy/        # 系统代理自动检测（Windows 注册表 / 环境变量）
 ├── daemon/       # 引用计数进程管理
-└── log/          # 日志配置
+├── log/          # 日志配置
+└── third_party/  # 可选预编译动态库（PDFium，按架构；CI 下载后随整包分发）
 ```
 
 ---
@@ -132,6 +134,7 @@ pkg/
 | 腾讯云元宝搜索（2026-10-24 接入） | API KEY 方式 `POST api.wsa.cloud.tencent.com/SearchPro`，Bearer sk-...，返回 `Response.Pages[]`（JSON 字符串）；每月免费 2000 次，超出按量后付费（约 20 元/千次） | 已注册（`yuanbao.*`，默认不加入 apipool；hybrid 有 Key 时参与）；`yuanbao.monthly_limit` 默认 2000 并在请求前落盘拦截，禁止默认放开 |
 | TinyFish / Keenable 供应商（2026-10-24 接入） | TinyFish 仅 Key 档（免费搜索 12000 次/天、fetch 1000 URL/天，00:00 UTC 重置，国内直连实测无需代理）；Keenable 未配 Key 自动走 public 免 Key 端点（`X-Keenable-Title` 标识，按出口 IP 限流） | 均已注册（`tinyfish.*` / `keenable.*`）；两者默认不进 `apipool.engines`，hybrid 中 TinyFish 有 Key 即参与、Keenable 的 public 档需显式 `enabled: true` 才参与（质量待观察）；fetch 能力并入 cleanfetch 远端抓取链（沿用 `mcp_hub.fetch_mode`） |
 | `search_history` 本地历史（2026-10-24 接入，试验性） | smartsearch 成功后落本地 SQLite（FTS5），`search_history` MCP 工具全文检索；数据不出网，默认保留 30 天 | `search_history.enabled` 零值 = 不建库、不注册工具；实用性待真机确认，确认有价值后再转正式工具 |
+| PDFium DLL 文本后端（2026-11-14 接入，实验性） | purego 懒加载 `pdfium.dll` / `libpdfium.so` / `libpdfium.dylib`；Release 整包在 `third_party/pdfium/<架构>/` 携带固定 `chromium/8152` 标准库；`pdf_parser.pdfium` 省略 enabled = 库存在才启用 fallback，`mode: primary` 可设为本地默认；34 条病态输入无挂死/panic，20p warm DLL 9.15ms vs ledongthuc 2.40ms；Linux `.so` 与真实 PDF 长跑未验证 | 默认 auto 只在库存在时启用；C 层 SIGSEGV 无法 recover，生产需 worker 隔离；wasm 退路冷启动 4.17s、峰值 503MB，勿当生产方案；CI 下载失败应让 Release 失败，不要静默跳过 PDFium |
 | 国际化（i18n，2026-10-25 治理） | `language: auto|zh|en` 覆盖日志 / MCP 工具描述与参数 Schema / 控制中心 / 工具返回内容四面（八域）；文案住 `pkg/i18n/locales/<域>.<语言>.json`，go-i18n + x/text 运行时，审计测试 `pkg/i18n/catalog_test.go` 双向比对代码引用与目录条目 | 新增文案只动 JSON + 用 key，勿在调用点写裸字符串；MCP 描述注册时固化、改语言需重启；HTTP 面按 `Accept-Language` 每请求协商；工具返回内容只治理本服务自产文案（外部内容与 `format_md.go` 骨架不动）；改错误文案必须同步核对三处关键词判类 |
 | GitHub（2026-10-24 接入） | `api.github.com` 国内直连可达无需代理；匿名 search 10/min、core 60/h，PAT 提额 search 30/min、core 5000/h（官方 docs 核对）；github.com HTML 是 JS 渲染抓不到，搜索与 cleanfetch 仓库/blob 特判均优先走 REST API（`blob` 走 contents API 取原文——raw.githubusercontent CDN 国内无代理不可达，勿改回），API 失败自动回退（搜索回 Bing `site:github.com`，抓取回 webfetch → Jina 链）；code search 要求认证不做 | 已注册（`github.enabled`，默认关闭；`github.api_key`/`token_list` 配 PAT，env `GITHUB_TOKEN`）；限流冷却取 Retry-After / x-ratelimit-reset；EngineAdapters.GitHub 收接口类型（typed-nil 陷阱见 InitGithubEngine 注释） |
 | Reddit（2026-10-24 评审后整线放弃） | 浏览器 UA 全拦（HTML/.json/api 均 403），`.rss` 用脚本 UA 可达但 PullPush 被 Cloudflare 挡死；官方 2026-09-30 公告：新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 全线停、未注册 app 2027-01-12 移除、公共 Data API 2027-03 终止 | 两条候选通道（OAuth script app / RSS 兜底）均在死线上，收益期 < 5 个月，不立项；OAuth 调研结论留档 docs/optimization-roadmap.md N7，上游重开（Devvit/普适免费档）再议 |
@@ -195,6 +198,20 @@ docker build -t websearch-mcpserver .
 ## 🔄 Handoff 摘要
 
 > 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
+
+### pdf-parser-backends — done（2026-11-14，未发版）
+
+- **当前状态：** 实验性 PDFium DLL 接入已落地：`pkg/fetch/pdfium` 懒加载 + `pdf_parser.pdfium.{enabled,path,mode}`；fallback 先走 ledongthuc+guard、失败后试一次 PDFium，primary 可配置为默认本地后端。Release 整包通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152`，按架构放入 `third_party/pdfium/<架构>/` 后随 zip/tar.gz 分发
+- **关键数据：** 病态 34 条 PDFium 无挂死/panic；20 页 warm 中位 ledongthuc 2.40ms / DLL 9.15ms / wasm 18.83ms；DLL 常驻 22.5MB、冷启动约 34ms
+- **关键证据：** [`docs/pdf-parser.md`](docs/pdf-parser.md)（含处理状态图）；`pkg/fetch/pdfium/`；`third_party/pdfium/`；`pkg/fetch/webfetch/pdfium_*_test.go`；[`bench/pdfcorpus/`](bench/pdfcorpus/)；分支 `feat/absorb-pr30-pr31` 另有未提交 guard
+- **验收标准：** [x] 真实 DLL 抽取 + fallback/primary 测试；[x] 配置解析与默认值；[x] `go build ./...` / `go vet ./...` / `go test -short ./...` 全绿 / i18n 审计 / CGO=0；[ ] Linux `.so` 与真实 PDF 长跑；[ ] Release 整包实跑（本地只验脚本与打包映射）
+- **详情指针：** [`.handoff/pdf-parser-backends.md`](.handoff/pdf-parser-backends.md)
+
+### 未验证事项
+
+- [ ] Linux `libpdfium.so` + purego smoke（本机 Windows，代码路径已写）
+- [ ] 真实 PDF 混合负载长跑，复核 PDFium 稳定性与内存
+- [ ] PDFium 独立 worker 隔离 C 层崩溃（当前为进程内实验性接入）
 
 ### 初始化失败不再 panic — done（2026-11-11，未发版）
 

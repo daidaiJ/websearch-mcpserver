@@ -17,3 +17,14 @@ python docs/images/src/render.py
 - 图上文案与 README 正文的一致性靠人工维护，改 README 图注时同步检查 HTML 内的文字。
 - 需要调色或改版式时改 HTML 顶部的 CSS 变量，不要手工编辑 `docs/images/*.png`。
 - 根 `.gitignore` 里的 `*.html` 全局忽略带 `!docs/**/*.html` 例外，本文件因此可入库。
+
+## PDF 解析状态图
+
+`pdf-parser-state.md` 是 [`docs/pdf-parser.md`](../../pdf-parser.md) 里 `pdf_parser` 处理状态图的 Mermaid 源，产物为 `docs/images/pdf-parser-state.png`。用 mmdx 渲染：
+
+```bash
+mmdx docs/images/src/pdf-parser-state.md -o docs/images/pdf-parser-state.png \
+  --width 1280 --scale 2 --title "pdf_parser 处理状态"
+```
+
+改流程或 PDFium / MinerU 分支时同步改 Mermaid 源并重渲染，不要手工编辑 PNG。

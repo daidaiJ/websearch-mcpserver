@@ -32,7 +32,7 @@
 
 Download from the [Release page](https://github.com/daidaiJ/websearch-mcpserver/releases); every artifact ships with a matching `.sha256` checksum.
 
-**Platform archive (recommended)**: one archive per platform, holding both binaries, the config samples, LICENSE, the READMEs and `skills/` (the WebSearch skill plus the Everything setup guide) — no need to download file by file:
+**Platform archive (recommended)**: one archive per platform, holding both binaries, the config samples, LICENSE, the READMEs, `skills/` (the WebSearch skill plus the Everything setup guide) and the optional PDFium dynamic library — no need to download file by file:
 
 | Platform | Archive |
 |----------|---------|
@@ -51,10 +51,34 @@ websearch-mcpserver-<platform>/
 ├── dashboard.example.yaml
 ├── LICENSE
 ├── README.MD / README.EN.md
-└── skills/                     # websearch-mcp + everything-http-server
+├── skills/                     # websearch-mcp + everything-http-server
+└── third_party/
+    └── pdfium/
+        └── <arch>/             # e.g. win-x64, linux-x64, mac-arm64
+            ├── pdfium.dll / libpdfium.so / libpdfium.dylib
+            ├── LICENSE
+            └── licenses/
 ```
 
 After unpacking, run `./websearch-mcpserver[.exe] start` as in [Quick Start](../README.EN.md#quick-start); skill setup is covered under [Skill / Application/Project Attribution](#skill--applicationproject-attribution).
+
+#### Optional PDFium local text backend
+
+The platform archive ships one standard PDFium library for the current platform under `third_party/pdfium/<arch>/`. It is not loaded at startup; the first local PDF parse opens it on demand. When `pdf_parser.pdfium.enabled` is omitted the library is auto-detected: `fallback` activates when it exists, and a missing or unloadable library falls back to the pure Go parser with no behavior change. To prefer PDFium for every local PDF:
+
+```yaml
+pdf_parser:
+  pdfium:
+    mode: primary      # fallback (default) | primary
+    # enabled: true    # optional: force on; false turns it off; omitted = auto-detect
+```
+
+- Platform-archive users only need to unpack; no download script or separate library fetch is required. `third_party/pdfium/fetch.sh` exists for release CI and local development.
+- Supported: Windows x86_64, Linux x86_64/ARM64, macOS Intel/Apple Silicon. The library architecture must match the process. A `PDF parser: pdfium` line in the result means it was actually used; the startup log prints the configured library path.
+- A relative `path` is searched in the executable directory, its `third_party/pdfium/<arch>/`, the config directory, then its `third_party/pdfium/<arch>/`. A manually replaced library at the executable root overrides the bundled copy.
+- Bare-binary downloads have no archive directory; fetch a matching build from [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) and place it in that layout, or use the platform archive.
+- PDFium is BSD-3-Clause; the archive includes `LICENSE` and `licenses/`. The main program stays pure Go, CGO-free and MIT.
+- The GHCR image does not bundle the library; copy or mount the matching architecture into `/app/third_party/pdfium/linux-x64/` when needed.
 
 **Single-file download** (when you only need one binary):
 

@@ -17,7 +17,7 @@ cmd/ ──► server/ ──► mcp/ ──► pkg/search (composition root) �
                                         │                                ├──► provider / adapter / enhance
                                         │                                └──► core (type contracts, leaf)
                                         └──► pkg/academic ──► antirobot
-mcp/ ──► pkg/fetch/{webfetch,jina,mineru} ──► go-webfetch / MinerU
+mcp/ ──► pkg/fetch/{webfetch,jina,mineru,pdfium} ──► go-webfetch / MinerU / PDFium (optional dynamic library)
 mcp/ ──► pkg/search (root); pkg/cache  pkg/llm ──► pkg/search/core (contract leaf only)
 all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot  pkg/daemon
 ```
@@ -57,6 +57,7 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | `pkg/fetch/webfetch` | Enhanced fetching (SSRF/DNS-rebinding protection + PDF branch + large-text spill to file) | `Fetcher.Fetch`, `Fetcher.FetchPDFWithPages` |
 | `pkg/fetch/jina` | Jina Reader fallback fetching (needs proxy) | `Reader.Fetch` |
 | `pkg/fetch/mineru` | MinerU AI-enhanced PDF parsing (OCR/tables/formulas) | `Client.ParseURL/ParseFile` |
+| `pkg/fetch/pdfium` | Experimental PDFium dynamic-library text backend (purego lazy load, serialized in-process; archives ship a standard library under `third_party/pdfium/<arch>/`; falls back to pure Go when missing/unloadable) | `Parser.Extract`, `ResolvePath`, `SearchDirs`, `ErrUnavailable`, `ErrNoText` |
 | `pkg/llm` | LLM client + search-result summarizer | `Client.Chat/ChatStream`, `Summarizer.Summarize/SummarizeStream` |
 | `pkg/antirobot` | Anti-detection common layer (**cross-domain, stays top-level**) | `Engine`, `ContextEngine` (optional ctx entry), `Searcher`, rate limiters, `TimeRange`, `NextCooldownDuration` (the single cooldown-escalation rule), `ErrLocalRateLimit` (local-limit sentinel), `LocalLimitSkipped`, `SleepCtx` |
 | `pkg/cache` | SQLite cache (6h expiry, key includes intent/fetch_top_n) | `Cache.Lookup/Store/UpdateSummary`, `ErrStaleGeneration` (sentinel for generation-stale writes) |
@@ -88,6 +89,7 @@ all packages ──► pkg/config  pkg/log  pkg/client  pkg/proxy  pkg/antirobot
 | Add a config option | `pkg/config/config.go` + both `config.example.yaml` + `docs/configuration*.md` (tool params also `docs/search*.md`, `docs/api*.md`) |
 | Change fetching behavior (UA/timeout/spill thresholds) | `pkg/fetch/webfetch/webfetch.go` (the underlying library is `github.com/daidaiJ/go-webfetch`) |
 | Change PDF page ranges / MinerU policy | Tool params in `mcp/tool_pdf.go` (`pages`) + `pkg/fetch/webfetch` (`FetchPDFWithPages`) + config `pdf_parser.max_pages` |
+| Change the local PDF text backend / PDFium try-once / default backend | `pkg/fetch/pdfium/` (lazy load & extraction) + `parseLocalPDFWithPages` in `pkg/fetch/webfetch/webfetch.go` + config `pdf_parser.pdfium.{enabled,path,mode}` |
 | Change cache semantics (key/TTL/hit types) | `pkg/cache/` + `webSearchCacheQuery` et al. in `mcp/tool_search.go` |
 | Change URL security checks / size pre-checks | `mcp/security.go` (MCP-layer pre-checks) + `pkg/fetch/webfetch` (library-level BlockPrivateIP, defense in depth) |
 
@@ -145,7 +147,8 @@ mcp/tool_pdf.go PDFParserHandler
       ├► parsePagesSpec (pages expression validation: "1-10", "1,3,5-7")
       ├► resolvePDFPath (local path/file:// vs remote http(s); remote goes through SSRF+HEAD pre-checks)
       └► pkg/fetch/webfetch Fetcher.FetchPDFWithPages (pages + pdf_parser.max_pages)
-            ├► local: go-webfetch ledongthuc per-page extraction (keeps CJK cleanup / structure heuristics)
+            ├► local: go-webfetch ledongthuc per-page extraction (keeps CJK cleanup / structure heuristics; comparison: docs/pdf-parser.md)
+            │        └► optional PDFium dynamic library (pkg/fetch/pdfium, experimental): archives ship a standard library under third_party/pdfium/<arch>/; fallback=try once after the local library fails; primary=PDFium first; missing/unloadable library falls back automatically, MinerU and guard chains unchanged
             ├► remote: MinerU standard API (page_ranges first; when requested pages exceed the per-task limit (mineru_page_limit, default 600) or source page/URL is rejected, the source is downloaded, cropped per mineru_page_batch_size batches with qpdf and uploaded serially under the mineru_page_budget with per-batch MCP progress notifications, returning a complete ZIP URL)
             │        or webfetch pipeline routing PDF by Content-Type
             └► on truncation Result.Preamble states total pages and how to continue with pages

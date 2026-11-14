@@ -356,6 +356,13 @@ pdf_parser:
   # mineru_page_limit: 600   # Standard API per-task page limit (default 600, per MinerU official docs)
   # mineru_page_batch_size: 0 # Auto batch size for local crop fallback: 0=no batching (over-limit rejected); 10-200=pages per batch, submitted serially
   # mineru_page_budget: 0    # MinerU page budget per call (0=same as mineru_page_limit); on exhaustion returns parsed part with continuation hint
+  # Experimental: optional PDFium dynamic-library text backend
+  # Put pdfium.dll (Windows) or libpdfium.so (Linux) next to the executable;
+  # the library is loaded lazily and the built-in Go parser is used when it is missing or fails to load.
+  # pdfium:
+  #   enabled: true           # tri-state: omitted=auto-detect (fallback when the library exists); true=force; false=off
+  #   path: ""                # relative paths search exe / exe/third_party/pdfium/<arch> / config / config/third_party/pdfium/<arch> in order; empty=platform default
+  #   mode: fallback          # fallback=try once after the built-in parser fails; primary=PDFium first (experimental)
 
 # Search result filtering and output format (optional)
 # smartsearch:
@@ -667,6 +674,9 @@ dashboard:
 | `pdf_parser.mineru_page_limit` | 600 | Standard API per-task page limit; requests beyond it trigger the local qpdf crop fallback |
 | `pdf_parser.mineru_page_batch_size` | 0 | Auto batch size for crop fallback: 0=no batching; 10-200=pages per batch (1-9 treated as 0, >200 clamped to 200) |
 | `pdf_parser.mineru_page_budget` | 0 | MinerU page budget per call (0=same as page_limit); on exhaustion returns the parsed part and suggests continuation pages |
+| `pdf_parser.pdfium.enabled` | auto | Tri-state: omitted=auto-detect (fallback when the library exists); true=force; false=off |
+| `pdf_parser.pdfium.path` | platform default | `pdfium.dll` / `libpdfium.so`; relative paths search the exe dir, exe/third_party/pdfium/&lt;arch&gt;, the config dir, then config/third_party/pdfium/&lt;arch&gt; |
+| `pdf_parser.pdfium.mode` | fallback | fallback=try PDFium once after the built-in parser fails; primary=PDFium first (experimental), then the built-in parser |
 | `smartsearch.show_meta` | true | Show engine source and relevance score in output |
 | `smartsearch.fetch_top_n` | 0 | Server-side default body-fetch count (applies when the agent omits `fetch_top_n`); default 0 = no fetch (same as before), 1-5 = one search returns full text (API engines use the fast path, web engines fetch internally) |
 | `smartsearch.enhance` | true | Local scoring enhancement |
@@ -693,6 +703,8 @@ dashboard:
 | Cache expiry | 6 hours | Based on last hit time, hardcoded |
 | `log.max_size` | 1 (MB) | |
 | `log.max_age` | 1 (day) | |
+
+PDFium is an experimental optional backend: platform archives ship a standard library under `third_party/pdfium/<arch>/`; it is loaded lazily and calls are serialized in-process, while the main program stays pure Go / CGO-free / MIT. When `enabled` is omitted, the library is auto-detected and fallback activates when it exists. `fallback` runs ledongthuc first and tries PDFium once on failure before the guard/MinerU chain; `primary` runs PDFium first and falls back to ledongthuc. The switch affects the local PDF text path in both `cleanfetch` and `pdf_parser`. Auto-detection stays silent when the library is missing; an explicit `enabled: true` logs one warning on a missing library or load failure. PDFium C-level crashes cannot be recovered by Go; production deployments should put the library in a separate worker. The current integration is in-process and experimental.
 
 With a MinerU token, local `pdf_parser` calls default to whole-document precise archival beside the PDF. `max_pages` continues to limit remote/text-extraction requests; `mineru_page_budget` limits new local pages per call and `mineru_page_batch_size: 0` uses the task page limit for local batches. Disabling remote PDF mode or OCR fallback does not disable local precise uploads.
 

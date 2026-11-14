@@ -58,7 +58,8 @@ PDF 细节：
 
 - `pages` 如 `1-3`、`1,3,5-7`，去重升序，1-based 文件页序。本地有 Token 的精准归档省略时目标为整本；远程 PDF 和无 Token 的本地文本提取省略时仍默认前 20 页，显式请求受配置上限约束。
 - `cleanfetch`/自动补抓的普通远程 PDF 路径没有传入这个 20 页限制，锁定依赖的缺省上限是 200 页；不要用它们代替受控页码阅读或宣称全文覆盖。
-- 远程 MinerU 优先分支同时要求 token、remote 开关，以及 URL path 以 `.pdf` 结尾（忽略大小写、query/fragment），或严格的 `arxiv.org/pdf/<论文编号及可选版本>`。其他无扩展名链接不自动视为精准 API 入口；不要为了切解析器擅自改 URL。`PDF 解析器` 提示区分 `pdf-lib`、`mineru-remote` 等实际路径；配置了 token 不等于本次用了 MinerU。
+- 远程 MinerU 优先分支同时要求 token、remote 开关，以及 URL path 以 `.pdf` 结尾（忽略大小写、query/fragment），或严格的 `arxiv.org/pdf/<论文编号及可选版本>`。其他无扩展名链接不自动视为精准 API 入口；不要为了切解析器擅自改 URL。`PDF 解析器` 提示区分 `pdf-lib`、`pdfium`、`mineru-remote` 等实际路径；配置了 token 不等于本次用了 MinerU。
+- 本地文本提取可能是 `pdf-lib` 或 `pdfium`。平台整包在 `third_party/pdfium/<架构>/` 携带可选 PDFium 动态库；省略 `pdf_parser.pdfium.enabled` 时自动检测，`mode: fallback`（默认）在内置库失败后试一次，`mode: primary` 优先 PDFium。库缺失或加载失败自动回退，不影响其余链路。选择与回退是服务端配置，不是工具参数。
 - v3.6.1 起，远程 MinerU 精准 API 的 `mineru_page_limit` 默认 600；不再用“第 201 页必裁切”判断。原件超页或远程 URL 被拒时下载（上限 200MB）、qpdf 裁出所选页并签名上传。`mineru_page_batch_size` 支持 10–200，0 或 1–9 不分批；`mineru_page_budget` 默认等于单任务页限。它们是服务端配置，不是工具参数，`max_pages` 也继续约束本次请求。
 - 裁切批次串行上传；客户端提供 progress token 时经 MCP progress 推送进度，未请求时只返回最终结果。预算耗尽可返回已解析内容和续读页码。看实际页数、原页序和重新编号后继续，进度不等于收到正文。裁切或上传批次失败后可尝试受限文本回退，成功时明确标注 MinerU 失败与实际解析器；回退也失败则返回错误，不能以已成功页数宣称正文已交付。精准结果的 `images/` 从对应完整 ZIP 读取。轻量 OCR 仍最多 20 页/10MB、仅 Markdown，图片路径可能无法取回。镜像包含 qpdf。
 - 本地有 MinerU Token 时，`pdf_parser` 走精准归档，独立于远程开关和 OCR 回退开关；该分支不会以普通文本提取冒充精准结果。没有 Token 的部署沿用本地文本提取及可选 OCR 回退。少量查阅可直接用已有 Markdown 或宿主离线阅读，避免不必要的上传。

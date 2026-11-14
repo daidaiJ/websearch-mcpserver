@@ -2,18 +2,20 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.10.7 — 2026-11-14（PDF 本地解析加固与可选 PDFium 后端、搜索质量闭环、CI/分发改进）
 
 > 致谢：本批 PDF 改动来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR [#30](https://github.com/daidaiJ/websearch-mcpserver/pull/30) 与 PR [#31](https://github.com/daidaiJ/websearch-mcpserver/pull/31)；原提交保留其署名，后续提交仅为吸收后的适配。
 
 ### 新增
 
+- **实验性 PDFium 动态库文本后端（可选）**：`pdf_parser.pdfium` 省略 `enabled` 时自动检测 exe 目录、配置目录及其 `third_party/pdfium/<架构>/` 下的 `pdfium.dll`（Windows）/ `libpdfium.so`（Linux）/ `libpdfium.dylib`（macOS），库存在才按需加载；平台整包通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152` 并按架构随 zip/tar.gz 分发；`mode: fallback`（默认）在 ledongthuc 失败后先试一次 PDFium，再进入 guard/MinerU 链路，`mode: primary` 可把 PDFium 设为本地默认后端。主程序保持纯 Go / 无 CGO / MIT，库缺失或加载失败自动回退；调用在进程内串行，C 层崩溃无法被 Go recover（生产建议 worker 隔离）。选型与 34 条病态输入数据见 `docs/pdf-parser.md`
 - **本地 PDF 精准归档与断点复用**（PR #31，@MattLYT）：配置 MinerU Token 后，本地 `pdf_parser` 默认以整本为目标，按单次预算分批接续；Markdown、图片、原始 ZIP 与页码记录保存在 PDF 旁同名 `.mineru/`。支持重启后续跑、重叠页去重、源文件更新后成功才替换自动生成文件、用户自放资料保留；目标目录不可写时上传前报错，可用 `output_dir` 指定。远程 PDF 与无 Token 的本地文本提取保持原路线
 - **MCP `initialize` 下发工具选择 instructions**：服务端在 `ServerOptions.Instructions` 中返回一段中英双语的选择纪律（smartsearch 发现来源、cleanfetch 读正文、academicsearch 查论文、file_search 查本地文件、search_history 查历史），并说明参数默认值与作用域；调用方显式设置 `Instructions` 时尊重其值。此前该字段为空，客户端无法把工具分工并入系统提示
 - **离线检索质量评测集 `bench/quality`**：20 条中英固定 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），输出逐 case 的 P@8 / R@8 / MRR@8 与聚合均值；断言命中数与首个相关结果排名，聚合门槛用于拦截评分权重/阈值退化。零网络依赖、随 `go test ./...` 运行
 - **稳定错误码 `pkg/errcode`**：`timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`；支持 `errors.As` 穿透包装，并可用 `Message` 替换展示文案而保留原始错误链
 - **smartsearch 增加批量、深度、来源与上下文预算参数**：`queries` 最多 5 条（与 `query` 互斥，逐条独立检索、分节返回，单条失败不影响其它；批量只记一条 tool 事件）；`depth` 支持 `fast` / `balanced` / `deep`（deep 默认抓前 3 条正文并启用 24000 字符预算，显式 `fetch_top_n` / `max_chars` 优先）；`sources` 支持 `web` / `academic`（可同时指定，academic 走现有学术缓存与逐引擎错误）；`max_chars` 为所有结果共享的正文总预算，按条均分，超出时截断并提示用 cleanfetch 读全文
 - **cleanfetch 的 `result_ref` 不再重复正文**：此前同一份分页 JSON 同时写入文本内容与 `structuredContent`，大页面等于传输两遍；现在只保留文本 JSON，客户端按 `content` 读取
+- **README 接入形态对比图与 npm 发布文档**：中英 README 补充 stdio 与 HTTP daemon 两种接入形态对比图；`docs/npm` 记录 Trusted Publishing 首次验证与批量配置方法
 
 ### 变更
 
@@ -22,9 +24,11 @@
 - **provider Key 池改为命名结构体 `mode.ProviderPools`**：`BuildApipoolMode` / `BuildHybridMode` 由 8–9 个同类型 `*KeyPool` 位置参数改为按供应商命名的字段，新增供应商不会再因参数错位而静默接错池
 - **`core.ShowMeta` 改为原子访问**：由包级 bool 改为 `atomic.Bool` + `SetShowMeta` / `ShowMetaEnabled`，消除并发读取全局配置值的数据竞争
 - **`depth` / `max_chars` / `fetch_top_n` 的作用域显式化**：三者只塑造 web 分节的正文；`sources` 仅请求 `academic` 时显式传这三个参数会返回错误，避免参数被静默忽略。同时请求 web 与 academic 时，学术分节按自身默认返回；工具描述与 server instructions 同步写明这一边界
+- **文档与解析契约**：澄清 TLS 指纹作用域与 Go 模块嵌入边界；补 Bing / DDG HTML 解析契约 fixture；同步搜索质量闭环的开发者落点
 
 ### 修复
 
+- **本地 PDF 解析加 recover / 超时 / 堆预算，畸形输入升 MinerU**：`ledongthuc/pdf` 对内嵌图、缺操作数、循环页树等仍会 panic 或挂死；守卫在独立 goroutine 里跑本地库，捕获 panic，默认 30s 截止，堆增长超 64 MiB 中止。有 Token 时改走 MinerU 精准归档（`ParseLocalArchive`），无 Token 返回 `parse` 错误。扫描件无文本仍走原 OCR 路径。回归覆盖 stub 的 panic/挂起，以及上游 issue/PR 的合成病态 PDF（BI/EI、空 TJ、负 startxref、超大 `/Size`、循环 `/Kids` 等）
 - **PDF 文本解析无限扩容**（PR #30，@MattLYT）：升级 `ledongthuc/pdf`，纳入上游 EOF 退出与跨内容流连续解析修复。内容流在数组闭合前结束、或合法数组跨内容流时，旧解析器会反复追加 EOF 直至耗尽内存。回归测试覆盖 `Fetch` 与 `FetchPDFWithPages`，子进程设 64 MiB 堆增长保护与 5 秒超时
 - **初始化失败不再以 panic 终止 CLI / daemon**：`ServerOption` 改为返回 error，`Init` 逐项传播，搜索引擎、缓存命名空间与缓存构造失败沿 `Run` / `cmd/cli` 返回，由入口打印「failed to start server」等提示，不再直接抛堆栈；`Handler` 嵌入路径仍按文档 fail-fast panic。新增 3 条 `tool.init.*` 中英文案
 - **错误判类不再依赖本地化文案**：`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 三处此前按中英关键词匹配，切换语言或改文案就会漂移。现在优先读取 `pkg/errcode` 的稳定错误码（`antirobot` 本端限流哨兵、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类均已附码），未知错误继续回落关键词，兼容尚未接码的上游错误
@@ -34,6 +38,7 @@
 - **CI 构建缓存不再冻结（`-fuzz` 插桩重编）**：`setup-go` 内置缓存命中 primary key 后不再回写，`~/.cache/go-build` 冻结在首次构建，导致 `-fuzz` 所需的覆盖率插桩二进制每次运行从零重编（实测约 70 秒，约占该步 105 秒的三分之二）。`ci.yml` 关闭内置缓存，改为显式恢复：模块缓存沿用 `go-module-cache.yml` 的路径与键（只恢复、不重复上传），构建缓存改用滚动键 `go-build-<os>-<hash(go.sum)>-<run_number>` + 前缀回退，仅 master 推送回写、PR 只读恢复
 - **Docker 缓存后端改为镜像仓库**：`type=gha` 在本仓库从未命中——该工作流只由 tag 触发，而 gha 缓存按 ref 隔离、tag 之间互不可见（master 不构建镜像），实测连续三个 tag 导入的 cache manifest 各不相同、`CACHED` 零出现，同时 69 个 buildkit 条目白占约 2.4GB 缓存配额。改用 `type=registry` 指向 `ghcr.io/<repo>:buildcache`，跨 tag 共享且不占 Actions 缓存配额
 - **纯文档推送不再跑全量构建**：`ci.yml` 的 `push` / `pull_request` 增加共享的 `paths-ignore`（YAML 锚点），用宽通配而非逐文件白名单——`**.md` / `**.MD`、`docs/**`、`skills/**`，加仓库根目录的 `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt`，新增文档目录或根目录配图都不必再改清单。只有全部改动路径都命中才跳过，混合提交照常触发。图片只忽略根目录（`*` 不跨目录）：`cmd/assets/*.ico` 与 `pkg/dashboard/web/logo-*.png` 是 `go:embed` 的编译输入，加 `**/*.png` 会让改图标不重编二进制
+- **npm 发布 OIDC 增加排障模式**：`npm-plugin.yml` 的 `workflow_dispatch` 增加 `verbose` 开关，设置 `NPM_CONFIG_LOGLEVEL=verbose` 并解码打印 OIDC claims（`sub` / `workflow_ref` / `job_workflow_ref` / `environment` 等，不打印 token），用于核对 npm 侧 Trusted Publishing 绑定
 
 ### 移除
 
