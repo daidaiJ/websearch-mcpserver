@@ -10,7 +10,7 @@
 
 ## 项目一句话定位
 
-**websearch-mcpserver** 是一个用 Go 编写的轻量级 MCP 搜索服务，零 API Key 即可运行，支持 Claude Code / Qwen Code / Cursor 等 MCP 客户端。提供四大核心能力：
+**websearch-mcpserver** 是一个用 Go 编写的轻量级 MCP 搜索服务，零 API Key 即可运行，支持 Claude Code / Qwen Code / Cursor 等 MCP 客户端。提供五大核心能力：
 
 | 能力 | 说明 |
 |------|------|
@@ -126,7 +126,7 @@ pkg/
 | 通用评分管线（RRF/域名品质/词汇对齐/稀有词/共识权威新鲜度 Boost/阈值过滤/意图分类/MMR） | v2.14.0 已全部实现 | 不要重复立项 |
 | Google 网页引擎 | 2025-01 起 JS 挑战全量硬化，"凭据缺失"模型，HTTP 200 空壳零结果；UA/TLS 伪装全部失效（详见 `pkg/config/config.go` GoogleConfig 注释） | 保持默认关闭，勿再尝试伪装修复 |
 | Google wml + Nokia UA 绕过（SearXNG PR #6546 路线） | 2026-09-03 实测：HK 代理出口下首请求 429 进 /sorry/，其余 200 均为 JS 挑战空壳，Google 未对 Nokia UA 返回 WML/XML | 强依赖出口 IP 信誉，非普适方案；wml 遗留端点随时可能被 Google 移除，勿照抄 |
-| 百度 tn=json 接口（SearXNG baidu.py 路线） | 2026-09-03 实测：直连裸客户端 3/3 被 302 至 wappass 验证码，预热 cookie 无效；同 IP 下 HTML 引擎同样被 CAPTCHA。识别主因疑似 IP 信誉 + TLS 指纹，与 HTML/JSON 入口无关 | tn=json 非免检通道，JSON 接口不能替代 pkg/engine/baidu 现有反检测层 |
+| 百度 tn=json 接口（SearXNG baidu.py 路线） | 2026-09-03 实测：直连裸客户端 3/3 被 302 至 wappass 验证码，预热 cookie 无效；同 IP 下 HTML 引擎同样被 CAPTCHA。识别主因疑似 IP 信誉 + TLS 指纹，与 HTML/JSON 入口无关 | tn=json 非免检通道，JSON 接口不能替代 pkg/search/engine/baidu 现有反检测层 |
 | DDG / arXiv 限流 | 服务端窗口限流，引擎内置钳制（DDG 1/s·6/min，arXiv 1/s·12/min + 3s 间隔）+ 429 冷却避让 + 预算感知重试 | 调整限流参数须实测校准，勿放宽内置上限 |
 | 360 搜索（so360，2026-10-06 出口实测） | 直连与代理均 HTTP 200 + 自然结果（`li.res-list` + `data-mdurl` 真实 URL，`div.g-mohe` 特型卡需过滤）；解析契约对齐上游 so360.py | 已注册（`so360.enabled`，默认关闭）；验证码页 wappass 按反爬拦截报错 |
 | AnySearch 匿名档（2026-10-06 出口实测） | 直连与代理均 200，POST 不带 Authorization 即匿名 IP 限流档（上游 anysearch.py 注释同口径），结果在 `data.results` | KeyPool 为空自动走匿名档，本端保守钳制 1/s·20/min；上游未公布阈值，调参须实测 |
@@ -165,7 +165,7 @@ docker build -t websearch-mcpserver .
 1. **修改搜索逻辑前**，先读 `pkg/search/inf.go` 了解接口契约，再读 `hybrid.go` 了解编排流程
 2. **新增配置项时**，同步更新 `pkg/config/config.go`、两个 `config.example.yaml`，以及 `docs/configuration.md` / `docs/configuration.en.md`（搜索/工具参数还要改 `docs/search.md`、`docs/api.md`、README）
 3. **涉及反检测/限流**，修改应在 `pkg/antirobot/` 层进行，不要在各引擎包中重复实现
-4. **学术搜索与通用搜索是独立模块**，学术引擎在 `pkg/academic/`，通用引擎在 `pkg/engine/baidu/` `pkg/engine/bing/` 等，不要混淆
+4. **学术搜索与通用搜索是独立模块**，学术引擎在 `pkg/academic/`，通用引擎在 `pkg/search/engine/baidu/` `pkg/search/engine/bing/` 等，不要混淆
 5. **发布矩阵拆分，不要合成一套 6 平台**：GitHub Release = linux/windows amd64 + darwin amd64/arm64；GHCR = linux/amd64+arm64；MCP Registry mcpb 走 `vX.Y.Z-registry` tag 的**独立 Release 页**（`--expect-packages 4`，server.json 下载链接指向该页，base Release 只放裸二进制与每平台整包（含 `skills/`），不放 mcpb，两类产物分开）。**先打普通 tag（`vX.Y.Z`）发 Release 并推 GHCR 镜像**；**发完、Release 产物就绪后再单独打 `-registry` 后缀 tag 发 MCP Registry**（不推镜像，不要和版本 tag 一起推）。后补的 `vX.Y.Z-registry` 钉同一 commit（重跑工作流时需钉到含新 workflow 的 commit——打包原料从 base Release 下载，不重编译）。linux-arm64 走 GHCR，不要把 linux-arm64 / windows-arm64 加回 Release 来对齐 Docker 或旧版 v3.1.1 MCP
 6. **README 顶部配图有渲染源**：`docs/images/src/`（HTML + Playwright 脚本，`python docs/images/src/render.py` 直接覆写 `docs/images/*.png`），改图改 HTML、不要手工编辑 PNG；源与用法见 `docs/images/src/README.md`
 7. **发布矩阵对称：npm 走 `-npm` 后缀 tag，不随普通 tag 发**。普通 tag（`vX.Y.Z`）只发 Release + GHCR；产物就绪后再单独打 `vX.Y.Z-npm`，由 **`npm-plugin.yml` 自己的 `on.push.tags` 接**（`release.yml` 的 tags 已排除 `-npm`，`docker.yml` 也跳过），从 **base tag** 的 Release 下载并校验 `websearch-mcp-cli-*`，按「4 平台包 → `websearch-mcp-cli` → `dsh-websearch-mcpserver`」顺序发 6 个包，npm 版本取 base 版本（`v3.10.5-npm` → `3.10.5`，`publish.sh` 剥 `-npm` 后缀）。这与 `-registry` 发 MCP Registry 的链路对称：两种后缀 tag 都不重编译、不建 base Release、不推 GHCR 镜像。**发布认证是 npm Trusted Publishing（OIDC）**：`npm-plugin.yml` job 需 `id-token: write` + Node 24 + npm 11，仓库不存任何 npm token；**不要改回 `release.yml` 的 `workflow_call` 复用**——npm 校验的是「调用方」工作流文件名，复用会与 npm 侧绑定的 `npm-plugin.yml` 失配。**平台矩阵必须跟 Release 四平台一致**，不要为对齐 Docker 加 linux-arm64 / windows-arm64；npm 版本不可复用，补发用 `npm-plugin.yml` 的 `workflow_dispatch`（tag 填 base tag 或 `-npm` tag 均可，`publish.sh` 对已存在版本跳过）。改 `npm/` 下的模板后本地跑 `bash npm/scripts/check.sh` 与 `TAG=v0.0.0 DRY_RUN=true FAKE_BINARIES=true bash npm/scripts/publish.sh`。详见 `npm/README.md`
@@ -174,7 +174,7 @@ docker build -t websearch-mcpserver .
 
 ## WebUI（控制中心）规范
 
-> 控制中心 = `pkg/dashboard`（后端）+ `pkg/dashboard/web`（前端）+ `pkg/telemetry`（遥测）+ `pkg/quota`（额度），独立分支 `webui` 演进。
+> 控制中心 = `pkg/dashboard`（后端）+ `pkg/dashboard/web`（前端）+ `pkg/telemetry`（遥测）+ `pkg/quota`（额度），随主分支演进。
 
 1. **前端零第三方依赖，原生二进制内嵌**：页面资源经 `go:embed`（`//go:embed web/*`）打进 exe，无 CDN、无外部请求、无框架。**htmx 评估结论（2026-09-19）：不引入**——当前交互量（筛选/刷新/弹窗/轮询）用原生 JS（`app.js` 单文件 + CSS 变量主题）完全覆盖，htmx 需要 SSR 片段接口配合，改造收益低于依赖与重构成本；若未来页面复杂度明显上升再评估。改前端时保持"零依赖 + go:embed"约束，新增资源放 `pkg/dashboard/web/`。
 2. **写操作安全模型（不可退让）**：所有写端点（设置/密钥/重启/清缓存/额度重置修正）**默认仅 loopback** + `X-Admin-Password` 头，服务端常量时间比较。用户可在 `dashboard.yaml` 配置 `write_allowed_networks` 放行任意 CIDR/IP；空值或任一非法条目均回退 loopback。读白名单及转发头不授予写权限。口令只能配在 `dashboard.yaml`（`admin_password` / `admin_password_sha256`），**永远不出现在设置页白名单和 secrets 覆盖文件**——WebUI 无法读取或修改它。未配置口令 = 写端点整体禁用。
@@ -182,7 +182,7 @@ docker build -t websearch-mcpserver .
 4. **隐私出网红线**：遥测只存脱敏元数据（查询哈希/主题/语言/关键词），错误文本服务端正则脱敏后才落库；密钥值任何接口永不回显（服务端不出网，前端掩码不算数）。新增端点时先过一遍"响应体会不会带密钥/原文"。
 5. **品牌可定制**：`dashboard.brand`（title/logo/theme/accent）走 overview/settings 响应注入；主题 = `green/blue/mono` 三预设（CSS 变量块）+ accent 覆盖，本浏览器选择存 localStorage。桌面快捷方式图标跟主题（`cmd/assets/app-{theme}.ico`）；`start`/`open`/`install` 读取 `.lnk` 逐项校验目标、参数、工作目录与图标，主题或图标内容变化时落盘带内容哈希的新 ico 并重建。
 6. **配置文档唯一入口**：控制中心所有可配置项（含 `dashboard.shortcut` 快捷方式落位、`brand.footer` 关于块）的完整参考与「agent 向人类确认清单」住 `docs/dashboard.md` / `dashboard.en.md`；新增配置键必须同步该文档与 `dashboard.example.yaml`，不允许只在代码注释里出现。
-6. **图标资产再生成**：改设计 → `go run ./tools/genicon`（在仓库根目录跑），产出 3 主题 ico + web logo，不要手工改二进制资产。
+7. **图标资产再生成**：改设计 → `go run ./tools/genicon`（在仓库根目录跑），产出 3 主题 ico + web logo，不要手工改二进制资产。
 
 ## 本地环境
 
@@ -192,133 +192,59 @@ docker build -t websearch-mcpserver .
 ## 提交与发布卫生
 
 1. **推送前必须按功能 rebase 压缩**（硬规则）：分支历史按功能聚合成少量提交（如 PR 引入层 / 安全加固层 / 功能层 / 文档层各一个），不推"一堆 WIP 碎提交"。吸收外部 PR 时保留原作者（`git commit --author`），功能分组用 `git checkout <src> -- <paths>` 按路径重建，每步过 `go build ./...`。
-2. **webui 分支只发预览版**：tag 形如 `vX.Y.Z-preview.N`，release.yml 检测 `-preview` 自动 `--prerelease` 并跳过 GHCR；不进 CHANGELOG 正式版本区（记 Unreleased/预览段），不打 `-registry` tag、不进 MCP Registry。
+2. **预览版只发预览 tag**：tag 形如 `vX.Y.Z-preview.N`，release.yml 检测 `-preview` 自动 `--prerelease` 并跳过 GHCR；不进 CHANGELOG 正式版本区（记 Unreleased/预览段），不打 `-registry` tag、不进 MCP Registry。
 3. **外部贡献吸收必须显式署名**（开源尊重，硬规则）：压缩聚合不能丢失作者归属——author 字段 + GitHub noreply 邮箱保证提交在 GitHub 上关联到贡献者账号与头像；相关 commit message 追加 `Credit: 来自 PR #N（作者 @handle）…` 标注来源；CHANGELOG（中英）与预览版 release notes 中必须致谢贡献者并列明其贡献范围。
 
-## 🔄 Handoff 摘要
+## 当前状态与活跃待办（2026-11-16）
 
-> 已完成任务的交接详情已归档至 `.handoff/archive/`（不入库）。此处只保留当前活跃任务、运维待办与待验证项。
+> 已完成任务的详细交接已归档到 `.handoff/archive/agents-md-handoff-snapshot-2026-11-16.md`（不入库）；各专题证据保留在 `.handoff/<topic>.md`。
 
-### pdf-parser-backends — done（2026-11-14，随 v3.10.7 发布）
+### 当前版本与未发布改动
 
-- **当前状态：** 实验性 PDFium DLL 接入已落地并随 v3.10.7 发布：`pkg/fetch/pdfium` 懒加载 + `pdf_parser.pdfium.{enabled,path,mode}`；fallback 先走 ledongthuc+guard、失败后试一次 PDFium，primary 可配置为默认本地后端。Release 整包、GHCR 镜像、MCP Registry `.mcpb` 与 npm 平台包统一通过 `third_party/pdfium/fetch.sh` 下载固定 `chromium/8152`，按架构随各自产物分发。发布验证：GHCR `3.10.7` 在 linux/amd64 与 linux/arm64 运行层均读到 `VERSION=159.0.8152.0`；MCP Registry `3.10.7` active，`.mcpb` 的 registry `fileSha256` 与 Release 校验和逐条一致；npm 6 个包 `3.10.7` 已发布，linux 平台包 tarball 内含 `bin/third_party/pdfium/linux-x64/libpdfium.so`
-- **关键数据：** 病态 34 条 PDFium 无挂死/panic；20 页 warm 中位 ledongthuc 2.40ms / DLL 9.15ms / wasm 18.83ms；DLL 常驻 22.5MB、冷启动约 34ms
-- **关键证据：** [`docs/pdf-parser.md`](docs/pdf-parser.md)（含处理状态图）；`pkg/fetch/pdfium/`；`third_party/pdfium/`；`pkg/fetch/webfetch/pdfium_*_test.go`；[`bench/pdfcorpus/`](bench/pdfcorpus/)；分支 `feat/absorb-pr30-pr31` 另有未提交 guard
-- **下个版本待办：** 对比验证 PDFium 动态库加载的不同路线（进程内懒加载 / 独立 worker / 启动预加载 / 短生命周期 / 纯 Go 替代），按首解与热解延迟、内存、畸形存活率、部署复杂度出结论；当前保持现状，见 [`docs/optimization-roadmap.md`](docs/optimization-roadmap.md) P1
-- **验收标准：** [x] 真实 DLL 抽取 + fallback/primary 测试；[x] 配置解析与默认值；[x] `go build ./...` / `go vet ./...` / `go test -short ./...` 全绿 / i18n 审计 / CGO=0；[x] Linux `.so` 在 WSL 实测（Ubuntu 22.04 / Go 1.27.1，`TestExtractFromBundledPath`、`TestExtractWithDLL` 与真实 production primary/fallback 均通过）；[x] GHCR 双架构 / MCPB / npm 内含 PDFium 已实测；[ ] 真实 PDF 长跑；[ ] Release 整包实跑（本地只验脚本与打包映射）
-- **详情指针：** [`.handoff/pdf-parser-backends.md`](.handoff/pdf-parser-backends.md)
-
-### 未验证事项
-
-- [ ] macOS `libpdfium.dylib` + purego smoke（WSL 已验证 Linux `.so`）
-- [ ] 真实 PDF 混合负载长跑，复核 PDFium 稳定性与内存
-- [ ] PDFium 独立 worker 隔离 C 层崩溃（当前为进程内实验性接入）
-
-### 初始化失败不再 panic — done（2026-11-11，未发版）
-
-- **当前状态：** `ServerOption` 从 `func()` 改为 `func() error`，`Init` 逐项传播；搜索引擎、缓存命名空间与缓存构造失败沿 `Run` / `cmd/cli` 返回，入口打印友好错误而不是堆栈。`Handler` 嵌入路径仍按文档在边界 fail-fast panic
-- **附带：** 新增 `tool.init.search_engine_failed` / `cache_namespace_failed` / `cache_failed` 三条中英文案；`docs/api` 的嵌入边界同步区分 `Run` 返回 error 与 `Handler` panic
-- **验证：** `go build ./...`、`go vet ./...`、`go test -short ./...`、`go test ./pkg/i18n/`
-
-### SearXNG 兼容端点移除 — done（2026-11-11，未发版）
-
-- **当前状态：** 删除 `searxng/` 包与 `GET /searxng/search` 路由，移除仅服务于它的 `mcp.GetSearchGroup`；清理 `log.searxng.*` 文案、配置样例鉴权注释与文档/图源中的端点引用
-- **理由：** 该端点只实现 JSON 子集（仅读取 `q`），与 MCP 的 `smartsearch` / `cleanfetch` 能力重复，实际使用面为零；保留需要持续维护 LiteLLM 兼容口径与文档，收益低于成本
-- **影响：** 破坏性变更，记入 CHANGELOG Unreleased；LiteLLM 等 SearXNG 客户端改走 MCP 端点或客户端侧适配
-- **验证：** `go build ./...`、`go test -short ./...`、`go test ./pkg/i18n/`
-
-### 搜索质量闭环 — done（2026-11-11，已合入 master `61427d4`，未发版）
-
-- **当前状态：** 分支 `feat/search-quality-loop` 已合入 master 并推送，未打 tag、未发 Release/GHCR/Registry；合入内容包含今天远端两个分支（`feat/search-budget-and-params` 的批量/depth/sources/内容预算、`fix/hosted-mcp-ua` 的入站 UA 透传）与 D1 / D2 / D5、D3 部分落地，以及 KeyPool / ShowMeta / 进程内指标三项工程债治理
-- **D5：** `NewMCPServer` 在 `ServerOptions.Instructions` 下发中英双语工具选择纪律（发现 / 读正文 / 查论文 / 本地文件 / 历史），调用方显式设置时尊重其值；`skills/websearch-mcp/SKILL.md` 增补「参数纪律」
-- **D2：** 新增叶子包 `pkg/errcode`（稳定码 + `CodeOf` / `Message`）；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 改为码优先、关键词兜底；`antirobot.ErrLocalRateLimit`、`provider.KeyError`、`webfetch` 分类附码；`adapter/baidu_fallback.go` 双失败用 `errcode.Message` 保留主备原因
-- **D3（部分）：** `googlenews` / `wikipedia` 补 `ContextEngine`（`NewRequestWithContext`）；`hybrid` 的包装 goroutine 与 `cleanfetch` 统一预算未动
-- **D1：** `bench/quality` 20 条中英固定 fixture，逐 case 与聚合输出 P@8 / R@8 / MRR@8，聚合门槛拦退化；合成候选集只衡量排序回归，真实 HTML fixture 仍归 T2
-- **工程债：** provider Key 池改为命名结构体 `mode.ProviderPools`；`core.ShowMeta` 改为 `atomic.Bool` + setter；`/metrics` 增加进程内指标（在飞请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时返回 200 并省略遥测序列
-- **解析契约：** Bing 与 DDG 补 HTML parser fixture；baidu（JSON feed）、google、so360、googlenews（RSS）、wikipedia（JSON）已有解析测试
-- **工具面取舍：** `depth` / `max_chars` / `fetch_top_n` 只塑造 web 正文；仅 academic 时显式传这三个参数返回错误，避免静默无效。未新增任何 MCP 参数或工具
-- **暂缓：** D4（citation / untrusted 边界，改输出契约）、D6（垂直源）、D7（配置分层）、D8 tracing 与显式 DI、真实检索快照/定时 live smoke
-- **验收：** `go build ./...`、`go vet ./...`、`go test -short -count=1 ./...` 与 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` 复跑全绿；`go test -race -short ./server/ ./pkg/search/{hybrid,core,mode}/` 绿；`go test ./pkg/i18n/ ./pkg/errcode/ ./bench/quality/` 绿；`pkg/academic` 的 PubMed 真网测试偶发 `unexpected EOF`，单跑通过，属既有 flake
-
-### 发布整包（含 Skill）+ log_level 生效 / 并发失败留痕 + SQLite 连接池上限 — done（2026-11-05，随 v3.10.4 发布；本次未发 MCP Registry）
-
-- **当前状态：** 三项随 `v3.10.4` 交付：base Release 24 个产物（8 裸二进制 + 4 平台整包 + 12 校验和，整包 19.9–21.2 MB，约为同平台两个裸二进制之和的 39%）、`release.yml` 与 `docker.yml` 均 success、GHCR `3.10.4` 镜像已推；按用户要求本次**不打 `-registry` tag**，MCP Registry 仍停在 `3.10.3`（已核对 registry 列表无 `3.10.4`）
-- **实现要点：** ① `release.yml` 的 release job 新增 `Package platform archives`：用 checkout 到的源码把 dist 里的裸二进制打成本平台整包（Windows `zip -9`、Linux/macOS `tar -czf` gzip -9，tar 带 `--sort=name --owner=0 --group=0 --numeric-owner`），包内为 `websearch-mcpserver-<平台>/`（两个二进制 + 两个 config 样例 + LICENSE + 中英 README + `skills/`）；中间目录 `pkg/` 落在 `dist/` 之外，避免被 `gh release create dist/websearch-mcpserver-*` 通配带进 Release；既有校验和步骤的通配顺带覆盖整包。② `publish-registry` 的 base 下载通配 `websearch-mcpserver-*` 现在也会命中整包与 `.sha256`，加 `find dist -maxdepth 1 -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.sha256' \) -delete` 只留裸二进制封 `.mcpb`。③ `pkg/log.SetLoggerLevel` 改为 `*defaultlog = defaultlog.Level(level)`（原实现丢弃返回值，级别一直停在 trace，`log_level: error` 也照打 info/debug 与每次搜索的响应 dump），改用 `zerolog.ParseLevel` 支持文档承诺的 debug/info/warn/error，空串（ParseLevel 返回 NoLevel = 全静音）与未知值回落 info。④ `/searxng/search` 失败分支补 `log.searxng.search_failed`（原来只回 500 不写日志），`doWebSearch` 的 defer 补 `log.mcp.smartsearch_failed`。⑤ 连接池上限默认调低并配置化：`cache.max_open_conns` 2（原 4）、`search_history.max_open_conns` 1（原 2）、`dashboard.max_open_conns` 1，0/负值取包内默认、硬顶 32；新增 `cache.NewWithMaxOpenConns` / `history.NewWithMaxOpenConns` / `telemetry.OpenWithMaxOpenConns`（旧构造器保留，既有测试零改动）
-- **验收：** `go build ./...`、`go vet ./...` 干净；`go test -short -count=1 ./...` 与 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` 复跑全绿；`go test ./pkg/i18n/`（新增 2 条 log key）绿；本次改动的 Go 文件在 LF 化副本上 `gofmt -l` 干净；`actionlint@v1.7.12` 0 findings；`SetLoggerLevel` 回归测试在改回旧实现时确认失败（级别停在 trace）。**发布产物核对（2026-11-05）：** 从 v3.10.4 下载 windows `.zip` 与 linux `.tar.gz`，sha256 与随附 `.sha256` 一致；包内为两个二进制 + 两份样例配置 + LICENSE + 中英 README + 完整 `skills/`（含 `everything-http-server` 与 `websearch-mcp/agents|references`）；包内服务端二进制与裸二进制 sha256 相同（`5869cf0f…`）
-- **开口项：** 上游限流导致的并发失败本身未治理（本次只补日志可见性，入口侧并发上限待评估）；`cache.ConnMaxIdleTime`/`MaxIdleConns` 未调（空闲连接的页缓存仍常驻）
-- **详情指针：** 本批无独立 `.handoff/` 文件（改动集中在 CI 与三处小修）
-
-### 本机环境收口（部署 v3.10.2 + grok 子代理模型）— done（2026-10-25）
-
-- **当前状态：** 本机部署 `D:\Programs\websearch` 已升级到 `v3.10.2` 并验证；grok CLI 的子代理默认模型改为组 `cline-pass`（DeepSeek V4.1 Flash 主 / GLM-5.3 Flash 备），新会话已验证解析到链首条目
-- **关键证据：** 部署 exe sha256 `beb21986…` 与 base Release 一致、MCP `serverInfo.version = v3.10.2`、真机 smartsearch 与控制中心语言协商通过；子代理 `meta.json` 的 `effective_model_id = cline-pass/deepseek-v4.1-flash`；AGENTS.md 同步提交 `f22179e`
-- **开口项：** registry 里 `3.10.2` 的 `fileSha256` 陈旧（只有换版本号能刷新，待用户拍板）；本地 grok fork 仓库两个待办文件未提交
-- **详情指针：** [`.handoff/local-env-and-grok-cli.md`](.handoff/local-env-and-grok-cli.md)
-
-### i18n 治理（日志/MCP 元数据/控制中心/工具返回内容 语言模式 auto|zh|en）— done（2026-10-25，随 v3.10.2 发布）
-
-- **当前状态：** 四面 zh-en 双档已全部落地并随 `v3.10.2` 发布（Release + GHCR + MCP Registry 三线就绪）；该版本同日回收重发过一次（先发三面、补完第四面后同版本号重发），base tag 钉 `d79e853`、`-registry` tag 钉 `9883818`
-- **实现要点：** `pkg/i18n` 基于 `nicksnyder/go-i18n/v2` + `golang.org/x/text/language`（原设计是 zh 当 key 的 Go map，评审后改为符号化 key + 外置 JSON）；文案住 `pkg/i18n/locales/<域>.<语言>.json`（八域：log/mcp/dashboard/web + tool/fetch/provider/search）；调用形态 `log.*T(key, "name", v)` 与 `i18n.T`/`i18n.TCtx`；MCP 参数说明改为 `jsonschema:"mcp.param.*"` 并在注册时渲染输入 Schema（顺带修掉 `description,` 前缀透出给客户端的既有缺陷）；控制中心按 `Accept-Language` 每请求协商，`serveIndex` 改写 `<html lang>` 并把前端文案内联进页面（首帧即正确语言）；工具返回内容按「只治理本服务自产文案」口径迁入四域，稳定哨兵（`errors.Is` 身份）与本地化文案分离
-- **防漏机制：** `pkg/i18n/catalog_test.go` 强制每个域 zh/en key 集合一致、同一 key 占位符集合一致、代码引用与目录条目双向一致；纯转发包装（key 由调用方给出）须显式登记 `dynamicKeyAllowlist` 并写理由
-- **验收：** `go build ./...`、`go vet ./...`、`gofmt -l` 干净；默认语言与 `LANG=en_US.UTF-8` 下 `go test -short -count=1 ./...` 均全绿、`go test ./pkg/i18n/`（目录审计，八域 700+ 条）绿；`-race -short` 仅剩 Windows TempDir 既有 flake；5 个前端 node 用例全 PASS；`golangci-lint --new-from-rev=v3.10.1` 0 issues；真机探针实测 `auto`/空值/未知值在本机（系统区域 zh-CN）解析为 `zh`、`zh`→zh、`en`→en，`Accept-Language: en-US`→en、`fr-FR` 回落配置值；中英双语渲染探针逐条核对四域（占位符替换、CLDR 复数、en 无残留中文）
-- **遗留（第四面）：已完成。** 工具**返回内容**里本服务自产的提示/告警/错误/进度已全部接入 i18n：`tool` 域（`mcp/`，121 条，`0268707`）、`fetch` 域（`pkg/fetch/**`，127 条，`2f18a0d`）、`provider` 域（`pkg/search/provider/**`，92 条，`7e16572`）、`search` 域（`pkg/search/{core,hybrid,adapter,apipool,engine}` + `pkg/llm` + `pkg/history` + `pkg/academic`，50 条，`1fac4e9`），共 390 条
-- **第四面口径（用户 2026-10-25 明确）：** 只治理**本服务自产**的提示/告警/错误文本；**网页正文、API 供应商返回的结果文本、上游库自带的中文串不治理**。结果记录骨架（`pkg/search/core/format_md.go` 的 `## 结果` / `**标题**` / `**url**` / `**内容**` / 日期注记 / `usage_note` 固定行）由 `contract_test.go` 固化，**保持不动**；`BuildUserPrompt` 的 LLM 提示词、`enhance` 的停用词与意图关键词表、`telemetry` / `antirobot` 的判类关键词表同属算法输入，也不动
-- **第四面的坑（改前必读）：** 翻译错误文案会打断三处按关键词判类的逻辑——`mcp/tool_search.go` 的 `isAntiBotFailure`（已改为中英并列）、`pkg/search/core/diagnostics.go` 的 `ClassifyFailure`、`pkg/telemetry/errorkind.go` 的 `ErrorKindNoResult` 等；改对应文案时必须同步补英文关键词或改用哨兵错误。另：`mcp/tool_academic.go` 的 `academicProviderErrorsFromError` 按中文前缀解析上游错误，**该前缀在仓库里无生产者（既有死路径）**，勿据其推断文案来源
-- **未纳入第四面：** `mcp/options.go` 三处 `panic`（启动期 stderr 诊断，非工具返回内容）
-- **详情指针：** [`.handoff/i18n-governance.md`](.handoff/i18n-governance.md)
-
-### v3.10.1 发布后审查修复 — done（2026-10-25，v3.10.0 三线下架回收）
-
-- **当前状态：** v3.10.0 发布次日审查发现 2 P1 + 7 P2，修复后以 `v3.10.1` 重发（Release + GHCR + MCP Registry 三线就绪）；v3.10.0 的 GitHub Release×2、远端/本地 tags、MCP Registry 条目（status=deleted）均已下架回收
-- **修复清单：** fetch_top_n 接 sitefetch GitHub 特判（JS 空壳误标反爬）、sitefetch 403/429 配额冷却（Retry-After / x-ratelimit-reset，封顶 10 分钟）、blob 路径逐段 PathEscape + www 前缀归一、pushed_at 越界守卫、GitHub 引擎引号感知截断（422 防护）、search_history 缓存命中补写、quota 双端点并行、历史条目 query 展示截断；提交 `c2e5a20`（fix）+ `548a6f9`（changelog），新增 7 个针对性测试
-- **审查遗留（未做，候选 roadmap）：** 全供应商把传输层错误也包 `KeyError` → `MarkInvalid` 30 分钟冷却，单 Key 供应商一次网络瞬断即 30 分钟不可用（tavily/exa/doubao 等老约定同款，属系统性问题）；smartsearch 统一检索（sources 参数：web/学术/file/wiki 分节聚合）方案已评审，推荐 Phase 1 = web+academic
-- **验收：** `go build`、`go vet`、全量 short 测试（42 包）、`golangci-lint --new-from-rev=v3.10.0` 0 issues
-
-### eco-absorb 供应商扩展批 — done（已随 v3.10.0 发布，后由 v3.10.1 修正接替）
-
-- **当前状态：** 已随 `v3.10.0` 正式发布（2026-10-24，Release + GHCR + MCP Registry 三线就绪）；发版前经两轴审查修复 4 处（LLM withDeadline 取更早者、search_history FTS5 特殊字符、history 优雅关闭、工具描述补试验性）
-- **关键证据：** 分支远端 head `3d78aa1`（本地 worktree 已删除）；TinyFish `/usage` 真机实测（total 随 start_after 过滤）；测试 Key 在 gitignored 的 `config.test.yaml` 与部署 `config.yaml`
-- **合入验证（2026-10-24）：** 21 个冲突文件逐个手工合并（CHANGELOG 把 Unreleased 留在 v3.9.1 之上、config/doc 列表同时容纳 yuanbao 与 tinyfish/keenable、`BuildApipoolMode`/`BuildHybridMode` 增补 pool 形参并同步调用点）；`go build ./...`、`go vet ./...`、`go test ./...` 全绿（39 包），`golangci-lint --new-from-rev` 修掉 errorlint / staticcheck 共 4 处后仅剩 CRLF 引起的 gofmt 误报
-- **文档同步：** CHANGELOG 中英 v3.10.0、roadmap N6 归档、dashboard/configuration/search 文档中英同步；合入时另补了跨批次一致性：源开关与默认值速查表、`apipool.engines`/`weights` 列表、README 引擎清单同时列上 yuanbao 与 tinyfish/keenable（TinyFish/Keenable 无独立 mode，不进模式表）
-- **详情指针：** [`.handoff/eco-absorb-providers.md`](.handoff/eco-absorb-providers.md)
-- **路线图权威：** [docs/optimization-roadmap.md](docs/optimization-roadmap.md) N 系列（N1-N6 已归档；智谱 preset 评审后不做——消耗套餐额度）
-
-### shortcut-sync — done（随 v3.9.1 发布）
-
-- **当前状态：** 已合入 master（`7c854c8`）并随 `v3.9.1` 发布；本地部署已升级，桌面快捷方式启动时自动刷新为内容哈希图标
-- **关键证据：** `syncDashboardShortcut` 统一 `start`/`open`/`install`；逐项校验 `.lnk` 目标/参数/工作目录/图标路径与索引；`off`/控制台关闭时删除已知位置；真机覆盖坏链、篡改、exe 重命名、中文路径
-- **验收：** `go test ./...`、`go test -race -short -p 1 ./...`、golangci-lint 0 issues
-- **详情指针：** [`.handoff/shortcut-sync.md`](.handoff/shortcut-sync.md)
-
-### github-reddit-access — done（GitHub 已随 v3.10.0 落地、v3.10.1 修正；Reddit 整线放弃，N7 归档）
-
-- **当前状态：** GitHub 引擎 + cleanfetch 仓库/blob 特判 + 失败回退已随 `v3.10.0` 发布（v3.10.0 已下架，现行版本 `v3.10.2`）；Reddit 经评审整线放弃（官方公告进入关停周期，收益期 < 5 个月），调研结论留档 roadmap N7
-- **验收结果：** GitHub 零 Key 匿名 + PAT 双模、429/403 冷却（Retry-After / x-ratelimit-reset）、blob 走 contents API、搜索失败回 Bing `site:github.com`、抓取失败回 webfetch→Jina、typed-nil 防护（InitGithubEngine 返回接口类型）——真机全部验证通过
-- **详情指针：** [`.handoff/github-reddit-access.md`](.handoff/github-reddit-access.md)
-
-### 运维待办
-
-- 本机部署实际路径是 **`D:\tool\websearch-mcpserver`**（旧记录里的 `D:\Programs\websearch` 已不存在，属过期信息）。2026-11-05 已从旧构建（exe 报 `dev`、sha256 `753370a5…`）升级到 **`v3.10.4`**（sha256 `775ab905…`，与 Release 整包内 exe 一致），并按下述口径迁移配置
-  - **启动方式**：Startup 目录 `WebSearchMCP.lnk` → `wscript.exe "D:\tool\websearch-mcpserver\autostart.vbs"`，vbs 设 `WEBSEARCH_CONFIG=D:\tool\websearch-mcpserver\config.yaml` 后 `start`（隐藏窗口、脱离 shell 作业）；手工重启必须脱离当前 shell 作业（用 WMI `Win32_Process.Create` 或双击快捷方式），否则作业对象销毁会连带杀掉服务
-  - **配置迁移**：旧 `config.yaml`（1.5 KB 精简版，30 个生效键）整体搬进 v3.10.4 的 `config.example.yaml` 结构（35 KB，带全量注释），生效键 64 个、旧键零丢失零改值：`port 8338` / `log_level info` / `mode apipool` / `network china` / 8 条 `black_list_host` / `rate_limit 3·60` / `anysearch`（2 Key，num_results 10）/ `exa`（num_results 5，lookback_days 90）/ `tavily` / `apipool`（weighted，engines = anysearch → tavily → exa）/ `bing` 启用 / `duckduckgo` 关闭 / `academic` 关闭 / `cleanfetch` 启用 / `log 1·1`
-  - **新版本默认行为的取舍**：v3.10.x 的 `start` 会默认生成 `dashboard.yaml`（含随机口令）启用控制中心，并建 `data/` 遥测库与桌面快捷方式。本次按「迁移旧参数与模式」的口径在 `config.yaml` 里显式写 `dashboard.enabled: false` 沿用旧行为，已删除生成的 `dashboard.yaml` / `data/` / 图标与桌面 `.lnk`（`fetchdata/` 属 cleanfetch 输出，保留）；要开控制中心把那行改 true 重启即可
-  - **备份**：`websearch-mcpserver.exe.bak-pre-v3.10.4`（旧 exe）、`config.yaml.bak-pre-v3.10.4`（旧配置）
-  - **验收**：MCP `serverInfo.version = v3.10.4`；工具 2 个（smartsearch / cleanfetch；`file_search` 因 Everything HTTP Server 未运行而不暴露，`academic`/`search_history` 关闭）；真机 smartsearch 走 anysearch 返回 10 条、`/searxng/search` 返回 10 条；重启后日志 0 条 `level=debug`（`log_level: info` 生效）
-- **v3.10.0 下架记录（2026-10-25）：** GitHub Release `v3.10.0` / `v3.10.0-registry` 已删、远端与本地 tags 已删、MCP Registry 经 `registry-status.yml` 置 `deleted`（工作流日志复核：列表余 3.10.1 无 3.10.0）。GHCR 的 `v3.10.0` 镜像 tag 未删（历史版本镜像一律保留，与 3.9.x 同口径）
-- **v3.10.2 回收重发记录（2026-10-25）：** base tag 钉 `d79e853`、`-registry` tag 钉 `9883818`；GitHub Release 16 产物 + GHCR `3.10.2` + registry `3.10.2 active` 三线就绪。**遗留一处不一致**：registry 里 `3.10.2` 存的 `fileSha256` 仍是首次发布（三面版，base `e3936b4`）的 .mcpb 哈希，而 `v3.10.2-registry` Release 里的包已按新构建重打——registry 不支持改已发布版本的元数据，只有换版本号才能刷新（CI 已对这种情况发 `::warning::`）
-- **发布流程教训（2026-10-24）：** `-registry` tag 推送不可重复——MCP Registry 同版本二次 publish 报 400 duplicate（首次已成功发布即占位）。误发版本用 `mcp-publisher status --status deleted`（已建 `.github/workflows/registry-status.yml` 运维工作流，OIDC 认证）下架；重发同版本 tag 必须钉同一 commit（构建可复现，产物 sha256 与 registry 元数据逐一致时可不重 publish）。registry 约束：`status active` 不允许携带 message
-- **发布流程教训（2026-10-25）：** 发版 tag 必须用 annotated tag（`git tag -a vX.Y.Z -m "变更日志"`）——release.yml 的 Release 正文取自 tag message，轻量 tag 会得到空正文（v3.10.1 曾中招，后用 `gh release edit --notes-file` 补救）。版本回收重编时，CHANGELOG 与 Release 日志把被回收版本的内容与修复合并为一个条目交付，不保留已下架版本的独立条目
-- **发布流程教训（2026-10-25，版本回收）**：`v3.10.2` 曾先行发布过「三面 i18n」版本，同日回收重发（`d79e853`）。回收流程：`gh release delete <tag> --yes --cleanup-tag`（base 与 `-registry` 两个）→ 删远端/本地 tag → `registry-status.yml` 置 `deleted` → 在新 commit 重新打 annotated tag → 推 base tag 等 Release/GHCR → 再推 `-registry` tag。**registry 侧同版本号不可复用**：`deleted` 只是状态标记，版本仍占位，二次 publish 必报 400 duplicate，且 mcp-publisher 无 unpublish/改元数据能力（只有 init/login/logout/publish/status/validate）→ 已把 duplicate 做成 CI 的幂等分支（见下）
-- **registry duplicate 幂等（2026-10-25）**：`release.yml` 的 publish 步骤命中 `cannot publish duplicate version` 时**不再判失败**，改为 `status --status active` 重新断言该版本可见（回收前可能被置过 deleted，不恢复会让 registry 停在更老版本上），并比对 registry 现存 `fileSha256` 与本次 `server.json`，不一致发 `::warning::`。**hash 换不掉**——回收重发后 registry 里存的哈希仍是旧构建的，只有换版本号才能刷新，这点必须显式暴露
-- **重跑 `-registry` 工作流要钉到含新 workflow 的 commit**：打包原料从 base Release 下载、不重编译，所以 `-registry` tag 指向哪个 commit 只影响 workflow 定义本身；改了 release.yml 就得把该 tag 重钉到新 commit
-- **测试进程语言必须钉住（2026-10-25）**：`language` 默认 `auto` 按系统语言解析，断言中文文案的用例在本机（zh-CN）过、在 CI（英文区域）挂。含中文断言的测试包统一加 `zz_lang_pin_test.go` 的 `TestMain`（`i18n.Configure(i18n.Zh)`）；`pkg/i18n` 自身不能 import 自己，其用例显式 `Configure`。**改 i18n 后必须用 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 go test -short ./...` 复验**，只看本机默认语言会漏
-- 误发的 `v3.10.0-preview.1` 远端与本地 tag 已删除。MCP Registry 缺 `v3.6.1`/`v3.6.2` 的 `-registry` tag。
+- 最新正式发布：`v3.10.7`（Release + GHCR + MCP Registry + npm 六包）；实验性 PDFium 后端随该版本落地。
+- `master` 在 `v3.10.7` 之后吸收了 PR #33：`cleanfetch` 对“仅标题/跳转导航”的远端结果继续走回退链（`3c5b5d1`，合并 `cbdaa7e`），已记入 CHANGELOG Unreleased，尚未打新版本 tag。
 
 ### 待验证
 
-- [ ] tinyfish/keenable 经二进制真网链路长期回归（限流阈值、结果质量；当前仅有 curl 实测 + 单测）
-- [ ] i18n 控制中心真实浏览器走查：166 个 `data-i18n` 标记、`applyI18n` 与 `t()` 渲染在真实页面上的观感与交互（本批只有标记解析校验 + 运行时单测 + 服务端注入冒烟，无浏览器工具）
-- [ ] i18n 工具返回内容的真机走查：在 `language: en` 下跑一遍 smartsearch / cleanfetch / pdf_parser / file_search / search_history，确认工具输出里无残留中文（本批只有渲染探针 + 目录审计 + 全量单测；本机部署 `v3.10.2` 默认 `auto` → zh，只在控制中心端点验过 `Accept-Language: en`）
-- [ ] 新引擎/新工具真实链路长期回归：验证码页频率、anysearch 匿名档阈值、googlenews 回源失败率、search_history 写入与 FTS 命中率
-- [ ] v3.10.4 整包真机走查（剩余部分）：解压后按包内 README 启动服务、把 `skills/websearch-mcp` 装进宿主 Skill 目录并确认工具清单与项目标签生效（下载/校验和/包内清单已在发版当日核对）
-- [ ] `log_level` 与失败留痕真机复验：`log_level: error` 下确认无 info/debug 落盘、并发失败时 `search_failed` / `smartsearch_failed` 有行（本批只有单测与旧实现对照）
+- [ ] macOS `libpdfium.dylib` + purego smoke（Linux `.so` 已在 WSL 验证）
+- [ ] 真实 PDF 混合负载长跑：稳定性与内存
+- [ ] PDFium 独立 worker 隔离 C 层崩溃（当前为进程内实验性接入）
+- [ ] TinyFish / Keenable 二进制真网链路长期回归（限流阈值、结果质量）
+- [ ] i18n 控制中心真实浏览器走查（166 个 `data-i18n` 标记与 `t()` 渲染）
+- [ ] i18n 工具返回内容在 `language: en` 下真机走查（smartsearch / cleanfetch / pdf_parser / file_search / search_history）
+- [ ] 新引擎/新工具真实链路长期回归：验证码页频率、AnySearch 匿名档阈值、Google News 回源失败率、search_history 写入与 FTS 命中率
+- [ ] 平台整包真机走查剩余部分：按包内 README 启动，安装 `skills/websearch-mcp` 并确认工具清单与项目标签
+- [ ] `log_level` 与失败留痕真机复验：`error` 下无 info/debug 落盘，并发失败有 `search_failed` / `smartsearch_failed`
+
+### 候选 / 未开工
+
+- PDFium 加载路线对比（进程内 / 独立 worker / 启动预加载 / 短生命周期 / 纯 Go 替代），按首解与热解延迟、内存、畸形存活率、部署复杂度出结论；见 `docs/optimization-roadmap.md` P1。
+- 供应商传输层错误统一包 `KeyError` → 30 分钟冷却：单 Key 供应商一次网络瞬断即不可用（系统性问题）。
+- smartsearch 统一检索 `sources`（web/学术/file/wiki 分节聚合）已评审，推荐 Phase 1 = web + academic。
+- 搜索质量闭环暂缓项：D4 citation/untrusted 边界、D6 垂直源、D7 配置分层、D8 tracing 与显式 DI；D3 剩余 hybrid 包装 goroutine 与 cleanfetch 统一预算。
+- 上游限流导致的并发失败入口侧治理；缓存空闲连接参数（`ConnMaxIdleTime` / `MaxIdleConns`）复核。
+
+### 运维待办（本机）
+
+- 部署目录 `D:\tool\websearch-mcpserver`，2026-11-05 从旧构建升级到 `v3.10.4` 并迁移配置；启动为 Startup `WebSearchMCP.lnk` → `wscript autostart.vbs`（隐藏窗口、脱离当前 shell 的 Job Object）。
+- 配置沿用旧行为：`dashboard.enabled: false`，port 8338 / apipool / anysearch → tavily → exa；备份 `websearch-mcpserver.exe.bak-pre-v3.10.4`、`config.yaml.bak-pre-v3.10.4`。
+- 升级到 `v3.10.7` 后的配置与整包走查仍待做；迁移细节见归档快照。
+
+### 发布红线
+
+- tag 必须 annotated（Release 正文取 tag message）；预览版仅 `vX.Y.Z-preview.N`，不进正式 CHANGELOG / GHCR / MCP Registry。
+- `-registry` 独立 tag、钉同一 commit、不与版本 tag 同推；同版本不可复用，duplicate 走幂等分支并显式 warning；回收流程 base + registry 双删后重打。
+- `-npm` 独立 tag，六包按平台包 → CLI → dsh 顺序发；OIDC trusted publishing，勿改回 `workflow_call`。
+- 含中文断言的测试包加 `zz_lang_pin_test.go`；改 i18n 后必须用 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 go test -short ./...` 复验。
+
+### 已完成议题索引
+
+| 议题 | 主要证据 / 交接 |
+|---|---|
+| PDFium 后端 / 本地 PDF | `.handoff/pdf-parser-backends.md`、`docs/pdf-parser.md`、`bench/pdfcorpus/` |
+| i18n 四面治理 | `.handoff/i18n-governance.md` |
+| 外部 PR 吸收（#30/#31、#33） | `.handoff/eco-absorb-providers.md`；#33 见 CHANGELOG Unreleased |
+| GitHub 引擎 / Reddit 调研 | `.handoff/github-reddit-access.md`、`docs/optimization-roadmap.md` N7 |
+| 控制中心快捷方式 | `.handoff/shortcut-sync.md` |
+| 本机环境 / grok CLI | `.handoff/local-env-and-grok-cli.md`（v3.10.2 时期，部署现状以上方运维待办为准） |
+| 历史发布 / 回收 / 整包 | `.handoff/archive/agents-md-handoff-snapshot-2026-11-16.md` |
