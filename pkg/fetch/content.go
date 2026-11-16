@@ -11,7 +11,8 @@ var skipContentLink = regexp.MustCompile(`(?i)^\[(?:skip to content|skip to main
 func HasPageBody(markdown, title string) bool {
 	for _, line := range strings.Split(markdown, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || line == "# "+strings.TrimSpace(title) || skipContentLink.MatchString(line) {
+		heading := strings.HasPrefix(line, "# ") && (strings.TrimSpace(title) == "" || line == "# "+strings.TrimSpace(title))
+		if line == "" || heading || skipContentLink.MatchString(line) {
 			continue
 		}
 		return true
