@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"websearch/pkg/config"
+	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
@@ -226,7 +227,7 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		var errs []string
 		for _, f := range remote {
 			text, err := f.Fetch(ctx, rawURL)
-			if err == nil && strings.TrimSpace(text) != "" {
+			if err == nil && fetchcontent.HasPageBody(text, "") {
 				return text, nil
 			}
 			if ctx.Err() != nil {

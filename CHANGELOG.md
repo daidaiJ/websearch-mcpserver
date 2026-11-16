@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### 修复
+
+- `cleanfetch` 远端抓取只返回标题或跳转导航时，继续尝试已有回退链，避免把空壳当正文；短小的有效正文仍正常返回，无需新增参数或配置。（来自 PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33)，作者 [@MattLYT](https://github.com/MattLYT)）
+
 ## v3.10.7 — 2026-11-14（PDF 本地解析加固与可选 PDFium 后端、搜索质量闭环、CI/分发改进）
 
 > 致谢：本批 PDF 改动来自 [@MattLYT](https://github.com/MattLYT)（Matt.Li）的 PR [#30](https://github.com/daidaiJ/websearch-mcpserver/pull/30) 与 PR [#31](https://github.com/daidaiJ/websearch-mcpserver/pull/31)；原提交保留其署名，后续提交仅为吸收后的适配。
