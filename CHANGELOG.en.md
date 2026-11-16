@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
+## Unreleased
+
+### Fixed
+
+- `cleanfetch` continues through its existing fallback chain when a remote response contains only a title or skip-navigation link. Short valid bodies remain accepted; no new parameters or configuration are required.
+
 ## v3.10.7 — 2026-11-14 (local PDF hardening + optional PDFium backend, search quality loop, CI/distribution)
 
 > Credits: the PDF changes in this batch come from PRs [#30](https://github.com/daidaiJ/websearch-mcpserver/pull/30) and [#31](https://github.com/daidaiJ/websearch-mcpserver/pull/31) by [@MattLYT](https://github.com/MattLYT) (Matt.Li); his commits keep their original authorship, and later commits are absorb adaptations only.

@@ -39,10 +39,14 @@ func TestFetchPageWithFallback(t *testing.T) {
 		{"off uses local", config.MCPHubFetchOff, hubOK, localOK, "local", "", 0},
 		{"prefer hub", config.MCPHubFetchPrefer, hubOK, localErr, "hub", "", 1},
 		{"prefer degrades", config.MCPHubFetchPrefer, hubErr, localOK, "local", "", 1},
+		{"prefer title degrades", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# Project"}, localOK, "local", "", 1},
+		{"prefer navigation degrades", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# Project\n[Skip to content](#main)"}, localOK, "local", "", 1},
+		{"prefer short body", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# Project\nOpen"}, localErr, "# Project\nOpen", "", 1},
 		{"prefer both fail", config.MCPHubFetchPrefer, hubErr, localErr, "", "hub failed", 1},
 		{"fallback uses hub", config.MCPHubFetchFallback, hubOK, localErr, "hub", "", 1},
 		{"fallback local first", config.MCPHubFetchFallback, hubOK, localOK, "local", "", 0},
 		{"fallback both fail", config.MCPHubFetchFallback, hubErr, localErr, "", "local failed", 1},
+		{"fallback title fails", config.MCPHubFetchFallback, &fakeHubFetcher{text: "# Project"}, localErr, "", "local failed", 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
