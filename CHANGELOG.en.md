@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### Added
+
+- **smartsearch domain filters**: new `include_domains` / `exclude_domains` (up to 20 entries each) match each result URL's host including subdomains, accept bare hosts, `*.` prefixes and full URLs, and let exclusions win. Filtering runs before hybrid per-engine truncation and `fetch_top_n` fetching, so excluded URLs do not consume fetch budget. The cache key includes the normalized lists, distinct filter conditions never share entries, and an academic-only request that passes the filters returns an error.
+- **Search quality tuning benchmark**: `bench/tuning` is inspired by the open-source `fangchenghao/dsh-web-search` benchmark and reuses its MIT-licensed replay corpus (20 bilingual queries + real snapshots from five engines). The new `searchbench` offline sweep reports P@8 / R@8 / MRR@8, paired-bootstrap 95% CIs and per-query W/L/T for RRF K, lexical alignment, consensus/authority/recency/domain-quality/rare-term scales, threshold, MMR and engine weights. On this corpus the defaults stay stable; the only significant effect is that disabling authority boost clearly hurts (ΔMRR -0.1775, 95% CI [-0.3417, -0.0258]). Methodology, commands and the design for tuning on your own history are in `docs/search-quality.en.md`. The pipeline gained an internal `enhance.Options` entry point; production defaults are unchanged.
+
 ### Fixed
 
 - `cleanfetch` continues through its existing fallback chain when a remote response contains only a title or skip-navigation link. Short valid bodies remain accepted; no new parameters or configuration are required. (from PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33) by [@MattLYT](https://github.com/MattLYT))

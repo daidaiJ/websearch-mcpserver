@@ -13,6 +13,8 @@
 - [ ] **Q3. LLM 摘要请求无 token/预算控制**
   `pkg/llm/llm.go` 的 `ChatRequest` 只有 Model/Messages/Stream，无 `max_tokens`、温度透传；摘要 prompt 拼入结果的长度控制未见配置项。
   方向：配置项 + prompt 截断预算，减少快速供应商下的无谓 token 开销。配置变更须同步两份 `config.example.yaml` 与 docs。
+- [ ] **Q4. 历史数据采集与参数调优（待拍板，设计见 `docs/search-quality.md` 第 7 节）**
+  离线调优基准已落地（`bench/tuning` + `searchbench`，适配开源项目 `dsh-web-search` 的 MIT 公开回放集），但 20 条公共 query 只能识别大效应。下一步：`search_eval.capture_raw`（默认关闭）在 `hybrid.mergeResults` 调 `EnhanceResultsMMR` 前落本地 per-engine buckets（`history/search-eval.db`，30 天保留，只在本机），配套 `tune export` 导出同格式回放目录；agent 用 `searchbench -data` 跑 sweep、提出配置 diff，用户确认后改 `config.yaml`。不新增 MCP 工具，保持 5 工具面。验收：采集 < 1 ms、断网可回放、删库不影响搜索。
 
 ### PDF 本地解析
 
@@ -57,16 +59,27 @@
 
 > 横向评估 DeepSeek Harness 插件市场与开源搜索 MCP 后识别的**代码侧**方向。D1 / D2 / D5 已于 2026-11-11 落地（见勾选项与说明），D3 / D8 部分落地；其余仍未拍板。参照对象最强的是 `@fffangchenghao/dsh-web-search`（8 引擎 RRF + 20-query 离线评测集 + 81 组参数扫描）、`dsh-free-search`（20+ 引擎回退）、Wigolo（本地 rerank + citation）。本项目在零 Key + 9 学术源 + 单二进制上工程深度更高，短板集中在「质量闭环」而非「功能广度」。
 
-- [x] **D1. 离线检索质量评测集（与 T2 合并做，2026-11-11 落地）**：`bench/quality` 固定 20 条中英 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），回放 `enhance.EnhanceResults` 输出逐 case 与聚合的 P@8 / R@8 / MRR@8；逐 case 断言命中数与首个相关结果排名，聚合门槛拦退化。零网络依赖。**边界**：fixture 为合成候选集，衡量评分与排序回归，不代表真实检索召回；真实引擎 HTML fixture 仍归 T2。
+- [x] **D1. 离线检索质量评测集（与 T2 合并做，2026-11-11 落地；2026-11-17 扩展调优基准）**：`bench/quality` 固定 20 条中英 fixture（各 2 个预期域名 + 4 个干扰项，按两引擎不同排名回放），回放 `enhance.EnhanceResults` 输出逐 case 与聚合的 P@8 / R@8 / MRR@8；逐 case 断言命中数与首个相关结果排名，聚合门槛拦退化。零网络依赖。**2026-11-17 扩展**：`bench/tuning` 受 `fangchenghao/dsh-web-search` 公开基准启发，沿用其 MIT 回放集（20 条中英 query + 5 引擎真实快照），`searchbench` 对 RRF K、Boost 倍率、阈值、MMR、引擎权重做逐项 sweep，输出配对 bootstrap 95% CI 与 W/L/T；结论与用户自有历史调优设计见 `docs/search-quality.md`。**边界**：fixture 为固定候选集，衡量评分与排序回归，不代表真实检索召回；真实引擎 HTML fixture 仍归 T2。
 - [x] **D2. 失败模型哨兵化 + 命名错误码（2026-11-11 落地）**：新增叶子包 `pkg/errcode`（`timeout` / `rate_limit` / `challenge` / `blocked` / `access_denied` / `parse` / `no_result` / `network` / `off_topic`，支持 `errors.As` 穿透与 `Message` 换文案保错误链）；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 改为错误码优先、中英关键词兜底；`antirobot.ErrLocalRateLimit`、`provider.KeyError`、`webfetch` 的 WAF/超时/空壳分类附码；`adapter/baidu_fallback.go` 双失败用 `errcode.Message` 保留主备原因。**遗留**：尚未给所有引擎/供应商的原始错误逐点附码，关键词兜底仍参与。
 - [ ] **D3. 共享 per-request 预算与 abort 传播（部分落地 2026-11-11）**：`googlenews` / `wikipedia` 已补 `ContextEngine`；`hybrid` 软超时的包装 goroutine 仍存在，`cleanfetch` 抓取链尚无统一预算对象。剩余工作集中在 `hybrid` 与 `cleanfetch`，收益与并发风险需单独评估。
-- [ ] **D4. citation ID 与证据包**：现有 `result_ref` + `cleanfetch(offset/next_offset/eof)` 分段读回比竞品完整，值得保留；缺稳定引用 ID、source span、cited evidence pack，以及把网页正文包进 `<untrusted-web-content>` 代码标记防提示注入。dsh research 模式明确要求「给有来源的结论」。
+- [ ] **D4. citation ID 与证据包**：现有 `result_ref` + `cleanfetch(offset/next_offset/eof)` 分段读回比参考项目的 `read_page` 更完整，值得保留；缺稳定引用 ID、source span、cited evidence pack，以及把网页正文包进 `<untrusted-web-content>` 代码标记防提示注入。dsh research 模式明确要求「给有来源的结论」。
 - [x] **D5. 工具面与 server instructions（2026-11-11 落地）**：`NewMCPServer` 在 `ServerOptions.Instructions` 下发中英双语工具选择纪律（发现 / 读正文 / 查论文 / 本地文件 / 历史），说明参数默认值与作用域；调用方显式设置时尊重其值。`skills/websearch-mcp/SKILL.md` 增补「参数纪律」。长度控制在数行，避免常驻系统提示膨胀。
 - [ ] **D6. 垂直源 / 官方源窄查（只做 optional action）**：对标插件有 34 垂直源与 2.5s 官方源 lookup；本项目已有 9 学术引擎与 GitHub 特判，可只补包管理 registry + 官方发布源一路，**不要全量扩面**——与「深耕不扩面」定位冲突。
 - [ ] **D7. 配置分层与热重载**：`config.go` 1,863 行 / 236 字段、`config.example.yaml` 559 行，dashboard 只能改白名单、不能热重载装配。引入 preset 分层（profile → bundle → patch）比继续堆字段划算。
 - [ ] **D8. 实时指标与显式 DI（部分落地 2026-11-11）**：`/metrics` 已补进程内 gauge（在飞 HTTP 请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时不再 503；工具/供应商计数仍从 SQLite 当日回读，全仓无 tracing；`mcp/options.go` 的包级变量 + `ServerOption func() error` 全局装配不支持多实例；`core.ShowMeta` 已改为 `atomic.Bool`，但仍是包级全局状态。
 
 **不跟**：Wigolo 的 1.5GB 本地模型 + 浏览器池（毁掉单二进制轻量定位）、10+ 工具面（与「客户端最多 5 工具」的省 token 设计冲突）、PTC 全套（可降维成 `search_many` 式批量 query 并发，与 E1 一起评估）。
+
+### Awesome-MCP-ZH 搜索类调研（2026-11-17；A4 已落地）
+
+> 来源：`yzfly/Awesome-MCP-ZH` main `dc9d5b4` 的「🔍 搜索」66 条。多数是 API 包装或垂直检索，可迁移设计集中在 You.com、ContextFetch、mcpsurfr、open-webSearch、Search1API、Zoom Search。完整证据与实测记录见本地草稿 `docs/plans/2026-11-17-awesome-mcp-zh-search-review.md`（`docs/plans/` 不入库）。
+
+- [ ] **A1. You.com 免密 MCP 档（opt-in mcphub preset）**：`https://api.you.com/mcp?profile=free` 无鉴权，提供 `you-search` / `you-discover`，官方额度 100 次/天；实测本机直连 `api.you.com:443` 超时、经 Clash 代理 200。免费档没有 `you-contents`，cleanfetch 不能复用。落地前要先解决 mcphub 的代理策略：本机 `proxy.enabled: false` 会让现有 `proxyRequire` 直接跳过，需要独立的 `mcp_hub` 代理配置；**默认关闭，不进默认级联**。
+- [ ] **A2. 段落级裁剪**：mcpsurfr / ContextFetch / Desearch 只返回与查询相关的段落；本项目已有 `fetch_top_n` + `inline_max_chars`，但抓取后仍是整页。可在 `smartsearch` 抓取后或 `cleanfetch` 增加可选 `query`，用本地词法选段（无新依赖），以 `bench/quality` 验证后再决定默认值。
+- [ ] **A3. 抽取式证据包并入 D4**：ContextFetch 的 `answer` 用原文段落 + `[n]` 引用、不生成文本；与 D4 的 citation / `<untrusted-web-content>` 同向，不单独立项。
+- [x] **A4. 工具级域名过滤（2026-11-17 落地）**：`smartsearch` 新增 `include_domains` / `exclude_domains`（各最多 20 条），按结果 URL host 含子域匹配，支持裸域名、`*.` 前缀与完整 URL，排除优先。hybrid 经请求级 context 在 per-engine `max_size` 截断前过滤，工具层对单引擎/回退路径幂等兜底；过滤先于 `fetch_top_n`，缓存键含归一化名单。当前不做 `domain_mode` / 路径过滤 / academic 过滤。
+- [ ] **A5. MCP Sampling 并入 E1**：Secret MCP 用 `sampling/createMessage` 逐条处理，可作为 E1 的隔离设计参考，不另立项目。
+- **不跟**：本地 rerank 模型（破坏纯 Go/单二进制）、站点 crawl/map、25+ 工具面、垂直源全量扩面（D6 仍只做窄查）、MCP Apps UI/OAuth/server card（本地单用户不需要）。open-webSearch 的 `FAKE_IP_CIDRS` 已核对，本项目 `isPublicIP` 与 go-webfetch 都不拦 `198.18.0.0/15`，无需等价配置。
 
 ## 已完成归档（2026-10-19）
 
@@ -86,5 +99,5 @@
 
 ## 外部参照（2026-10 检索）
 
-- 竞品对比（braintrust.dev 2026-09）：Parallel / You.com / Exa / TinyFish / Firecrawl / Brave Search API / Tavily——均为 API Key 商业服务；本项目的零 Key + 反检测 + 本地文件检索（Everything）是差异位，不建议追功能广度。
+- 同类项目对比（braintrust.dev 2026-09）：Parallel / You.com / Exa / TinyFish / Firecrawl / Brave Search API / Tavily——均为 API Key 商业服务；本项目的零 Key + 反检测 + 本地文件检索（Everything）是差异位，不建议追功能广度。
 - MCP 2026-07-28 spec 已由 Cloudflare MCP v2、GitHub MCP Server 跟进落地；go-sdk v1.8.0 对应就绪。

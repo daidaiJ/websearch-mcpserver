@@ -93,6 +93,8 @@ curl http://127.0.0.1:8338/metrics                 # same data at the standard s
 | Content instead of URLs | tool parameter `fetch_top_n: 1-5` (server default `smartsearch.fetch_top_n`) |
 | Noisy academic results | `academic.threshold` (default 0.02, higher = stricter) |
 
+To tune with evidence instead of intuition: `bench/tuning` runs an offline sweep over the MIT-licensed replay corpus from the open-source `dsh-web-search` benchmark (`go run ./bench/tuning/cmd/searchbench`) and reports P@8 / R@8 / MRR@8, paired-bootstrap 95% confidence intervals and per-query wins/losses for each knob. The defaults are the most stable configuration on the 20 public queries; prefer adjusting only `mmr.lambda` and `relevance_threshold`. See [search-quality.en.md](search-quality.en.md) for the results, limitations and the design for tuning on your own history.
+
 All parameters and defaults: [configuration.en.md](configuration.en.md); scoring pipeline internals: [search.en.md](search.en.md#relevance-scoring).
 
 ## Troubleshooting quick reference

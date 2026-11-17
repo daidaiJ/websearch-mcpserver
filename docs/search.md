@@ -113,6 +113,8 @@
 
 配置项：`smartsearch.enhance`（默认 true）、`smartsearch.relevance_threshold`（默认 0.05）。
 
+**调参与基准**：`bench/tuning` 受开源项目 [`dsh-web-search`](https://github.com/fangchenghao/dsh-web-search) 的公开基准启发，用其 MIT 回放集（20 条中英 query + 真实引擎快照）重放评分管线，逐项扫描 RRF K、Boost 倍率、阈值、MMR 与引擎权重，输出 P@8 / R@8 / MRR@8、配对 bootstrap 95% CI 与逐 query 胜负。实测默认配置最稳，唯一显著效果是关闭权威性加分会明显变差；完整结论、局限与用户自有历史数据调优设计见 [search-quality.md](search-quality.md)。
+
 ### MMR 多样性重排
 
 评分过滤之后、`max_size` 截断之前执行贪心 MMR 重排（Token Jaccard 相似度），打散同一话题的高相似结果（转载站 / 镜像站 / 同源博客），Top-1 保护。
@@ -333,8 +335,12 @@ mcp_hub:
 | `sources` | string[] | ❌ | 来源类型：`web`（默认）/ `academic`；可同时指定，`academic` 需 `academic.enabled=true` |
 | `max_chars` | int | ❌ | 本次调用的网页正文总字符预算，所有 web 结果共享、按条均分；不传或 `0` 表示不额外裁剪。超出时每条正文截断并提示用 `cleanfetch` 读取全文。仅作用于 web 来源 |
 | `fetch_top_n` | int | ❌ | 正文抓取模式：不传时与旧版一致，只返回引擎/供应商自带内容（服务端 `smartsearch.fetch_top_n` 可改默认，默认 `0` 不抓）；传 `0` 表示只要标题摘要和 URL；传 `1-5` 表示为前 N 条获取页面原文——支持原文传参的 API 引擎（Tavily/Exa/豆包）直接走快速路径，网页引擎内部抓取（无需 `cleanfetch.enabled`，webfetch 惰性初始化）；已有足量正文的条目自动跳过；抓取被反爬防护（JS 挑战/WAF）拦截时在该条结果上显式标注 |
+| `include_domains` | string[] | ❌ | 只保留这些域名（含子域）的 web 结果，最多 20 条；`example.com`、`www.example.com`、`*.example.com` 与完整 URL 都按 host 归一化。为空表示不设白名单；与 `exclude_domains` 冲突时排除优先。过滤在正文抓取与结果截断前执行 |
+| `exclude_domains` | string[] | ❌ | 排除这些域名（含子域）的 web 结果，最多 20 条；写法同 `include_domains`。优先级高于白名单，被排除的结果不参与 `fetch_top_n` 抓取。仅作用于 web 来源 |
 
-`depth`、`max_chars` 与 `fetch_top_n` 只塑造 web 分节的正文。只请求 `sources: ["academic"]` 时，显式传这三个参数会返回错误，避免参数被静默忽略；混合请求时学术分节按自身默认返回。
+`depth`、`max_chars` 与 `fetch_top_n` 只塑造 web 分节的正文。只请求 `sources: ["academic"]` 时，显式传这三个参数会返回错误，避免参数被静默忽略；混合请求时学术分节按自身默认返回。`include_domains` / `exclude_domains` 同样只作用于 web 来源，只请求 academic 时传它们会返回错误。
+
+**域名过滤语义**：按结果 URL 的 host 做后缀匹配，`example.com` 覆盖其全部子域，`www.` 前缀与大小写不敏感；`exclude_domains` 与白名单冲突时排除优先。过滤在引擎结果合并后、单引擎 `max_size` 截断与 `fetch_top_n` 抓取之前执行——hybrid 编排层在 per-engine maxsize 前按请求级 context 过滤，白名单命中但排名靠后的结果不会被提前截掉，被排除的 URL 也不会浪费抓取预算。缓存键包含两组归一化名单，不同过滤条件互不复用；名单顺序不影响缓存键与匹配结果。
 
 返回结果默认附带来源引擎和相关性分数（Tavily / 豆包 Custom 等支持 score 的引擎）。可通过 `smartsearch.show_meta: false` 关闭。
 

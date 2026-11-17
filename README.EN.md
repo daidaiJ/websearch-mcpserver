@@ -77,7 +77,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | Capability | Description |
 |------------|-------------|
 | Zero-key search | Recommended `mcphub`: hosted-MCP cascade over Parallel / AnySearch / Exa / Firecrawl with cooldown failover, no API keys required; `engine` mode uses local Baidu web + Bing instead |
-| Multi-engine fusion | Multiple search modes, 9 general engines + 4 hosted MCP upstreams + 9 academic engines, auto-fallback on primary failure |
+| Multi-engine fusion | Multiple search modes, 9 general engines + 4 hosted MCP upstreams + 9 academic engines, auto-fallback on primary failure; `smartsearch` supports tool-level `include_domains` / `exclude_domains` host filters (subdomains included, exclusions win, applied before fetching and truncation) |
 | Relevance scoring | RRF fusion ranking + lexical alignment / domain quality / consensus / authority / recency boosts, low-score results pruned; MMR breaks up mirrors / reposts |
 | Response transparency | Failure lists, date and retrieval provenance; request cancellation propagates through every engine with a per-engine soft timeout; oversize search results retain candidate previews and a `result_ref` for complete body delivery through the `cleanfetch` saved-result mode |
 | Academic search | 9 academic engines in parallel, scored by citation count / journal authority / PDF availability / recency; cross-engine DOI dedup |

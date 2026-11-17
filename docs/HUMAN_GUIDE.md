@@ -94,6 +94,8 @@ curl http://127.0.0.1:8338/metrics                 # 同上，标准抓取端点
 | 直接拿到正文而不是 URL | 工具参数 `fetch_top_n: 1-5`（服务端默认 `smartsearch.fetch_top_n`） |
 | 学术结果太杂 | `academic.threshold`（默认 0.02，调高更严） |
 
+想系统调参而不是凭感觉：`bench/tuning` 提供基于开源项目 `dsh-web-search` 公开基准（MIT 回放集）的离线 sweep（`go run ./bench/tuning/cmd/searchbench`），逐参数输出 P@8 / R@8 / MRR@8、配对 bootstrap 95% 置信区间与逐 query 胜负；默认配置在 20 条公共 query 上最稳，优先只动 `mmr.lambda` 与 `relevance_threshold`。结论、局限与“用自己历史数据调优”的设计见 [search-quality.md](search-quality.md)。
+
 全部参数与默认值见 [configuration.md](configuration.md)；评分管线原理见 [search.md](search.md#相关性评分)。
 
 ## 排障速查

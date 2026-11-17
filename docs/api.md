@@ -160,7 +160,7 @@ MCP 客户端通过此端点完成协议握手、工具列表获取和工具调�
 
 | 工具名 | 说明 | 参数 |
 |--------|------|------|
-| `smartsearch` | 网络检索 | `query`（与 `queries` 二选一）、`queries`（最多 5 条批量）、`intent`（可选，LLM 启用时可用）、`time_range`（可选，月；省略/null 为 3，显式 0 不发送时间筛选，负数拒绝；上游粒度不同）、`depth`（`fast`/`balanced`/`deep`）、`sources`（`web`/`academic`）、`max_chars`（共享正文预算）、`fetch_top_n`（可选：不传与旧版一致只返回自带内容（服务端默认 0 可配），传 0 只要标题摘要和 URL，传 1-5 获取前 N 条页面原文——API 引擎走快速路径、网页引擎内部抓取，反爬拦截会显式标注） |
+| `smartsearch` | 网络检索 | `query`（与 `queries` 二选一）、`queries`（最多 5 条批量）、`intent`（可选，LLM 启用时可用）、`time_range`（可选，月；省略/null 为 3，显式 0 不发送时间筛选，负数拒绝；上游粒度不同）、`depth`（`fast`/`balanced`/`deep`）、`sources`（`web`/`academic`）、`max_chars`（共享正文预算）、`fetch_top_n`（可选：不传与旧版一致只返回自带内容（服务端默认 0 可配），传 0 只要标题摘要和 URL，传 1-5 获取前 N 条页面原文——API 引擎走快速路径、网页引擎内部抓取，反爬拦截会显式标注）、`include_domains`/`exclude_domains`（可选，最多 20 条；按 host 含子域匹配，排除优先，在正文抓取与截断前执行，仅作用于 web） |
 | `academicsearch` | 学术论文检索（arXiv / Crossref / OpenAlex / PubMed / Europe PMC / DBLP / DOAJ 等） | `query`（必填；也可直接传 DOI 或 arXiv id 走单篇精确查询，忽略 `time_range`/`page`，仍遵守已启用来源与指定 `engines`）、`engines`（可选）、`time_range`（可选：`year`/`month`/`week`/`day`）、`page`（可选） |
 | `cleanfetch` | URL 抓取返回 Markdown，或读取已保存正文；始终注册 | `url`/`urls`（抓取，合并去重最多 5 个，需 `cleanfetch.enabled=true`）；或 `result_ref`（引用读取）及 `offset`（默认 0）、`limit`（默认/0 为 4096，上限 8192）；两种模式互斥，分页字段仅用于引用模式 |
 | `pdf_parser` | PDF 解析与本地精准归档 | `path`（PDF 路径/URL 或已有本地解析包）、`pages`（原页码）、`task_ref`（续查；与 path/pages/output_dir 互斥）、`wait_seconds`（0–1800）、`output_dir`（可选本地包目录）。本地有 Token 默认整本归档，按每次页预算接续，结果在 PDF 旁同名 `.mineru/`，复用已有页和任务，持久保存 Markdown、图片及原始 ZIP。远程或无 Token 文本提取仍默认前 20 页。 |

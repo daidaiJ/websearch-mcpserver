@@ -113,6 +113,8 @@ Multi-engine results go through the following pipeline (fully heuristic, no AI m
 
 Config: `smartsearch.enhance` (default true), `smartsearch.relevance_threshold` (default 0.05).
 
+**Benchmark and tuning**: `bench/tuning` is inspired by the public benchmark in the open-source [`dsh-web-search`](https://github.com/fangchenghao/dsh-web-search) project. It replays that project's MIT-licensed corpus (20 bilingual queries with real engine snapshots) through this scoring pipeline, sweeps RRF K, boost scales, threshold, MMR and engine weights, and reports P@8 / R@8 / MRR@8 with paired-bootstrap 95% CIs and per-query wins/losses. The defaults are the most stable configuration; the only significant effect is that disabling the authority boost clearly hurts. Full results, limitations and the design for tuning on your own history are in [search-quality.en.md](search-quality.en.md).
+
 ### MMR Diversity Re-ranking
 
 Runs after score filtering and before `max_size` truncation — greedy MMR re-ranking (Token Jaccard similarity) breaks up highly similar same-topic results (mirror / repost / same-source blogs), with Top-1 protection.
@@ -333,8 +335,12 @@ Degradation and safety:
 | `sources` | string[] | ❌ | Source types: `web` (default) / `academic`; both may be requested, and `academic` requires `academic.enabled=true` |
 | `max_chars` | int | ❌ | Total web-body character budget for this call, shared across web results and split evenly; omit or `0` for no extra trimming. When exceeded, each body is truncated with a hint to read the full text via `cleanfetch`. Affects web sources only |
 | `fetch_top_n` | int | ❌ | Body-fetch mode: when omitted, behaves as before — only engine/provider-provided content is returned (server config `smartsearch.fetch_top_n` can change the default, default `0` = no fetch); `0` means title+snippet+URL only; `1-5` obtains page-original text for the top N results — API engines that support full-text params (Tavily/Exa/Doubao) use the fast path directly, web engines fetch internally (no `cleanfetch.enabled` needed, webfetch lazily initializes); results already carrying sufficient body text are skipped; anti-bot blocks (JS challenge/WAF) are explicitly annotated on the result |
+| `include_domains` | string[] | ❌ | Keep only web results from these domains (subdomains included), up to 20 entries; `example.com`, `www.example.com`, `*.example.com` and full URLs are normalized to a host. Omit to leave the whitelist unset; exclusions win when both lists match. Filtering runs before body fetching and result truncation |
+| `exclude_domains` | string[] | ❌ | Drop web results from these domains (subdomains included), up to 20 entries; same input forms as `include_domains`. Takes precedence over the whitelist, and dropped results are not fetched by `fetch_top_n`. Applies to web sources only |
 
-`depth`, `max_chars` and `fetch_top_n` shape the web section's bodies only. An academic-only request (`sources: ["academic"]`) that passes any of them explicitly returns an error instead of silently ignoring the parameter; in a mixed request the academic section follows its own defaults.
+`depth`, `max_chars` and `fetch_top_n` shape the web section's bodies only. An academic-only request (`sources: ["academic"]`) that passes any of them explicitly returns an error instead of silently ignoring the parameter; in a mixed request the academic section follows its own defaults. `include_domains` / `exclude_domains` likewise apply to web sources only and are rejected on an academic-only request.
+
+**Domain filter semantics**: matching is a host suffix check on each result URL — `example.com` covers all of its subdomains, and the `www.` prefix and letter case are ignored; `exclude_domains` wins over the whitelist. Filtering runs after engine results are merged and before per-engine `max_size` truncation and `fetch_top_n` fetching: the hybrid orchestrator filters by request context before per-engine maxsize, so a whitelisted result with a lower rank is not truncated away first, and excluded URLs do not consume fetch budget. The cache key contains both normalized lists, so distinct filter conditions never share entries; list order does not affect the key or matching.
 
 Results include engine source and relevance score by default (for engines that support scores like Tavily / Doubao Custom). Disable via `smartsearch.show_meta: false`.
 

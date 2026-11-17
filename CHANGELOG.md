@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### 新增
+
+- **smartsearch 域名过滤参数**：新增 `include_domains` / `exclude_domains`（各最多 20 条），按结果 URL 的 host 做含子域匹配，支持裸域名、`*.` 前缀与完整 URL，排除优先。过滤在 hybrid 单引擎截断与 `fetch_top_n` 抓取之前执行，被排除的 URL 不消耗抓取预算；缓存键包含归一化名单，不同过滤条件互不复用；学术-only 请求显式传域名过滤会报错。
+- **搜索质量调优基准**：`bench/tuning` 受开源项目 `fangchenghao/dsh-web-search` 的公开基准启发，沿用其 MIT 许可回放集（20 条中英 query + 5 引擎真实快照），新增 `searchbench` 离线 sweep：RRF K、词汇对齐、共识/权威/新鲜度/域名品质/稀有词倍率、阈值、MMR、引擎权重逐项输出 P@8 / R@8 / MRR@8、配对 bootstrap 95% CI 与逐 query W/L/T。实测默认配置在这批数据上保持稳定，唯一显著效果是关闭权威性加分明显变差（ΔMRR -0.1775，95% CI [-0.3417, -0.0258]）；结论、运行方式与“用户自有历史数据调优”设计见 `docs/search-quality.md`。评分管线内部增加 `enhance.Options` 参数化入口，生产默认值不变。
+
 ### 修复
 
 - `cleanfetch` 远端抓取只返回标题或跳转导航时，继续尝试已有回退链，避免把空壳当正文；短小的有效正文仍正常返回，无需新增参数或配置。（来自 PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33)，作者 [@MattLYT](https://github.com/MattLYT)）
