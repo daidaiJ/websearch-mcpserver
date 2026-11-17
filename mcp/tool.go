@@ -35,6 +35,9 @@ type searchBaseParams struct {
 	MaxChars  *int     `json:"max_chars,omitempty" jsonschema:"mcp.param.search.max_chars"`
 	TimeRange *int     `json:"time_range,omitempty" jsonschema:"mcp.param.search.time_range"`
 	FetchTopN *int     `json:"fetch_top_n,omitempty" jsonschema:"mcp.param.search.fetch_top_n"`
+	// 域名过滤只作用于 web 来源；include 为空表示不设白名单，exclude 优先。
+	IncludeDomains []string `json:"include_domains,omitempty" jsonschema:"mcp.param.search.include_domains"`
+	ExcludeDomains []string `json:"exclude_domains,omitempty" jsonschema:"mcp.param.search.exclude_domains"`
 }
 
 type SearchParamsWithIntent struct {

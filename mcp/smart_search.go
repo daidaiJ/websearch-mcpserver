@@ -11,6 +11,7 @@ import (
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
+	searchcore "websearch/pkg/search/core"
 	"websearch/pkg/telemetry"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -19,14 +20,16 @@ import (
 const maxBatchQueries = 5
 
 type smartSearchRequest struct {
-	Query     string
-	Queries   []string
-	Intent    string
-	TimeRange *int
-	FetchTopN *int
-	Depth     string
-	Sources   []string
-	MaxChars  *int
+	Query          string
+	Queries        []string
+	Intent         string
+	TimeRange      *int
+	FetchTopN      *int
+	Depth          string
+	Sources        []string
+	MaxChars       *int
+	IncludeDomains []string
+	ExcludeDomains []string
 }
 
 // doSmartSearch resolves the per-call presets (depth / sources / batch) and
@@ -47,16 +50,20 @@ func doSmartSearch(ctx context.Context, req *mcp.CallToolRequest, request smartS
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := validateSourcePresets(web, academic, request.FetchTopN, request.Depth, request.MaxChars); err != nil {
+	filter, err := normalizeDomainFilters(request.IncludeDomains, request.ExcludeDomains)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateSourcePresets(web, academic, request.FetchTopN, request.Depth, request.MaxChars, filter); err != nil {
 		return nil, nil, err
 	}
 
 	months := effectiveTimeRangeMonths(request.TimeRange)
 	if len(queries) == 1 {
-		res, _, _, _, err := searchOne(ctx, req, queries[0], request.Intent, months, fetchTopN, contentBudget, web, academic, true)
+		res, _, _, _, err := searchOne(ctx, req, queries[0], request.Intent, months, fetchTopN, contentBudget, filter, web, academic, true)
 		return res, nil, err
 	}
-	return searchBatch(ctx, req, queries, request.Intent, months, fetchTopN, contentBudget, web, academic)
+	return searchBatch(ctx, req, queries, request.Intent, months, fetchTopN, contentBudget, filter, web, academic)
 }
 
 func normalizeQueries(query string, queries []string) ([]string, error) {
@@ -125,9 +132,10 @@ func normalizeSources(sources []string) (web, academic bool, err error) {
 }
 
 // validateSourcePresets rejects body-shaping parameters on an academic-only
-// request. depth / fetch_top_n / max_chars govern web page bodies; silently
-// ignoring them there would make the parameters look broken.
-func validateSourcePresets(web, academic bool, fetchTopN *int, depth string, maxChars *int) error {
+// request. depth / fetch_top_n / max_chars govern web page bodies; domain
+// filters likewise select web hosts. Silently ignoring them there would make
+// the parameters look broken.
+func validateSourcePresets(web, academic bool, fetchTopN *int, depth string, maxChars *int, filter searchcore.DomainFilter) error {
 	if !academic || web {
 		return nil
 	}
@@ -142,7 +150,41 @@ func validateSourcePresets(web, academic bool, fetchTopN *int, depth string, max
 	if maxChars != nil && *maxChars > 0 {
 		return errors.New(i18n.T("tool.search.preset_web_only", "Param", "max_chars"))
 	}
+	if !filter.Empty() {
+		return errors.New(i18n.T("tool.search.domain_filter_web_only"))
+	}
 	return nil
+}
+
+// maxDomainPatterns 单个域名名单的条目上限：过滤用于精确收窄，超长名单通常
+// 意味着误用（例如把 URL 列表贴进来），拦下比静默接受更可解释。
+const maxDomainPatterns = 20
+
+func normalizeDomainFilters(include, exclude []string) (searchcore.DomainFilter, error) {
+	inc, err := normalizeDomainList("include_domains", include)
+	if err != nil {
+		return searchcore.DomainFilter{}, err
+	}
+	exc, err := normalizeDomainList("exclude_domains", exclude)
+	if err != nil {
+		return searchcore.DomainFilter{}, err
+	}
+	return searchcore.DomainFilter{Include: inc, Exclude: exc}, nil
+}
+
+func normalizeDomainList(param string, raw []string) ([]string, error) {
+	patterns, err := searchcore.NormalizeDomainPatterns(raw)
+	if err != nil {
+		var perr *searchcore.DomainPatternError
+		if errors.As(err, &perr) {
+			return nil, errors.New(i18n.T("tool.search.domain_invalid", "Param", param, "Domain", perr.Pattern))
+		}
+		return nil, err
+	}
+	if len(patterns) > maxDomainPatterns {
+		return nil, errors.New(i18n.T("tool.search.domains_too_large", "Param", param, "Max", maxDomainPatterns, "Count", len(patterns)))
+	}
+	return patterns, nil
 }
 
 // resolveSearchDepth maps the per-call preset to a fetch count and content
@@ -170,7 +212,7 @@ func resolveSearchDepth(depth string, fetchTopN *int, maxChars *int) (int, int, 
 	return n, budget, nil
 }
 
-func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent string, months, fetchTopN, contentBudget int, web, academic, record bool) (*mcp.CallToolResult, int, string, bool, error) {
+func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent string, months, fetchTopN, contentBudget int, filter searchcore.DomainFilter, web, academic, record bool) (*mcp.CallToolResult, int, string, bool, error) {
 	started := time.Now()
 	var parts []string
 	var notes []string
@@ -181,7 +223,7 @@ func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent stri
 	if web {
 		stats := &webSearchStats{}
 		res, _, err := doWebSearch(ctx, req, query, intent, months, &fetchTopN,
-			withMaxContentChars(contentBudget), withSearchStats(stats), withoutToolEvent())
+			withMaxContentChars(contentBudget), withDomainFilter(filter), withSearchStats(stats), withoutToolEvent())
 		if err != nil {
 			if !academic {
 				if record {
@@ -249,7 +291,7 @@ func recordSmartSearchToolEvent(ctx context.Context, query, provider string, suc
 	})
 }
 
-func searchBatch(ctx context.Context, req *mcp.CallToolRequest, queries []string, intent string, months, fetchTopN, contentBudget int, web, academic bool) (*mcp.CallToolResult, any, error) {
+func searchBatch(ctx context.Context, req *mcp.CallToolRequest, queries []string, intent string, months, fetchTopN, contentBudget int, filter searchcore.DomainFilter, web, academic bool) (*mcp.CallToolResult, any, error) {
 	started := time.Now()
 	requestID := telemetry.RequestID(ctx)
 	if requestID == "" {
@@ -266,7 +308,7 @@ func searchBatch(ctx context.Context, req *mcp.CallToolRequest, queries []string
 		allCache = true
 	)
 	for _, query := range queries {
-		res, count, engine, cacheHit, err := searchOne(ctx, req, query, intent, months, fetchTopN, contentBudget, web, academic, false)
+		res, count, engine, cacheHit, err := searchOne(ctx, req, query, intent, months, fetchTopN, contentBudget, filter, web, academic, false)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %v", query, err))
 			continue

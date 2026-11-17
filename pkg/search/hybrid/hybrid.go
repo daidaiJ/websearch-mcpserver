@@ -172,7 +172,7 @@ func (h *HybridSearchImpl) run(ctx context.Context, query string, lookbackDays i
 
 	wg.Wait()
 	close(ch)
-	return h.mergeResults(query, ch)
+	return h.mergeResults(query, core.DomainFilterFromContext(ctx), ch)
 }
 
 // errEngineTimeout 引擎未在软超时内返回（引擎自身仍在后台收尾）。
@@ -248,7 +248,7 @@ func (h *HybridSearchImpl) storeDiagnostics(d core.SearchDiagnostics) {
 
 // mergeResults 合并多引擎搜索结果：off-topic 整桶守卫、去重、过滤、截断，
 // 全程收集失败清单与过滤丢弃统计（core.SearchDiagnostics），诊断随返回值传递。
-func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) ([]core.SearchResult, core.SearchDiagnostics, error) {
+func (h *HybridSearchImpl) mergeResults(query string, filter core.DomainFilter, ch <-chan indexedResult) ([]core.SearchResult, core.SearchDiagnostics, error) {
 	var merged []core.SearchResult
 	var buckets []core.ScoreBucket // 评分增强所需的 per-engine 排序桶
 	diag := core.SearchDiagnostics{}
@@ -304,6 +304,20 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 			}
 			engineSeen[normalizedURL] = struct{}{}
 			unique = append(unique, r)
+		}
+
+		// 域名过滤在 score 过滤与单引擎截断之前：include 白名单命中但排名靠后的
+		// 结果不能被 maxsize 先截掉；exclude 命中的结果也不占用截断名额。
+		if !filter.Empty() {
+			filtered := make([]core.SearchResult, 0, len(unique))
+			for _, r := range unique {
+				if filter.Allows(r.Url) {
+					filtered = append(filtered, r)
+				} else {
+					diag.AddFilterDrop(core.FilterDropDomain, 1)
+				}
+			}
+			unique = filtered
 		}
 
 		// score 过滤：引擎不回传 score 时跳过 minScore 筛选
@@ -389,12 +403,20 @@ func (h *HybridSearchImpl) mergeResults(query string, ch <-chan indexedResult) (
 		enhanced := enhance.EnhanceResultsMMR(query, buckets, h.relevanceThreshold, h.maxSize, h.mmr)
 		diag.AddFilterDrop(core.FilterDropEnhance, totalIn-len(enhanced))
 		if len(enhanced) == 0 {
+			// 域名过滤清空结果属于可解释的空搜索：返回空结果 + 诊断，
+			// 由工具层统一渲染「无有效结果 + 过滤丢弃数」。
+			if diag.FilterDrops[core.FilterDropDomain] > 0 {
+				return nil, diag, nil
+			}
 			return nil, diag, errors.New(i18n.T("search.hybrid.no_valid_results"))
 		}
 		return enhanced, diag, nil
 	}
 
 	if len(merged) == 0 {
+		if diag.FilterDrops[core.FilterDropDomain] > 0 {
+			return nil, diag, nil
+		}
 		return nil, diag, errors.New(i18n.T("search.hybrid.no_valid_results"))
 	}
 

@@ -63,6 +63,7 @@ type webSearchOptions struct {
 	maxContentChars int
 	recordEvent     bool
 	stats           *webSearchStats
+	domainFilter    searchcore.DomainFilter
 }
 
 type webSearchOption func(*webSearchOptions)
@@ -80,6 +81,13 @@ func withoutToolEvent() webSearchOption {
 
 func withSearchStats(stats *webSearchStats) webSearchOption {
 	return func(o *webSearchOptions) { o.stats = stats }
+}
+
+// withDomainFilter applies a per-request host filter. It is also forwarded via
+// context so the hybrid orchestrator can drop non-matching results before its
+// per-engine truncation; the tool layer re-applies it for non-hybrid engines.
+func withDomainFilter(filter searchcore.DomainFilter) webSearchOption {
+	return func(o *webSearchOptions) { o.domainFilter = filter }
 }
 
 // doWebSearch 通用网页搜索逻辑。
@@ -126,8 +134,11 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		return nil, nil, errors.New(i18n.T("tool.search.time_range_invalid"))
 	}
 	lookbackDays := timeRangeMonths * 30
-	cacheQuery := webSearchCacheQuery(query, timeRangeMonths, n)
+	cacheQuery := webSearchCacheQuery(query, timeRangeMonths, n, opts.domainFilter)
 	requestCache := requestSearchCache()
+	if !opts.domainFilter.Empty() {
+		ctx = searchcore.WithDomainFilter(ctx, opts.domainFilter)
+	}
 
 	// ---- 缓存查询 ----
 	if requestCache != nil {
@@ -145,7 +156,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		}
 		if n > 0 {
 			// n 专用 key 未命中时，用未抽取的缓存补抽，避免把无正文结果当成完整命中
-			rec, hitType, err := requestCache.Lookup(webSearchCacheQuery(query, timeRangeMonths, 0), intent, false)
+			rec, hitType, err := requestCache.Lookup(webSearchCacheQuery(query, timeRangeMonths, 0, opts.domainFilter), intent, false)
 			if err == nil && rec != nil && !rec.Academic && hitType == "query_only" {
 				results, parseErr := rec.GetRawResults()
 				if parseErr == nil && !hasTransientResultFiles(results) {
@@ -205,6 +216,18 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		}
 		if err != nil {
 			return nil, nil, err
+		}
+	}
+
+	// 域名过滤先于单引擎过滤/截断与 fetch_top_n：被排除的域名不浪费抓取预算，
+	// include 命中的结果也不会被 max_size 先截掉。hybrid 已在编排层按 ctx 过滤，
+	// 这里是幂等兜底（单引擎、回退引擎与历史缓存路径）。
+	if !opts.domainFilter.Empty() {
+		var dropped int
+		results, dropped = searchcore.FilterByDomain(results, opts.domainFilter)
+		if dropped > 0 {
+			diag.AddFilterDrop(searchcore.FilterDropDomain, dropped)
+			haveDiag = true
 		}
 	}
 
@@ -288,12 +311,23 @@ func effectiveFetchTopN(param *int) int {
 	return clampFetchTopN(smartSearchConf.FetchTopN)
 }
 
-func webSearchCacheQuery(query string, months, n int) string {
-	// Older keys may contain file notices without structured state; do not reuse them.
+// webSearchCacheQuery 生成网页搜索结果缓存键。域名过滤参与键：不同过滤条件
+// 不能互相复用结果；无过滤时键与旧版保持一致（omitempty 不新增字段）。
+func webSearchCacheQuery(query string, months, n int, filters ...searchcore.DomainFilter) string {
+	filter := searchcore.DomainFilter{}
+	if len(filters) > 0 {
+		filter = filters[0]
+	}
 	key, _ := json.Marshal(struct {
-		Query             string
-		Months, FetchTopN int
-	}{query, months, n})
+		Query          string
+		Months         int
+		FetchTopN      int
+		IncludeDomains []string `json:"IncludeDomains,omitempty"`
+		ExcludeDomains []string `json:"ExcludeDomains,omitempty"`
+	}{
+		Query: query, Months: months, FetchTopN: n,
+		IncludeDomains: filter.Include, ExcludeDomains: filter.Exclude,
+	})
 	return "web:v3:" + string(key)
 }
 

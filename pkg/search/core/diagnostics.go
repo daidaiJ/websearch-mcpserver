@@ -182,6 +182,7 @@ func (d *SearchDiagnostics) FormatFilterDrops() string {
 const (
 	FilterDropDedup     = "去重"
 	FilterDropMinScore  = "min_score"
+	FilterDropDomain    = "domain_filter"
 	FilterDropMaxSize   = "engine_max_size"
 	FilterDropGlobalMax = "global_max_size"
 	FilterDropEnhance   = "relevance_threshold"

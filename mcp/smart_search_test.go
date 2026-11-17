@@ -7,6 +7,7 @@ import (
 
 	"websearch/pkg/config"
 	"websearch/pkg/search"
+	searchcore "websearch/pkg/search/core"
 )
 
 func TestApplyContentBudget(t *testing.T) {
@@ -154,18 +155,20 @@ func TestValidateSourcePresets(t *testing.T) {
 		fetch    *int
 		depth    string
 		maxChars *int
+		filter   searchcore.DomainFilter
 		wantErr  bool
 	}{
-		{"academic only with depth", false, true, nil, "deep", nil, true},
-		{"academic only balanced", false, true, nil, "balanced", nil, false},
-		{"academic only fetch", false, true, &n, "", nil, true},
-		{"academic only max chars", false, true, nil, "", &chars, true},
-		{"mixed sources allow presets", true, true, &n, "deep", &chars, false},
-		{"web only allow presets", true, false, &n, "deep", &chars, false},
+		{"academic only with depth", false, true, nil, "deep", nil, searchcore.DomainFilter{}, true},
+		{"academic only balanced", false, true, nil, "balanced", nil, searchcore.DomainFilter{}, false},
+		{"academic only fetch", false, true, &n, "", nil, searchcore.DomainFilter{}, true},
+		{"academic only max chars", false, true, nil, "", &chars, searchcore.DomainFilter{}, true},
+		{"academic only domain filter", false, true, nil, "", nil, searchcore.DomainFilter{Include: []string{"example.com"}}, true},
+		{"mixed sources allow presets", true, true, &n, "deep", &chars, searchcore.DomainFilter{Include: []string{"example.com"}}, false},
+		{"web only allow presets", true, false, &n, "deep", &chars, searchcore.DomainFilter{}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateSourcePresets(tc.web, tc.academic, tc.fetch, tc.depth, tc.maxChars)
+			err := validateSourcePresets(tc.web, tc.academic, tc.fetch, tc.depth, tc.maxChars, tc.filter)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}

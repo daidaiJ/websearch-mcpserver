@@ -1,6 +1,7 @@
 package hybrid
 
 import (
+	"context"
 	"websearch/pkg/search/core"
 
 	"bytes"
@@ -549,5 +550,66 @@ func TestHybridSearch_MixedScoreNoScore(t *testing.T) {
 		if r.Engine == "tavily_api" && r.Score < 0.5 {
 			t.Errorf("tavily_api result with score %f should have been filtered", r.Score)
 		}
+	}
+}
+
+func TestHybridSearch_DomainFilterBeforePerEngineMaxSize(t *testing.T) {
+	e := &mockEngine{name: "a", results: []core.SearchResult{
+		{Title: "ads1", Url: "https://ads.example.com/1"},
+		{Title: "ads2", Url: "https://ads.example.com/2"},
+		{Title: "ads3", Url: "https://ads.example.com/3"},
+		{Title: "keep1", Url: "https://good.test/1"},
+		{Title: "keep2", Url: "https://good.test/2"},
+	}}
+	hs := NewHybridSearch(e)
+	hs.SetFilters(map[string]EngineFilter{"a": {MaxSize: 2}})
+
+	ctx := core.WithDomainFilter(context.Background(), core.DomainFilter{Exclude: []string{"ads.example.com"}})
+	results, diag, err := hs.SearchRawContextDiagnostics(ctx, "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 || results[0].Title != "keep1" || results[1].Title != "keep2" {
+		t.Fatalf("domain filter must run before maxsize truncation: %+v", results)
+	}
+	if got := diag.FilterDrops[core.FilterDropDomain]; got != 3 {
+		t.Fatalf("domain drops = %d, want 3 (%+v)", got, diag.FilterDrops)
+	}
+}
+
+func TestHybridSearch_DomainIncludeKeepsRankedResults(t *testing.T) {
+	e := &mockEngine{name: "a", results: []core.SearchResult{
+		{Title: "other1", Url: "https://other.test/1"},
+		{Title: "other2", Url: "https://other.test/2"},
+		{Title: "keep", Url: "https://example.com/keep"},
+	}}
+	hs := NewHybridSearch(e)
+	hs.SetFilters(map[string]EngineFilter{"a": {MaxSize: 2}})
+
+	ctx := core.WithDomainFilter(context.Background(), core.DomainFilter{Include: []string{"example.com"}})
+	results, _, err := hs.SearchRawContextDiagnostics(ctx, "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 || results[0].Title != "keep" {
+		t.Fatalf("include whitelist result must survive truncation: %+v", results)
+	}
+}
+
+func TestHybridSearch_DomainFilterEmptyIsExplainable(t *testing.T) {
+	e := &mockEngine{name: "a", results: []core.SearchResult{
+		{Title: "other", Url: "https://other.test/1"},
+	}}
+	hs := NewHybridSearch(e)
+	ctx := core.WithDomainFilter(context.Background(), core.DomainFilter{Include: []string{"example.com"}})
+	results, diag, err := hs.SearchRawContextDiagnostics(ctx, "test")
+	if err != nil {
+		t.Fatalf("a domain filter emptying the result set should not be an engine error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no results, got %+v", results)
+	}
+	if got := diag.FilterDrops[core.FilterDropDomain]; got != 1 {
+		t.Fatalf("domain drops = %d, want 1 (%+v)", got, diag.FilterDrops)
 	}
 }
