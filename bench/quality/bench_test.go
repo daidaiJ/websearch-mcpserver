@@ -11,7 +11,7 @@ import (
 
 const topK = 8
 
-func buildBuckets(tc qualityCase) []core.ScoreBucket {
+func buildBuckets(tc Case) []core.ScoreBucket {
 	d, e := tc.Distractors, tc.Expected
 	pad := func(list []core.SearchResult, n int) []core.SearchResult {
 		for len(list) < n {
@@ -86,7 +86,7 @@ func score(results []core.SearchResult, domains []string) (precision, recall, mr
 }
 
 func TestFixturesAreWellFormed(t *testing.T) {
-	cases := fixtures()
+	cases := Fixtures()
 	if len(cases) != 20 {
 		t.Fatalf("fixtures = %d, want 20 (10 English + 10 Chinese)", len(cases))
 	}
@@ -119,7 +119,7 @@ func TestFixturesAreWellFormed(t *testing.T) {
 }
 
 func TestOfflineRankingQuality(t *testing.T) {
-	cases := fixtures()
+	cases := Fixtures()
 	var sumP, sumR, sumMRR float64
 	for _, tc := range cases {
 		got := enhance.EnhanceResults(tc.Query, buildBuckets(tc), 0, topK)

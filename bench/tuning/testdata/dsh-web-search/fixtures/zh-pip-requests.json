@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-pip-requests",
+  "query": "pip 安装 requests 库",
+  "language": "zh",
+  "category": "package",
+  "expectedDomains": [
+    "pypi.org",
+    "requests.readthedocs.io"
+  ],
+  "recordedAt": "2026-10-23T08:31:12.482Z",
+  "elapsedMs": 2160,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.python-requests.org/projects/cn/zh-cn/latest/user/install.html",
+          "title": "安装Requests — Requests 2.18.1 文档",
+          "snippet": "要安装Requests，只要在你的终端中运行这个简单命令即可：. :: $ pip install requests. 如果你没有安装pip （啧啧），这个Python installation guide 可以带你完成这一 ..."
+        },
+        {
+          "url": "https://pypi.org/project/requests/",
+          "title": "Requests",
+          "snippet": "Requests is a simple, yet elegant, HTTP library. Requests allows you to send HTTP/1.1 requests extremely easily. Requests is available on PyPI: $ pip install ..."
+        },
+        {
+          "url": "https://blog.csdn.net/smilehappiness/article/details/113480946",
+          "title": "Python3下安装Pip以及使用Pip安装requests模块原创",
+          "snippet": "安装requests库可以使用pip 命令,命令如下: pipinstall requests 在命令行或终端中执行上面的命令即可安装requests 库。",
+          "publishedAt": "2021-01-31T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.reddit.com/r/Python/comments/ms897j/pip_install_requests_python_requests_module_with/?tl=zh-hans",
+          "title": "PIP 安装Requests - Python Requests 模块（带示例） : r/Python",
+          "snippet": "pip install requests · 如何安装requests 模块 · 如何安装“requests”“panda as PD”和“time” · Pip 与PipX · 是时候停止提要求了吗？ · Python Requests项目 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2565733423",
+          "title": "离线安装python的requests库方法",
+          "snippet": "将requests-master.zip解压到python的安装目录中. 2、安装. 2.1 安装requests所需依赖包安装命令为. pip install xx.whl 下图中最后一个是正常安装成功，前面三个有报vb."
+        },
+        {
+          "url": "https://stackoverflow.com/questions/62080010/how-to-install-requests-module-with-pip",
+          "title": "How to install requests module with pip? [duplicate]",
+          "snippet": "This question already has answers here: 'pip' is not recognized as an internal or external command (46 answers) Closed 6 years ago. I'm trying ...",
+          "publishedAt": "2020-10-24T08:31:12.374Z"
+        },
+        {
+          "url": "https://cuiqingcai.com/31034.html",
+          "title": "requests 的安装",
+          "snippet": "requests 库的安装: 1 pip3 install requests 这是最简单的安装方式,推荐此种方法安装。 1 pip3 install wheel 然后到PyPi 上下载对应的wheel 文件 ・ 1 ...",
+          "publishedAt": "2021-10-02T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.cnblogs.com/testerlina/p/12466124.html",
+          "title": "Python安装requests - 来自蓝星",
+          "snippet": "Windows环境，打开cmd命令行，切换到Python安装目录下的Scripts，再输入pip install requests · 安装完成后，再输入python命令行，进入python交互式界面， ...",
+          "publishedAt": "2020-03-15T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=pEI6tQV6hsE",
+          "title": "Python | Pip Install Requests",
+          "snippet": "The Requests library is a simple way to send and receive content using common http verbs. In this video, we'll install the library for ...",
+          "publishedAt": "2019-10-25T08:31:12.374Z"
+        },
+        {
+          "url": "https://requests.pythonlang.cn/en/latest/user/install/",
+          "title": "Requests 的安装— Requests 2.32.3 文档 - Python",
+          "snippet": "Requests 的安装¶. 本部分文档介绍Requests 的安装。使用任何软件包的第一步是正确安装它。 $ python -m pip install requests¶. 要安装Requests，只需在您选择的终端 ..."
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.python-requests.org/projects/cn/zh-cn/latest/user/install.html",
+          "title": "安装Requests — Requests 2.18.1 文档",
+          "snippet": "要安装Requests，只要在你的终端中运行这个简单命令即可：. :: $ pip install requests. 如果你没有安装pip （啧啧），这个Python installation guide 可以带你完成这一 ..."
+        },
+        {
+          "url": "https://www.cnblogs.com/testerlina/p/12466124.html",
+          "title": "Python安装requests - 来自蓝星- 博客园",
+          "snippet": "Windows环境，打开cmd命令行，切换到Python安装目录下的Scripts，再输入pip install requests · 安装完成后，再输入python命令行，进入python交互式界面， ..."
+        },
+        {
+          "url": "https://pypi.org/project/requests/",
+          "title": "Requests - PyPI",
+          "snippet": "Requests Installing Requests and Supported Versions ``` $ python -m pip install requests ```"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/374244179",
+          "title": "【python】如何安装requests库，以及如何引用（含报错如何解决） - 知乎",
+          "snippet": "首先,看一下如何安装 1、定位到python的scripts文件路径 2、使用命令安装pip install requests 安装requests库"
+        },
+        {
+          "url": "https://www.reddit.com/r/Python/comments/ms897j/pip_install_requests_python_requests_module_with/?tl=zh-hans",
+          "title": "PIP 安装Requests - Python Requests 模块（带示例） - Reddit",
+          "snippet": "PIP 安装Requests - Python Requests 模块（带示例） ... 帖子已归档。无法发布新评论，并且无法进行投票。"
+        },
+        {
+          "url": "https://blog.csdn.net/smilehappiness/article/details/113480946",
+          "title": "Python3下安装Pip以及使用Pip安装requests模块原创 - CSDN博客",
+          "snippet": "安装requests库可以使用pip 命令,命令如下: pipinstall requests 在命令行或终端中执行上面的命令即可安装requests 库。"
+        },
+        {
+          "url": "https://www.reddit.com/r/learnpython/comments/1s1ih78/how_to_install_requests_module/?tl=zh-hans",
+          "title": "如何安装requests 模块: r/learnpython - Reddit",
+          "snippet": "sudo apt install python3-requests 将其安装到系统的Python环境中。你也可以使用虚拟环境来安装这个模块。"
+        },
+        {
+          "url": "https://cuiqingcai.com/31034.html",
+          "title": "requests 的安装 - 静觅",
+          "snippet": "requests 库的安装: 1 pip3 install requests 这是最简单的安装方式,推荐此种方法安装。 wheel 安装 wheel 是Python 的一种安装包 ・ 1 pip3 install ..."
+        },
+        {
+          "url": "https://stackoverflow.com/questions/62080010/how-to-install-requests-module-with-pip",
+          "title": "How to install requests module with pip? [duplicate] - Stack Overflow",
+          "snippet": "[How to install requests module with pip? [duplicate]](https://stackoverflow.com/questions/62080010/how-to-install-requests-module-with-pip) ```python Copy C:\\Users\\khern>pip install requests 'pip' is not recognized as an internal or exter…"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2565733423",
+          "title": "离线安装python的requests库方法 - 知乎专栏",
+          "snippet": "将requests-master.zip解压到python的安装目录中. 2、安装. 2.1 安装requests所需依赖包安装命令为. pip install xx.whl 下图中最后一个是正常安装成功，前面三个有报vb."
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://pypi.org/project/pip/",
+          "title": "pip · PyPI",
+          "snippet": "pip - The Python Package Installer Pip is the package installer for Python. You can use pip to install packages from the Python Package …"
+        },
+        {
+          "url": "https://www.runoob.com/w3cnote/python-pip-install-usage.html",
+          "title": "Python pip 安装与使用 - 菜鸟教程",
+          "snippet": "目前如果你在 python.org 下载最新版本的安装包，则是已经自带了该工具。 注意：Python 2.7.9 + 或 Python 3.4+ 以上版本都自带 pip 工具 …"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/693291485",
+          "title": "【Python】 pip 超详细教程， pip 的安装与使用，解决 pip 下载 ...",
+          "snippet": "2024年4月18日 · pip的安装与卸载 1.1 pip的安装 python中有许多有用的库，要使用这些第三方库，需要安装pip 打开cmd，输入以下命令安 …",
+          "publishedAt": "2024-04-18T12:00:00.000Z"
+        },
+        {
+          "url": "https://pip.pypa.io/en/stable/installation/",
+          "title": "Installation - pip documentation v26.2.2",
+          "snippet": "3 天之前 · Pip is tested to work on the latest patch version of the Python interpreter, for each of the minor versions listed above. …",
+          "publishedAt": "2026-10-20T08:31:10.739Z"
+        },
+        {
+          "url": "https://blog.csdn.net/acktomas/article/details/117926803",
+          "title": "windows下python安装pip方法详解 _windows pip -CSDN博客",
+          "snippet": "2024年1月26日 · 本文详细介绍了如何在Python环境中安装和升级pip。 强调了避免在安装Python时勾选pip选项，建议通过官方推荐的方法手 …",
+          "publishedAt": "2024-01-26T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.toolbox365.cn/tools/cn-mirrors/pip/",
+          "title": "pip 国内镜像源 — 清华 / 阿里云 / 华为云 / 腾讯云 一键配置 ...",
+          "snippet": "2026年10月10日 · pip（Python 包管理（PyPI））国内镜像源汇总：清华、阿里云、华为云、腾讯云、中科大、北外、南大，提供永久配置 / …",
+          "publishedAt": "2026-10-10T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.zhihu.com/question/343789205",
+          "title": "什么是 pip ？ - 知乎",
+          "snippet": "2022年4月23日 · PIP 是Performance Improvement Plan的缩写，中文通常翻译为『绩效改善计划』。 从名字上就知道是 外资企业 推行的东 …",
+          "publishedAt": "2022-04-23T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.runoob.com/python3/python3-pip.html",
+          "title": "Python3 pip - 菜鸟教程",
+          "snippet": "Python3 pip pip 是 Python 包管理工具，该工具提供了对 Python 包的查找、下载、安装、卸载的功能。 软件包也可以在 https://pypi.org/ 中 …"
+        },
+        {
+          "url": "https://blog.csdn.net/2301_78096295/article/details/143257086",
+          "title": "Python中的 pip 命令安装与使用_python安装 pip 命令-CSDN博客",
+          "snippet": "2024年10月26日 · 本文介绍了Python的包管理工具pip，它用于安装和管理Python包，从Python 2.7.9和Python 3.4起与Python一起发行。 …",
+          "publishedAt": "2024-10-26T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.cainiaojc.com/python/python-pip.html",
+          "title": "Python pip - 菜鸟教程",
+          "snippet": "2019年3月1日 · 在本教程中，我们将学习如何使用pip来安装和管理Python软件包。 什么是pip？ pip是Python的标准软件包管理器。 我们可 …",
+          "publishedAt": "2019-03-01T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.csdn.net/csdn122345/article/details/145688754",
+          "title": "Python 3安装requests库的详细教程_pip install requests-CSDN博客",
+          "snippet": "文章浏览阅读9.2k次，点赞7次，收藏7次。本文详细介绍在Python 3环境中安装requests库的方法，可通过pip安装并验证。还给出基本使用示例，如发送GET、POST请求及处理响应。同时针对安装失败、SSL证书验证失败等常见问题提供解决办法，助你掌握该库使用。"
+        },
+        {
+          "url": "https://blog.csdn.net/python03012/article/details/137588709",
+          "title": "【Python 】：Requests库安装和使用教程（非常详细）_pip install requests-CSDN博客",
+          "snippet": "文章浏览阅读8.8w次，点赞41次，收藏120次。本文介绍了Python的Requests库，它在爬虫编程中的便利性，包括GET和POST请求的使用方法、响应对象的属性以及在实际项目中的应用，如下载图片。还提到了如何通过Requests库进行网络请求和处理响应内容。"
+        },
+        {
+          "url": "https://docs.pingcode.com/ask/1147336.html",
+          "title": "python如何安装request库 - PingCode",
+          "snippet": "使用pip安装、通过源码安装、使用Anaconda安装 要在Python中安装requests库，最常见的方法是使用pip，Python的包管理工具。 通过pip安装requests库是最简单和最快捷的方法。下面我将详细描述如何在不同环境中安装requests库，并介绍一些常见问题的解决方案。 一、使用pip安装requests库 1. 安装 pip"
+        },
+        {
+          "url": "https://docs.python-requests.org/projects/cn/zh-cn/latest/user/install.html",
+          "title": "安装 Requests — Requests 2.18.1 文档",
+          "snippet": "pip"
+        },
+        {
+          "url": "https://pypi.org/project/requests/",
+          "title": "requests · PyPI",
+          "snippet": "Requests"
+        },
+        {
+          "url": "https://docs.pingcode.com/insights/zn0scne2c8qtfj0ugtqd2gf5",
+          "title": "python如何安装request库",
+          "snippet": "安装\" request"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/374244179",
+          "title": "【python】如何安装requests库，以及如何引用（含报错如何解决） - 知乎",
+          "snippet": "非常非常重要，后期操作大多都需要requests库，那么这篇文章就来分享下如何安装requests库，以及在python中如何引用 首先，看一下如何安装 1、定位到python的 scripts文件路径 2、使用命令安装pip install request"
+        },
+        {
+          "url": "https://docs.python-requests.org/en/latest/user/install/",
+          "title": "Installation of Requests — Requests 2.34.2 documentation",
+          "snippet": "Installation of Requests"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/664692020",
+          "title": "软件测试|Python requests库的安装和使用指南 - 知乎",
+          "snippet": "简介 requests"
+        },
+        {
+          "url": "https://www.cnblogs.com/yang520/p/18774810",
+          "title": "requests库的安装和使用指南 - 晃悠人生 - 博客园",
+          "snippet": "requests"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://docs.python-requests.org/projects/cn/zh-cn/latest/user/install.html",
+    "https://pypi.org/project/requests/",
+    "https://blog.csdn.net/smilehappiness/article/details/113480946",
+    "https://www.reddit.com/r/Python/comments/ms897j/pip_install_requests_python_requests_module_with/?tl=zh-hans",
+    "https://www.cnblogs.com/testerlina/p/12466124.html",
+    "https://zhuanlan.zhihu.com/p/2565733423",
+    "https://stackoverflow.com/questions/62080010/how-to-install-requests-module-with-pip",
+    "https://cuiqingcai.com/31034.html"
+  ],
+  "failures": [
+    "exa: aborted once enough results had arrived"
+  ]
+}

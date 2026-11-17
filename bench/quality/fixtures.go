@@ -2,14 +2,14 @@ package quality
 
 import "websearch/pkg/search/core"
 
-// qualityCase is a fixed ranking fixture: the same query and candidate set is
+// Case is a fixed ranking fixture: the same query and candidate set is
 // replayed on every run, so a weight or threshold change shows up as a metric
 // delta rather than an opinion.
 //
 // Candidates are intentionally synthetic and small. This harness measures the
 // ranking pipeline's regression behaviour, not live retrieval quality; the
 // roadmap documents the same limitation for the reference implementation.
-type qualityCase struct {
+type Case struct {
 	Name         string
 	Query        string
 	Expected     []core.SearchResult
@@ -22,8 +22,8 @@ func r(title, url, content string) core.SearchResult {
 	return core.SearchResult{Title: title, Url: url, Content: content}
 }
 
-func fixtures() []qualityCase {
-	return []qualityCase{
+func Fixtures() []Case {
+	return []Case{
 		{
 			Name:  "go-generics-en",
 			Query: "Go generics performance",

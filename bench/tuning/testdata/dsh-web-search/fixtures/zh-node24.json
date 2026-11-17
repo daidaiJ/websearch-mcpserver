@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-node24",
+  "query": "Node.js 24 发布说明",
+  "language": "zh",
+  "category": "release",
+  "expectedDomains": [
+    "nodejs.org",
+    "github.com"
+  ],
+  "recordedAt": "2026-10-23T08:31:08.819Z",
+  "elapsedMs": 2234,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nodejs.org/en/blog/release/v24.0.0",
+          "title": "Node.js 24.0.0 (Current)",
+          "snippet": "Node.js 24 comes with npm 11, which includes several improvements and new features. This update brings enhanced performance, improved security ..."
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_44829437/article/details/154421183",
+          "title": "Node.js 24 LTS 正式发布，稳定支持到2028 年原创",
+          "snippet": "2025 年10 月28 日，Node.js 项目组发布了v24.11.0 版本。这个版本标志着Node.js 24 正式进入长期支持（LTS）阶段。开发者现在可以在生产环境中放心 ...",
+          "publishedAt": "2025-11-04T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.reddit.com/r/node/comments/1k71vnd/whats_new_in_nodejs_24/?tl=zh-hans",
+          "title": "Node.JS 24 有啥新东西",
+          "snippet": "Node.JS 的大版本发布要来了，以下是你可以期待的改动 https://blog.codeminer42.com/whats-new-in-node-js-24/",
+          "publishedAt": "2025-10-23T08:31:08.238Z"
+        },
+        {
+          "url": "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V24.md",
+          "title": "node/doc/changelogs/CHANGELOG_V24.md at main",
+          "snippet": "Node.js 24 comes with npm 11, which includes several improvements and new features. This update brings enhanced performance, improved security features, and ..."
+        },
+        {
+          "url": "http://nodesource.com/blog/Node.js-version-24/",
+          "title": "Node.js 24 Is Here: What You Need to Know",
+          "snippet": "Node 24 includes Undici 7.0.0, an upgraded version of its modern HTTP client. It brings updated HTTP standards support, and a smoother ...",
+          "publishedAt": "2025-05-06T12:00:00.000Z"
+        },
+        {
+          "url": "https://javascript.plainenglish.io/everything-you-need-to-know-about-node-24-3b267d7e716d",
+          "title": "Everything You Need to Know About Node.js 24",
+          "snippet": "Node.js 24 updates npm to version 11.0.0, bringing improvements in performance, security, and better support for modern JavaScript packages.",
+          "publishedAt": "2025-04-21T12:00:00.000Z"
+        },
+        {
+          "url": "https://endoflife.date/nodejs",
+          "title": "Node.js",
+          "snippet": "Node.js is an open-source, cross-platform JavaScript run-time environment built on Chrome's V8 JavaScript engine that executes JavaScript code outside a ..."
+        },
+        {
+          "url": "https://www.redhat.com/en/blog/introduction-nodejs-24-from-red-hat",
+          "title": "An introduction to Node.js 24 from Red Hat",
+          "snippet": "This release line is an even-numbered one, which means that it will be promoted to long-term support (LTS) in October 2025 and receive support ...",
+          "publishedAt": "2025-05-07T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.threads.com/@tsairecca/post/Deyj61ojy9m/%E5%85%88%E6%98%AF-php%E5%86%8D%E4%BE%86%E6%98%AF-nodejs-%E5%92%8C-gophp-%E8%B5%B0%E5%9C%A8%E6%9C%80%E5%89%8D%E7%AB%AF/",
+          "title": "再來是Node.js 和Go PHP 走在最前端",
+          "snippet": "以前的Node：你只能靠外面的queue 或自己寫debounce 擋重複呼叫，憑證解析還得另外裝套件。 現在：內建兩種函式呼叫控制——可以延後短時間內反覆出現的呼叫，也可以限制 ...",
+          "publishedAt": "2026-10-22T09:31:08.238Z"
+        },
+        {
+          "url": "https://www.instagram.com/p/Dey3o-rI25c/",
+          "title": "你的Node.js 後端只是呼叫外部API，也可能走到有漏洞的 ...",
+          "snippet": "開源網站系統Drupal 10 月14 日修補核心Field UI 模組一個「嚴重」級遠端執行代碼漏洞。單靠核心無法利用，但配合部分外掛模組，攻擊者毋須登入亦可入侵。"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nodejs.org/en/blog/release/v24.0.0",
+          "title": "Node.js 24.0.0 (Current)",
+          "snippet": "Node.js 24.0.0 (Current) 2025-05-06, Version 24.0.0 (Current), @RafaelGSS and @juanarbol We’re excited to announce the release of Node.js 24!"
+        },
+        {
+          "url": "https://nodejs.org/en/about/previous-releases",
+          "title": "Node.js Releases",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and ..."
+        },
+        {
+          "url": "https://nodejs.org/zh-cn/about/previous-releases",
+          "title": "Node.js Releases",
+          "snippet": "Looking for the latest release of a version branch? ; v25, -, 2025年10月15日 ; v24, Krypton, 2025年5月06日 ; v23, -, 2024年10月16日 ; v22, Jod, 2024年4月24日 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_44829437/article/details/154421183",
+          "title": "Node.js 24 LTS 正式发布，稳定支持到2028 年原创 - CSDN博客",
+          "snippet": "2025 年10 月28 日，Node.js 项目组发布了v24.11.0 版本。这个版本标志着Node.js 24 正式进入长期支持（LTS）阶段。开发者现在可以在生产环境中放心 ..."
+        },
+        {
+          "url": "https://www.reddit.com/r/node/comments/1k71vnd/whats_new_in_nodejs_24/?tl=zh-hans",
+          "title": "Node.JS 24 有啥新东西 - Reddit",
+          "snippet": "Node.js v26 今天发布了。只是一些小修复和小幅弃用，再加上一个小小的 樱桃在上面。"
+        },
+        {
+          "url": "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V24.md",
+          "title": "Node.js 24 ChangeLog - GitHub",
+          "snippet": "Node.js 24 comes with npm 11, which includes several improvements and new features. This update brings enhanced performance, improved security features, and ..."
+        },
+        {
+          "url": "https://nodesource.com/blog/Node.js-version-24",
+          "title": "Node.js 24 Is Here: What You Need to Know - NodeSource",
+          "snippet": "Node.js 24 Is Here: What You Need to Know Node.js 24 has officially landed! This release brings some exciting improvements to JavaScript developers, making Node.js faster, more capable, and more aligned with the latest JavaScript standards."
+        },
+        {
+          "url": "https://javascript.plainenglish.io/everything-you-need-to-know-about-node-24-3b267d7e716d",
+          "title": "Everything You Need to Know About Node.js 24 | by Elves Vieira",
+          "snippet": "Everything You Need to Know About Node.js 24 What’s New in Node.js 24 ``` const memory = new WebAssembly.Memory({ initial: 2, maximum: 10, index: 'i64' //64 bits }); console.log(memory.buffer.byteLength); ``` ``` { await using writable = .…"
+        },
+        {
+          "url": "https://endoflife.date/nodejs",
+          "title": "Node.js | endoflife.date",
+          "snippet": "Node.js | Release | Released | Active Support | Security Support | Commercial Support | Latest | |-|-|-|-|-|-| | 24 (LTS) | 1 year and 5 months ago <br>(06 May 2025) | Ended<br> 3 days ago <br>(20 Oct 2026) | Ends<br> in 1 year and 6 month…"
+        },
+        {
+          "url": "https://www.redhat.com/en/blog/introduction-nodejs-24-from-red-hat",
+          "title": "An introduction to Node.js 24 from Red Hat",
+          "snippet": "This release line is an even-numbered one, which means that it will be promoted to long-term support (LTS) in October 2025 and receive support ..."
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node .js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, …"
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node .js — 让 JavaScript 无处不在 - Node .js 运行环境",
+          "snippet": "2026年5月7日 · 让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应 …",
+          "publishedAt": "2026-05-07T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js …"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/prebuilt-installer",
+          "title": "Node .js 中文网 — 下载 Node .js®",
+          "snippet": "2024年12月26日 · Node.js 包含 npm (10.9.0)。 阅读此版本的 变更日志. . 了解如何 验证签名的 SHASUMS 查看所有可用的 Node.js 下载选 …",
+          "publishedAt": "2024-12-26T12:00:00.000Z"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/current",
+          "title": "Node .js 中文网 — 下载 Node .js",
+          "snippet": "2026年9月1日 · 了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js …",
+          "publishedAt": "2026-09-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://github.com/nodejs/node",
+          "title": "GitHub - nodejs/ node : Node .js JavaScript runtime · GitHub",
+          "snippet": "2024年4月24日 · Release lines up to and including Node.js 26 follow the previous schedule, where a new major version was released …",
+          "publishedAt": "2024-04-24T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2073699569158861437",
+          "title": "Node .js 下载安装及环境变量配置完全指南（2026 最新版）",
+          "snippet": "2026年8月20日 · 从零开始，手把手带你完成 Node.js 的下载、安装、npm 全局路径配置、环境变量设置，并扩展镜像加速、常见问题等实战 …",
+          "publishedAt": "2026-08-20T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2004975759790477711",
+          "title": "【2026 最新版】 Node .js安装及环境配置超详细教程（以 ...",
+          "snippet": "2026年2月11日 · 前言Node.js 是前端开发和 AI 智能体（如 Claude Code）运行的必备环境。 很多同学安装时只是“一路 Next”，结果导致： …",
+          "publishedAt": "2026-02-11T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-install-setup.html",
+          "title": "Node.js 安装配置 | 菜鸟教程",
+          "snippet": "Node.js 安装配置 本章节我们将向大家介绍在 Windows、Linux 和 macOS 上安装 Node.js 的方法。 Node.js 安装包及源码下载地址 …"
+        },
+        {
+          "url": "https://baike.baidu.com/item/node.js/7567977",
+          "title": "node.js _百度百科",
+          "snippet": "2024年12月19日 · Node.js是一个开源、跨平台的JavaScript运行环境，支持Windows、macOS与Linux。 让JavaScript成为与PHP、Python …",
+          "publishedAt": "2024-12-19T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nodejs.org/en/blog/release/v24.0.0",
+          "title": "Node.js — Node.js 24.0.0 (Current)",
+          "snippet": "Node.js"
+        },
+        {
+          "url": "https://nodejs.org/zh-cn/blog/release/",
+          "title": "Node.js",
+          "snippet": "Node.js"
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_48502062/article/details/147759247",
+          "title": "node.js v24.0.0 正式发布!10大重磅更新助力开发者，性能大幅提升，不容错过!_node 24-CSDN博客",
+          "snippet": "文章浏览阅读2.6k次，点赞24次，收藏28次。近日，Node.js官方发布v24..0版本，将进入长期支持阶段。此次更新包括V8引擎升级到13.6版本、npm升级至11版本，还有AsyncLocalStorage使用新实现、URLPattern成全局对象等变化，同时对测试运行器、Undici等进行增强，也有部分API弃用移除，性能方面也有多项优化。"
+        },
+        {
+          "url": "https://blog.csdn.net/lin5165352/article/details/147832460",
+          "title": "Node.js 24.0 正式发布：性能跃升与开发体验全面升级-CSDN博客",
+          "snippet": "文章浏览阅读2.6k次，点赞4次，收藏8次。2025 年 5 月 6 日， Node.js",
+          "publishedAt": "2025-05-06T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.oschina.net/news/348873/nodejs-24",
+          "title": "Node.js 24 发布：升级 V8 引擎、提升性能 - OSCHINA",
+          "snippet": "开源跨平台 JavaScript 运行时环境 Node.js"
+        },
+        {
+          "url": "https://nodejs.cn/api/v24/index.html",
+          "title": "首页 | Node.js v24 文档",
+          "snippet": "assert 断言 async_hooks 异步钩子 async_hooks/context 异步上下文 buffer 缓冲区 C++插件 C/C++插件 (使用 Node-API) C++嵌入器 child_process 子进程 cluster 集群 CLI 命令行 console 控制台 crypto 加密 crypto/webcrypto 网络加密 debugger 调试器 deprecation 弃用 dgram 数据报 diagnostics_channel 诊断通道 dns 域名服务器 domain 域 env 环境变量 ..."
+        },
+        {
+          "url": "https://www.joyyan.com/Articles/Content/317",
+          "title": "Node.js 24 新特性详解与升级指南：性能提升、V8 13.6、npm 11 全面解析",
+          "snippet": "全面解析 Node.js"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1905666166019557196",
+          "title": "[250512] Node.js 24 发布：ClangCL 构建，升级 V8 引擎、集成 npm 11",
+          "snippet": "Node.js"
+        },
+        {
+          "url": "https://juejin.cn/post/7503755591471661094",
+          "title": "[250512] Node.js 24 发布：ClangCL 构建，升级 V8 引擎 ... - 掘金",
+          "snippet": "Node.js"
+        },
+        {
+          "url": "https://juejin.cn/post/7512423935535759375",
+          "title": "Node.js 24 发布：内置测试运行器增强、JavaScript 引擎升级与全局 URLPattern API - 掘金",
+          "snippet": "最新发布的 Node.js"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://nodejs.org/en/blog/release/v24.0.0",
+    "https://blog.csdn.net/weixin_44829437/article/details/154421183",
+    "https://www.reddit.com/r/node/comments/1k71vnd/whats_new_in_nodejs_24/?tl=zh-hans",
+    "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V24.md",
+    "https://javascript.plainenglish.io/everything-you-need-to-know-about-node-24-3b267d7e716d",
+    "https://endoflife.date/nodejs",
+    "https://www.redhat.com/en/blog/introduction-nodejs-24-from-red-hat",
+    "https://nodejs.org/"
+  ],
+  "failures": [
+    "exa: no results"
+  ]
+}

@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "en-gpt5",
+  "query": "OpenAI GPT-5 announcement",
+  "language": "en",
+  "category": "news",
+  "expectedDomains": [
+    "openai.com",
+    "theverge.com",
+    "techcrunch.com"
+  ],
+  "recordedAt": "2026-10-23T08:32:12.535Z",
+  "elapsedMs": 4223,
+  "limit": 8,
+  "lead": "global",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://openai.com/index/introducing-gpt-5/",
+          "title": "Introducing GPT-5",
+          "snippet": "We are introducing GPT‐5, our best AI system yet. August 7, 2025 ReleaseProduct. Our smartest, fastest, most useful model yet, with built-in ...",
+          "publishedAt": "2025-08-07T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=0Uu_VJeVVfo",
+          "title": "Introducing GPT-5",
+          "snippet": "introduce and demo GPT-5. Introducing GPT-5 @OpenAI 70K likes 3M. I Used AI To Surveil Myself. OpenAI's AI Agents Turned Off Their Monitoring.",
+          "publishedAt": "2025-10-23T08:32:10.495Z"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/GPT-5",
+          "title": "GPT-5",
+          "snippet": "Preceded in the series by GPT-4, it was launched on August 7, 2025. It is publicly accessible to users of the chatbot products ChatGPT and Microsoft Copilot as ..."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/models/gpt-5",
+          "title": "GPT-5 Model | OpenAI API",
+          "snippet": "GPT-5 is our previous model for coding, reasoning, and agentic tasks across domains. We recommend using the latest GPT-6 Astra. Learn more on the Model guidance ..."
+        },
+        {
+          "url": "https://www.reuters.com/business/retail-consumer/openais-long-awaited-gpt-5-model-nears-release-2025-08-06/",
+          "title": "OpenAI's long-awaited GPT-5 model nears release",
+          "snippet": "OpenAI has not said when GPT-5 will be released, but the industry expects it to be any day now, according to media reports.",
+          "publishedAt": "2025-08-06T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.cnbc.com/2025/08/07/openai-launches-gpt-5-model-for-all-chatgpt-users.html",
+          "title": "OpenAI launches new GPT-5 model for all ChatGPT users",
+          "snippet": "OpenAI on Thursday announced GPT-5, its latest and most advanced AI model. The company said the model is smarter, faster and more useful, ...",
+          "publishedAt": "2025-08-07T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.facebook.com/jhunter101/posts/you-just-got-another-openai-chatgpt-usage-reset-/4133505540283660/",
+          "title": "You just got another OpenAI ChatGPT Usage Reset ⚡",
+          "snippet": "ChatGPT 5 release lets OpenAI save compute on roughly 96% of users. They may have just made life harder for anyone who loves free- form chat."
+        },
+        {
+          "url": "https://www.reddit.com/r/ChatGPT/comments/1xcku7w/why_does_openai_keep_making_updates_on_chatgpt/",
+          "title": "Why does OpenAI keep making updates on ChatGPT quite ...",
+          "snippet": "So I just realized. Why is OpenAI announcing updates every month? Like, They keep replacing models and stuff monthly. Unlike last year where they just ...",
+          "publishedAt": "2026-10-22T15:32:10.495Z"
+        },
+        {
+          "url": "https://every.to/p/how-codex-happened",
+          "title": "How Codex Happened - Every",
+          "snippet": "On November 19, OpenAI released GPT-5.1 Codex Max, GPT-5.2 Codex followed on December 18, bringing further improvements in making changes across large ...",
+          "publishedAt": "2026-10-22T20:32:10.495Z"
+        },
+        {
+          "url": "https://www.edtechinnovationhub.com/news/openai-offers-us-university-labs-free-gpt-rosalind-access-for-up-to-12-months",
+          "title": "OpenAI offers university labs free GPT-Rosalind access",
+          "snippet": "OpenAI has introduced the Rosalind Academic Plan, offering eligible US university labs up to 30 free seats for 12 months, with GPT-Rosalind access",
+          "publishedAt": "2026-10-22T23:32:10.495Z"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "region": "global",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://openai.com/index/introducing-gpt-5/",
+          "title": "Introducing GPT-5 | OpenAI",
+          "snippet": "Introducing GPT-5 | OpenAI August 7, 2025 # Introducing GPT‑5 Our smartest, fastest, most useful model yet, with built-in thinking that puts expert-level intelligence in everyone’s hands. ## This post introduced GPT-5. Learn about OpenAI’s…"
+        },
+        {
+          "url": "https://openai.com/gpt-5/",
+          "title": "GPT-5 is here",
+          "snippet": "GPT‑5 is here At its August 2025 launch, GPT‑5 was our smartest, fastest, and most useful model, with thinking built in. It was available to everyone. ## Update GPT‑5 was introduced in August 2025. Explore GPT‑6⁠, OpenAI’s latest model. ##…"
+        },
+        {
+          "url": "https://openai.com/index/gpt-5-first-look/",
+          "title": "First look at GPT-5 | OpenAI",
+          "snippet": "First look at GPT-5 | OpenAI August 7, 2025 # GPT‑5: First Look - GPT-6.1 Sol - GPT-6 Astra - GPT-5.6 - GPT-5.5 Safety"
+        },
+        {
+          "url": "https://www.reuters.com/business/retail-consumer/openai-launches-gpt-5-ai-industry-seeks-return-investment-2025-08-07/",
+          "title": "OpenAI launches GPT-5 as the AI industry seeks a return on investment | Reuters",
+          "snippet": "OpenAI launches GPT-5 as the AI industry seeks a return on investment By Anna Tong August 7, 2025 7:50 PM UTC Updated August 7, 2025 A smartphone with a displayed ChatGPT logo is placed on a computer motherboard in this illustration taken…"
+        },
+        {
+          "url": "https://openai.com/index/introducing-gpt-5-for-developers/",
+          "title": "Introducing GPT‑5 for developers | OpenAI",
+          "snippet": "Introducing GPT-5 for developers | OpenAI August 7, 2025 # Introducing GPT‑5 for developers The best model for coding and agentic tasks. ## Introduction Today, we’re releasing GPT‑5 in our API platform—our best model yet for coding and age…"
+        },
+        {
+          "url": "https://openai.com/index/gpt-5-new-era-of-work/",
+          "title": "GPT-5 and the new era of work | OpenAI",
+          "snippet": "GPT-5 and the new era of work | OpenAI August 7, 2025 # GPT‑5 and the new era of work Today we’re introducing GPT‑5⁠, OpenAI’s smartest, fastest, most useful model yet, and a major step towards placing intelligence at the center of every b…"
+        },
+        {
+          "url": "https://www.cnbc.com/2025/08/07/openai-launches-gpt-5-model-for-all-chatgpt-users.html",
+          "title": "OpenAI launches new GPT-5 model for all ChatGPT users",
+          "snippet": "OpenAI launches new GPT-5 model for all ChatGPT users Key Points - OpenAI is making GPT-5 available to everyone, including its free users, on Thursday. - The company said the model is smarter, faster and more useful, particularly across do…"
+        },
+        {
+          "url": "https://openai.com/gpt-5/?video=1108154055",
+          "title": "GPT-5 is here | OpenAI",
+          "snippet": "GPT-5 is here ... OpenAI # GPT‑5 is here Our smartest, fastest, and most useful model yet, with thinking built in. Available to everyone. Try it in ChatGPT Read the research ChatGPTFor developersFor business ChatGPT powered by GPT-5 ## Exp…"
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/models/gpt-5",
+          "title": "GPT-5 Model | OpenAI API",
+          "snippet": "GPT-5 > For the complete documentation index, see llms.txt. Markdown versions of documentation pages are available by appending `.md` to the page URL. > Previous intelligent reasoning model for coding and agentic tasks with configurable re…"
+        },
+        {
+          "url": "https://www.ndtvprofit.com/technology/openai-launches-more-powerful-gpt-5-model-for-coding-and-writing-9042308",
+          "title": "OpenAI Launches More Powerful GPT-5 Model For Coding And Writing",
+          "snippet": "GPT-5, set to be unveiled during a live streamed event on Thursday, is designed to be more capable at coding and creative writing as well as reasoning through complex queries. In a briefing with reporters this week, OpenAI Chief Executive…"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://openai.com/gpt-5/",
+          "title": "GPT-5 is here - OpenAI",
+          "snippet": "GPT-5 is here | OpenAI GPT‑5 is here At its August 2025 launch, GPT‑5 was our smartest, fastest, and most useful model, with thinking built in. It was available to everyone. Expert intelligence for everyone Safer and more accurate Our most…"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/GPT-5",
+          "title": "GPT-5 - Wikipedia",
+          "snippet": "GPT-5 Background He stated that OpenAI was \"prioritizing GPT-4 development\" and that \"we are not and won't for some time\" release GPT-5. [[11]](https://en.wikipedia.org/wiki/GPT-5#cite_note-:8-11) GPT-5 was then unveiled during a livestrea…"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=0Uu_VJeVVfo",
+          "title": "Introducing GPT-5 - YouTube",
+          "snippet": "Introducing GPT-5 OpenAI 3,006,908 views Streamed 1 year ago Copy link Info • You're signed out Videos you watch may be added to the TV's watch history and influence TV recommendations. To avoid this, cancel and sign in to YouTube on your…"
+        },
+        {
+          "url": "https://openai.com/index/introducing-gpt-5-5/",
+          "title": "Introducing GPT-5.5 - OpenAI",
+          "snippet": "Introducing GPT-5.5 | OpenAI Introducing GPT‑5.5 A new class of intelligence for real work This post introduced GPT-5.5. 00:00 _Update on April 24, 2026: GPT‑5.5 and GPT‑5.5 Pro are now available in the API._ _The system card_ _has also be…"
+        },
+        {
+          "url": "https://openai.com/index/gpt-5-1/",
+          "title": "GPT-5.1: A smarter, more conversational ChatGPT - OpenAI",
+          "snippet": "GPT‑5.1: A smarter, more conversational ChatGPT We’re upgrading GPT‑5 while making it easier to customize ChatGPT. Starting to roll out today to everyone, beginning with paid users. Today we’re upgrading the GPT‑5 series with the release o…"
+        },
+        {
+          "url": "https://botpress.com/blog/everything-you-should-know-about-gpt-5",
+          "title": "Everything you should know about GPT-5 [September 2026] - Botpress",
+          "snippet": "Everything you should know about GPT-5 [September 2026] A deep dive into GPT-5, including features, improvements, release date, cost, and what it means for AI developers and businesses. On **August 6th**, OpenAI announced — not-so-subtly —…"
+        },
+        {
+          "url": "https://openai.com/index/introducing-gpt-5-4/",
+          "title": "Introducing GPT-5.4 - OpenAI",
+          "snippet": "Introducing GPT-5.4 | OpenAI Introducing GPT‑5.4 Today, we’re releasing **GPT‑5.4** in ChatGPT (as GPT‑5.4 Thinking), the API, and Codex. We’re also releasing **GPT‑5.4 Pro** in ChatGPT and the API, for people who want maximum performance…"
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/models/gpt-5",
+          "title": "GPT-5 Model | OpenAI API",
+          "snippet": "GPT-5 is our previous model for coding, reasoning, and agentic tasks across domains. We recommend using the latest GPT-6 Astra. Learn more on the Model guidance ..."
+        },
+        {
+          "url": "https://www.cnbc.com/2025/08/07/openai-launches-gpt-5-model-for-all-chatgpt-users.html",
+          "title": "OpenAI launches new GPT-5 model for all ChatGPT users - CNBC",
+          "snippet": "OpenAI launches new GPT-5 model for all ChatGPT users - OpenAI on Thursday announced GPT-5, its latest and most advanced AI model. - The company said the model is smarter, faster and more useful, particularly across domains like writing, c…"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=4H9pIAXkELw",
+          "title": "Everything Announced at OpenAI's Summer Update in 12 Minutes",
+          "snippet": "Sam Altman and the OpenAI team demonstrated the new GPT-5 Reasoning Model, which will be free for all ChatGPT users starting today."
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://openai.com/gpt-5/",
+          "title": "GPT‑5 is here - OpenAI",
+          "snippet": "At its August 2025 launch, GPT-5"
+        },
+        {
+          "url": "https://openai.com/index/introducing-gpt-5/",
+          "title": "Introducing GPT‑5 - OpenAI",
+          "snippet": "We are introducing GPT‑5"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/GPT-5",
+          "title": "GPT-5 - Wikipedia",
+          "snippet": "GPT-5"
+        },
+        {
+          "url": "https://deploymentsafety.openai.com/gpt-5-6-preview",
+          "title": "GPT-5.6 Preview System Card - OpenAI Deployment Safety Hub",
+          "snippet": "GPT-5.6 is a new family of three models: Sol, our new flagship model; Terra, a capable lower-cost option; and Luna, our fastest and most cost-efficient model. The safeguards we have built for this launch -- our most robust yet -- are built to deliver these models safely and at scale, around the world."
+        },
+        {
+          "url": "https://www.web3aiblog.com/blog/openai-gpt-5-announcement-2026",
+          "title": "OpenAI GPT-5 Announcement 2026: Features & Release Date",
+          "snippet": "OpenAI"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/GPT-5.6",
+          "title": "GPT-5.6 - Wikipedia",
+          "snippet": "GPT-5.6 (Generative Pre-trained Transformer 5.6) is a set of large language models (LLMs) developed by OpenAI"
+        },
+        {
+          "url": "https://arstechnica.com/ai/2025/08/openai-launches-gpt-5-free-to-all-chatgpt-users/",
+          "title": "OpenAI launches GPT-5 free to all ChatGPT users - Ars Technica",
+          "snippet": "OpenAI"
+        },
+        {
+          "url": "https://techcrunch.com/2026/06/26/openai-limits-gpt-5-6-rollout-after-government-request-says-restrictions-shouldnt-be-the-norm/",
+          "title": "OpenAI limits GPT-5.6 rollout after government request, says ...",
+          "snippet": "OpenAI"
+        },
+        {
+          "url": "https://cdn.openai.com/pdf/GPT_5_6_August_Updates.pdf",
+          "title": "PDF GPT-5.6 - August Updates - cdn.openai.com",
+          "snippet": "Under our Preparedness Framework, we are treating this August release of GPT-5.6 Sol and GPT-5.6 Luna as High capability in both Cybersecurity and Biological and Chemical domains. Neither one reaches our High threshold in AI Self-Improvement. Based on that assessment, we've implemented the same set of safeguards that are detailed in the GPT-5.6 System Card."
+        },
+        {
+          "url": "https://www.unite.ai/openai-gives-free-chatgpt-users-unlimited-text-chats-on-gpt-5-6-luna/",
+          "title": "OpenAI Gives Free ChatGPT Users Unlimited Text Chats on GPT-5.6 Luna",
+          "snippet": "OpenAI"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://openai.smapply.org/",
+          "title": "OpenAI",
+          "snippet": "OpenAI’s mission is to ensure that artificial general intelligence (AGI) benefits all of humanity. In service of that mission, we sometimes …"
+        },
+        {
+          "url": "https://baike.baidu.com/item/OpenAI/19758408",
+          "title": "OpenAI _百度百科",
+          "snippet": "[99]3月8日（当地时间），OpenAI公布“宫斗”调查结果的同时，宣布此次除了萨姆·奥尔特曼重回OpenAI董事会外，还将任命三位新董事，其 …"
+        },
+        {
+          "url": "https://github.com/openai/",
+          "title": "OpenAI - GitHub",
+          "snippet": "OpenAI's Codex Security CLI and TypeScript SDK for finding, validating, and fixing security vulnerabilities. npm: …"
+        },
+        {
+          "url": "https://www.codex-chinese.com/chatgpt/guides/chatgpt-official-entry-domestic-guide-2026",
+          "title": "ChatGPT 官网入口、ChatGPT中文版、网页版与 GPT-6 ...",
+          "snippet": "1 天前 · ChatGPT 官方入口是 https://chatgpt.com，这是 OpenAI 提供 ChatGPT 网页版服务的主要域名。 访问或登录前，请先核对地址栏中 …",
+          "publishedAt": "2026-10-22T08:32:08.877Z"
+        },
+        {
+          "url": "https://apifox.com/apiskills/openai-official-portal/",
+          "title": "OpenAI 官网入口地址：如何轻松找到",
+          "snippet": "OpenAI OpenAI是一个强大的开放人工智能研究平台，其提供了一系列深度学习和自然语言处理的工具和技术。 使用OpenAI可以获得以下优 …"
+        },
+        {
+          "url": "https://www.zhihu.com/question/572946129",
+          "title": "个人怎么才能使用 OpenAI ? - 知乎",
+          "snippet": "2023年5月23日 · 如果你是想用OpenAI的话，那就会相对麻烦一些，需要你注册OpenAI的账户，和申请一个虚拟卡进行一个充值。 而如果使 …",
+          "publishedAt": "2023-05-23T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.holysheep.cn/articles/openai-api-china.html",
+          "title": "国内使用 OpenAI API 完整指南（2026）- 无需翻墙 ...",
+          "snippet": "› 国内使用 OpenAI API 完整指南 国内使用 OpenAI API 完整指南（2026） 更新时间：2026年3月 · 阅读时间：约5分钟 很多国内开发者在接 …"
+        },
+        {
+          "url": "https://developers.openai.ac.cn/",
+          "title": "- AI 教程",
+          "snippet": "2026年4月16日 · OpenAI SDK OpenAI CLI 更新日志 弃用说明 支持的国家/地区 OpenAI 爬虫 概述 迁移指南 节点参考 构建 Agent 的安全性 开 …",
+          "publishedAt": "2026-04-16T12:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://openai.com/index/introducing-gpt-5/",
+    "https://openai.com/gpt-5/",
+    "https://en.wikipedia.org/wiki/GPT-5",
+    "https://developers.openai.com/api/docs/models/gpt-5",
+    "https://www.cnbc.com/2025/08/07/openai-launches-gpt-5-model-for-all-chatgpt-users.html",
+    "https://www.youtube.com/watch?v=0Uu_VJeVVfo",
+    "https://www.reddit.com/r/ChatGPT/comments/1xcku7w/why_does_openai_keep_making_updates_on_chatgpt/",
+    "https://every.to/p/how-codex-happened"
+  ],
+  "failures": []
+}

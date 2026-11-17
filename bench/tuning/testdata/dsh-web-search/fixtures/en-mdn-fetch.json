@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "en-mdn-fetch",
+  "query": "MDN Fetch API documentation",
+  "language": "en",
+  "category": "docs",
+  "expectedDomains": [
+    "developer.mozilla.org"
+  ],
+  "recordedAt": "2026-10-23T08:31:38.832Z",
+  "elapsedMs": 2160,
+  "limit": 8,
+  "lead": "global",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+          "title": "Fetch API - MDN Web Docs",
+          "snippet": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement ...",
+          "publishedAt": "2026-06-08T12:00:00.000Z"
+        },
+        {
+          "url": "https://x.com/MozDevNet/status/1910180948542709955",
+          "title": "MDN Web Docs",
+          "snippet": "Fetch API offers cleaner, promise-based syntax, better error handling, and async/await support. The Fetch API provides a JavaScript interface ...",
+          "publishedAt": "2025-10-23T08:31:38.477Z"
+        },
+        {
+          "url": "https://github.com/mdn/fetch-examples/blob/main/README.md",
+          "title": "fetch-examples/README.md at main",
+          "snippet": "A repository of Fetch examples. See https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API for the corresponding documentation.",
+          "publishedAt": "2022-08-16T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.facebook.com/fb-answers/mdn-fetch-api-response-json-documentation/",
+          "title": "MDN Fetch API Response JSON Documentation",
+          "snippet": "The Fetch API is a modern Promise-based way to make HTTP requests directly from JavaScript. For JSON responses, call `response.json()` after confirming the ..."
+        },
+        {
+          "url": "https://html.spec.whatwg.org/multipage/semantics.html",
+          "title": "The title element - HTML Standard - whatwg",
+          "snippet": "When the contents of a title element are used in this way, the directionality of that title element should be used to set the directionality of the document's ...",
+          "publishedAt": "2026-10-23T03:31:38.477Z"
+        },
+        {
+          "url": "https://www.npmjs.com/package/multer",
+          "title": "Multer",
+          "snippet": "Multer is a node.js middleware for handling multipart/form-data , which is primarily used for uploading files. It is written on top of busboy for maximum ...",
+          "publishedAt": "2026-10-22T11:31:38.477Z"
+        },
+        {
+          "url": "https://www.sitepoint.com/what-clear-form-should-really-do-managing-draft-data-in-javascript/",
+          "title": "What “Clear Form” Should Really Do: Managing Draft Data ...",
+          "snippet": "SitePoint's introduction to the Fetch API explains the request and response mechanics behind the example. Extend clearing to the data your application ...",
+          "publishedAt": "2026-10-22T21:31:38.477Z"
+        },
+        {
+          "url": "https://www.greatfrontend.com/questions/quiz/explain-the-concept-of-the-web-socket-api",
+          "title": "Explain the concept of the Web Socket API",
+          "snippet": "TL;DR. The WebSocket API provides a way to open a persistent connection between a client and a server, allowing for real-time, two-way communication.",
+          "publishedAt": "2026-10-22T18:31:38.477Z"
+        },
+        {
+          "url": "https://docs.netlify.com/",
+          "title": "Netlify Docs: Netlify Documentation",
+          "snippet": "Manage sites, deploys, DNS, and more programmatically with the Netlify REST API—ideal for automating workflows and integrating into your systems. Netlify CLI.",
+          "publishedAt": "2026-10-23T05:31:38.477Z"
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+          "title": "Window: fetch() method - Web APIs | MDN",
+          "snippet": "The fetch() method of the Window interface starts the process of fetching a resource from the network, returning a promise that is fulfilled ...",
+          "publishedAt": "2025-12-16T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+          "title": "Fetch API",
+          "snippet": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement ...Using FetchUtiliser l'API Fetch"
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+          "title": "Window: fetch() method - Web APIs | MDN",
+          "snippet": "The fetch() method of the Window interface starts the process of fetching a resource from the network, returning a promise that is fulfilled ..."
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Response",
+          "title": "Response - Web APIs - MDN Web Docs - Mozilla",
+          "snippet": "Response Examples Fetching an image ``` const image = document.querySelector(\".my-image\"); fetch(\"flowers.jpg\") .then((response) => { if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } return response.blob();…"
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API",
+          "title": "Web APIs - MDN Web Docs - Mozilla",
+          "snippet": "Web APIs Specifications F - Fetch API"
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Request",
+          "title": "Request - Web APIs - MDN Web Docs",
+          "snippet": "Request Examples ``` fetch(request) .then((response) => response.blob()) .then((blob) => { image.src = URL.createObjectURL(blob); }); ``` ``` fetch(request) .then((response) => { if (response.status !== 200) { throw new Error(\"Something we…"
+        },
+        {
+          "url": "https://x.com/MozDevNet/status/1910180948542709955",
+          "title": "MDN Web Docs on X: \"Need a Fetch refresher? Fetch API offers cleaner ...",
+          "snippet": "The Fetch API provides a JavaScript interface for making HTTP requests and processing the responses. 9:00 PM · Apr 9, 2025·. 1,196. Views."
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Headers",
+          "title": "Headers - Web APIs - MDN Web Docs",
+          "snippet": "Headers Specifications | Specification | |-| | Fetch<br># headers-class |"
+        },
+        {
+          "url": "https://github.com/mdn/fetch-examples/blob/main/README.md",
+          "title": "fetch-examples/README.md at main - GitHub",
+          "snippet": "A repository of Fetch examples. See https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API for the corresponding documentation."
+        },
+        {
+          "url": "https://www.facebook.com/fb-answers/mdn-fetch-api-response-json-documentation/",
+          "title": "MDN Fetch API Response JSON Documentation - Facebook",
+          "snippet": "The Fetch API is a modern Promise-based way to make HTTP requests directly from JavaScript. For JSON responses, call `response.json()` after confirming the ..."
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Scripting/Network_requests",
+          "title": "Making network requests with JavaScript - Learn web development",
+          "snippet": "Making network requests with JavaScript The Fetch API The can store ``` fetch(\"products.json\") .then((response) => { if (!response.ok) { throw new Error(`HTTP error: ${response.status}`); } return response.json(); }) .then((json) => initia…"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+          "title": "Fetch API - Web APIs | MDN - MDN Web Docs",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+          "title": "Using the Fetch API - Web APIs | MDN - MDN Web Docs",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://devdoc.net/web/developer.mozilla.org/en-US/docs/Web/API/Fetch_API.html",
+          "title": "Fetch API - Web APIs | MDN - devdoc.net",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://www.devdoc.net/web/developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch.html",
+          "title": "Using Fetch - Web APIs | MDN - devdoc.net",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://www.w3schools.com/js/js_api_fetch.asp",
+          "title": "JavaScript Fetch API - W3Schools",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://mdn.org.cn/en-US/docs/Web/API/Fetch_API",
+          "title": "Fetch API - Web APIs | MDN - MDN 文档",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://github.com/mdn/content/blob/main/files/en-us/web/api/fetch_api/using_fetch/index.md",
+          "title": "content/files/en-us/web/api/fetch_api/using_fetch/index.md at ... - GitHub",
+          "snippet": "The official source for MDN"
+        },
+        {
+          "url": "https://www.geeksforgeeks.org/javascript/javascript-fetch-method/",
+          "title": "Fetch API in JavaScript - GeeksforGeeks",
+          "snippet": "The Fetch"
+        },
+        {
+          "url": "https://github.com/mdn/content/blob/main/files/en-us/web/api/fetch_api/index.md?plain=1",
+          "title": "content/files/en-us/web/api/fetch_api/index.md at main · mdn ... - GitHub",
+          "snippet": "The official source for MDN"
+        },
+        {
+          "url": "https://www.javascripttutorial.net/web-apis/javascript-fetch-api/",
+          "title": "JavaScript Fetch API",
+          "snippet": "In this tutorial, you'll learn about the JavaScript Fetch"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://developer.mozilla.org/zh-CN/",
+          "title": "MDN Web Docs",
+          "snippet": "1 天前 · MDN closely follows W3C standards which helps me keep up with important topics. It's a complete package as it caters to …",
+          "publishedAt": "2026-10-22T08:31:37.324Z"
+        },
+        {
+          "url": "https://mdn.org.cn/",
+          "title": "MDN Web 文档 - MDN 文档",
+          "snippet": "2026年8月8日 · The MDN Web Docs site provides information about Open Web technologies including HTML, CSS, and APIs for both …",
+          "publishedAt": "2026-08-08T12:00:00.000Z"
+        },
+        {
+          "url": "https://mdn.org.cn/en-US/docs/Learn",
+          "title": "学习网页开发 | MDN - MDN 文档",
+          "snippet": "2025年10月21日 · 提供一个免费且开源的全栈课程，从初学者到高级水平。 MDN 博客 MDN 博客包含来自 MDN 团队和客座作者的文章，内 …",
+          "publishedAt": "2025-10-21T12:00:00.000Z"
+        },
+        {
+          "url": "https://baike.baidu.com/item/MDN/60259532",
+          "title": "MDN （Mozilla基金会的开发者网络平台）_百度百科",
+          "snippet": "MDN（Mozilla Developer Network），现称MDN Web Docs，是Mozilla基金会于2005年启动并维护的、开源的Web开发者文档平台。"
+        },
+        {
+          "url": "https://developer.mozilla.org/zh-CN/docs/Web",
+          "title": "面向开发者的 Web 技术 | MDN",
+          "snippet": "2025年8月1日 · 开放的 Web 为开发者提供了巨大的机遇，为了充分利用这些技术，你需要知道如何使用它们。在下方你可以找到这些 Web 技 …",
+          "publishedAt": "2025-08-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://mdn.org.cn/en-US/docs/MDN",
+          "title": "MDN Web Docs | MDN - MDN 文档",
+          "snippet": "2025年10月23日 · MDN Web Docs is a free-to-use resource that documents open web technologies. Our mission is to provide …",
+          "publishedAt": "2025-10-23T12:00:00.000Z"
+        },
+        {
+          "url": "https://mdn.org.cn/en-US/docs/Learn/Getting_started_with_the_web",
+          "title": "Web 入门 - 学习 Web 开发 | MDN - MDN 文档",
+          "snippet": "2025年10月21日 · 另请参阅 前端开发人员职业发展路径 MDN 课程合作伙伴 Scrimba 的 前端开发人员职业发展路径 教授成为一名合格的前端 …",
+          "publishedAt": "2025-10-21T12:00:00.000Z"
+        },
+        {
+          "url": "https://developer.mozilla.org/zh-CN/docs/MDN/Tutorials",
+          "title": "教程 - MDN Web 文档项目 | MDN",
+          "snippet": "2025年11月10日 · MDN 的 HTML 元素参考 完整的 HTML 元素参考以及不同浏览器的兼容性信息。 用 HTML 创建简单的网页 一篇面向初学者 …",
+          "publishedAt": "2025-11-10T12:00:00.000Z"
+        },
+        {
+          "url": "https://developer.mozilla.org/zh-CN/docs/Learn_web_development",
+          "title": "学习 Web 开发 | MDN",
+          "snippet": "2026年1月27日 · 欢迎来到 MDN 学习 Web 开发区（也被大家称为学习区）。 我们在此提供一组结构化的教程指南，帮助你掌握要成为一名成 …",
+          "publishedAt": "2026-01-27T12:00:00.000Z"
+        },
+        {
+          "url": "https://developer.mozilla.org/zh-CN/docs/MDN/Guides",
+          "title": "Web 开发者指南 - MDN Web 文档项目 | MDN",
+          "snippet": "2025年11月10日 · CSS 布局指南 MDN 上包含了很多有关 CSS 布局的指南，这个页面将它们收集到了一起。 使用 CSS 动画 CSS 动画使得从 …",
+          "publishedAt": "2025-11-10T12:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+    "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+    "https://x.com/MozDevNet/status/1910180948542709955",
+    "https://github.com/mdn/fetch-examples/blob/main/README.md",
+    "https://www.facebook.com/fb-answers/mdn-fetch-api-response-json-documentation/",
+    "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "https://developer.mozilla.org/en-US/docs/Web/API/Response",
+    "https://html.spec.whatwg.org/multipage/semantics.html"
+  ],
+  "failures": [
+    "exa: no results"
+  ]
+}

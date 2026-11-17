@@ -1,6 +1,7 @@
 package enhance
 
 import (
+	"math"
 	"sort"
 	"websearch/pkg/search/core"
 
@@ -21,6 +22,66 @@ import (
 // ──────────────────────────────────────────────────────────────────────────────
 
 const rrfK = 60.0 // RRF 融合常数
+
+// Options 评分流水线的可回放参数。默认值由 DefaultOptions 给出，与现有行为
+// 等价；benchmark 与历史回放通过覆盖字段来测量单个参数的影响。零值 Options
+// 是一组显式实验条件（无 Boost、无词汇对齐），不是默认配置。
+type Options struct {
+	RRFK               float64 // RRF 常数，<=0 时回落到 60
+	LexicalWeight      float64 // 词汇对齐权重 [0,1]；0 = 关闭，默认 0.5
+	ConsensusScale     float64 // 多引擎共识加分倍率，0 = 关闭，默认 1
+	AuthorityScale     float64 // 权威性加分倍率，0 = 关闭，默认 1
+	RecencyScale       float64 // 新鲜度乘数强度：0 = 关闭，1 = 当前行为
+	DomainQualityScale float64 // 域名品质因子的指数：0 = 关闭，1 = 当前行为
+	RareTermsScale     float64 // 稀有词因子的指数：0 = 关闭，1 = 当前行为
+	Threshold          float64 // final score 阈值，<=0 时由 ApplyScoreFloor 取 0.05
+	MaxSize            int     // 截断条数，0 = 不限
+	MMR                config.MMRConfig
+}
+
+// DefaultOptions 返回当前生产默认值，供 benchmark 以“只改一个字段”的方式扫参。
+func DefaultOptions() Options {
+	return Options{
+		RRFK:               rrfK,
+		LexicalWeight:      0.5,
+		ConsensusScale:     1,
+		AuthorityScale:     1,
+		RecencyScale:       1,
+		DomainQualityScale: 1,
+		RareTermsScale:     1,
+	}
+}
+
+// Normalize 把越界值收回到可用范围；零值是合法实验条件，不做默认值替换。
+func (o Options) Normalize() Options {
+	if o.RRFK <= 0 {
+		o.RRFK = rrfK
+	}
+	o.LexicalWeight = clamp01(o.LexicalWeight)
+	o.ConsensusScale = max0(o.ConsensusScale)
+	o.AuthorityScale = max0(o.AuthorityScale)
+	o.RecencyScale = max0(o.RecencyScale)
+	o.DomainQualityScale = max0(o.DomainQualityScale)
+	o.RareTermsScale = max0(o.RareTermsScale)
+	return o
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
+func max0(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	return v
+}
 
 // RRFScore 对单个 URL 在各引擎中的排名做 Reciprocal Rank Fusion。
 // ranks: engine -> rank（0 基）；K <= 0 时取默认 60。
@@ -109,6 +170,17 @@ func EnhanceResults(query string, buckets []core.ScoreBucket, threshold float64,
 // 评分排序 → ApplyScoreFloor 阀值过滤 → MMR 重排 → maxSize 截断。
 // mmr.Enabled 为 false 时行为与 EnhanceResults 完全一致。
 func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float64, maxSize int, mmr config.MMRConfig) []core.SearchResult {
+	opts := DefaultOptions()
+	opts.Threshold = threshold
+	opts.MaxSize = maxSize
+	opts.MMR = mmr
+	return EnhanceResultsWithOptions(query, buckets, opts)
+}
+
+// EnhanceResultsWithOptions 是参数化入口：benchmark 与历史回放通过 Options
+// 覆盖 RRF 常数、Boost 强度、阈值与 MMR，生产路径仍走 EnhanceResultsMMR。
+func EnhanceResultsWithOptions(query string, buckets []core.ScoreBucket, opts Options) []core.SearchResult {
+	opts = opts.Normalize()
 	hasError := HasErrorToken(query)
 	temporal := HasTemporalIntent(query)
 
@@ -141,7 +213,7 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 				core.PreferDate(&a.res, r)
 			}
 			// RRF: 排名 0 基，与 spec 及 RRFScore 一致（顶部结果得 1/K）
-			a.rrf += w * (1.0 / (rrfK + float64(rank)))
+			a.rrf += w * (1.0 / (opts.RRFK + float64(rank)))
 			if _, dup := a.engines[b.Name]; !dup {
 				a.engines[b.Name] = struct{}{}
 				a.engineOrder = append(a.engineOrder, b.Name)
@@ -154,13 +226,16 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 	for _, key := range order {
 		a := m[key]
 		la := LexicalAlignment(query, a.res.Title, a.res.Content)
-		dq := DomainQuality(a.res.Url, query, hasError)
-		rare := RareTermsFactor(query, a.res.Title, a.res.Content)
+		dq := math.Pow(DomainQuality(a.res.Url, query, hasError), opts.DomainQualityScale)
+		rareRaw := RareTermsFactor(query, a.res.Title, a.res.Content)
+		rare := math.Pow(rareRaw, opts.RareTermsScale)
 
-		score := a.rrf * dq * (0.5 + 0.5*la) * rare
-		score += ConsensusBoost(len(a.families)) // 按 family 计票：同上游引擎（如百度网页/千帆）不双计
-		score += AuthorityBoost(query, a.res.Url, rare)
-		score *= RecencyFactor(temporal, a.res.PublishDate)
+		lexical := (1 - opts.LexicalWeight) + opts.LexicalWeight*la
+		score := a.rrf * dq * lexical * rare
+		score += ConsensusBoost(len(a.families)) * opts.ConsensusScale
+		score += AuthorityBoost(query, a.res.Url, rareRaw) * opts.AuthorityScale
+		recency := RecencyFactor(temporal, a.res.PublishDate)
+		score *= 1 + opts.RecencyScale*(recency-1)
 
 		a.res.Score = score
 		a.res.Engines = a.engineOrder
@@ -173,18 +248,18 @@ func EnhanceResultsMMR(query string, buckets []core.ScoreBucket, threshold float
 	})
 
 	before := len(scored)
-	scored = ApplyScoreFloor(scored, threshold)
+	scored = ApplyScoreFloor(scored, opts.Threshold)
 
 	// MMR 多样性重排（阀值过滤之后、maxSize 截断之前）
-	if mmr.Enabled {
-		scored = ApplyMMR(scored, mmr.Lambda, mmrTargetN(mmr, maxSize, len(scored)))
+	if opts.MMR.Enabled {
+		scored = ApplyMMR(scored, opts.MMR.Lambda, mmrTargetN(opts.MMR, opts.MaxSize, len(scored)))
 	}
 
-	if maxSize > 0 && len(scored) > maxSize {
-		scored = scored[:maxSize]
+	if opts.MaxSize > 0 && len(scored) > opts.MaxSize {
+		scored = scored[:opts.MaxSize]
 	}
 
-	log.InfoT("log.search.enhance.wigolo_score_enhancement_intent_error_temporal", "classifyIntent", classifyIntent(query), "hasError", hasError, "temporal", temporal, "enabled", mmr.Enabled, "before", before, "len", len(scored), "len2", len(scored))
+	log.InfoT("log.search.enhance.wigolo_score_enhancement_intent_error_temporal", "classifyIntent", classifyIntent(query), "hasError", hasError, "temporal", temporal, "enabled", opts.MMR.Enabled, "before", before, "len", len(scored), "len2", len(scored))
 	return scored
 }
 

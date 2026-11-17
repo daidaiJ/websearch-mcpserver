@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "en-linux-612",
+  "query": "Linux kernel 6.12 release",
+  "language": "en",
+  "category": "news",
+  "expectedDomains": [
+    "kernel.org",
+    "lwn.net"
+  ],
+  "recordedAt": "2026-10-23T08:32:18.506Z",
+  "elapsedMs": 4467,
+  "limit": 8,
+  "lead": "global",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://kernelnewbies.org/Linux_6.12",
+          "title": "Linux_6.12",
+          "snippet": "Linux 6.12 was released on Sunday, 17 Nov 2024 . Summary: This release includes realtime support (PREEMPT_RT), a feature that has been in the works for 20 years ..."
+        },
+        {
+          "url": "https://tuxcare.com/blog/linux-kernel-6-12/",
+          "title": "Linux Kernel 6.12 Released: Key Features and ...",
+          "snippet": "The latest Linux kernel 6.12 was released on November 17, 2024. improved file system performance.",
+          "publishedAt": "2024-12-12T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.reddit.com/r/linux/comments/1hbfsgv/kernel_6124_changelog_summary/",
+          "title": "Kernel 6.12.4 Changelog Summary : r/linux",
+          "snippet": "Enhanced support for Intel and AMD processor features, improving system stability. Fixed issues with Wi-Fi drivers, improving reliability and ...",
+          "publishedAt": "2025-10-23T08:32:16.057Z"
+        },
+        {
+          "url": "https://www.kernel.org/pub/linux/kernel/v6.x/",
+          "title": "Index of /pub/linux/kernel/v6.x/",
+          "snippet": "patch-6.12.xz 18-Nov-2024 04:49 6M patch-6.12.1.xz 22-Nov-2024 14:39 1096 patch-6.12.2.xz 317K patch-6.12.3.xz 06-Dec-2024 06:29 317K patch-6.12.4.xz 09-Dec- ..."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/linux/al2023/ug/kernel-update.html",
+          "title": "Updating the Linux Kernel on AL2023",
+          "snippet": "AL2023 was originally released in March 2023 with kernel 6.1. In April 2025, AL2023 added support for Linux kernel 6.12. This kernel added new features ..."
+        },
+        {
+          "url": "https://forums.justlinux.com/showthread.php?157168-Kernel-Version-6-12-comes-with-a-called-real-time-support-whats-about-this!",
+          "title": "Kernel Version 6.12 - comes with a called real-time support",
+          "snippet": "Linux kernel 6.12: This is now generally available. is now generally available. support current and future CPUs and GPUs, two new features stand out."
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Linux_kernel_version_history",
+          "title": "Linux kernel version history",
+          "snippet": "Releases 6.x.y ; Supported: 6.12, 17 November 2024 · 6.12.112 ; Unsupported: 6.11, 15 September 2024 · 6.11.11 ; Unsupported: 6.10, 14 July 2024 · 6.10.14 ..."
+        },
+        {
+          "url": "https://forum.manjaro.org/t/6-12-lts-kernel-development/168393",
+          "title": "6.12 LTS Kernel Development - Others",
+          "snippet": "Linux 6.12 LTS is expected in November 2024. So far a lot of new features got added. Here a few: https://www.phoronix.com/news/Linux-6.12- ...",
+          "publishedAt": "2024-09-22T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=yJcKfkC1JAs",
+          "title": "Linux Kernel 6.12 Released: Top Features You Need to ...",
+          "snippet": "Discover the exciting new features of Linux Kernel 6.12, including PREEMPT_RT support, sched_ext, DRM QR codes, hardware updates, and more!",
+          "publishedAt": "2025-10-23T08:32:16.057Z"
+        },
+        {
+          "url": "https://cip-project.org/blog/2025/01/13/kernel-6-12-will-have-10-years-support-via-cip-are-all-your-maintenance-problems-solved",
+          "title": "Kernel 6.12 will have 10 years support via CIP",
+          "snippet": "This means that — after 4.4, 4.19, 5.10 and 6.1 — 6.12 will also receive up to 10 years support. If your update/testing/roll-out plans are not ...",
+          "publishedAt": "2025-01-13T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "region": "global",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.kernel.org/releases.html",
+          "title": "Active kernel releases",
+          "snippet": "Prepatch : Prepatch or \"RC\" kernels are mainline kernel pre-releases that are mostly aimed at other kernel developers and Linux enthusiasts. They must be compiled from source and usually contain new features that must be tested before they…"
+        },
+        {
+          "url": "https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.12",
+          "title": "N/A",
+          "snippet": "kernel with CONFIG_IMA_KEXEC enabled and booted on an AMD ... enabled hardware properly decrypts the ima_kexec buffer information passed to it from the previous ... non-TLS definition of the stack protector guard cookie leads to bogus code…"
+        },
+        {
+          "url": "https://www.spinics.net/lists/announce-kernel/msg05031.html",
+          "title": "Linux kernel 6.12 released — Linux Kernel Announce",
+          "snippet": "Linux kernel 6.12 released — Linux Kernel Announce # Linux kernel 6.12 released - Subject: Linux kernel 6.12 released - From: Linux Kernel Distribution System <kdist@xxxxxxxxxxxxxxxx> - Date: Mon, 18 Nov 2024 05:00:49 +0000 ``` Linux kerne…"
+        },
+        {
+          "url": "https://9to5linux.com/linux-kernel-6-12-officially-released-this-is-whats-new",
+          "title": "Linux Kernel 6.12 Officially Released, This Is What's New - 9to5Linux",
+          "snippet": "Linux Kernel 6.12 Officially Released, This Is What’s New This release introduces real-time “PREEMPT_RT” support, a new scheduler called sched_ext, and DRM panic messages as QR codes. by Marcus Nestor November 17th, 2024 November 17th, 202…"
+        },
+        {
+          "url": "https://www.kernel.org/pub/linux/kernel/v6.x/",
+          "title": "Index of /pub/linux/kernel/v6.x/",
+          "snippet": "14:19 2M ChangeLog-6.6.146 29-Jul-2026 15:59 1664 ChangeLog-6.6.147 30-Jul-2026 11:18 5959 ChangeLog-6.6.148 03-Aug-2026 09:24 702K ChangeLog-6.6.149 06-Aug-2026 17:44 1168 ChangeLog-6.6.150 07-Aug-2026 06:28 1665 ChangeLog-6.6.151 09-Aug-…"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Linux_kernel_version_history",
+          "title": "Linux kernel version history",
+          "snippet": "| Version | Original release date | Last release | Maintainer | EOL | Prominent features | Notes | | --- | --- | --- | --- | --- | --- | --- | | Unsupported: 6.19 | 8 February 2026 [75] | 6.19.14 [76] | Greg Kroah-Hartman | 22 April 2026 |…"
+        },
+        {
+          "url": "https://itsfoss.com/news/linux-kernel-6-12/",
+          "title": "Linux Kernel 6.12 Release Adds Real-Time Capability and Initial Raspberry Pi 5 Support",
+          "snippet": "Linux Kernel 6.12 Release Adds Real-Time Capability and Initial Raspberry Pi 5 Support Linux Kernel 6.12 finally brings in real-time computing capabilities to the mainline. Sourav Rudra 18 Nov 2024 4 min read Every two or three months, we…"
+        },
+        {
+          "url": "https://paul-moore.com/blog/d/2024/12/linux_v612.html",
+          "title": "Paul Moore · Linux 6.12 Released",
+          "snippet": "Linux 6.12 Released 06 Dec 2024 tags: audit lsm selinux Linux v6.12 was released on Sunday, November 17th. I already wrote up a post highlighting the LSM, SELinux, and audit changes that were submitted during the merge window, however ther…"
+        },
+        {
+          "url": "https://www.linuxtoday.com/blog/linux-kernel-6-12-officially-released-this-is-whats-new/",
+          "title": "Linux Kernel 6.12 Officially Released, This Is What’s New | Linux Today",
+          "snippet": "Highlights of Linux 6.12 include real-time “PREEMPT_RT” support, a new scheduler called sched_ext, DRM panic messages as QR codes, Clang support (including LTO) for nolibc, an updated cpuidle tool that now displays"
+        },
+        {
+          "url": "https://www.linuxtoday.com/blog/its-official-linux-kernel-6-12-will-be-lts-supported-for-multiple-years/",
+          "title": "Linux Kernel 6.12 Will Be LTS, Supported for “Multiple Years”",
+          "snippet": "Linux kernel 6.12 was released on November 17th, 2024, and introduces new features like real-time “PREEMPT_RT” support, a new scheduler called sched_ext, and DRM panic messages as QR codes, as well as numerous new and updated drivers for b…"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://kernelnewbies.org/Linux_6.12",
+          "title": "Linux_6.12 - Linux Kernel Newbies",
+          "snippet": "- Linux_6.12 Linux 6.12 was released on Sunday, 17 Nov 2024 ."
+        },
+        {
+          "url": "https://tuxcare.com/blog/linux-kernel-6-12/",
+          "title": "Linux Kernel 6.12 Released: Key Features and Improvements",
+          "snippet": "The latest Linux kernel 6.12 was released on November 17, 2024. With each new release, the Linux kernel continues to push the boundaries of ..."
+        },
+        {
+          "url": "https://www.reddit.com/r/linux/comments/1hbfsgv/kernel_6124_changelog_summary/",
+          "title": "Kernel 6.12.4 Changelog Summary : r/linux - Reddit",
+          "snippet": "Resolved issues with power management, Fixed issues with Wi-Fi drivers, improving reliability and reducing packet loss. Linux Kernel 6.12 has ...The 6.12 kernel has been released : r/linuxIs 6.12 LTS worth ? : r/archlinuxMore results from…"
+        },
+        {
+          "url": "https://www.kernel.org/pub/linux/kernel/v6.x/",
+          "title": "Index of /pub/linux/kernel/v6.x/",
+          "snippet": "1.xz 22-Nov-2024 14:39 1096 patch-6.12. · 2.xz 05-Dec-2024 13:12 317K patch-6.12. · 3.xz 06-Dec-2024 06:29 317K patch-6.12. · 4.xz 09-Dec-2024 09:53 350K patch- ..."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/linux/al2023/ug/kernel-update.html",
+          "title": "Updating the Linux Kernel on AL2023 - AWS Documentation",
+          "snippet": "Updating the Linux Kernel on AL2023 Linux Kernel Versions on AL2023 In April 2025, AL2023 added support for Linux kernel 6.12. AL2023 kernels - Frequently Asked Questions 3. How do I check which kernel version I am running right now? ``` $…"
+        },
+        {
+          "url": "https://forum.manjaro.org/t/6-12-lts-kernel-development/168393",
+          "title": "6.12 LTS Kernel Development - Others - Manjaro Linux Forum",
+          "snippet": "Linux 6.12 LTS is expected in November 2024. So far a lot of new features got added. Here a few: https://www.phoronix.com/news/Linux-6.12- ..."
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Linux_kernel_version_history",
+          "title": "Linux kernel version history - Wikipedia",
+          "snippet": "Releases 6.x.y | Version | Original release date | Last release | Maintainer | EOL | Prominent features | hideNotes | |-|-|-|-|-|-|-| | Supported: 6.12 | 17 November 2024[[140]](https://en.wikipedia.org/wiki/Linux_kernel_version_history#ci…"
+        },
+        {
+          "url": "https://forums.justlinux.com/showthread.php?157168-Kernel-Version-6-12-comes-with-a-called-real-time-support-whats-about-this!",
+          "title": "Thread: Kernel Version 6.12 - comes with a called real-time support",
+          "snippet": "Torvalds announced yesterday the Linux kernel 6.12: This is now generally available. interesting new features to offer … future CPUs and GPUs,"
+        },
+        {
+          "url": "https://cip-project.org/blog/2025/01/13/kernel-6-12-will-have-10-years-support-via-cip-are-all-your-maintenance-problems-solved",
+          "title": "Kernel 6.12 will have 10 years support via CIP – Are all your maintenance ...",
+          "snippet": "This means that — after 4.4, 4.19, 5.10 and 6.1 — 6.12 will also receive up to 10 years support. If your update/testing/roll-out plans are not ..."
+        },
+        {
+          "url": "https://github.com/GrapheneOS/kernel_common-6.12",
+          "title": "GrapheneOS/kernel_common-6.12: Linux 6.12 LTS branch. - GitHub",
+          "snippet": "Common Kernel patch requirements. All patches must conform to the Linux kernel coding standards and pass scripts/checkpatch.pl; Patches shall ..."
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://kernelnewbies.org/Linux_6.12",
+          "title": "Linux_6.12 - Linux Kernel Newbies",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://origin.kernel.org/",
+          "title": "The Linux Kernel Archives",
+          "snippet": "This site is operated by the Linux"
+        },
+        {
+          "url": "https://www.kernel.org/index.html",
+          "title": "The Linux Kernel Archives",
+          "snippet": "The Linux"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Linux_kernel_version_history",
+          "title": "Linux kernel version history - Wikipedia",
+          "snippet": "The kernel"
+        },
+        {
+          "url": "https://www.kernel.org/category/releases.html",
+          "title": "The Linux Kernel Archives - Releases",
+          "snippet": "A long time ago Linux"
+        },
+        {
+          "url": "https://www.linuxcompatible.org/story/linux-kernel-612-released-1a/",
+          "title": "Linux Kernel 6.12 released",
+          "snippet": "Linus Torvalds has officially announced the release"
+        },
+        {
+          "url": "https://9to5linux.com/linux-kernel-6-12-officially-released-this-is-whats-new",
+          "title": "Linux Kernel 6.12 Officially Released, This Is What's New",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://ostechnix.com/linux-kernel-6-12-released/",
+          "title": "Linux Kernel 6.12 is Officially Released - OSTechNix",
+          "snippet": "The final version of Linux"
+        },
+        {
+          "url": "https://lwn.net/Articles/1095706/",
+          "title": "Linux 6.12.111 - lwn.net",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://github.com/manjaro-kernels/linux612/releases",
+          "title": "Releases: manjaro-kernels/linux612 - GitHub",
+          "snippet": "6.12"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.runoob.com/linux/linux-tutorial.html",
+          "title": "Linux 教程 | 菜鸟教程",
+          "snippet": "Linux 是一种自由和开放源码的类 UNIX 操作系统。 Linux 英文解释为 Linux is not Unix。 Linux 是在 1991 由林纳斯·托瓦兹在赫尔辛基大学上 … 阅读更多"
+        },
+        {
+          "url": "https://baike.baidu.com/item/Linux/27050",
+          "title": "Linux _百度百科",
+          "snippet": "1991年10月5日 · Linux是类Unix操作系统内核，由林纳斯·托瓦兹（Linus Torvalds）于1991年开始开发并首次发布，采用开放协作方式持续演 …",
+          "publishedAt": "1991-10-05T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.linux.org/pages/download/",
+          "title": "Download Linux | Linux .org",
+          "snippet": "2017年5月1日 · 24 Popular Linux Distributions Explore different Linux distributions and find the one that fits your needs. Try …",
+          "publishedAt": "2017-05-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://blog.csdn.net/bigbangbangbang1/article/details/131575669",
+          "title": "Linux 入门教程（非常详细）从零基础入门到精通，看完这 ...",
+          "snippet": "2024年9月3日 · 什么是 Linux Linux 系统内核与 Linux 发行套件的区别 Linux 系统内核指的是由 Linus Torvalds 负责维护，提供硬件抽象层、 …",
+          "publishedAt": "2024-09-03T12:00:00.000Z"
+        },
+        {
+          "url": "https://cn.ubuntu.com/download",
+          "title": "Ubuntu 系统下载 | Ubuntu",
+          "snippet": "2026年4月1日 · Ubuntu 下载 Ubuntu 是世界上最受欢迎的 Linux 操作系统。 您可以在桌面电脑、笔记本、工作站、服务器或物联网设备上运 …",
+          "publishedAt": "2026-04-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.kernel.org/",
+          "title": "The Linux Kernel Archives",
+          "snippet": "5 天之前 · This site is operated by the Linux Kernel Organization, a 501 (c)3 nonprofit corporation, with support from the following …",
+          "publishedAt": "2026-10-18T08:32:14.661Z"
+        },
+        {
+          "url": "https://www.eet-china.com/mp/a533286.html",
+          "title": "人人都在说 Linux ，它到底是什么？-电子工程专辑",
+          "snippet": "1 小时前 · 一、Linux是什么？ 简单来说，Linux是一个操作系统内核。但是在实际使用中，人们通常说的“Linux系统”，通常指基于Linux内核构 …",
+          "publishedAt": "2026-10-23T07:32:14.661Z"
+        },
+        {
+          "url": "https://www.linux.org/",
+          "title": "Linux .org",
+          "snippet": "1 天前 · Of course, many companies may need an Operating System (OS) other than Linux, such as Windows. So, the setup is not a …",
+          "publishedAt": "2026-10-22T08:32:14.661Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2066996767648961760",
+          "title": "Linux Mint和Ubuntu：2026年，新手入坑 Linux 选谁更省心？",
+          "snippet": "2026年想要上手Linux的新手，可比十年、 二十年前的用户们幸福多了。再也不用一手攥着入门教程，一边对着 GRUB /LILO引导程序提心吊 …"
+        },
+        {
+          "url": "https://www.redhat.com/zh-cn/topics/linux",
+          "title": "了解 Linux - Red Hat",
+          "snippet": "什么是 Linux？ Linux® 是 Linus Torvalds 于 1991 年创建的开源操作系统（OS）。 如今，在其全球爱好者社区的推动下，这款操作系统已广 …"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://en.wikipedia.org/wiki/Linux_kernel_version_history",
+    "https://kernelnewbies.org/Linux_6.12",
+    "https://www.kernel.org/pub/linux/kernel/v6.x/",
+    "https://docs.aws.amazon.com/linux/al2023/ug/kernel-update.html",
+    "https://tuxcare.com/blog/linux-kernel-6-12/",
+    "https://www.reddit.com/r/linux/comments/1hbfsgv/kernel_6124_changelog_summary/",
+    "https://forums.justlinux.com/showthread.php?157168-Kernel-Version-6-12-comes-with-a-called-real-time-support-whats-about-this!",
+    "https://forum.manjaro.org/t/6-12-lts-kernel-development/168393"
+  ],
+  "failures": []
+}

@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "en-go-124",
+  "query": "Go 1.24 release notes",
+  "language": "en",
+  "category": "release",
+  "expectedDomains": [
+    "go.dev",
+    "golang.org"
+  ],
+  "recordedAt": "2026-10-23T08:31:50.151Z",
+  "elapsedMs": 3705,
+  "limit": 8,
+  "lead": "global",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://go.dev/doc/go1.24",
+          "title": "Go 1.24 Release Notes - The Go Programming ...",
+          "snippet": "The latest Go release, version 1.24, arrives in February 2025, Most of its changes are in the implementation of the toolchain, runtime, and libraries. Go 1.24 ..."
+        },
+        {
+          "url": "https://www.reddit.com/r/golang/comments/1j3jo7i/go_1241_is_released/",
+          "title": "Go 1.24.1 is released : r/golang",
+          "snippet": "The release note for go1.24.1 is now available: 👉 https://go.dev/doc/devel/release#go1.24.minor. That was a fast release need to check RElease ...",
+          "publishedAt": "2025-10-23T08:31:48.917Z"
+        },
+        {
+          "url": "https://goframe.org/en/release/golang/go1.24",
+          "title": "Go 1.24 (2025-02-11)",
+          "snippet": "Go 1.24 was released in February 2025, six months after Go 1.23. Most changes are in the implementation of the toolchain, runtime, and libraries ...",
+          "publishedAt": "2025-12-11T12:00:00.000Z"
+        },
+        {
+          "url": "https://antonz.org/go-1-24/",
+          "title": "Go 1.24 interactive tour",
+          "snippet": "Go 1.24 introduces many new features, including weak pointers, finalizers, and directory-scoped filesystem access. A lot of effort has gone into ...",
+          "publishedAt": "2025-01-13T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=qjiIA0220ms",
+          "title": "Golang 1.24 What is new?",
+          "snippet": "Go 1.24 includes many changes to the toolchain, runtime and libraries, new features include the \"go tool\" command, the \"os.Root\" type as well ...",
+          "publishedAt": "2025-10-23T08:31:48.917Z"
+        },
+        {
+          "url": "https://medium.com/@dmytro.misik/go-1-24-personal-top-features-07bd8fd0ad2b",
+          "title": "Go 1.24 Personal Top Features",
+          "snippet": "The new version introduces just one language extension but brings numerous improvements to Go's tools, runtime, and standard libraries.",
+          "publishedAt": "2025-10-23T08:31:48.917Z"
+        },
+        {
+          "url": "https://leapcell.io/blog/go-1-24-release-summary",
+          "title": "Go 1.24 Released: Faster, Smarter, Better",
+          "snippet": "Summary of Go 1.24 Release Notes · I. Language Changes · II. Tools · III. Runtime · IV. Compiler · V. Linker · VI. Bootstrapping · VII. Standard ...",
+          "publishedAt": "2025-02-12T12:00:00.000Z"
+        },
+        {
+          "url": "https://github.com/golang/go/issues/68545",
+          "title": "doc: write release notes for Go 1.24 · Issue #68545",
+          "snippet": "This is the tracking issue for writing the Go 1.24 Release Notes. The version at tip can be viewed at https://tip.golang.org/doc/go1.24.",
+          "publishedAt": "2024-07-22T12:00:00.000Z"
+        },
+        {
+          "url": "https://developers.binance.com/en/docs/sdks-tools/connectors/go",
+          "title": "Go | Binance Developer Docs",
+          "snippet": "For source code, issues, and release notes, see the binance-connector-go repository on GitHub. Supported environments Go 1.24 or newer Backend Go applications ...",
+          "publishedAt": "2026-10-22T14:31:48.917Z"
+        },
+        {
+          "url": "https://www.tenable.com/plugins/nessus/370207",
+          "title": "RHEL 8 : go-toolset:rhel8 (RHSA-2026:87246)",
+          "snippet": "Go Toolset provides the Go programming language tools and libraries. Go is alternatively known as golang. Security Fix(es): * golang: net/http ...",
+          "publishedAt": "2026-10-22T12:31:48.917Z"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "region": "global",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://go.dev/doc/go1.24",
+          "title": "Go 1.24 Release Notes - The Go Programming Language",
+          "snippet": "Go 1.24 Release Notes - The Go Programming Language ## Introduction to Go 1.24 The latest Go release, version 1.24, arrives in February 2025, six months after Go 1.23. Most of its changes are in the implementation of the toolchain, runtime…"
+        },
+        {
+          "url": "https://go.dev/blog/go1.24",
+          "title": "Go 1.24 is released! - The Go Programming ...",
+          "snippet": "Go 1.24 is released! - The Go Programming Language # Go 1.24 is released! Junyang Shao, on behalf of the Go team 11 February 2025 Today the Go team is excited to release Go 1.24, which you can get by visiting the download page. Go 1.24 com…"
+        },
+        {
+          "url": "https://groups.google.com/g/golang-announce/c/_G2hEiKx8SE",
+          "title": "Go 1.24.0 is released",
+          "snippet": "Go 1.24.0 is released ### anno...@golang.org Feb 11, 2025, 1:38:30 PM 2/11/25 to golan...@googlegroups.com Hello gophers, We have just released Go 1.24.0. To find out what has changed in Go 1.24, read the release notes: https://go.dev/doc/…"
+        },
+        {
+          "url": "https://go.dev/doc/devel/release",
+          "title": "Release History - The Go Programming Language",
+          "snippet": "Each major ... release ... supported until ... . ... . ... . ... . ... ## go1.24.0 (released 2025-02-11) Go 1.24.0 is a major release of Go. Read the Go 1.24 Release Notes for more information. ### Minor revisions go1.24.1 (released 2025-0…"
+        },
+        {
+          "url": "https://antonz.org/go-1-24/",
+          "title": "Go 1.24 interactive tour",
+          "snippet": ", so it's a good time to explore what's new. The ... tables • Concurrent map • Directory scope • Benchmark loop • Fake time • Test context • Discard logs • Appender interfaces • More iterators • SHA-3 and"
+        },
+        {
+          "url": "https://github.com/golang/go/issues/68545",
+          "title": "doc: write release notes for Go 1.24 · Issue #68545",
+          "snippet": "://tip.golang.org/doc/go1.24. ... 24 Release Notes are complete, this should be closed, and a similar issue should be made for the next release. The previous issue was #65614. ... > The Go 1.24 Release Notes draft is complete, and all"
+        },
+        {
+          "url": "https://go-lang.org.cn/doc/go1.24",
+          "title": "Go 1.24 发行说明 - Go 编程语言 - Go 编程语言",
+          "snippet": "Go 1.24 简介 最新发布的 Go 版本 1.24 将于 2025 年 2 月 发布，比 Go 1.23 晚六个月。其大部分改动集中在工具链、运行时和库的实现上。一如既往，本次发布也遵循 Go 1 兼容性承诺。我们预计绝大多数 Go 程序都能像以前一样继续编译和运行。 ... ## 语言变化 Go 1.24 现在完全支持 泛型类型别名：类型别名可以像定义类型一样进行参数化。详情请参阅 语言规范。目前，可以通过设置 `GOEXPERIMENT=noaliastypepar…"
+        },
+        {
+          "url": "https://goframe.org/en/release/golang/go1.24",
+          "title": "Go 1.24 (2025-02-11)",
+          "snippet": "24 was released in February 2025, six months after Go ... implementation of the toolchain, runtime, and libraries. Go 1.24 continues to uphold the Go 1 compatibility promise. Almost all Go programs are expected to continue to compile and r…"
+        },
+        {
+          "url": "https://leapcell.io/blog/go-1-24-release-summary",
+          "title": "Go 1.24 Released: Faster, Smarter, Better",
+          "snippet": ", and improvements, effectively ensuring the smooth compilation and operation of the vast majority of Go programs. This update not only provides developers with more powerful programming tools but also significantly enhances the performanc…"
+        },
+        {
+          "url": "https://www.infoworld.com/article/3627904/go-1-24-brings-full-support-for-generic-type-aliases.html",
+          "title": "Go 1.24 arrives with generic type aliases, boosted WebAssembly support | InfoWorld",
+          "snippet": "notes for Go 1.24 note that the release brings full support for ... , in which a type alias may be parameterized like a defined type. For now, ... be disabled by setting `GOEXPERIMENT=noaliastypeparams`. This parameter setting will be remo…"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://go.dev/doc/go1.24",
+          "title": "Go 1.24 Release Notes - The Go Programming Language - Go.dev",
+          "snippet": "Go 1.24 Release Notes Introduction to Go 1.24 ¶ The latest Go release, version 1.24, arrives in February 2025, six months after Go 1.23. Most of its changes are in the implementation of the toolchain, runtime, and libraries. As always, the…"
+        },
+        {
+          "url": "https://go.dev/doc/devel/release",
+          "title": "Release History - The Go Programming Language - Go.dev",
+          "snippet": "Release History go1.24.0 (released 2025-02-11) ¶ Read the Go 1.24 Release Notes for more information. Minor revisions ¶ (released 2025-03-04) fixes to the `net/http` package, as well as fixes to cgo, the compiler, the `go` command, and the…"
+        },
+        {
+          "url": "https://www.reddit.com/r/golang/comments/1j3jo7i/go_1241_is_released/",
+          "title": "Go 1.24.1 is released : r/golang - Reddit",
+          "snippet": "The release note for go1.24.1 is now available: 👉 https://go.dev/doc/devel/release#go1.24.minor. That was a fast release need to check RElease ...Go 1.24 is released (self.golang)Go 1.24.3 is released : r/golangMore results from www.reddi…"
+        },
+        {
+          "url": "https://antonz.org/go-1-24/",
+          "title": "Go 1.24 interactive tour - Anton Zhiyanov",
+          "snippet": "Go 1.24 introduces many new features, including weak pointers, finalizers, and directory-scoped filesystem access. A lot of effort has gone into ..."
+        },
+        {
+          "url": "https://goframe.org/en/release/golang/go1.24",
+          "title": "Go 1.24 (2025-02-11) | GoFrame - GoFrame",
+          "snippet": "Go 1.24 was released in February 2025, six months after Go 1.23. Most changes are in the implementation of the toolchain, runtime, and libraries ..."
+        },
+        {
+          "url": "https://go.dev/blog/go1.24",
+          "title": "Go 1.24 is released! - The Go Programming Language - Go.dev",
+          "snippet": "Go 1.24 is released! Junyang Shao, on behalf of the Go team Today the Go team is excited to release Go 1.24, which you can get by visiting the download page. Here are some of the notable changes; for the full list, refer to the release not…"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=qjiIA0220ms",
+          "title": "Golang 1.24 What is new? - YouTube",
+          "snippet": "What is new in Golang 1.24? Go 1.24 includes many changes to the ... □ Release notes: https://go.dev/doc/go1.24 □ 1.24 Milestone on ..."
+        },
+        {
+          "url": "https://medium.com/@dmytro.misik/go-1-24-personal-top-features-07bd8fd0ad2b",
+          "title": "Go 1.24 Personal Top Features - Medium",
+          "snippet": "The new version introduces just one language extension but brings numerous improvements to Go's tools, runtime, and standard libraries."
+        },
+        {
+          "url": "https://leapcell.io/blog/go-1-24-release-summary",
+          "title": "Go 1.24 Released: Faster, Smarter, Better – Everything You Need to ...",
+          "snippet": "Summary of Go 1.24 Release Notes · I. Language Changes · II. Tools · III. Runtime · IV. Compiler · V. Linker · VI. Bootstrapping · VII. Standard ..."
+        },
+        {
+          "url": "https://github.com/golang/go/issues/68545",
+          "title": "doc: write release notes for Go 1.24 · Issue #68545 · golang/go - GitHub",
+          "snippet": "This is the tracking issue for writing the Go 1.24 Release Notes. The version at tip can be viewed at https://tip.golang.org/doc/go1.24."
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://go.dev/doc/go1.24",
+          "title": "Go 1.24 Release Notes - The Go Programming Language",
+          "snippet": "Go"
+        },
+        {
+          "url": "https://go.dev/blog/go1.24",
+          "title": "Go 1.24 is released! - The Go Programming Language",
+          "snippet": "Please read the Go 1.24"
+        },
+        {
+          "url": "https://versionlog.com/golang/1.24/",
+          "title": "Go 1.24 - What's New, Support Lifecycle & EOL - VersionLog",
+          "snippet": "What Is New in Go 1.24"
+        },
+        {
+          "url": "https://antonz.org/go-1-24/",
+          "title": "Go 1.24 interactive tour - antonz.org",
+          "snippet": "Go"
+        },
+        {
+          "url": "http://dev.golang.org/release",
+          "title": "Go Release Dashboard",
+          "snippet": "★ #79427 cmd/compile,cmd/ go"
+        },
+        {
+          "url": "https://daily.dev/posts/yh0hpk3x0",
+          "title": "Go 1.24 Release Notes | daily.dev",
+          "snippet": "Go"
+        },
+        {
+          "url": "https://www.gofaq.org/en/what-is-new-in-go-124-latest-features-and-improvements/",
+          "title": "What Is New in Go 1.24? Latest Features & Improvements",
+          "snippet": "Go"
+        },
+        {
+          "url": "https://boldlygo.tech/archive/2025-02-11-go-1.24.0-is-here/",
+          "title": "Go 1.24.0 is here! - Boldly Go",
+          "snippet": "Go"
+        },
+        {
+          "url": "https://dev.to/leapcell/go-124-released-massive-optimizations-key-upgrades-1mbn",
+          "title": "Go 1.24 Released: Massive Optimizations & Key Upgrades!",
+          "snippet": "Summary of Go 1.24"
+        },
+        {
+          "url": "https://goframe.org/en/release/golang",
+          "title": "Go Release Notes | GoFrame - A powerful framework for faster, easier ...",
+          "snippet": "This page records the release"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://golang.google.cn/",
+          "title": "The Go Programming Language",
+          "snippet": "“ Go has excellent characteristics for scalability and services written using it typically have very small memory footprints. Because code … 阅读更多"
+        },
+        {
+          "url": "https://www.runoob.com/go/go-tutorial.html",
+          "title": "Go 语言教程 | 菜鸟教程",
+          "snippet": "Go 是一个开源的编程语言，它能让构造简单、可靠且高效的软件变得容易。 Go是从2007年末由Robert Griesemer, Rob Pike, Ken Thompson …"
+        },
+        {
+          "url": "https://go-lang.org.cn/doc/install",
+          "title": "下载并安装 - Go 编程语言 - Go 编程语言",
+          "snippet": "文档 下载并安装 下载并安装 按照此处描述的步骤快速下载并安装 Go。 有关安装的其他内容，你可能对以下内容感兴趣： 管理 Go 安装 -- 如 …"
+        },
+        {
+          "url": "https://go.dev/doc/install",
+          "title": "Download and install - The Go Programming Language",
+          "snippet": "Open the package file you downloaded and follow the prompts to install Go. The package installs the Go distribution to /usr/local/go. …"
+        },
+        {
+          "url": "https://learnku.com/docs/the-way-to-go",
+          "title": "《 Go 入门指南》 | Go 技术论坛 - LearnKu",
+          "snippet": "我们致力于为 Golang / Go 语言开发者提供一个分享创造、结识伙伴、协同互助的中文论坛，由 Golang / Go 语言爱好者维护的高品质 Golang …"
+        },
+        {
+          "url": "https://baike.baidu.com/item/go/953521",
+          "title": "go （计算机编程语言）_百度百科",
+          "snippet": "自从Go语言由谷歌于2009年11月正式推出 [1]，成为开源项目以来，它逐渐成为了软件开发领域中备受关注的编程语言之一。 在Go语言的设计 …"
+        },
+        {
+          "url": "https://www.runoob.com/go/go-environment.html",
+          "title": "Go 语言环境安装 | 菜鸟教程",
+          "snippet": "Go 语言环境安装 Go 语言支持以下系统： Linux FreeBSD Mac OS X（也称为 Darwin） Windows 安装包下载地址为： https://go.dev/dl/。 …"
+        },
+        {
+          "url": "https://www.topgoer.com/go%E5%9F%BA%E7%A1%80/",
+          "title": "Go 基础 · Go 语言中文文档",
+          "snippet": "2023年2月18日 · 1. Go基础 go语言的主要特征 Golang内置类型和函数 init函数和main函数 命令 运算符 下划线_ 变量和常量 基本类型 数 …",
+          "publishedAt": "2023-02-18T12:00:00.000Z"
+        },
+        {
+          "url": "https://golang.xiniushu.com/guide.html",
+          "title": "入门指南 | Golang中文学习文档",
+          "snippet": "2023年3月28日 · Go语言诞生于2007年9月30日，由三位大佬共同创造，他们分别是Ken Thompson(贝尔实验室成员，Unix系统系统先驱，B …",
+          "publishedAt": "2023-03-28T12:00:00.000Z"
+        },
+        {
+          "url": "https://golang-china.github.io/gopl-zh/",
+          "title": "Go 语言圣经 - Go 语言圣经 - GitHub Pages",
+          "snippet": "2026年7月3日 · Go语言圣经（中文版） Go语言圣经 《The Go Programming Language》 中文版本，仅供学习交流之用。 对于希望学 …",
+          "publishedAt": "2026-07-03T12:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://go.dev/doc/go1.24",
+    "https://antonz.org/go-1-24/",
+    "https://goframe.org/en/release/golang/go1.24",
+    "https://go.dev/blog/go1.24",
+    "https://leapcell.io/blog/go-1-24-release-summary",
+    "https://github.com/golang/go/issues/68545",
+    "https://www.reddit.com/r/golang/comments/1j3jo7i/go_1241_is_released/",
+    "https://go.dev/doc/devel/release"
+  ],
+  "failures": []
+}

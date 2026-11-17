@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-npm-install",
+  "query": "npm install 依赖 package.json",
+  "language": "zh",
+  "category": "package",
+  "expectedDomains": [
+    "docs.npmjs.com",
+    "npmjs.com"
+  ],
+  "recordedAt": "2026-10-23T08:31:17.488Z",
+  "elapsedMs": 3502,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.csdn.net/lydia_liuY/article/details/80816267",
+          "title": "npm如何一键安装package.json里的依赖文件。 原创 - CSDN博客",
+          "snippet": "npm install 默认安装package.json中的所有模块。 如果只想安装dependencies中的内容，可以使用--dependencies字段： npm install --dependencies."
+        },
+        {
+          "url": "https://docs.npmjs.com/specifying-dependencies-and-devdependencies-in-a-package-json-file/",
+          "title": "Adding dependencies to a package.json file - npm Docs",
+          "snippet": "# Specifying dependencies and devDependencies in a package.json file When you (or another user) run `npm install`, npm will download dependencies and devDependencies that are listed in `package.json` that meet the [semantic version](https://docs.npmjs.com/about-semantic-versioning) requirements list..."
+        },
+        {
+          "url": "https://docs.cloud.google.com/run/docs/runtimes/nodejs-dependencies?hl=zh-cn",
+          "title": "指定Node.js 依赖项| Cloud Run",
+          "snippet": "Node.js 中的依赖项可通过npm 进行管理，并在名为 package.json 的元数据文件中表示。您可以使用npm、yarn 或pnpm 来安装Node.js 依赖项。 Node.js Functions 框架是所有 ..."
+        },
+        {
+          "url": "https://stackoverflow.com/questions/6480549/install-dependencies-globally-and-locally-using-package-json",
+          "title": "Install dependencies globally and locally using package.json",
+          "snippet": "Using npm we can install the modules globally using -g option. How can we do this in the package.json file? Suppose, these are my dependencies ..."
+        },
+        {
+          "url": "https://bbs.imbhj.com/t/topic/444",
+          "title": "npm包管理之严格按照package-lock安装本地环境 - CEPD@BBS",
+          "snippet": "要严格按照 package-lock.json 安装，杜绝任何自动升级和不确定性，请使用 npm ci 。 · npm install 用于日常开发中管理（增、删、改）你的项目依赖。 · npm ..."
+        },
+        {
+          "url": "https://juejin.cn/post/7201889983170756664",
+          "title": "浅谈npm install 依赖安装原理 - 稀土掘金",
+          "snippet": "package.json 通常只会锁定大版本，意味着按照 package.json 安装依赖版本可能会发生改变，package-lock.json 可以保证依赖安装的一致性. 加快依赖包 ..."
+        },
+        {
+          "url": "https://nodejs.cn/npm/packages-and-modules/contributing-packages-to-the-registry/specifying-dependencies-and-devdependencies-in-a-package-json-file/",
+          "title": "在package.json 文件中指定dependencies 和 ...",
+          "snippet": "要指定您的项目所依赖的包，您必须在包的 package.json 文件中将它们列为 \"dependencies\" 或 \"devDependencies\" 。当您（或其他用户）运行 npm install 时，npm 将下载 ..."
+        },
+        {
+          "url": "https://www.trae.cn/article/660486402",
+          "title": "npm install命令的工作流程与使用场景解析 - TRAE",
+          "snippet": "当你执行这个命令时，npm 会根据package.json 文件中定义的依赖项，自动下载并安装所需的包。这个看似简单的命令背后，隐藏着复杂而精妙的工作机制。 工作 ..."
+        },
+        {
+          "url": "https://gist.github.com/a6555d921659890f69046b788f21f23b",
+          "title": "package.json for NPM 文件详解 - Discover gists · GitHub",
+          "snippet": "package.json文件描述了一个NPM包的所有相关信息，包括作者、简介、包依赖、构建等信息。格式必须是严格的JSON格式。 通常我们在创建一个NPM程序时，可以使用npm init ..."
+        },
+        {
+          "url": "https://docs.npmjs.com/cli/configuring-npm/package-json/",
+          "title": "package.json - npm Docs",
+          "snippet": "# package.json ## [dependencies](https://docs.npmjs.com/cli/v12/configuring-npm/package-json#dependencies) ### [URLs as Dependencies](https://docs.npmjs.com/cli/v12/configuring-npm/package-json#urls-as-dependencies) This tarball will be downloaded and installed locally to your package at install tim..."
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.npmjs.com/",
+          "title": "npm | Home",
+          "snippet": "4 天之前 · Relied upon by more than 17 million developers worldwide, npm is committed to making JavaScript development elegant, …",
+          "publishedAt": "2026-10-19T08:31:14.238Z"
+        },
+        {
+          "url": "https://npm.nodejs.cn/cli/v11/configuring-npm/install",
+          "title": "安装 | npm 中文网",
+          "snippet": "2026年10月8日 · 🌐 To publish and install packages to and from the public npm registry, you must install Node.js and the npm command …",
+          "publishedAt": "2026-10-08T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-npm.html",
+          "title": "NPM 使用介绍 | 菜鸟教程",
+          "snippet": "NPM 使用介绍 NPM（Node Package Manager）是一个 JavaScript 包管理工具，也是 Node.js 的默认包管理器。 NPM 允许开发者轻松地下 …"
+        },
+        {
+          "url": "https://nodejs.org/en/download",
+          "title": "Download Node.js ®",
+          "snippet": "Download Node.js® Get Node.js® v24.22.1 LTS for Windows using Chocolatey with npm Info Want new features sooner? Get the latest …"
+        },
+        {
+          "url": "https://www.npmjs.com/package/npm",
+          "title": "npm - npm",
+          "snippet": "3 天之前 · Is \"npm\" an acronym for \"Node Package Manager\"? Contrary to popular belief, npm is not an acronym for \"Node Package …",
+          "publishedAt": "2026-10-20T08:31:14.238Z"
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_62818371/article/details/146175470",
+          "title": "NPM 安装与配置全流程详解（2025最新版）-CSDN博客",
+          "snippet": "2025年3月11日 · 本文详细介绍2025最新版NPM安装与配置全流程。 先阐述环境准备与Node.js安装，接着说明NPM核心配置优化，如全局模 …",
+          "publishedAt": "2025-03-11T12:00:00.000Z"
+        },
+        {
+          "url": "https://blog.csdn.net/zhouyan8603/article/details/109039732",
+          "title": "windows安装npm教程 -CSDN博客",
+          "snippet": "2020年10月12日 · window10安装npm并进行配置的详细步骤，傻瓜式操作-----Node.js 1.下载npm 官网下载 我是在window下安装，电脑 …",
+          "publishedAt": "2020-10-12T12:00:00.000Z"
+        },
+        {
+          "url": "https://npm.nodejs.cn/downloading-and-installing-node-js-and-npm/",
+          "title": "下载和安装 Node.js 和 npm | npm 中文网",
+          "snippet": "2026年10月8日 · 🌐 To publish and install packages to and from the public npm registry or a private npm registry, you must install Node.js …",
+          "publishedAt": "2026-10-08T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1999484128165402085",
+          "title": "Windows系统安装 npm - 知乎",
+          "snippet": "2026年1月27日 · 在Windows系统上安装npm，实际上是通过安装Node.js来完成的，npm是Node.js的包管理器，它们通常会一起被安装。 以 …",
+          "publishedAt": "2026-01-27T12:00:00.000Z"
+        },
+        {
+          "url": "https://nodejs.cn/npm/getting-started/configuring-your-local-environment/downloading-and-installing-node-js-and-npm/",
+          "title": "下载和安装 Node.js 和 npm - npm 中文文档",
+          "snippet": "2023年5月9日 · 下载和安装 Node.js 和 npm 要在公共 npm 注册表或私有 npm 注册表中发布和安装包，您必须使用 Node 版本管理器或 …",
+          "publishedAt": "2023-05-09T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "region": "global",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.npmjs.com/specifying-dependencies-and-devdependencies-in-a-package-json-file/",
+          "title": "Specifying dependencies and devDependencies in a package.json file | npm Docs",
+          "snippet": "To specify the packages your project depends on, you must list them as `\"dependencies\"` or `\"devDependencies\"` in your package's `package.json` file. When you (or another user) run `npm install`, npm will download dependencies and devDepen…"
+        },
+        {
+          "url": "https://docs.npmjs.com/cli/v11/commands/npm-install/",
+          "title": "npm-install | npm Docs",
+          "snippet": "npm install [< package-spec> ...] ... aliases ... add, i, in ... ins, inst, insta, instal, isnt, isnta, isntal, isntall ... ## Description This command installs a package and any packages that it depends on. If the package has a package-lo…"
+        },
+        {
+          "url": "https://docs.npmjs.com/downloading-and-installing-packages-locally/",
+          "title": "Downloading and installing packages locally | npm Docs",
+          "snippet": "You can install a package locally if you want to depend on the package from your own module, using something like Node.js `require`. This is `npm install`'s default behavior. ## Installing an unscoped package Unscoped packages are always p…"
+        },
+        {
+          "url": "https://docs.npmjs.com/cli/configuring-npm/package-json/",
+          "title": "package.json",
+          "snippet": "Description This document is all you need to know about what's required in your package.json file. It must be actual JSON, not just a JavaScript object literal. A lot of the behavior described in this document is affected by the config set…"
+        },
+        {
+          "url": "https://docs.npmjs.net.cn/cli/v10/configuring-npm/package-json",
+          "title": "package.json | npm 文档 - npm 包管理器",
+          "snippet": "必须 ... ### dependencies 依赖项在简单对象中指定，该对象将包名称映射到版本范围。版本范围是一个字符串，其中包含一个或多个空格分隔的描述符。依赖项也可以用 tarball 或 git URL 标识。 请不要将测试工具、转译器或其他“开发”时间工具放在 `dependencies` 对象中。 请参阅下面的 `devDependencies`。 有关指定版本范围的更多详细信息，请参阅 semver。 - `version` 必须与 `version` 完全匹…"
+        },
+        {
+          "url": "https://nodejs.cn/npm/cli/v9/commands/npm-install/",
+          "title": "npm install - npm 中文文档",
+          "snippet": "概要 ```bash npm install [<package-spec> ...] aliases: add, i, in, ins, inst, insta, instal, isnt, isnta, isntal, isntall ``` ... ## 描述 此命令安装一个包和它所依赖的任何包。如果包有一个包锁，或者一个 npm 收缩封装文件，或者一个纱线锁文件，依赖项的安装将由它驱动，遵循以下优先顺序： - `npm-shrinkwrap.json` - `pac…"
+        },
+        {
+          "url": "https://docs.npmjs.com/cli/v9/commands/npm-install/",
+          "title": "npm-install | npm Docs",
+          "snippet": "command installs a package and any packages that it depends on. If the package has a package-lock, or an npm shrinkwrap file, or a yarn ... file, the installation of dependencies will be driven by that, respecting the following order of pr…"
+        },
+        {
+          "url": "https://docs.npmjs.com/cli/v8/commands/npm-install/",
+          "title": "npm-install | npm Docs",
+          "snippet": "installs a package ... any packages that it depends on ... If the package has a package- ... , or an npm ... wrap file ... or a yarn ... file, the installation of dependencies will be driven by ... , respecting the following order of prece…"
+        },
+        {
+          "url": "https://stackoverflow.com/questions/22445371/npm-install-error-from-the-terminal",
+          "title": "npm install error from the terminal",
+          "snippet": "Running just \"npm install\" will look for dependencies listed in your package.json. The error you're getting says that you don't have a package.json file set up (or you're in the wrong directory). If you're trying to install a specific pack…"
+        },
+        {
+          "url": "https://stackoverflow.com/questions/12127114/how-to-write-a-package-json-file-so-that-all-dependencies-are-downloaded-with-n",
+          "title": "How to write a package.json file so that all dependencies are downloaded with \"npm install\"",
+          "snippet": "The answer was provided ... in a comment ... \"Another thing to note is that if a package depends on a module that can be resolved further up in the dependency chain, it will. For example, since you have mongodb in your package.json, Mongoo…"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.csdn.net/lydia_liuY/article/details/80816267",
+          "title": "npm如何一键安装package.json里的依赖文件。 - CSDN博客",
+          "snippet": "文章浏览阅读3.9w次，点赞2次，收藏31次。本文介绍了如何使用npm命令来安装package.json文件中定义的所有依赖项，包括dependencies和devDependencies。此外，还介绍了如何针对不同的需求安装特定版本的依赖项。"
+        },
+        {
+          "url": "https://www.cnblogs.com/sese/p/10119511.html",
+          "title": "npm安装package.json中的模块依赖 - 前端 [色色] - 博客园",
+          "snippet": "npm"
+        },
+        {
+          "url": "https://blog.csdn.net/u011240877/article/details/76582670",
+          "title": "npm 与 package.json 快速入门教程 - CSDN博客",
+          "snippet": "文章浏览阅读10w+次，点赞83次，收藏257次。本文全面介绍了npm的基本概念和使用方法，包括npm的安装、更新、package.json文件的创建与管理、语义化版本规则、包的安装与卸载等内容。"
+        },
+        {
+          "url": "https://stackoverflow.com/questions/8367031/how-do-i-install-package-json-dependencies-in-the-current-directory-using-npm",
+          "title": "How do I install package.json dependencies in the current directory ...",
+          "snippet": "from inside your app directory (i.e. where package.json"
+        },
+        {
+          "url": "https://www.cnblogs.com/CyLee/p/16155004.html",
+          "title": "npm 安装本地包、安装本地依赖 - 贝尔塔猫 - 博客园",
+          "snippet": "package.json"
+        },
+        {
+          "url": "https://nodejs.cn/npm/packages-and-modules/contributing-packages-to-the-registry/specifying-dependencies-and-devdependencies-in-a-package-json-file/~/adding-dependencies-to-a-packagejson-file-from-the-command-line/",
+          "title": "从命令行向 package.json 文件添加依赖项 - npm 中文文档",
+          "snippet": "从命令行向 package.json"
+        },
+        {
+          "url": "https://docs.npmjs.com/cli/v12/commands/npm-install/",
+          "title": "npm-install - npm Docs",
+          "snippet": "Install"
+        },
+        {
+          "url": "https://docs.pingcode.com/baike/2315257",
+          "title": "node.js 如何添加依赖 | PingCode智库",
+          "snippet": "在Node.js中添加依赖的方法主要有以下几种：使用npm、使用yarn、手动修改package.json文件。 在这几种方法中，最常见和推荐的方法是使用npm，因为它是Node.js的默认包管理器，并且有广泛的社区支持。 接下来我们将详细描述如何使用 npm"
+        },
+        {
+          "url": "https://docs.npmjs.com/specifying-dependencies-and-devdependencies-in-a-package-json-file/?source=post_page---------------------------",
+          "title": "Specifying dependencies and devDependencies in a package.json file",
+          "snippet": "To add dependencies and devDependencies to a package.json"
+        },
+        {
+          "url": "https://www.volcengine.com/article/1619539",
+          "title": "如何将指定npm包添加至package.json依赖，支持他人通过npm install一键安装？",
+          "snippet": "要让其他人只执行 npm"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://docs.cloud.google.com/run/docs/runtimes/nodejs-dependencies?hl=zh-cn",
+    "https://www.npmjs.com/",
+    "https://nodejs.org/en/download",
+    "https://npm.nodejs.cn/cli/v11/configuring-npm/install",
+    "https://blog.csdn.net/lydia_liuY/article/details/80816267",
+    "https://docs.npmjs.com/specifying-dependencies-and-devdependencies-in-a-package-json-file/",
+    "https://www.npmjs.com/package/npm",
+    "https://stackoverflow.com/questions/6480549/install-dependencies-globally-and-locally-using-package-json"
+  ],
+  "failures": [
+    "firecrawl: still running at deadline"
+  ]
+}

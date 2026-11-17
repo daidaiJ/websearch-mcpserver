@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-postgres-logical",
+  "query": "PostgreSQL 逻辑复制 配置",
+  "language": "zh",
+  "category": "docs",
+  "expectedDomains": [
+    "postgresql.org"
+  ],
+  "recordedAt": "2026-10-23T08:30:58.624Z",
+  "elapsedMs": 2588,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/zh_cn/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.FeatureSupport.LogicalReplication.html",
+          "title": "为Amazon RDS for PostgreSQL 执行逻辑复制",
+          "snippet": "在RDS for PostgreSQL 中，可以使用逻辑复制将数据从源表复制到目标表。逻辑复制首先对源表中的现有数据执行初始加载，然后继续复制持续发生的更改。"
+        },
+        {
+          "url": "https://www.cnblogs.com/tiany1224/p/18278082",
+          "title": "PostgreSQL 配置逻辑复制- 天涯客1224",
+          "snippet": "PostgreSQL 配置逻辑复制 · 1、发布端复制槽信息如下所示，创建订阅后，自动创建复制槽： · 2、流复制信息如下所示，发布端和订阅端主机之间创建流复制：",
+          "publishedAt": "2024-07-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://learn.microsoft.com/zh-cn/azure/postgresql/configure-maintain/concepts-logical",
+          "title": "逻辑复制和逻辑解码- Azure Database for PostgreSQL",
+          "snippet": "逻辑复制提供对数据复制的精细控制,包括表级数据复制。 机逻辑复制是将数据从Azure Database for PostgreSQL灵活服务器复制的最简单方法。 则会在故障转 ...",
+          "publishedAt": "2026-07-29T12:00:00.000Z"
+        },
+        {
+          "url": "http://mysql.taobao.org/monthly/2025/03/01/",
+          "title": "一文搞懂PostgreSQL逻辑复制的全部原理",
+          "snippet": "一句话概括，逻辑复制是相对于物理复制的概念，物理复制是把对文件块的改动发送到下游，逻辑复制是把数据的改动（一般是修改前/修改后的行）发送到下游。",
+          "publishedAt": "2025-03-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://docs.cloud.google.com/sql/docs/postgres/replication/configure-logical-replication?hl=zh-cn",
+          "title": "设置逻辑复制和解码| Cloud SQL for PostgreSQL",
+          "snippet": "如需使用pglogical 设置逻辑复制，必须在主实例上启用逻辑解码。在Cloud SQL 实例上设置 cloudsql.logical_decoding=on ，或在外部实例上设置 wal_level=logical 。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1927041306691077387",
+          "title": "PostgreSQL逻辑复制部署指南",
+          "snippet": "在配置A库作为发布者之前，需要确保其满足逻辑复制的基本要求，并进行相应的参数调整。 2.1 前提条件. 1.PostgreSQL版本：发布者和订阅者都应使用PostgreSQL 10或更高版本 ..."
+        },
+        {
+          "url": "https://www.tencentcloud.com/zh/document/product/409/64755",
+          "title": "使用pglogical 进行逻辑复制",
+          "snippet": "pglogical 是PostgreSQL 的逻辑复制扩展插件，使用“发布/订阅”的数据模型进行数据复制。该模型包含“发布端”和“订阅端”，发布端用于定义和发布指定的 ...",
+          "publishedAt": "2025-05-21T12:00:00.000Z"
+        },
+        {
+          "url": "http://www.postgres.cn/docs/10/logical-replication.html",
+          "title": "第31 章逻辑复制",
+          "snippet": "配置设置 · 31.9. 快速设置. 逻辑复制是根据复制标识（通常是主键）复制数据对象及其更改的一种方法。 我们使用术语逻辑与物理复制相比，它使用确切的块地址和逐字节复制。"
+        },
+        {
+          "url": "https://www.postgresql.org/docs/current/logical-replication.html",
+          "title": "Documentation: 18: Chapter 29. Logical Replication",
+          "snippet": "Logical replication is a method of replicating data objects and their changes, based upon their replication identity (usually a primary key)."
+        },
+        {
+          "url": "https://www.rockdata.net/zh-cn/docs/14/logical-replication.html",
+          "title": "PostgreSQL 14 文档: 第31 章逻辑复制",
+          "snippet": "逻辑复制使用一种发布和订阅模型，其中有一个或者更多订阅者订阅一个发布者节点上的一个或者更多发布。订阅者从它们所订阅的发布拉取数据并且可能后续重新发布这些数据以 ..."
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.aws.amazon.com/zh_cn/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.FeatureSupport.LogicalReplication.html",
+          "title": "为Amazon RDS for PostgreSQL 执行逻辑复制",
+          "snippet": "为 Amazon RDS for PostgreSQL 执行逻辑复制 使用逻辑复制槽 ``` SELECT * FROM pg_replication_slots; ```"
+        },
+        {
+          "url": "https://www.cnblogs.com/tiany1224/p/18278082",
+          "title": "PostgreSQL 配置逻辑复制- 天涯客1224 - 博客园",
+          "snippet": "PostgreSQL 配置逻辑复制 · 1、发布端复制槽信息如下所示，创建订阅后，自动创建复制槽： · 2、流复制信息如下所示，发布端和订阅端主机之间创建流复制："
+        },
+        {
+          "url": "http://mysql.taobao.org/monthly/2025/03/01/",
+          "title": "一文搞懂PostgreSQL逻辑复制的全部原理 - 数据库内核月报",
+          "snippet": "一句话概括，逻辑复制是相对于物理复制的概念，物理复制是把对文件块的改动发送到下游，逻辑复制是把数据的改动（一般是修改前/修改后的行）发送到下游。"
+        },
+        {
+          "url": "https://learn.microsoft.com/zh-cn/azure/postgresql/configure-maintain/concepts-logical",
+          "title": "Azure Database for PostgreSQL 灵活服务器中的逻辑复制和逻辑解码",
+          "snippet": "Azure Database for PostgreSQL 灵活服务器中的逻辑复制和逻辑解码 使用逻辑复制和逻辑解码 逻辑解码 SQL 接口 ```sql SELECT * FROM pg_create_logical_replication_slot('test_slot', 'wal2json'); ```"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1927041306691077387",
+          "title": "PostgreSQL逻辑复制部署指南 - 知乎专栏",
+          "snippet": "在配置A库作为发布者之前，需要确保其满足逻辑复制的基本要求，并进行相应的参数调整。 2.1 前提条件. 1.PostgreSQL版本：发布者和订阅者都应使用PostgreSQL 10或更高版本 ..."
+        },
+        {
+          "url": "https://www.postgresql.org/docs/current/logical-replication.html",
+          "title": "Documentation: 18: Chapter 29. Logical Replication - PostgreSQL",
+          "snippet": "Logical replication is a method of replicating data objects and their changes, based upon their replication identity (usually a primary key)."
+        },
+        {
+          "url": "https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-logical-replication&locale=zh-CN",
+          "title": "Databases for PostgreSQL 作为逻辑复制目的地| IBM Cloud Docs",
+          "snippet": "PostgreSQL 支持逻辑复制,您可以创建订阅者或发布者。 配置用户 要配置Databases for PostgreSQL部署并确保正确复制数据,请确保以下几点。"
+        },
+        {
+          "url": "https://www.rockdata.net/zh-cn/docs/14/logical-replication.html",
+          "title": "PostgreSQL 14 文档: 第31 章逻辑复制",
+          "snippet": "逻辑复制使用一种发布和订阅模型，其中有一个或者更多订阅者订阅一个发布者节点上的一个或者更多发布。订阅者从它们所订阅的发布拉取数据并且可能后续重新发布这些数据以 ..."
+        },
+        {
+          "url": "https://www.tencentcloud.com/zh/document/product/409/64755",
+          "title": "使用pglogical 进行逻辑复制",
+          "snippet": "pglogical 是PostgreSQL 的逻辑复制扩展插件，使用“发布/订阅”的数据模型进行数据复制。该模型包含“发布端”和“订阅端”，发布端用于定义和发布指定的 ..."
+        },
+        {
+          "url": "https://docs.cloud.google.com/sql/docs/postgres/replication/configure-logical-replication?hl=zh-cn",
+          "title": "设置逻辑复制和解码| Cloud SQL for PostgreSQL",
+          "snippet": "设置逻辑复制和解码 使用集合让一切井井有条 根据您的偏好保存内容并对其进行分类。 MySQL | PostgreSQL | SQL Server 您可以在 Cloud SQL for PostgreSQL 中使用 逻辑复制和解码 功能。 配置 PostgreSQL 实例 创建复制用户 如需使用逻辑解码功能，请创建具有 `REPLICATION` 特性的 PostgreSQL 用户。 PostgreSQL 资源 | 最大内存 (GB) | 复制槽数上限 | |-|-| | 4…"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.postgresql.org/",
+          "title": "PostgreSQL : The world's most advanced open source database",
+          "snippet": "8 小时之前 · The PostgreSQL Global Development Group announces that the 1st rc release of PostgreSQL 19 is now available for … 阅读更多",
+          "publishedAt": "2026-10-23T00:30:56.249Z"
+        },
+        {
+          "url": "https://www.postgresql.org/download/",
+          "title": "PostgreSQL : Downloads",
+          "snippet": "PostgreSQL is available for download as ready-to-use packages or installers for various platforms, as well as a source code archive if …"
+        },
+        {
+          "url": "https://www.runoob.com/postgresql/postgresql-tutorial.html",
+          "title": "PostgreSQL 教程 | 菜鸟教程",
+          "snippet": "PostgreSQL 教程 PostgreSQL 是一个免费的对象-关系数据库服务器 (ORDBMS)，在灵活的BSD许可证下发行。 PostgreSQL 开发者把它念作 …"
+        },
+        {
+          "url": "https://developer.aliyun.com/article/1752221",
+          "title": "【2026最新】 PostgreSQL 下载、安装、数据库使用一篇搞定 ...",
+          "snippet": "2026年7月31日 · 本文系统讲解 PostgreSQL 的下载、安装和使用过程，全程实测，确保大家不会踩坑，文章里提供的 PostgreSQL 资源包全 …",
+          "publishedAt": "2026-07-31T12:00:00.000Z"
+        },
+        {
+          "url": "https://postgresql.ac.cn/docs/current/index.html",
+          "title": "PostgreSQL 18.0 文档",
+          "snippet": "版权所有 © 1996–2025 PostgreSQL 全球开发组 法律声明 目录 前言 1. 什么是 PostgreSQL？ 2. PostgreSQL 简史 3. 约定 4. 更多信息 5. 错 …"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2066273753013789584",
+          "title": "【2026最新】 PostgreSQL 下载、安装、数据库使用保姆级 ...",
+          "snippet": "2026年7月30日 · 本文系统讲解 PostgreSQL 的下载、安装和使用过程，全程实测，确保大家不会踩坑，文章里提供的 PostgreSQL 资源包全 …",
+          "publishedAt": "2026-07-30T12:00:00.000Z"
+        },
+        {
+          "url": "https://blog.csdn.net/m0_58648890/article/details/155314594",
+          "title": "Windows 安装 PostgreSQL18 超详细保姆级教程-CSDN博客",
+          "snippet": "2025年11月27日 · 本文详细介绍在Windows 10/11系统上安装PostgreSQL 18的完整流程，涵盖下载、安装、组件选择、pgAdmin配置、中文 …",
+          "publishedAt": "2025-11-27T12:00:00.000Z"
+        },
+        {
+          "url": "https://baike.baidu.com/item/PostgreSQL/530240",
+          "title": "PostgreSQL _百度百科",
+          "snippet": "PostgreSQL支持大部分的SQL标准并且提供了很多其他现代特性，如复杂查询、外键、触发器、视图、事务完整性、多版本并发控制等。 同 …"
+        },
+        {
+          "url": "https://blog.csdn.net/2403_89073657/article/details/148105776",
+          "title": "postgreSQL 安装教程及使用方法（保姆级）-CSDN博客",
+          "snippet": "2025年5月21日 · 本文是PostgreSQL的保姆级教程，介绍了其安装过程、环境变量设置、增删改查操作等。 还给出了psql指令大全，涵盖数据 …",
+          "publishedAt": "2025-05-21T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/645899384",
+          "title": "最全、最详细、最全面的学习教程！ PostgreSQL 打怪升级 ...",
+          "snippet": "2023年7月25日 · 所以，从今天开始，我们进入下一个知识体系的学习： PostgreSQL 数据库。 PostgreSQL 简介 PostgreSQL 是一个功能强 …",
+          "publishedAt": "2023-07-25T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.csdn.net/gitblog_00447/article/details/155830766",
+          "title": "PostgreSQL逻辑复制终极方案：pglogical 2全面解析与实战指南",
+          "snippet": "pglogical是PostgreSQL数据库的终极逻辑复制 解决方案，它提供了高效、灵活的数据同步机制，帮助数据库管理员和开发者轻松实现跨服务器的数据复制与同步。 本文将全面解析pglogical 2的核心功能、安装配置流程以及实战应用技巧，让你快速掌握这一强大工具。"
+        },
+        {
+          "url": "https://raybyte.cn/post/2026/2/28/bed51a51",
+          "title": "PostgreSQL逻辑复制配置：实现数据变更捕获的完整方案 | RayByte",
+          "snippet": "本文详细讲解了PostgreSQL逻辑复制的完整配置方案，涵盖从核心概念、环境准备、发布订阅创建、验证监控到关联技术逻辑解码的全过程。通过详实的示例，深入分析了其实现数据变更捕获(CDC)的原理、典型应用场景、技术优势与重要注意事项，为构建实时数据同步与集成管道提供实用指南。"
+        },
+        {
+          "url": "https://blog.csdn.net/Auspicious_air/article/details/161422611",
+          "title": "PostgreSQL逻辑复制全解析：从原理到跨区域实战 - CSDN博客",
+          "snippet": "文章浏览阅读440次，点赞10次，收藏7次。 PostgreSQL"
+        },
+        {
+          "url": "https://postgres.ac.cn/docs/current/logical-replication.html",
+          "title": "PostgreSQL: 文档: 18: 第 29 章 逻辑复制 - PostgreSQL 数据库",
+          "snippet": "PostgreSQL"
+        },
+        {
+          "url": "https://www.cnblogs.com/wy123/p/20936578",
+          "title": "PostgreSQL 17 流复制中开启逻辑复制槽同步，以及逻辑槽的故障转移 - MSSQL123 - 博客园",
+          "snippet": "PostgreSQL"
+        },
+        {
+          "url": "https://runebook.dev/zh/docs/postgresql/logical-replication-quick-setup",
+          "title": "PostgreSQL 逻辑复制：快速入门、故障排除与替代方案",
+          "snippet": "如果逻辑复制不满足您的需求，以下是几个常见的 PostgreSQL"
+        },
+        {
+          "url": "https://www.postgresql.org/docs/current/logical-replication.html",
+          "title": "PostgreSQL: Documentation: 18: Chapter 29. Logical Replication",
+          "snippet": "PostgreSQL"
+        },
+        {
+          "url": "https://www.database.ink/postgresql/logical-replication-configuration.html",
+          "title": "PostgreSQL 逻辑复制配置 | 印刻数据库",
+          "snippet": "核心概念 PostgreSQL"
+        },
+        {
+          "url": "https://runebook.dev/zh/docs/postgresql/runtime-config-replication/GUC-MAX-LOGICAL-REPLICATION-WORKERS",
+          "title": "深入理解 PostgreSQL 的逻辑复制工作进程：配置、常见问题和分片订阅",
+          "snippet": "max_logical_replication_workers 是 PostgreSQL"
+        },
+        {
+          "url": "https://blog.51cto.com/fgedu/15025315",
+          "title": "数据库教程FGMT63‑PostgreSQL逻辑复制技术与项目实战",
+          "snippet": "数据库教程FGMT63‑PostgreSQL逻辑复制技术与项目实战，前言与内容大纲介绍PostgreSQL逻辑复制是数据库架构设计、数据迁移、高可用建设与业务系统改造中的关键能力之一。与传统物理复制不同，逻辑复制基于数据行变化和逻辑解码机制，可以实现更细粒度的数据订阅、跨版本数据同步、部分表迁移 ..."
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://docs.aws.amazon.com/zh_cn/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.FeatureSupport.LogicalReplication.html",
+    "https://learn.microsoft.com/zh-cn/azure/postgresql/configure-maintain/concepts-logical",
+    "https://docs.cloud.google.com/sql/docs/postgres/replication/configure-logical-replication?hl=zh-cn",
+    "https://www.postgresql.org/docs/current/logical-replication.html",
+    "https://www.cnblogs.com/tiany1224/p/18278082",
+    "http://mysql.taobao.org/monthly/2025/03/01/",
+    "https://zhuanlan.zhihu.com/p/1927041306691077387",
+    "https://www.tencentcloud.com/zh/document/product/409/64755"
+  ],
+  "failures": [
+    "exa: aborted once enough results had arrived"
+  ]
+}

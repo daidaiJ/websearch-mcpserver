@@ -1,0 +1,340 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "en-nvidia-earnings",
+  "query": "NVIDIA third quarter fiscal 2025 earnings",
+  "language": "en",
+  "category": "news",
+  "expectedDomains": [
+    "nvidia.com",
+    "reuters.com",
+    "cnbc.com"
+  ],
+  "recordedAt": "2026-10-23T08:32:22.879Z",
+  "elapsedMs": 2869,
+  "limit": 8,
+  "lead": "global",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2026",
+          "title": "NVIDIA Announces Financial Results for Third Quarter ...",
+          "snippet": "NVIDIA (NASDAQ: NVDA) today reported record revenue for the third quarter ended October 26, 2025, of $57.0 billion, up 22% from the previous ...",
+          "publishedAt": "2025-11-19T12:00:00.000Z"
+        },
+        {
+          "url": "https://investor.nvidia.com/financial-info/financial-reports/default.aspx",
+          "title": "NVIDIA Corporation - Financial Reports",
+          "snippet": "Revenue of $96.2 billion, up 106% from a year ago; Data Center revenue of $89.0 billion, up 117% from a year ago. SANTA CLARA, Calif.—August 26, 2026―NVIDIA ..."
+        },
+        {
+          "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581024000315/q3fy25pr.htm",
+          "title": "NVIDIA Announces Financial Results for Third Quarter ...",
+          "snippet": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2025 •Record quarterly revenue of $35.1 billion, up 17% from Q2 and up 94% from a year ago"
+        },
+        {
+          "url": "https://www.reuters.com/markets/us/nvidia-q3-updates-ai-bubble-fears-spotlight-2025-11-19/",
+          "title": "Nvidia Q3 earnings beat estimates, boost tech stocks",
+          "snippet": "Q3 revenue rose 62%, the first … grew to $51.2 billion in the quarter ended October 26. Analysts expected sales of $48.62 billion.",
+          "publishedAt": "2025-11-20T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.reddit.com/r/hardware/comments/1p1lpg0/nvidia_announces_financial_results_for_third/",
+          "title": "NVIDIA Announces Financial Results for Third Quarter ...",
+          "snippet": "Record revenue of $57.0 billion, up 22% from Q2 and up 62% from a year ago Record Data Center revenue of $51.2 billion, up 25% from Q2 and up 66 ...",
+          "publishedAt": "2025-11-27T08:32:22.240Z"
+        },
+        {
+          "url": "https://s201.q4cdn.com/141608511/files/doc_financials/2025/Q325/Q3FY25-CFO-Commentary.pdf",
+          "title": "CFO Commentary on Third Quarter Fiscal 2025 Results",
+          "snippet": "Non-GAAP OI&E excludes the gains or losses from non-affiliated investments and publicly-held equity securities. Interest income was $472 million, up from a year ..."
+        },
+        {
+          "url": "https://www.cbsnews.com/news/nvidia-third-quarter-earnings-artificial-intelligence/",
+          "title": "Nvidia reports strong quarterly earnings, topping Wall ...",
+          "snippet": "The chipmaker reported earnings of $31.9 billion on record revenue of $57 billion for the third quarter. Revenue for the period surged 22% from ...",
+          "publishedAt": "2025-11-19T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.zacks.com/stock/research/NVDA/earnings-calendar",
+          "title": "What date does NVIDIA's (NVDA) report Earnings",
+          "snippet": "Based on past history, Zacks believes NVIDIA Corporation (NVDA) will report their next quarter earnings on November 18, 2026. For the next earning release, we ...",
+          "publishedAt": "2026-10-23T05:32:22.240Z"
+        },
+        {
+          "url": "https://www.facebook.com/barrons/posts/nvidia-stock-is-under-pressure-thursday-as-fears-around-the-sustainability-of-ai/1472378581428715/",
+          "title": "Nvidia stock is under pressure Thursday as fears around ...",
+          "snippet": "Nvidia did say its sales will be roughly $54 billion in the fiscal third quarter, which was in line with the average Wall Street estimate."
+        },
+        {
+          "url": "https://seekingalpha.com/symbol/NVDA",
+          "title": "NVIDIA Corporation (NVDA) Stock Price, Quote, News & ...",
+          "snippet": "NVIDIA Corporation generated $302.97B in revenue this past year and has a market capitalization of $5.36T. They earned $192.88B in net income in the past year.",
+          "publishedAt": "2026-10-23T07:38:22.240Z"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "region": "global",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://investor.nvidia.com/news/press-release-details/2024/NVIDIA-Announces-Financial-Results-for-Third-Quarter-Fiscal-2025/default.aspx",
+          "title": "NVIDIA Corporation - NVIDIA Announces Financial Results for Third Quarter Fiscal 2025",
+          "snippet": "NVIDIA Corporation - NVIDIA Announces Financial Results for Third Quarter Fiscal 2025 ### NVIDIA Announces Financial Results for Third Quarter Fiscal 2025 November 20, 2024 - Record quarterly revenue of $35.1 billion, up 17% from Q2 and up…"
+        },
+        {
+          "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581024000315/q3fy25cfocommentary.htm",
+          "title": "Document",
+          "snippet": "CFO Commentary on Third Quarter Fiscal 2025 Results Q3 Fiscal 2025 Summary | GAAP | | | | | | | --- | --- | --- | --- | --- | --- | | ($ in millions, except earnings per share) | Q3 FY25 | Q2 FY25 | Q3 FY24 | Q/Q | Y/Y | | Revenue | $35,08…"
+        },
+        {
+          "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2025",
+          "title": "NVIDIA Announces Financial Results for Third Quarter ...",
+          "snippet": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2025 | NVIDIA Newsroom # NVIDIA Announces Financial Results for Third Quarter Fiscal 2025 November 20, 2024 - Record quarterly revenue of $35.1 billion, up 17% from Q2 and up 94%…"
+        },
+        {
+          "url": "https://www.investopedia.com/nvidia-q3-fy-2025-earnings-8748851",
+          "title": "Nvidia's Data Center Revenue Hits Record High as Results Top Estimates",
+          "snippet": "(AI) chipmaker saw third-quarter revenue nearly double year-over-year to a record $35.08 billion, above the analyst consensus from Visible Alpha. Net income at $19.31 billion more than doubled from the year-ago period, also topping project…"
+        },
+        {
+          "url": "https://seekingalpha.com/article/4739171-nvidia-corporation-nvda-q3-2025-earnings-call-transcript",
+          "title": "NVIDIA Corporation (NVDA) Q3 2025 Earnings Call Transcript | Seeking Alpha",
+          "snippet": "> ### Q3: 2024-11-20 Earnings Summary > > Play Call Play Call > > 10-Q > > EPS of $0.81 beats by $0.06 > > | Revenue of $35.08B (93.61% Y/Y) beats by $1.93B ... Thank you. Good afternoon, everyone, and welcome to NVIDIA's conference call f…"
+        },
+        {
+          "url": "https://www.crn.com/news/ai/2024/nvidia-doubles-data-center-revenue-amid-blackwell-gpu-anticipation",
+          "title": "Nvidia Doubles Data Center Revenue Amid Blackwell GPU Anticipation",
+          "snippet": "The largest contributor of third-quarter revenue was Nvidia’s data center business, which more than doubled, increasing by 112 percent year-over-year to $30.8 billion. This also marked a 17 percent increase from the previous quarter"
+        },
+        {
+          "url": "https://www.nasdaq.com/articles/should-you-buy-dip-nvidia-etfs-q3-earnings-beat",
+          "title": "Should You Buy the Dip in NVIDIA ETFs on Q3 Earnings Beat?",
+          "snippet": "and skyrocketing 103% from the year-ago quarter. This represents the eighth straight quarter of earnings beat. Revenues surged 94% year over year to a record $35.1 billion and beat the consensus mark of $33.21 billion. The blockbuster"
+        },
+        {
+          "url": "https://exa.ai/library/markets/stocks/NVDA/earnings/FY2025/Q3/transcript",
+          "title": "NVDA Earnings Call Transcript — Fiscal Q3 2025",
+          "snippet": "Thank you, Stewart. Q3 was another record quarter. We continue to deliver incredible growth. Revenue of $35.1 billion was up 17% sequentially and up 94% year on year, and well above our outlook of $32.5 billion. All market platforms posted…"
+        },
+        {
+          "url": "https://investor.nvidia.com/financial-info/financial-reports/default.aspx",
+          "title": "NVIDIA Corporation - Financial Reports",
+          "snippet": "Form 10-Q/Form 10-K 2025 ( ... in new window) Q2 Form 10-Q/Form 10-K 2025 ( ... in new window) Q3 Form 10-Q/Form 10-K ... (opens in new window) Q4 Form 10-Q/Form ... $89.0 billion, up 117% from a year ago"
+        },
+        {
+          "url": "https://www.gurufocus.com/stock/HAM:NVD/transcripts/2611655",
+          "title": "Q3 2025 NVIDIA Corp Earnings Call Transcript",
+          "snippet": ") reported record revenue of $35.1 billion for Q3, up 17% sequentially and 94% year-on-year, surpassing their outlook of $32.5 billion. - Data center revenue reached ... 112% year-on-year growth, driven by strong demand for NVIDIA Hopper a…"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2026",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2026",
+          "snippet": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2026 NVIDIA (NASDAQ: NVDA) today reported record revenue for the third quarter ended October 26, 2025, of $57.0 billion, up 22% from the previous quarter and up 62% from a year ag…"
+        },
+        {
+          "url": "https://investor.nvidia.com/financial-info/financial-reports/default.aspx",
+          "title": "Financial Reports - NVIDIA Corporation",
+          "snippet": "Revenue of $96.2 billion, up 106% from a year ago; Data Center revenue of $89.0 billion, up 117% from a year ago. SANTA CLARA, Calif.—August 26, 2026―NVIDIA ..."
+        },
+        {
+          "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581024000315/q3fy25pr.htm",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2025",
+          "snippet": "| | | | | | | | | | | | | |-|-|-|-|-|-|-|-|-|-|-|-| | | | | Q4 FY2025 |"
+        },
+        {
+          "url": "https://www.fool.com/investing/2026/10/22/nvidia-earnings-are-coming-and-the-stock-looks-poi/",
+          "title": "Nvidia Earnings Are Coming Next Month and the Stock Looks Poised to Dip Regardless of the Outcome",
+          "snippet": "Key Points **Nvidia**( NVDA-4.40%) operates on a different fiscal calendar, with its fiscal third quarter ending next week."
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/nvidia-earnings-coming-next-month-173700760.html",
+          "title": "Nvidia Earnings Are Coming Next Month and the Stock Looks Poised to Dip Regardless of the Outcome"
+        },
+        {
+          "url": "https://investor.nvidia.com/events-and-presentations/events-and-presentations/default.aspx",
+          "title": "Events & Presentations - NVIDIA Investor Relations",
+          "snippet": "Events Year 2026 2025 2024. Financial Results Listen to Webcast for NVIDIA. SEC Filings Quarterly Results. SEC filings and public conference calls and webcasts."
+        },
+        {
+          "url": "https://investor.nvidia.com/financial-info/quarterly-results/default.aspx",
+          "title": "Financial Info - Quarterly Results - NVIDIA Corporation",
+          "snippet": "Quarterly Results Annual Reports and Proxies. Select Year: 2027 2026 2025 2024 2023 2022. Financial Reports SEC Filings Quarterly Results Annual Reports and ..."
+        },
+        {
+          "url": "https://investor.nvidia.com/events-and-presentations/events-and-presentations/event-details/2025/NVIDIA-3rd-Quarter-FY26-Financial-Results/default.aspx",
+          "title": "NVIDIA 3rd Quarter FY26 Financial Results",
+          "snippet": "NVIDIA 3rd Quarter FY26 Financial Results. November 19, 2025 02:00 PM PT. Listen to Webcast. Sign up for NVIDIA News."
+        },
+        {
+          "url": "https://www.reuters.com/markets/us/nvidia-q3-updates-ai-bubble-fears-spotlight-2025-11-19/",
+          "title": "Nvidia Q3 earnings beat estimates, boost tech stocks - as it happened",
+          "snippet": "Q3 revenue rose 62%, grew to $51.2 billion in the quarter ended October 26. Analysts expected sales of $48.62 billion."
+        },
+        {
+          "url": "https://s201.q4cdn.com/141608511/files/doc_financials/2025/Q325/Q3FY25-CFO-Commentary.pdf",
+          "title": "[PDF] CFO Commentary on Third Quarter Fiscal 2025 Results",
+          "snippet": "CFO Commentary on Third Quarter Fiscal 2025 Results Revenue Revenue was a record $35.1 billion, up 94% from a year ago and up 17% sequentially."
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://nvidianews.nvidia.com/_gallery/download_pdf/673e52d63d6332ce4bb72f56/",
+          "title": "Fiscal 2025 NVIDIA Announces Financial Results for Third Quarter",
+          "snippet": "NVIDIA"
+        },
+        {
+          "url": "https://investor.nvidia.com/news/press-release-details/2024/NVIDIA-Announces-Financial-Results-for-Third-Quarter-Fiscal-2025/default.aspx",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2025",
+          "snippet": "SANTA CLARA, Calif., Nov. 20, 2024 (GLOBE NEWSWIRE) -- NVIDIA",
+          "publishedAt": "2024-11-20T12:00:00.000Z"
+        },
+        {
+          "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2025",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2025",
+          "snippet": "NVIDIA"
+        },
+        {
+          "url": "https://investor.nvidia.com/news/press-release-details/2025/NVIDIA-Announces-Financial-Results-for-Third-Quarter-Fiscal-2026/default.aspx",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2026",
+          "snippet": "SANTA CLARA, Calif., Nov. 19, 2025",
+          "publishedAt": "2025-11-19T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.cnbc.com/2025/11/19/nvidia-nvda-earnings-report-q3-2026.html",
+          "title": "Nvidia (NVDA) earnings report Q3 2026 - CNBC",
+          "snippet": "Nvidia"
+        },
+        {
+          "url": "https://www.nasdaq.com/press-release/nvidia-announces-financial-results-third-quarter-fiscal-2026-2025-11-19",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2026",
+          "snippet": "-- NVIDIA"
+        },
+        {
+          "url": "https://s201.q4cdn.com/141608511/files/doc_financials/2025/q3/NVDA-F3Q25-Quarterly-Presentation-FINAL.pdf",
+          "title": "PDF Investor Presentation Q3 FY25 - s201.q4cdn.com",
+          "snippet": "NVIDIA"
+        },
+        {
+          "url": "https://www.stocktitan.net/news/NVDA/nvidia-announces-financial-results-for-third-quarter-fiscal-8dgg48dg9egp.html",
+          "title": "NVIDIA Announces Financial Results for Third Quarter Fiscal 2025",
+          "snippet": "NVIDIA"
+        },
+        {
+          "url": "https://www.cnbc.com/2024/11/20/nvidia-nvda-earnings-report-q3-2025.html",
+          "title": "Nvidia (NVDA) earnings report Q3 2025 - CNBC",
+          "snippet": "Nvidia"
+        },
+        {
+          "url": "https://www.techpowerup.com/343091/nvidia-delivers-record-third-quarter-fiscal-2026-results",
+          "title": "NVIDIA Delivers Record Third Quarter Fiscal 2026 Results",
+          "snippet": "NVIDIA"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.nvidia.cn/",
+          "title": "人工智能计算领域的领导者 | NVIDIA",
+          "snippet": "1 天前 · SMS was acquired by NVIDIA Corporation of Santa Clara, CA in May 2022 and was dissolved as a separate corporate entity. …",
+          "publishedAt": "2026-10-22T08:32:20.663Z"
+        },
+        {
+          "url": "https://www.nvidia.cn/geforce/drivers/",
+          "title": "NVIDIA GeForce 驱动程序 - N 卡驱动 | NVIDIA",
+          "snippet": "2 天之前 · NVIDIA GeForce 驱动程序官方提供下载最新版的 Geforce 驱动程序，可提升 PC 游戏体验和应用程序速度。 更多关于更新显卡驱 …",
+          "publishedAt": "2026-10-21T08:32:20.663Z"
+        },
+        {
+          "url": "https://www.nvidia.com/",
+          "title": "World Leader in Artificial Intelligence Computing | NVIDIA",
+          "snippet": "8 小时之前 · NVIDIA pioneered accelerated computing to tackle challenges no one else can solve. Our work in AI and digital twins is …",
+          "publishedAt": "2026-10-23T00:32:20.663Z"
+        },
+        {
+          "url": "https://www.nvidia.com/zh-tw/drivers/",
+          "title": "下載 NVIDIA 官方驅動程式 | NVIDIA",
+          "snippet": "1 天前 · NVIDIA's driver team exhaustively tests games from early access through release of each DLC to optimize for performance, …",
+          "publishedAt": "2026-10-22T08:32:20.663Z"
+        },
+        {
+          "url": "https://developer.nvidia.cn/",
+          "title": "NVIDIA 开发者",
+          "snippet": "2013年4月3日 · 考取 NVIDIA 认证，拓展职业生涯，构建高效技术团队。 通过认证后，您将获得具有在线验证唯一链接的电子证书和可在全球 …",
+          "publishedAt": "2013-04-03T12:00:00.000Z"
+        },
+        {
+          "url": "https://blogs.nvidia.cn/",
+          "title": "NVIDIA 英伟达博客",
+          "snippet": "2 天之前 · NVIDIA、KRAFTON、NC 与《英雄联盟》 (League of Legends) 卫冕世界冠军战队 T1 在韩国网吧共庆 RTX Spark 上周，在 …",
+          "publishedAt": "2026-10-21T08:32:20.663Z"
+        },
+        {
+          "url": "https://investor.nvidia.com/home/default.aspx",
+          "title": "NVIDIA Corporation - Home",
+          "snippet": "NVIDIA is the pioneer of GPU-accelerated computing. We specialize in products and platforms for the large, growing markets of gaming, …"
+        },
+        {
+          "url": "https://baike.baidu.com/item/nVidia/325313",
+          "title": "NVIDIA _百度百科",
+          "snippet": "NVIDIA（中国大陆译名：英伟达，港台译名：辉达，股票名称：英伟达，股票代码：NVDA）1993年成立，总部位于美国加利福尼亚州圣克拉 …"
+        },
+        {
+          "url": "https://developer.nvidia.cn/downloads",
+          "title": "开发者下载中心 | NVIDIA 开发者",
+          "snippet": "开发者下载中心 NVIDIA 优化的容器、模型等 部署经 GPU 优化的最新 AI 和 HPC 容器、预训练模型、资源以及 NGC 中的行业特定应用程序框 …"
+        },
+        {
+          "url": "https://www.nvidia.com.tw/Download/indexsg.aspx?lang=tw",
+          "title": "NVIDIA 驱动程序下载",
+          "snippet": "Download drivers for NVIDIA products including GeForce graphics cards, nForce motherboards, Quadro workstations, and more. Update …"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://investor.nvidia.com/financial-info/financial-reports/default.aspx",
+    "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2026",
+    "https://investor.nvidia.com/news/press-release-details/2024/NVIDIA-Announces-Financial-Results-for-Third-Quarter-Fiscal-2025/default.aspx",
+    "https://www.sec.gov/Archives/edgar/data/1045810/000104581024000315/q3fy25pr.htm",
+    "https://www.reuters.com/markets/us/nvidia-q3-updates-ai-bubble-fears-spotlight-2025-11-19/",
+    "https://s201.q4cdn.com/141608511/files/doc_financials/2025/Q325/Q3FY25-CFO-Commentary.pdf",
+    "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2025",
+    "https://www.zacks.com/stock/research/NVDA/earnings-calendar"
+  ],
+  "failures": []
+}

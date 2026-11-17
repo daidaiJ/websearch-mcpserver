@@ -1,0 +1,142 @@
+[
+  {
+    "id": "zh-k8s-service",
+    "query": "Kubernetes Service 官方文档",
+    "language": "zh",
+    "category": "docs",
+    "expectedDomains": ["kubernetes.io"]
+  },
+  {
+    "id": "zh-postgres-logical",
+    "query": "PostgreSQL 逻辑复制 配置",
+    "language": "zh",
+    "category": "docs",
+    "expectedDomains": ["postgresql.org"]
+  },
+  {
+    "id": "zh-rust-ownership",
+    "query": "Rust 所有权 规则",
+    "language": "zh",
+    "category": "docs",
+    "expectedDomains": ["doc.rust-lang.org", "rust-lang.org"]
+  },
+  {
+    "id": "zh-python-313",
+    "query": "Python 3.13 新特性",
+    "language": "zh",
+    "category": "release",
+    "expectedDomains": ["docs.python.org", "python.org"]
+  },
+  {
+    "id": "zh-node24",
+    "query": "Node.js 24 发布说明",
+    "language": "zh",
+    "category": "release",
+    "expectedDomains": ["nodejs.org", "github.com"]
+  },
+  {
+    "id": "zh-pip-requests",
+    "query": "pip 安装 requests 库",
+    "language": "zh",
+    "category": "package",
+    "expectedDomains": ["pypi.org", "requests.readthedocs.io"]
+  },
+  {
+    "id": "zh-npm-install",
+    "query": "npm install 依赖 package.json",
+    "language": "zh",
+    "category": "package",
+    "expectedDomains": ["docs.npmjs.com", "npmjs.com"]
+  },
+  {
+    "id": "zh-react-useeffect",
+    "query": "React useEffect 用法",
+    "language": "zh",
+    "category": "package",
+    "expectedDomains": ["react.dev"]
+  },
+  {
+    "id": "zh-gpt5",
+    "query": "OpenAI GPT-5 发布",
+    "language": "zh",
+    "category": "news",
+    "expectedDomains": ["openai.com", "theverge.com", "techcrunch.com"]
+  },
+  {
+    "id": "zh-linux-612",
+    "query": "Linux 内核 6.12 发布",
+    "language": "zh",
+    "category": "news",
+    "expectedDomains": ["kernel.org", "lwn.net"]
+  },
+  {
+    "id": "en-k8s-service",
+    "query": "Kubernetes Service official documentation",
+    "language": "en",
+    "category": "docs",
+    "expectedDomains": ["kubernetes.io"]
+  },
+  {
+    "id": "en-mdn-fetch",
+    "query": "MDN Fetch API documentation",
+    "language": "en",
+    "category": "docs",
+    "expectedDomains": ["developer.mozilla.org"]
+  },
+  {
+    "id": "en-python-313",
+    "query": "Python 3.13 release notes",
+    "language": "en",
+    "category": "release",
+    "expectedDomains": ["docs.python.org", "python.org"]
+  },
+  {
+    "id": "en-go-124",
+    "query": "Go 1.24 release notes",
+    "language": "en",
+    "category": "release",
+    "expectedDomains": ["go.dev", "golang.org"]
+  },
+  {
+    "id": "en-rust-185",
+    "query": "Rust 1.85 release notes",
+    "language": "en",
+    "category": "release",
+    "expectedDomains": ["blog.rust-lang.org", "rust-lang.org", "doc.rust-lang.org"]
+  },
+  {
+    "id": "en-pip-requests",
+    "query": "pip install requests",
+    "language": "en",
+    "category": "package",
+    "expectedDomains": ["pypi.org", "requests.readthedocs.io"]
+  },
+  {
+    "id": "en-npm-install",
+    "query": "npm install package.json dependencies",
+    "language": "en",
+    "category": "package",
+    "expectedDomains": ["docs.npmjs.com", "npmjs.com"]
+  },
+  {
+    "id": "en-gpt5",
+    "query": "OpenAI GPT-5 announcement",
+    "language": "en",
+    "category": "news",
+    "expectedDomains": ["openai.com", "theverge.com", "techcrunch.com"]
+  },
+  {
+    "id": "en-linux-612",
+    "query": "Linux kernel 6.12 release",
+    "language": "en",
+    "category": "news",
+    "expectedDomains": ["kernel.org", "lwn.net"]
+  },
+  {
+    "id": "en-nvidia-earnings",
+    "query": "NVIDIA third quarter fiscal 2025 earnings",
+    "language": "en",
+    "category": "news",
+    "expectedDomains": ["nvidia.com", "reuters.com", "cnbc.com"]
+  }
+]

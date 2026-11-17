@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-rust-ownership",
+  "query": "Rust 所有权 规则",
+  "language": "zh",
+  "category": "docs",
+  "expectedDomains": [
+    "doc.rust-lang.org",
+    "rust-lang.org"
+  ],
+  "recordedAt": "2026-10-23T08:31:01.646Z",
+  "elapsedMs": 1519,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://kaisery.github.io/trpl-zh-cn/ch04-01-what-is-ownership.html",
+          "title": "什么是所有权？ - Rust 程序设计语言简体中文版 - KaiserY Hub",
+          "snippet": "# Rust 程序设计语言 简体中文版 **所有权**（ _ownership_）是 Rust 用于如何管理内存的一组规则。 Rust 则选择了第三种方式：通过所有权系统管理内存，编译器在编译时会根据一系列的规则进行检查。 好消息是随着你对 Rust 和所有权系统的规则越来越有经验，你就越能自然地编写出安全和高效的代码。 首先，让我们看一下所有权的规则。 在所有权的第一个例子中，我们看看一些变量的 **作用域**（ _scope_）。 ```console $ cargo run Compiling ownership v0.1.0 (file:///projects/ownership) e..."
+        },
+        {
+          "url": "https://rust-book.junmajinlong.com/ch6/02_move_copy.html",
+          "title": "Rust所有权规则概述 - Rust入门秘籍",
+          "snippet": "所有权转移之后，将只有新的所有者才会指向堆中的实际数据，而原变量将不再指向堆中实际数据，因此所有权转移之后仍然只有一个指针指向堆中数据。Rust所有权规则概述 · Rust中数据的移动 · Copy语义"
+        },
+        {
+          "url": "https://www.reddit.com/r/rust/comments/1otfg9e/whats_one_trick_in_rust_that_made_ownership/?tl=zh-hans",
+          "title": "在Rust中，有什么技巧让所有权突然“明白”了？ - Reddit",
+          "snippet": "所有权就是关于Drop。这就是全部。 Rust 进行自动垃圾回收，而所有权规则帮助找到代码中何时释放/释放内存的点。 所有权== Drop，咔咔点击!! 拥有者 ..."
+        },
+        {
+          "url": "https://www.runoob.com/rust/rust-ownership.html",
+          "title": "Rust 所有权 - 菜鸟教程",
+          "snippet": "所有权规则 所有权有以下三条规则: Rust 中的每个值都有一个变量,称为其所有者。 这三条规则是所有权概念的基础。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/678877875",
+          "title": "Rust 所有权和Move 语义 - 知乎专栏",
+          "snippet": "Rust 所有权规则 一个值只能被一个变量所拥有,这个变量被称为所有者。 一个值同一时刻只能有一个所有者,也就是说不能有两个变量拥有相同的值"
+        },
+        {
+          "url": "https://developer.aliyun.com/ask/432364",
+          "title": "什么是Rust的所有权规则？_问答 - 阿里云开发者社区",
+          "snippet": "Rust的所有权规则保证了同一时刻永远只有一个变量持有一个对象的所有权,避免数据竞争。"
+        },
+        {
+          "url": "https://rustwiki.org/zh-CN/rust-by-example/scope/move.html",
+          "title": "所有权和移动- 通过例子学Rust 中文版",
+          "snippet": "所有权和移动. 因为变量要负责释放它们拥有的资源，所以资源只能拥有一个所有者。这也防止了资源的重复释放。注意并非所有变量都拥有资源（例如引用）。"
+        },
+        {
+          "url": "https://bbs.csdn.net/weixin_31155097/article/details/100561442",
+          "title": "Rust所有权机制详解：从移动、借用到内存安全实战 - 社区",
+          "snippet": "所有权是Rust在编译期用来管理内存的一整套规则，核心就三条：每个值有且只有一个所有者；同一时间只能有一个所有者；所有者离开作用域时，值被自动释放。"
+        },
+        {
+          "url": "https://www.cnblogs.com/lixueren-wy/articles/16974439.html",
+          "title": "rust所有权规则、内存与分配- 三省吾身~ - 博客园",
+          "snippet": "所有权规则. 每个值都有一个变量，这个变量是该值的所有者; 每个值同时只能有一个所有者; 当所有者超出作用域(scope) 时，该值将被删除 ..."
+        },
+        {
+          "url": "https://rust-book.junmajinlong.com/ch6/00.html",
+          "title": "理解Rust的所有权和借用规则 - Rust入门秘籍",
+          "snippet": "所有权系统影响整个Rust，它也使得Rust的很多编码方式和其他语言不太一样。因此，需要掌握好Rust的所有权规则，才能写出可运行的、正确的Rust代码，并且越熟悉所有权规则， ..."
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://kaisery.github.io/trpl-zh-cn/ch04-01-what-is-ownership.html",
+          "title": "什么是所有权？ - Rust 程序设计语言简体中文版 - KaiserY Hub",
+          "snippet": "Rust 程序设计语言 简体中文版 **所有权**（ _ownership_）是 Rust 用于如何管理内存的一组规则。 Rust 则选择了第三种方式：通过所有权系统管理内存，编译器在编译时会根据一系列的规则进行检查。 好消息是随着你对 Rust 和所有权系统的规则越来越有经验，你就越能自然地编写出安全和高效的代码。 首先，让我们看一下所有权的规则。 在所有权的第一个例子中，我们看看一些变量的 **作用域**（ _scope_）。 ```console $ cargo ru…"
+        },
+        {
+          "url": "https://rust-book.junmajinlong.com/ch6/02_move_copy.html",
+          "title": "Rust所有权规则概述 - Rust入门秘籍",
+          "snippet": "所有权转移之后，将只有新的所有者才会指向堆中的实际数据，而原变量将不再指向堆中实际数据，因此所有权转移之后仍然只有一个指针指向堆中数据。Rust所有权规则概述 · Rust中数据的移动 · Copy语义"
+        },
+        {
+          "url": "https://www.reddit.com/r/rust/comments/1otfg9e/whats_one_trick_in_rust_that_made_ownership/?tl=zh-hans",
+          "title": "在Rust中，有什么技巧让所有权突然“明白”了？ - Reddit",
+          "snippet": "所有权就是关于Drop。这就是全部。 Rust 进行自动垃圾回收，而所有权规则帮助找到代码中何时释放/释放内存的点。 所有权== Drop，咔咔点击!! 拥有者 ..."
+        },
+        {
+          "url": "https://www.runoob.com/rust/rust-ownership.html",
+          "title": "Rust 所有权 - 菜鸟教程",
+          "snippet": "所有权规则 所有权有以下三条规则: Rust 中的每个值都有一个变量,称为其所有者。 这三条规则是所有权概念的基础。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/678877875",
+          "title": "Rust 所有权和Move 语义 - 知乎专栏",
+          "snippet": "Rust 所有权规则 一个值只能被一个变量所拥有,这个变量被称为所有者。 一个值同一时刻只能有一个所有者,也就是说不能有两个变量拥有相同的值"
+        },
+        {
+          "url": "https://developer.aliyun.com/ask/432364",
+          "title": "什么是Rust的所有权规则？_问答 - 阿里云开发者社区",
+          "snippet": "Rust的所有权规则保证了同一时刻永远只有一个变量持有一个对象的所有权,避免数据竞争。"
+        },
+        {
+          "url": "https://rustwiki.org/zh-CN/rust-by-example/scope/move.html",
+          "title": "所有权和移动- 通过例子学Rust 中文版",
+          "snippet": "所有权和移动. 因为变量要负责释放它们拥有的资源，所以资源只能拥有一个所有者。这也防止了资源的重复释放。注意并非所有变量都拥有资源（例如引用）。"
+        },
+        {
+          "url": "https://rust-book.junmajinlong.com/ch6/00.html",
+          "title": "理解Rust的所有权和借用规则 - Rust入门秘籍",
+          "snippet": "所有权系统影响整个Rust，它也使得Rust的很多编码方式和其他语言不太一样。因此，需要掌握好Rust的所有权规则，才能写出可运行的、正确的Rust代码，并且越熟悉所有权规则， ..."
+        },
+        {
+          "url": "https://bbs.csdn.net/weixin_31155097/article/details/100561442",
+          "title": "Rust所有权机制详解：从移动、借用到内存安全实战 - 社区",
+          "snippet": "所有权是Rust在编译期用来管理内存的一整套规则，核心就三条：每个值有且只有一个所有者；同一时间只能有一个所有者；所有者离开作用域时，值被自动释放。"
+        },
+        {
+          "url": "https://www.cnblogs.com/lixueren-wy/articles/16974439.html",
+          "title": "rust所有权规则、内存与分配- 三省吾身~ - 博客园",
+          "snippet": "所有权规则. 每个值都有一个变量，这个变量是该值的所有者; 每个值同时只能有一个所有者; 当所有者超出作用域(scope) 时，该值将被删除 ..."
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://rust-lang.org/zh-CN/",
+          "title": "Rust 程序设计语言",
+          "snippet": "1 天前 · 生产环境中的 Rust 全世界已有数百家公司在生产环境中使用 Rust，以达到快速、跨平台、低资源占用的目的。 很多著名且受欢迎的软 …",
+          "publishedAt": "2026-10-22T08:31:00.331Z"
+        },
+        {
+          "url": "https://www.runoob.com/rust/rust-tutorial.html",
+          "title": "Rust 教程 | 菜鸟教程",
+          "snippet": "Rust 教程 Rust 是由 Mozilla 主导开发的高性能编译型编程语言，遵循“安全、并发、实用”的设计原则。 Rust 语言由 Mozilla 开发，首次发布 …"
+        },
+        {
+          "url": "https://rust-lang.org/",
+          "title": "Rust Programming Language",
+          "snippet": "1 天前 · Rust is blazingly fast and memory-efficient: with no runtime or garbage collector, it can power performance-critical services, run …",
+          "publishedAt": "2026-10-22T08:31:00.331Z"
+        },
+        {
+          "url": "https://rustwiki.org/zh-CN/book/ch01-00-getting-started.html",
+          "title": "入门指南 - Rust 程序设计语言 中文版",
+          "snippet": "2026年4月16日 · Rust 程序设计语言中文也译为 Rust 权威指南，是 Rust 官方推出的学习 Rust 的必备教程。 Rust Wiki 版的 Rust 程序设计语 …",
+          "publishedAt": "2026-04-16T12:00:00.000Z"
+        },
+        {
+          "url": "https://baike.baidu.com/item/Rust%E8%AF%AD%E8%A8%80/9502634",
+          "title": "Rust 语言_百度百科",
+          "snippet": "Rust 是一门系统编程语言，专注于安全，尤其是并发安全，支持函数式和命令式以及泛型等编程范式的多范式语言。 Rust 在语法上和 C++ 类 …"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1945885980616786698",
+          "title": "Rust 语言适合用来干啥？一文全收！ - 知乎",
+          "snippet": "2025年9月1日 · 一、Rust 适合干什么 先说 Rust 擅长什么，这个在官网上讲得非常清楚。 (一)、构建命令行工具 使用 Rust 强大的生态系统快 …",
+          "publishedAt": "2025-09-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.zhihu.com/question/624623198",
+          "title": "为什么现在吹 Rust 的人这么多？ - 知乎",
+          "snippet": "2023年10月5日 · 我当初学习 java 到上手开始写 CURD，大概花了半天时间，但是 Rust，从我部署中文版本的 Rust 教程，到我开始入手写一 …",
+          "publishedAt": "2023-10-05T12:00:00.000Z"
+        },
+        {
+          "url": "https://rustwiki.org/docs/",
+          "title": "Rust 中文文档 | Rust 文档网",
+          "snippet": "2023年8月16日 · Rust 中文文档 Rust 中文教程等相关资源列表 官方文档 100%翻译 FORK 源码 🔥 Rust 程序设计语言 官方推出的学习 Rust 基 …",
+          "publishedAt": "2023-08-16T12:00:00.000Z"
+        },
+        {
+          "url": "https://rustcc.cn/",
+          "title": "Rust 语言中文社区-首页",
+          "snippet": "【Rust日报】2026-10-13 Rust 1.100 将在 11 月 12 日发布，建议先测 beta - Rust 新闻/聚合 Mike Tang 2026-10-13 09:07 【RPI 项目】如果 …",
+          "publishedAt": "2026-10-13T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/656505276",
+          "title": "为什么 Rust 是开发者中最受推崇的语言 - 知乎",
+          "snippet": "2023年9月15日 · 自 1.0 版本发布以来，Rust 的受欢迎程度和采用率呈爆炸式增长，微软 Windows 等顶级应用程序都利用 Rust 的内存安全代 …",
+          "publishedAt": "2023-09-15T12:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://kaisery.github.io/trpl-zh-cn/ch04-01-what-is-ownership.html",
+    "https://rust-book.junmajinlong.com/ch6/02_move_copy.html",
+    "https://www.reddit.com/r/rust/comments/1otfg9e/whats_one_trick_in_rust_that_made_ownership/?tl=zh-hans",
+    "https://www.runoob.com/rust/rust-ownership.html",
+    "https://zhuanlan.zhihu.com/p/678877875",
+    "https://developer.aliyun.com/ask/432364",
+    "https://rustwiki.org/zh-CN/rust-by-example/scope/move.html",
+    "https://bbs.csdn.net/weixin_31155097/article/details/100561442"
+  ],
+  "failures": [
+    "exa: no results",
+    "ddg-html: aborted once enough results had arrived"
+  ]
+}

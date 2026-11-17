@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-python-313",
+  "query": "Python 3.13 新特性",
+  "language": "zh",
+  "category": "release",
+  "expectedDomains": [
+    "docs.python.org",
+    "python.org"
+  ],
+  "recordedAt": "2026-10-23T08:31:05.082Z",
+  "elapsedMs": 1931,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.python.org/zh-cn/dev/whatsnew/3.13.html",
+          "title": "Python 3.13 有什么新变化",
+          "snippet": "Python 3.13 Python 编程语言的一个稳定发布版，包含多项针对语言、实现和标准库的改变。 最大的变化包括一个新的交互式解释器，对于在自由线程模式 (PEP 703) 下运行以及 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_42212872/article/details/144067816",
+          "title": "【Python 3.13】新特性解读，重大改进建议升级：JIT编译、免GIL",
+          "snippet": "Python 3.13 · 1. 提升交互式解释器(REPL)体验 · 2. 更清晰友好的错误信息 · 3. 迈向无GIL的自由线程Python · 4. 实验性的JIT编译器 · 5. 静态类型系统的 ...",
+          "publishedAt": "2024-11-26T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/11773309943",
+          "title": "Python3.13封神！将会改变AI和ML的游戏规则",
+          "snippet": "尽管Python 3.13 带来了强大的新特性，如自由线程解释器和JIT 编译器，但它们仍处于试验阶段。在生产环境中部署这些功能之前，必须在开发环境中进行 ...",
+          "publishedAt": "2024-12-10T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.reddit.com/r/Python/comments/1fyeo1g/python_313s_best_new_features/?tl=zh-hans",
+          "title": "Python 3.13 的最佳新功能",
+          "snippet": "Python 3.13 的最佳新功能 · 块级编辑，这对于经常编写代码或大量使用REPL 的人来说是一个巨大的解脱 · 智能粘贴：现在粘贴代码块直接就能用 · 智能复制： ...",
+          "publishedAt": "2024-10-23T08:31:04.435Z"
+        },
+        {
+          "url": "https://juejin.cn/post/7447783762837389338",
+          "title": "Python 3.13 新特性与更新详解",
+          "snippet": "Python 3.13 新特性与更新详解 · 1. 交互式解释器革新 · 2. 错误信息优化 · 3. 实验性无GIL 线程支持(Free-threaded CPython) · 4. 实验性JIT 编译器 · 5.",
+          "publishedAt": "2024-12-13T12:00:00.000Z"
+        },
+        {
+          "url": "https://yanbin.blog/python-3-13-new-features/",
+          "title": "Python 3.13 新特性学习 - 隔叶黄莺Yanbin's Blog - 软件编程实践",
+          "snippet": "Python 3.13 最大的变化就是REPL(Read-Evaluate-Print Loop) Python 控制台交互界面… 改进了错误消息显示和REPL 时一样",
+          "publishedAt": "2025-09-28T12:00:00.000Z"
+        },
+        {
+          "url": "https://cloud.tencent.com/developer/article/2457400",
+          "title": "Python 3.13 来了！更效率、更优雅 - 腾讯云",
+          "snippet": "Python 3.13引入七项类型新特性，如ReadOnly类型、@warnings.deprecated装饰器等，提升代码可靠性与开发效率。同时，性能获改进，部分过时方法被移除 ...",
+          "publishedAt": "2024-10-12T12:00:00.000Z"
+        },
+        {
+          "url": "https://docs.comfy.org/zh/changelog",
+          "title": "更新日志",
+          "snippet": "Python 3.13 支持：完全兼容Python 3.13，保持ComfyUI 与最新Python 发展同步; 前端更新：更新到v1.25.10，改进导航和用户界面增强功能; 逐元素融合：通过逐元素操作融合 ...",
+          "publishedAt": "2026-10-22T10:31:04.435Z"
+        },
+        {
+          "url": "https://pypi.org/project/chan-lun-core/0.2.0/",
+          "title": "chan-lun-core",
+          "snippet": "特性 · 完整理论链条:包含处理→ 分型→ 笔→ 线段→ 中枢→ 背驰→ 三类买卖点,每层独立成模块、可单独调用; · :日线三买/三卖→ 30 分钟内部背驰+ 中枢边界守位,输出 ...",
+          "publishedAt": "2026-10-23T04:31:04.435Z"
+        },
+        {
+          "url": "https://github.com/Tencent/wave-mcp",
+          "title": "Open-source, license-free MCP server for RTL waveform ...",
+          "snippet": "特性. 波形查询：设计层次、实例、信号（位宽/方向/类型，含总线聚合）、信号值 ... Docker 流水线打出的bundle 自带独立Python 3.11（python-build-standalone ...",
+          "publishedAt": "2026-10-22T12:31:04.435Z"
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.python.org/zh-cn/dev/whatsnew/3.13.html",
+          "title": "Python 3.13 有什么新变化— Python 3.16.0a1 文档",
+          "snippet": "Python 3.13 Python 编程语言的一个稳定发布版，包含多项针对语言、实现和标准库的改变。 最大的变化包括一个新的交互式解释器，对于在自由线程模式 (PEP 703) 下运行以及 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_42212872/article/details/144067816",
+          "title": "【Python 3.13】新特性解读，重大改进建议升级：JIT编译、免GIL",
+          "snippet": "Python 3.13 · 1. 提升交互式解释器(REPL)体验 · 2. 更清晰友好的错误信息 · 3. 迈向无GIL的自由线程Python · 4. 实验性的JIT编译器 · 5. 静态类型系统的 ..."
+        },
+        {
+          "url": "https://www.reddit.com/r/Python/comments/1fyeo1g/python_313s_best_new_features/?tl=zh-hans",
+          "title": "Python 3.13 的最佳新功能",
+          "snippet": "Python 3.13 的最佳新功能 · 块级编辑，这对于经常编写代码或大量使用REPL 的人来说是一个巨大的解脱 · 智能粘贴：现在粘贴代码块直接就能用 · 智能复制： ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/11773309943",
+          "title": "Python3.13封神！将会改变AI和ML的游戏规则",
+          "snippet": "尽管Python 3.13 带来了强大的新特性，如自由线程解释器和JIT 编译器，但它们仍处于试验阶段。在生产环境中部署这些功能之前，必须在开发环境中进行 ..."
+        },
+        {
+          "url": "https://juejin.cn/post/7447783762837389338",
+          "title": "Python 3.13 新特性与更新详解",
+          "snippet": "Python 3.13 新特性与更新详解 · 1. 交互式解释器革新 · 2. 错误信息优化 · 3. 实验性无GIL 线程支持(Free-threaded CPython) · 4. 实验性JIT 编译器 · 5."
+        },
+        {
+          "url": "https://docs.python.org/3/whatsnew/3.13.html",
+          "title": "What's New In Python 3.13 — Python 3.15.1 documentation",
+          "snippet": "What’s New In Python 3.13 ¶ Other Language Changes ¶ - Added `name` and `mode` attributes for compressed and archived file-like objects in the `bz2`, `lzma`, `tarfile`, and `zipfile` modules. (Contributed by Serhiy Storchaka in gh-115961.)"
+        },
+        {
+          "url": "https://www.reddit.com/r/Python/comments/1fybncq/python_313_released/?tl=zh-hans",
+          "title": "Python 3.13 发布了",
+          "snippet": "与3.12 相比，3.13 系列的主要新特性. Python 3.13 中的一些主要新特性和更改包括：. 新特性. 一个新的、改进的交互式解释器，基于PyPy 的，具有多行编辑 ..."
+        },
+        {
+          "url": "https://yanbin.blog/python-3-13-new-features/",
+          "title": "Python 3.13 新特性学习 - 隔叶黄莺Yanbin's Blog - 软件编程实践",
+          "snippet": "Python 3.13 新特性学习 ---· 6 min read · new features · twitter facebook linkedin copy 也终于赶在 Python 3.14 将在预计的 2025-10-07 发布之前能够学习总结一下当前的 Python 3.13 的新特性. Python 3.13 最大的变化就是 REPL(Read-Evaluate-Print Loop) Python 控制台交互界面, 还有实验性的支持自由线程模型(free-t…"
+        },
+        {
+          "url": "https://cloud.tencent.com/developer/article/2457400",
+          "title": "Python 3.13 来了！更效率、更优雅 - 腾讯云",
+          "snippet": "Python 3.13引入七项类型新特性，如ReadOnly类型、@warnings.deprecated装饰器等，提升代码可靠性与开发效率。同时，性能获改进，部分过时方法被移除 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/12824443094",
+          "title": "好学编程：Python 3.13 这些新特性你一定要知道！",
+          "snippet": "Python 3.13 已于2024 年10 月7 日正式发布。作为Python 的最新版本，它带来了多项令人振奋的新特性和改进。本文好学编程将为你详细介绍这些重要更新 ..."
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.python.org/",
+          "title": "Welcome to Python .org",
+          "snippet": "The mission of the Python Software Foundation is to promote, protect, and advance the Python programming language, and to support …"
+        },
+        {
+          "url": "https://www.python.org/downloads/",
+          "title": "Download Python | Python .org",
+          "snippet": "Starting with the Python 3.11.0, Python 3.10.7, and Python 3.9.14 releases, CPython release artifacts are signed with Sigstore. See our …"
+        },
+        {
+          "url": "https://www.runoob.com/python/python-tutorial.html",
+          "title": "Python 基础教程 | 菜鸟教程",
+          "snippet": "Python 基础教程 Python 是一种解释型、面向对象、动态数据类型的高级程序设计语言。 Python 由 Guido van Rossum 于 1989 年底发明， …"
+        },
+        {
+          "url": "https://pythonlang.cn/",
+          "title": "欢迎来到 Python .org - Python 编程语言",
+          "snippet": "2026年9月29日 · 快速 & 易于学习 任何其他语言的有经验的程序员都可以非常快速地掌握 Python，而初学者会发现其简洁的语法和缩进结构 …",
+          "publishedAt": "2026-09-29T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.liaoxuefeng.com/wiki/1016959663602400",
+          "title": "简介 - Python教程 - 廖雪峰的官方网站",
+          "snippet": "2026年10月6日 · 用Python可以做什么？ 可以做日常任务，比如自动备份你的MP3；可以做网站，很多著名的网站包括YouTube就是Python …",
+          "publishedAt": "2026-10-06T12:00:00.000Z"
+        },
+        {
+          "url": "https://docs.python.org/zh-cn/",
+          "title": "Python 3.15.1 文档",
+          "snippet": "1 天前 · Python 开发者指南 有关如何为 Python 做贡献的信息 Python 打包用户指南 与 Python 打包有关的资源 音频/视频讲座 来自社区的播客 …",
+          "publishedAt": "2026-10-22T08:31:03.359Z"
+        },
+        {
+          "url": "https://liaoxuefeng.com/books/python/basic/index.html",
+          "title": "Python 基础 - Python 教程 - 廖雪峰的官方网站",
+          "snippet": "2026年10月6日 · Python也不例外。 Python的语法比较简单，采用缩进方式，写出来的代码就像下面的样子： ... 以 # 开头的语句是注释，注 …",
+          "publishedAt": "2026-10-06T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.runoob.com/python/python-lists.html",
+          "title": "Python 列表 (List) | 菜鸟教程",
+          "snippet": "Python有6个序列的内置类型，但最常见的是列表和元组。 序列都可以进行的操作包括索引，切片，加，乘，检查成员。 此外，Python已经内 …"
+        },
+        {
+          "url": "https://docs.python.org/zh-cn/3/tutorial/index.html",
+          "title": "Python 教程 — Python 3.15.0 文档",
+          "snippet": "2 天之前 · 准备好一个 Python 解释器随时上手练习会很有帮助，但所有的示例都是完备自足的，因此本教程也可以离线阅读。 有关标准对象与 …",
+          "publishedAt": "2026-10-21T08:31:03.359Z"
+        },
+        {
+          "url": "https://python123.io/",
+          "title": "Python123 - 编程更简单",
+          "snippet": "因为对人工智能十分感兴趣所以从学 C 语言转为学习 Python，而且同时也是为了考计算机二级，以后继续往上考级；学习 Python 在每一次完 …"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://docs.python.org/zh-cn/dev/whatsnew/3.13.html",
+          "title": "Python 3.13 有什么新变化 — Python 3.16.0a1 文档",
+          "snippet": "Learn about the new features in Python"
+        },
+        {
+          "url": "https://docs.python.org/zh-cn/3.13/whatsnew/index.html",
+          "title": "Python的新变化 — Python 3.13.17 文档",
+          "snippet": "这个\" Python"
+        },
+        {
+          "url": "https://blog.csdn.net/qq254606826/article/details/144459740",
+          "title": "Python 3.13 新特性与更新详解 - CSDN博客",
+          "snippet": "文章浏览阅读1.9k次，点赞21次，收藏18次。文章目录Python 3.13"
+        },
+        {
+          "url": "https://blog.csdn.net/weixin_46190208/article/details/149139292",
+          "title": "十一、Python 3.13 的新特性和更新内容 - CSDN博客",
+          "snippet": "本文介绍了 Python"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/12824443094",
+          "title": "好学编程：Python 3.13 这些新特性你一定要知道! - 知乎",
+          "snippet": "Python"
+        },
+        {
+          "url": "https://baike.baidu.com/item/Python%203.13/68736281",
+          "title": "Python 3.13 - 百度百科",
+          "snippet": "Python"
+        },
+        {
+          "url": "https://www.python.org/downloads/release/python-3130/?featured_on=pythonbytes",
+          "title": "Python Release Python 3.13.0 | Python.org",
+          "snippet": "Python"
+        },
+        {
+          "url": "https://juejin.cn/post/7447783762837389338",
+          "title": "Python 3.13 新特性与更新详解文章目录 ** 1. 交互式解释器革新 2. 错误信息优化 3. 实验性无 GI - 掘金",
+          "snippet": "本文介绍了 Python"
+        },
+        {
+          "url": "https://www.cnblogs.com/nanyu/p/19356064",
+          "title": "python3.13 3.14 新特性 好好好 - 南鱼羁荒渡 - 博客园",
+          "snippet": "Python"
+        },
+        {
+          "url": "https://blog.axiaoxin.com/post/whats-new-in-python-3.13/",
+          "title": "Python 3.13 新特性与更新详解 - 阿小信的博客",
+          "snippet": "深入解析 Python"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://docs.python.org/zh-cn/dev/whatsnew/3.13.html",
+    "https://blog.csdn.net/weixin_42212872/article/details/144067816",
+    "https://zhuanlan.zhihu.com/p/11773309943",
+    "https://www.reddit.com/r/Python/comments/1fyeo1g/python_313s_best_new_features/?tl=zh-hans",
+    "https://juejin.cn/post/7447783762837389338",
+    "https://yanbin.blog/python-3-13-new-features/",
+    "https://cloud.tencent.com/developer/article/2457400",
+    "https://www.python.org/"
+  ],
+  "failures": [
+    "exa: aborted once enough results had arrived"
+  ]
+}

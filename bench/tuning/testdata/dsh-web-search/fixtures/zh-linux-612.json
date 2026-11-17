@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "zh-linux-612",
+  "query": "Linux 内核 6.12 发布",
+  "language": "zh",
+  "category": "news",
+  "expectedDomains": [
+    "kernel.org",
+    "lwn.net"
+  ],
+  "recordedAt": "2026-10-23T08:31:29.579Z",
+  "elapsedMs": 2351,
+  "limit": 8,
+  "lead": "cn",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.csdn.net/easydvlp/article/details/144413398",
+          "title": "Linux内核6.12正式发布，支持实时应用！最新变化一览",
+          "snippet": "关注 Linux内核6.12正式发布, Linux 6.12新版发布,新增实时功能、Sched_Ext、对RDNA4支持 Linux 6.12在特性上的贡献显著",
+          "publishedAt": "2024-12-12T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.reddit.com/r/linux/comments/1gtpo7n/the_612_kernel_has_been_released/?tl=zh-hans",
+          "title": "6.12 内核发布了: r/linux",
+          "snippet": "自2019 年以来（从5.x 内核系列开始），这已经是日历年的最后一个版本了。12 月底前没有足够的时间再发布一个版本了，所以除非他们打破传统，否则这将 ...",
+          "publishedAt": "2025-10-23T08:31:29.579Z"
+        },
+        {
+          "url": "https://finance.sina.com.cn/tech/discovery/2024-11-18/doc-incwnwwk6800342.shtml",
+          "title": "Linux Kernel 6.12正式发布！实时功能终于来了",
+          "snippet": "Linus Torvalds宣布推出Linux Kernel 6.12，引入对实时“PREEMPT_RT”的支持，提升实时应用性能。新版本支持英特尔显卡风扇转速显示、Panther Lake HDMI ...",
+          "publishedAt": "2024-11-18T12:00:00.000Z"
+        },
+        {
+          "url": "https://baike.baidu.com/en/item/Linux%20kernel%206.12/3706063",
+          "title": "Linux kernel 6.12_Baiduwiki",
+          "snippet": ". Linux内核6.12正式发布,支持实时应用!最新变化一览 . CSDN软件开发网 . 2024-12-12. 7. Linux 6.12 内核发布,新特性解读 . 成都欧飞思网络科技有限公司 . 2025-06-01. 8."
+        },
+        {
+          "url": "https://whycan.com/t_11590.html",
+          "title": "LINUX kernel 6.12预计11.18发布,作为最新的适合嵌入式 ...",
+          "snippet": "LINUX kernel 6.12预计11.18发布，将成为2024最重要的版本。这个版本默认内置PREEMPT_RT 功能， Linux 内核转变为完全可抢占的实时操作系统。",
+          "publishedAt": "2024-11-11T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.kernel.org/pub/linux/kernel/projects/rt/6.12/",
+          "title": "Index of /pub/linux/kernel/projects/rt/6.12/",
+          "snippet": "... 6.12.111-rt21.patch.gz 28-Sep-2026 08:24 19K patch-6.12.111-rt21.patch.sign 28-Sep-2026 08:24 228 patch-6.12.111-rt21.patch.xz 28-Sep-2026 08:24 18K ..."
+        },
+        {
+          "url": "https://cn.linkedin.com/pulse/linux-kernel-612-leap-forward-performance-security-kumar-sharma-pz16c?tl=zh",
+          "title": "Linux 内核6.12：性能、安全性和硬件支持的飞跃",
+          "snippet": "Linux 内核6.12 代表了Linux 生态系统的重大进步,引入了提升实时性能、调度灵活性、文件系统能力、安全性和硬件支持的功能。其作为LTS 版本的身份强调了 ...",
+          "publishedAt": "2025-10-23T08:31:29.579Z"
+        },
+        {
+          "url": "https://cloud.tencent.com/developer/article/2472614",
+          "title": "Linux内核6.12正式发布！支持实时应用，改进调度 - 腾讯云",
+          "snippet": "Linux内核6.12现已完成，带来实时应用程序支持和改进的内核调度等关键特性。文章探讨了其新功能，并提供了不同发行版下升级内核的方法， ...",
+          "publishedAt": "2024-12-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.sysgeek.cn/linux-kernel-6-12/",
+          "title": "Linux 6.12 内核发布，新特性解读",
+          "snippet": "Linux 6.12 内核引入了革命性的 sched_ext 功能，这是一个基于BPF 技术的可编程调度器框架。根据官方文档的描述，它允许通过一组BPF 程序自定义调度器的行为。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/11189917579",
+          "title": "Linux 6.12 正式升级为LTS 内核",
+          "snippet": "文档今天进行了更新，正式将Linux 6.12 定为继去年的Linux 6.6 LTS 系列之后的最新LTS 版本。 目前，Linux 6.12 LTS 状态的预计使用寿命终止(EOL) 为2026 ..."
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.reddit.com/r/linux/comments/1gtpo7n/the_612_kernel_has_been_released/?tl=zh-hans",
+          "title": "6.12 内核发布了: r/linux - Reddit",
+          "snippet": "6.12 内核发布了: 更新:6.12.1 对我来说运行良好。 使用专有的英伟达驱动程序和hyprland。 来自Intel,数据库性能提升18%"
+        },
+        {
+          "url": "https://blog.csdn.net/easydvlp/article/details/144413398",
+          "title": "Linux内核6.12正式发布，支持实时应用！最新变化一览 - CSDN博客",
+          "snippet": "1.PREEMPT_RT 纳入主线支持：这是Linux 内核6.12 最为显著和重大的特性之一。经过20 年的开发，从Ubuntu 实时版到内核5.15 中合并锁定代码等一系列铺垫， ..."
+        },
+        {
+          "url": "https://finance.sina.com.cn/tech/discovery/2024-11-18/doc-incwnwwk6800342.shtml",
+          "title": "Linux Kernel 6.12正式发布！实时功能终于来了 - 新浪财经",
+          "snippet": "Linus Torvalds宣布推出Linux Kernel 6.12，引入对实时“PREEMPT_RT”的支持，提升实时应用性能。新版本支持英特尔显卡风扇转速显示、Panther Lake HDMI ..."
+        },
+        {
+          "url": "https://www.kernel.org/pub/linux/kernel/projects/rt/6.12/",
+          "title": "Index of /pub/linux/kernel/projects/rt/6.12/",
+          "snippet": "Index of /pub/linux/kernel/projects/rt/6.12/ patch-6.12.111-rt21.patch.gz 28-Sep-2026 08:24 19K patch-6.12.111-rt21.patch. 228 patch-6.12.111-rt21.patch.xz 18K ..."
+        },
+        {
+          "url": "https://whycan.com/t_11590.html",
+          "title": "LINUX kernel 6.12预计11.18发布,作为最新的适合嵌入式版本，可以准备 ...",
+          "snippet": "LINUX kernel 6.12预计11.18发布，将成为2024最重要的版本。这个版本默认内置PREEMPT_RT 功能， Linux 内核转变为完全可抢占的实时操作系统。"
+        },
+        {
+          "url": "https://baike.baidu.com/en/item/Linux%20kernel%206.12/3706063",
+          "title": "Linux kernel 6.12_Baiduwiki",
+          "snippet": ". Linux内核6.12正式发布,支持实时应用!最新变化一览 . CSDN软件开发网 . 2024-12-12. 7. Linux 6.12 内核发布,新特性解读 . 成都欧飞思网络科技有限公司 . 2025-06-01. 8."
+        },
+        {
+          "url": "https://cn.linkedin.com/pulse/linux-kernel-612-leap-forward-performance-security-kumar-sharma-pz16c?tl=zh",
+          "title": "Linux 内核6.12：性能、安全性和硬件支持的飞跃 - 领英",
+          "snippet": "Linux 内核6.12 代表了Linux 生态系统的重大进步,引入了提升实时性能、调度灵活性、文件系统能力、安全性和硬件支持的功能"
+        },
+        {
+          "url": "https://cloud.tencent.com/developer/article/2472614",
+          "title": "Linux内核6.12正式发布！支持实时应用，改进调度 - 腾讯云",
+          "snippet": "Linux内核6.12现已完成，带来实时应用程序支持和改进的内核调度等关键特性。文章探讨了其新功能，并提供了不同发行版下升级内核的方法， ..."
+        },
+        {
+          "url": "https://www.sysgeek.cn/linux-kernel-6-12/",
+          "title": "Linux 6.12 内核发布，新特性解读 - 系统极客",
+          "snippet": "Linux 6.12 内核引入了革命性的 sched_ext 功能，这是一个基于BPF 技术的可编程调度器框架。根据官方文档的描述，它允许通过一组BPF 程序自定义调度器的 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/11189917579",
+          "title": "Linux 6.12 正式升级为LTS 内核 - 知乎专栏",
+          "snippet": "文档今天进行了更新，正式将Linux 6.12 定为继去年的Linux 6.6 LTS 系列之后的最新LTS 版本。 目前，Linux 6.12 LTS 状态的预计使用寿命终止(EOL) 为2026 ..."
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://www.runoob.com/linux/linux-tutorial.html",
+          "title": "Linux 教程 | 菜鸟教程",
+          "snippet": "Linux 是一种自由和开放源码的类 UNIX 操作系统。 Linux 英文解释为 Linux is not Unix。 Linux 是在 1991 由林纳斯·托瓦兹在赫尔辛基大学上 … 阅读更多"
+        },
+        {
+          "url": "https://baike.baidu.com/item/Linux/27050",
+          "title": "Linux _百度百科",
+          "snippet": "1991年10月5日 · Linux是类Unix操作系统内核，由林纳斯·托瓦兹（Linus Torvalds）于1991年开始开发并首次发布，采用开放协作方式持续演 …",
+          "publishedAt": "1991-10-05T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.linux.org/pages/download/",
+          "title": "Download Linux | Linux .org",
+          "snippet": "2017年5月1日 · 24 Popular Linux Distributions Explore different Linux distributions and find the one that fits your needs. Try …",
+          "publishedAt": "2017-05-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://blog.csdn.net/bigbangbangbang1/article/details/131575669",
+          "title": "Linux 入门教程（非常详细）从零基础入门到精通，看完这 ...",
+          "snippet": "2024年9月3日 · 什么是 Linux Linux 系统内核与 Linux 发行套件的区别 Linux 系统内核指的是由 Linus Torvalds 负责维护，提供硬件抽象层、 …",
+          "publishedAt": "2024-09-03T12:00:00.000Z"
+        },
+        {
+          "url": "https://cn.ubuntu.com/download",
+          "title": "Ubuntu 系统下载 | Ubuntu",
+          "snippet": "2026年4月1日 · Ubuntu 下载 Ubuntu 是世界上最受欢迎的 Linux 操作系统。 您可以在桌面电脑、笔记本、工作站、服务器或物联网设备上运 …",
+          "publishedAt": "2026-04-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.kernel.org/",
+          "title": "The Linux Kernel Archives",
+          "snippet": "5 天之前 · This site is operated by the Linux Kernel Organization, a 501 (c)3 nonprofit corporation, with support from the following …",
+          "publishedAt": "2026-10-18T08:31:27.822Z"
+        },
+        {
+          "url": "https://www.eet-china.com/mp/a533286.html",
+          "title": "人人都在说 Linux ，它到底是什么？-电子工程专辑",
+          "snippet": "1 小时前 · 一、Linux是什么？ 简单来说，Linux是一个操作系统内核。但是在实际使用中，人们通常说的“Linux系统”，通常指基于Linux内核构 …",
+          "publishedAt": "2026-10-23T07:31:27.822Z"
+        },
+        {
+          "url": "https://www.linux.org/",
+          "title": "Linux .org",
+          "snippet": "1 天前 · Of course, many companies may need an Operating System (OS) other than Linux, such as Windows. So, the setup is not a …",
+          "publishedAt": "2026-10-22T08:31:27.822Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/2066996767648961760",
+          "title": "Linux Mint和Ubuntu：2026年，新手入坑 Linux 选谁更省心？",
+          "snippet": "2026年想要上手Linux的新手，可比十年、 二十年前的用户们幸福多了。再也不用一手攥着入门教程，一边对着 GRUB /LILO引导程序提心吊 …"
+        },
+        {
+          "url": "https://www.redhat.com/zh-cn/topics/linux",
+          "title": "了解 Linux - Red Hat",
+          "snippet": "什么是 Linux？ Linux® 是 Linus Torvalds 于 1991 年创建的开源操作系统（OS）。 如今，在其全球爱好者社区的推动下，这款操作系统已广 …"
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://zhuanlan.zhihu.com/p/10078505329",
+          "title": "Linux内核6.12正式发布!支持实时应用，改进调度 - 知乎",
+          "snippet": "6.12候选版本1于2024年9月29日发布，经历了相对平静的七个候选版本迭代测试期。 我之前 在此 讨论过内核6.12rc1。 现在内核 6.12",
+          "publishedAt": "2024-09-29T12:00:00.000Z"
+        },
+        {
+          "url": "https://geek-blogs.com/blog/linux-kernel-6-12/",
+          "title": "Linux Kernel 6.12 技术详解：新特性、性能优化与实践指南",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://blog.csdn.net/easydvlp/article/details/144413398",
+          "title": "Linux内核6.12正式发布，支持实时应用!最新变化一览_linux 6.12-CSDN博客",
+          "snippet": "文章浏览阅读2.9k次，点赞4次，收藏3次。本文介绍了Linux内核6.12的改进。在实时性能上，纳入PREEMPT_RT、引入sched_ext调度程序；硬件支持适配多款新硬件；安全性优化核心模块；文件系统性能与功能增强；调试监控、工具语言支持、网络功能、驱动兼容性等方面均有提升，如崩溃信息二维码显示 ..."
+        },
+        {
+          "url": "https://www.kernel.org/",
+          "title": "The Linux Kernel Archives",
+          "snippet": "This site is operated by the Linux"
+        },
+        {
+          "url": "https://cloud.tencent.com/developer/article/2472614",
+          "title": "Linux内核6.12正式发布!支持实时应用，改进调度 - 腾讯云",
+          "snippet": "Linux内核6.12现已完成，带来实时应用程序支持和改进的内核调度等关键特性。文章探讨了其新功能，并提供了不同发行版下升级内核的方法，建议关注以实时应用为需求的团队。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/11189917579",
+          "title": "Linux 6.12 正式升级为 LTS 内核 - 知乎",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://www.sysgeek.cn/linux-kernel-6-12/",
+          "title": "Linux 6.12 内核发布，新特性解读 - 系统极客",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://www.zdyedu.cn/blog/linux-kernel-612-lts-preempt-rt-enterprise-tuning/",
+          "title": "Linux 6.12 LTS 企业部署指南：PREEMPT_RT 实时内核与生产调优 - 顶有教育科技",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://kernelnewbies.org/Linux_6.12",
+          "title": "Linux_6.12 - Linux Kernel Newbies",
+          "snippet": "Linux"
+        },
+        {
+          "url": "https://www.linuxmi.com/linux-kernel-6-12.html",
+          "title": "Linux Kernel 6.12 正式发布：多项新功能和改进 - Linux迷",
+          "snippet": "正如预期，Linus Torvalds 正式发布了稳定版的 Linux"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://blog.csdn.net/easydvlp/article/details/144413398",
+    "https://www.reddit.com/r/linux/comments/1gtpo7n/the_612_kernel_has_been_released/?tl=zh-hans",
+    "https://finance.sina.com.cn/tech/discovery/2024-11-18/doc-incwnwwk6800342.shtml",
+    "https://baike.baidu.com/en/item/Linux%20kernel%206.12/3706063",
+    "https://whycan.com/t_11590.html",
+    "https://www.kernel.org/pub/linux/kernel/projects/rt/6.12/",
+    "https://cn.linkedin.com/pulse/linux-kernel-612-leap-forward-performance-security-kumar-sharma-pz16c?tl=zh",
+    "https://cloud.tencent.com/developer/article/2472614"
+  ],
+  "failures": [
+    "exa: aborted once enough results had arrived"
+  ]
+}

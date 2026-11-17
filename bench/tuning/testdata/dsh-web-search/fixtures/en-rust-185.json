@@ -1,0 +1,343 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "id": "en-rust-185",
+  "query": "Rust 1.85 release notes",
+  "language": "en",
+  "category": "release",
+  "expectedDomains": [
+    "blog.rust-lang.org",
+    "rust-lang.org",
+    "doc.rust-lang.org"
+  ],
+  "recordedAt": "2026-10-23T08:31:56.662Z",
+  "elapsedMs": 5006,
+  "limit": 8,
+  "lead": "global",
+  "wait": "auto",
+  "timeRange": "off",
+  "rank": {
+    "rrfConstant": 60,
+    "authorityBoost": 0.25,
+    "freshnessBoost": 0.2,
+    "freshnessDays": 30
+  },
+  "usedProxy": true,
+  "engines": [
+    {
+      "id": "anysearch",
+      "region": "both",
+      "weight": 2,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/",
+          "title": "Announcing Rust 1.85.0 and Rust 2024",
+          "snippet": "If you don't have it already, you can get rustup from the appropriate page on our website, and check out the detailed release notes for 1.85.0.",
+          "publishedAt": "2025-02-20T12:00:00.000Z"
+        },
+        {
+          "url": "https://releases.rs/docs/1.85.0/",
+          "title": "1.85.0 | Rust Changelogs",
+          "snippet": "1.85.0 # Released on: 20 February, 2025 Branched from master on: 3 January, 2025 Language # The 2024 Edition is now stable."
+        },
+        {
+          "url": "https://www.reddit.com/r/rust/comments/1iu3l0a/announcing_rust_1850_and_rust_2024_rust_blog/",
+          "title": "Announcing Rust 1.85.0 and Rust 2024 | Rust Blog",
+          "snippet": "As of this release, steps 1 and 2 are complete. The final step is technically straightforward in theory, but it will take time for people to ...",
+          "publishedAt": "2025-10-23T08:31:53.657Z"
+        },
+        {
+          "url": "https://doc.rust-lang.org/beta/releases.html",
+          "title": "Rust Release Notes",
+          "snippet": "§Version 1.85.0 (2025-02-20). §Language. The 2024 Edition is now stable. See the edition guide for more details. Stabilize async closures See ...",
+          "publishedAt": "2026-09-03T12:00:00.000Z"
+        },
+        {
+          "url": "https://news.ycombinator.com/item?id=43117438",
+          "title": "Announcing Rust 1.85.0 and Rust 2024",
+          "snippet": "DDranks on Feb 20, 2025. This is the hugest release of Rust this far. Some other tool release their version N at the end of the year N-1. ...",
+          "publishedAt": "2025-02-20T12:00:00.000Z"
+        },
+        {
+          "url": "https://github.com/rust-lang/rust/releases",
+          "title": "Releases · rust-lang/rust",
+          "snippet": "Compatibility Notes · Fix layout of #[repr(Int)] enums in some edge cases involving fields of uninhabited zero-sized types · Prevent unsize-coercing into Pin ..."
+        },
+        {
+          "url": "https://internals.rust-lang.org/t/rust-1-85-1-pre-release-testing/22578",
+          "title": "Rust 1.85.1 pre-release testing - announcements",
+          "snippet": "The 1.85.1 pre-release is ready for testing. The release is scheduled for March 18. Release notes can be found here.",
+          "publishedAt": "2025-03-15T12:00:00.000Z"
+        },
+        {
+          "url": "https://lists.buildroot.org/pipermail/buildroot/2025-April/776160.html",
+          "title": "[Buildroot] [PATCH 4/4] package/rust: bump to version 1.85.1",
+          "snippet": "[Buildroot] [PATCH 4/4] package/rust: bump to version 1.85.1 · Previous message (by thread): [Buildroot] [PATCH 3/4] package: update all hashes ..."
+        },
+        {
+          "url": "https://kitploit.com/en/tools/github/xhyumiracle/sudp",
+          "title": "sudp — Secret-Use Delegation Protocol - Kitploit",
+          "snippet": "sudp lets an autonomous Requester (R) propose a secret-backed operation, an Authorizer (A) authorize exactly that operation, and a Custodian (T) perform it. ...",
+          "publishedAt": "2026-10-23T05:31:53.657Z"
+        },
+        {
+          "url": "http://www.jamisonmeats.com/?j=458426331",
+          "title": "Smartwatch Compatible With Android And Iphone",
+          "snippet": "new smartwatches are the first to launch with Wear OS 5 Android. Smart Watch with 1.85 Inch HD Large Screen LED Lamp 730 mAh Battery",
+          "publishedAt": "2026-10-22T22:31:53.657Z"
+        }
+      ]
+    },
+    {
+      "id": "exa",
+      "region": "global",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/",
+          "title": "Announcing Rust 1.85.0 and Rust 2024 | Rust Blog",
+          "snippet": "Announcing Rust 1.85.0 and Rust 2024 | Rust Blog ## Announcing Rust 1.85.0 and Rust 2024 Feb. 20, 2025 · The Rust Release Team The Rust team is happy to announce a new version of Rust, 1.85.0. This stabilizes the 2024 edition as well. Rust…"
+        },
+        {
+          "url": "https://releases.rs/docs/1.85.0/",
+          "title": "1.85.0 | Rust Changelogs",
+          "snippet": "1.85.0 | Rust Changelogs # 1.85.0 # > - Released on: 20 February, 2025 > - Branched from master on: 3 January, 2025 ## Language # - The 2024 Edition is now stable. See the edition guide for more details. - Stabilize async closures See RFC…"
+        },
+        {
+          "url": "https://doc.rust-lang.org/beta/releases.html",
+          "title": "Rust Release Notes",
+          "snippet": "§ Version 1.85.1 (2025-03-18) - Fix the doctest-merging feature of the 2024 Edition. - Relax some `target_feature` checks when generating docs. - Fix errors in `std::fs::rename` on Windows 10, version 1607. - Downgrade bootstrap `cc` to fi…"
+        },
+        {
+          "url": "https://blog.rust-lang.org/2025/03/18/Rust-1.85.1/",
+          "title": "Announcing Rust 1.85.1",
+          "snippet": "Announcing Rust 1.85.1 Mar. 18, 2025 · The Rust Release Team The Rust team has published a new point release of Rust, 1.85.1. Rust is a programming language that is empowering everyone to build reliable and efficient software. If you have…"
+        },
+        {
+          "url": "https://github.com/rust-lang/rust/releases",
+          "title": "Releases · rust-lang/rust",
+          "snippet": "- Add POSIX symbols to the `invalid_runtime_symbol_definitions` and `suspicious_runtime_symbol_definitions` lints - Lint unused `#[path ... attributes on inline modules - Enable `unreachable_cfg_select_"
+        },
+        {
+          "url": "https://rust.googlesource.com/rust-lang/rust/+/refs/tags/1.86.0/RELEASES.md",
+          "title": "Version 1.86.0 (2025-04-03)",
+          "snippet": "Version 1.85.1 (2025-03-18) - Fix the doctest-merging feature of the 2024 Edition. - Relax some `target_feature` checks when generating docs. - Fix errors in `std::fs::rename` on Windows 10, version 1607. - Downgrade bootstrap `cc` to fix…"
+        },
+        {
+          "url": "https://newreleases.io/project/github/rust-lang/rust/release/1.85.0",
+          "title": "rust-lang/rust 1.85.0 on GitHub",
+          "snippet": "rust-lang/rust 1.85.0 on GitHub 1.85.0 20 months ago ## Language - The 2024 Edition is now stable. See the edition guide for more details. - Stabilize async closures See RFC 3668 for more details. - Stabilize `#[diagnostic::do_not_recommen…"
+        },
+        {
+          "url": "https://blog.rust-lang.org/releases/",
+          "title": "The Rust Release Announcements",
+          "snippet": "Releases in 2025 Dec. 11 Announcing Rust 1.92.0 Nov. 10 Announcing Rust 1.91.1 Oct. 30 Announcing Rust 1.91.0 Sept. 18 Announcing Rust 1.90.0 Aug. 7 Announcing Rust 1.89.0 June 26 Announcing Rust 1.88.0 May 15 Announcing Rust 1.87.0 and te…"
+        },
+        {
+          "url": "https://rust.googlesource.com/rust/+/refs/tags/1.85.0",
+          "title": "refs/tags/1.85.0 - rust - Git at Google",
+          "snippet": "``` 1.85.0 release ``` 4d91de4e48198da2e33413efdcd9cd2cc0c46688 author bors <bors@rust-lang.org> Mon Feb 17 18:17:27 2025 +0000 bors <bors@rust-lang.org> Mon Feb 17 18:17:27 2025 +0000 tree 42a5f1d2824e32a8a1804e03d7b68f274d875823 parent `…"
+        },
+        {
+          "url": "https://github.com/rust-lang/cargo/pull/15211",
+          "title": "chore(deps): update msrv (1 version) to v1.85",
+          "snippet": "This PR contains the following updates: | Package | Update | Change | |---|---|---| | MSRV:1 | minor | `1.84` -> `1.85` | ... RFC 3668 for more details. - Stabilize `#[diagnostic ... combining `#[no_mangle]` and `#[export_name]` attributes."
+        }
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "region": "both",
+      "weight": 1,
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/",
+          "title": "Announcing Rust 1.85.0 and Rust 2024 - Rust Blog",
+          "snippet": "The Rust team is happy to announce a new version of Rust, 1.85.0. What's in 1.85.0 stable Rust 2024 Editions are a mechanism for opt-in changes that may otherwise pose a backwards compatibility risk. This is the largest edition we have rel…"
+        },
+        {
+          "url": "https://releases.rs/docs/1.85.0/",
+          "title": "1.85.0 | Rust Changelogs",
+          "snippet": "1.85.0 # Released on: 20 February, 2025 Branched from master on: 3 January, 2025 Language # The 2024 Edition is now stable."
+        },
+        {
+          "url": "https://releases.rs/",
+          "title": "Rust Versions | Rust Changelogs",
+          "snippet": "Rust Versions # Stable: 1.99.1 Beta: 1.100.0 (12 November, 2026, 20 days left) Nightly: 1.101.0 (24 December, 2026, 62 days left) Ongoing Stabilization PRs ..."
+        },
+        {
+          "url": "https://blog.rust-lang.org/2025/03/18/Rust-1.85.1/",
+          "title": "Announcing Rust 1.85.1 - Rust Blog",
+          "snippet": "The Rust team has published a new point release of Rust, 1.85.1. Fixed combined doctest compilation. Downgrade bootstrap cc to fix custom ..."
+        },
+        {
+          "url": "https://www.reddit.com/r/rust/comments/1iu3l0a/announcing_rust_1850_and_rust_2024_rust_blog/",
+          "title": "Announcing Rust 1.85.0 and Rust 2024 | Rust Blog : r/rust - Reddit",
+          "snippet": "As of this release, steps 1 and 2 are complete. The final step is technically straightforward in theory, but it will take time for people to ...Why rust 1.85.1 and what happened with rustdoc merged doctests featureA summary of all breaking…"
+        },
+        {
+          "url": "https://doc.rust-lang.org/beta/releases.html",
+          "title": "Rust Release Notes",
+          "snippet": "§Version 1.85.0 (2025-02-20). §Language. The 2024 Edition is now stable. See the edition guide for more details. Stabilize async closures See ..."
+        },
+        {
+          "url": "https://github.com/rust-lang/rust/releases",
+          "title": "Releases · rust-lang/rust - GitHub",
+          "snippet": "Compatibility Notes · Fix layout of #[repr(Int)] enums in some edge cases involving fields of uninhabited zero-sized types · Prevent unsize-coercing into Pin<Foo> ..."
+        },
+        {
+          "url": "https://news.ycombinator.com/item?id=43117438",
+          "title": "Announcing Rust 1.85.0 and Rust 2024 - Hacker News",
+          "snippet": "DDranks on Feb 20, 2025. This is the hugest release of Rust this far. Some other tool release their version N at the end of the year N-1. ..."
+        },
+        {
+          "url": "https://internals.rust-lang.org/t/rust-1-85-1-pre-release-testing/22578",
+          "title": "Rust 1.85.1 pre-release testing - announcements - Rust Internals",
+          "snippet": "The 1.85.1 pre-release is ready for testing. The release is scheduled for March 18. Release notes can be found here."
+        },
+        {
+          "url": "https://lists.buildroot.org/pipermail/buildroot/2025-April/776160.html",
+          "title": "[Buildroot] [PATCH 4/4] package/rust: bump to version 1.85.1",
+          "snippet": "[Buildroot] [PATCH 4/4] package/rust: bump to version 1.85.1 · Previous message (by thread): [Buildroot] [PATCH 3/4] package: update all hashes ..."
+        }
+      ]
+    },
+    {
+      "id": "ddg-html",
+      "region": "global",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://releases.rs/docs/1.85.0/",
+          "title": "1.85.0 | Rust Changelogs - releases.rs",
+          "snippet": "1.85.0 # Released on: 20 February, 2025 Branched from master on: 3 January, 2025 Language # The 2024 Edition is now stable. See the edition guide for more details. Stabilize async closures See RFC 3668 for more details. Stabilize #[diagnostic::do_not_recommend] Add unpredictable_function_pointer_comparisons lint to warn against function pointer comparisons Lint on combining #[no_mangle] and ...",
+          "publishedAt": "2025-02-20T12:00:00.000Z"
+        },
+        {
+          "url": "https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/",
+          "title": "Announcing Rust 1.85.0 and Rust 2024 | Rust Blog",
+          "snippet": "Rust"
+        },
+        {
+          "url": "https://doc.rust-lang.org/stable/releases.html",
+          "title": "Rust Release Notes",
+          "snippet": "Refer to Rust's"
+        },
+        {
+          "url": "https://versionlog.com/rust/1.85/",
+          "title": "Rust 1.85 - What's New, Support Lifecycle & EOL - VersionLog",
+          "snippet": "What Is New in Rust"
+        },
+        {
+          "url": "https://releases.rs/",
+          "title": "Rust Versions | Rust Changelogs",
+          "snippet": "Rust"
+        },
+        {
+          "url": "https://blog.rust-lang.org/releases/",
+          "title": "The Rust Release Announcements",
+          "snippet": "This is a subset of the main Rust"
+        },
+        {
+          "url": "https://lwn.net/Articles/1011122/",
+          "title": "Rust 1.85.0 released - lwn.net",
+          "snippet": "Version 1.85.0 of the Rust"
+        },
+        {
+          "url": "https://versiontrack.dev/languages/version/rust-1-85-0/",
+          "title": "Rust 1.85.0 · VersionTrack",
+          "snippet": "Rust"
+        },
+        {
+          "url": "https://internals.rust-lang.org/t/rust-1-85-0-pre-release-testing/22402",
+          "title": "Rust 1.85.0 pre-release testing - announcements - Rust Internals",
+          "snippet": "The 1.85.0 pre- release"
+        },
+        {
+          "url": "https://rust.double11.com/news/patch-notes-185",
+          "title": "Patch Notes 1.85 - Rust Console Edition",
+          "snippet": "Hello Survivors. Update 1.85"
+        }
+      ]
+    },
+    {
+      "id": "cn.bing",
+      "region": "cn",
+      "tier": "primary",
+      "sources": [
+        {
+          "url": "https://rust-lang.org/zh-CN/",
+          "title": "Rust 程序设计语言",
+          "snippet": "1 天前 · 生产环境中的 Rust 全世界已有数百家公司在生产环境中使用 Rust，以达到快速、跨平台、低资源占用的目的。 很多著名且受欢迎的软 …",
+          "publishedAt": "2026-10-22T08:31:52.194Z"
+        },
+        {
+          "url": "https://www.runoob.com/rust/rust-tutorial.html",
+          "title": "Rust 教程 | 菜鸟教程",
+          "snippet": "Rust 教程 Rust 是由 Mozilla 主导开发的高性能编译型编程语言，遵循“安全、并发、实用”的设计原则。 Rust 语言由 Mozilla 开发，首次发布 …"
+        },
+        {
+          "url": "https://rust-lang.org/",
+          "title": "Rust Programming Language",
+          "snippet": "1 天前 · Rust is blazingly fast and memory-efficient: with no runtime or garbage collector, it can power performance-critical services, run …",
+          "publishedAt": "2026-10-22T08:31:52.194Z"
+        },
+        {
+          "url": "https://rustwiki.org/zh-CN/book/ch01-00-getting-started.html",
+          "title": "入门指南 - Rust 程序设计语言 中文版",
+          "snippet": "2026年4月16日 · Rust 程序设计语言中文也译为 Rust 权威指南，是 Rust 官方推出的学习 Rust 的必备教程。 Rust Wiki 版的 Rust 程序设计语 …",
+          "publishedAt": "2026-04-16T12:00:00.000Z"
+        },
+        {
+          "url": "https://baike.baidu.com/item/Rust%E8%AF%AD%E8%A8%80/9502634",
+          "title": "Rust 语言_百度百科",
+          "snippet": "Rust 是一门系统编程语言，专注于安全，尤其是并发安全，支持函数式和命令式以及泛型等编程范式的多范式语言。 Rust 在语法上和 C++ 类 …"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1945885980616786698",
+          "title": "Rust 语言适合用来干啥？一文全收！ - 知乎",
+          "snippet": "2025年9月1日 · 一、Rust 适合干什么 先说 Rust 擅长什么，这个在官网上讲得非常清楚。 (一)、构建命令行工具 使用 Rust 强大的生态系统快 …",
+          "publishedAt": "2025-09-01T12:00:00.000Z"
+        },
+        {
+          "url": "https://www.zhihu.com/question/624623198",
+          "title": "为什么现在吹 Rust 的人这么多？ - 知乎",
+          "snippet": "2023年10月5日 · 我当初学习 java 到上手开始写 CURD，大概花了半天时间，但是 Rust，从我部署中文版本的 Rust 教程，到我开始入手写一 …",
+          "publishedAt": "2023-10-05T12:00:00.000Z"
+        },
+        {
+          "url": "https://rustwiki.org/docs/",
+          "title": "Rust 中文文档 | Rust 文档网",
+          "snippet": "2023年8月16日 · Rust 中文文档 Rust 中文教程等相关资源列表 官方文档 100%翻译 FORK 源码 🔥 Rust 程序设计语言 官方推出的学习 Rust 基 …",
+          "publishedAt": "2023-08-16T12:00:00.000Z"
+        },
+        {
+          "url": "https://rustcc.cn/",
+          "title": "Rust 语言中文社区-首页",
+          "snippet": "【Rust日报】2026-10-13 Rust 1.100 将在 11 月 12 日发布，建议先测 beta - Rust 新闻/聚合 Mike Tang 2026-10-13 09:07 【RPI 项目】如果 …",
+          "publishedAt": "2026-10-13T12:00:00.000Z"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/656505276",
+          "title": "为什么 Rust 是开发者中最受推崇的语言 - 知乎",
+          "snippet": "2023年9月15日 · 自 1.0 版本发布以来，Rust 的受欢迎程度和采用率呈爆炸式增长，微软 Windows 等顶级应用程序都利用 Rust 的内存安全代 …",
+          "publishedAt": "2023-09-15T12:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "finalUrls": [
+    "https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/",
+    "https://releases.rs/docs/1.85.0/",
+    "https://doc.rust-lang.org/beta/releases.html",
+    "https://github.com/rust-lang/rust/releases",
+    "https://internals.rust-lang.org/t/rust-1-85-1-pre-release-testing/22578",
+    "https://blog.rust-lang.org/2025/03/18/Rust-1.85.1/",
+    "https://www.reddit.com/r/rust/comments/1iu3l0a/announcing_rust_1850_and_rust_2024_rust_blog/",
+    "https://blog.rust-lang.org/releases/"
+  ],
+  "failures": []
+}
