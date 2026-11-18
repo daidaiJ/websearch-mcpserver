@@ -10,6 +10,12 @@ import (
 // FuzzValidateURLSecurity 覆盖抓取预检的解析与私网判定：
 // 目标是不 panic、不把已知内网/元数据地址判为安全。
 func FuzzValidateURLSecurity(f *testing.F) {
+	// 随机主机名会触发真实 DNS 查询，fuzz worker 卡在解析上会拖到 fuzztime
+	// 之后仍不退出（context deadline exceeded）。固定解析结果为公网地址，
+	// 让目标只测解析/私网判定这条本地路径。
+	lookupHost = func(string) ([]string, error) { return []string{"93.184.216.34"}, nil }
+	defer func() { lookupHost = net.LookupHost }()
+
 	seeds := []string{
 		"https://example.com/path",
 		"http://127.0.0.1:8080/admin",

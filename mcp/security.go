@@ -23,6 +23,9 @@ import (
 // 抓取类工具的 URL 安全预检（SSRF/DNS rebinding）与 HEAD 大小检查。
 // ── CleanFetch 安全预检 ──────────────────────────────────────────────────────
 
+// lookupHost 是 DNS 解析入口，测试可替换，避免 fuzz 对随机主机名做真实查询。
+var lookupHost = net.LookupHost
+
 // validateURLSecurity DNS rebinding 防护：解析域名并检查所有 IP 是否为内网地址。
 // 与 go-webfetch 的 BlockPrivateIP 形成双重防护（MCP 层预检 + 库层连接时检查）。
 func validateURLSecurity(rawURL string) error {
@@ -46,7 +49,7 @@ func validateURLSecurity(rawURL string) error {
 	}
 
 	// DNS 解析后检查 IP（防 DNS rebinding）
-	ips, err := net.LookupHost(host)
+	ips, err := lookupHost(host)
 	if err != nil {
 		// DNS 解析失败不阻断（可能是临时 DNS 问题，由后续 fetch 报具体错误）
 		log.InfoT("log.mcp.dns_resolution_failed_skipping_security_checks", "host", host, "err", err)
