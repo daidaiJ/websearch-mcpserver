@@ -12,6 +12,7 @@
 ### Fixed
 
 - `cleanfetch` continues through its existing fallback chain when a remote response contains only a title or skip-navigation link. Short valid bodies remain accepted; no new parameters or configuration are required. (from PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33) by [@MattLYT](https://github.com/MattLYT))
+- **Windows system proxy detection now loads its DLL securely**: `wininet.dll` is listed in neither KnownDLLs nor Go's `sysdll` allowlist, so `syscall.NewLazyDLL` resolved it through the default search order and a same-named DLL dropped next to the executable could hijack it (a planted copy was loaded in testing). It now goes through `windows.NewLazySystemDLL` (`LOAD_LIBRARY_SEARCH_SYSTEM32`) and loads from System32 only. `golang.org/x/sys` was already in the dependency graph, so the binary size is unchanged.
 
 ## v3.10.7 — 2026-11-14 (local PDF hardening + optional PDFium backend, search quality loop, CI/distribution)
 

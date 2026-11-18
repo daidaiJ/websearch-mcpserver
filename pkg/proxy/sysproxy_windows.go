@@ -3,10 +3,15 @@ package proxy
 import (
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
-	modwininet            = syscall.NewLazyDLL("wininet.dll")
+	// wininet.dll 既不在 KnownDLLs 也不在 Go 的 sysdll 白名单里，
+	// syscall.NewLazyDLL 会按默认搜索顺序解析，exe 目录放同名 DLL 即可劫持。
+	// NewLazySystemDLL 走 LOAD_LIBRARY_SEARCH_SYSTEM32，只从 System32 加载。
+	modwininet            = windows.NewLazySystemDLL("wininet.dll")
 	procInternetGetOption = modwininet.NewProc("InternetQueryOptionW")
 )
 
@@ -35,7 +40,7 @@ func proxyFromOS() string {
 // proxyFromRegistry 从注册表读取 Windows 系统代理。
 // 对应 HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings\ProxyEnable / ProxyServer。
 func proxyFromRegistry() string {
-	// 用 syscall 直接调用，避免引入 golang.org/x/sys/windows
+	// advapi32 在 Go 的 sysdll 白名单内，syscall 会固定从 System32 加载。
 	hkey, err := regOpenKey(syscall.HKEY_CURRENT_USER,
 		`Software\Microsoft\Windows\CurrentVersion\Internet Settings`)
 	if err != nil {
