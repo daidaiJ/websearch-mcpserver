@@ -75,7 +75,7 @@ mcp/ ──► pkg/search（组合根）；pkg/cache  pkg/llm ──► 仅依�
 | 调整搜索模式组合逻辑 / 兜底顺序 | `pkg/search/mode/factory.go`；模式开关在根包 `factory.go` 的 switch |
 | 改多引擎去重/合并/per-engine 过滤 | `pkg/search/hybrid/hybrid.go` |
 | 改 apipool 轮转策略、SK 失效标记 | `pkg/search/apipool/apipool.go`（Key 池原语在 `provider/keypool.go`）；供应商 Key 池按 `mode.ProviderPools` 的命名字段传入 |
-| 改 `/metrics` 指标 | 进程内指标在 `server/metrics.go` 的 `renderProcessMetrics`；工具/供应商聚合来自 `pkg/telemetry` |
+| 改 `/metrics` 指标 | 进程内进程指标在 `server/metrics.go` 的 `renderProcessMetrics`；工具/供应商聚合来自 `pkg/telemetry/runtime.go` 的进程内计数器（`RuntimeSnapshot`），抓取不回读 SQLite |
 | 改评分（RRF/Boost/阀值/MMR） | `pkg/search/enhance/`（web）与 `enhance/academic_enhance.go`（学术）；scoreBucket 结构在 `search/core`；改完跑 `bench/quality` 看 P@8 / R@8 / MRR@8 |
 | 改失败判类 / 新增错误码 | 新码加在 `pkg/errcode`；`core.ClassifyFailure`、`telemetry.ClassifyErrorKind`、`mcp.isAntiBotFailure` 先读码，未知时回落中英关键词 |
 | 改结果输出格式（Markdown 样式） | `pkg/search/core/format_md.go`（所有引擎共用） |

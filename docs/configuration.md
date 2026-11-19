@@ -335,7 +335,7 @@ cleanfetch:
   max_fetch_size_mb: 10     # HEAD 预检最大文件大小（MB），超过拒绝抓取（默认 10）；也是 fetch_top_n 单条正文字节上限
   use_system_proxy: false   # 自动使用系统代理（环境变量+注册表），默认 false
   auto_proxy: true          # 原生 cleanfetch/PDF 抓取自动跟随全局代理（含系统代理检测），默认 true；false = 强制直连
-  max_retries: 3            # 最大重试次数（仅 429/502/503），默认 3
+  max_retries: 1            # 最大重试次数（上游对 429/502/503 与传输错误重试），默认 1
 
 # PDF 解析工具（默认关闭，独立于 cleanfetch）
 # MinerU AI 增强（可选）：有 Token 用精准 API（远程 URL，≤200MB/600页），无 Token 用 Agent 轻量 API（本地文件，≤10MB/20页）
@@ -657,7 +657,7 @@ dashboard:
 | `cleanfetch.max_fetch_size_mb` | 10 | HEAD 预检阈值；也是 `fetch_top_n` 单条正文字节上限 |
 | `cleanfetch.use_system_proxy` | false | 自动使用系统代理（环境变量+注册表） |
 | `cleanfetch.auto_proxy` | true | 原生 cleanfetch/PDF 抓取自动跟随全局代理；false = 强制直连（不影响 API 供应商的 `proxy.api_providers`） |
-| `cleanfetch.max_retries` | 3 | 仅对 429/502/503 重试 |
+| `cleanfetch.max_retries` | 1 | 上游对 429/502/503 与传输错误的重试次数；失败页会在约 2s 后进入回退链 |
 | `pdf_parser.enabled` | false | 独立于 cleanfetch |
 | `pdf_parser.max_pages` | 20 | 省略 pages 时一次最多解析的页数；单个 pages 区间宽度上限 1000 页 |
 | `pdf_parser.mineru_model` | pipeline | pipeline / vlm |

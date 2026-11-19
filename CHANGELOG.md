@@ -8,6 +8,15 @@
 
 - **smartsearch 域名过滤参数**：新增 `include_domains` / `exclude_domains`（各最多 20 条），按结果 URL 的 host 做含子域匹配，支持裸域名、`*.` 前缀与完整 URL，排除优先。过滤在 hybrid 单引擎截断与 `fetch_top_n` 抓取之前执行，被排除的 URL 不消耗抓取预算；缓存键包含归一化名单，不同过滤条件互不复用；学术-only 请求显式传域名过滤会报错。
 - **搜索质量调优基准**：`bench/tuning` 受开源项目 `fangchenghao/dsh-web-search` 的公开基准启发，沿用其 MIT 许可回放集（20 条中英 query + 5 引擎真实快照），新增 `searchbench` 离线 sweep：RRF K、词汇对齐、共识/权威/新鲜度/域名品质/稀有词倍率、阈值、MMR、引擎权重逐项输出 P@8 / R@8 / MRR@8、配对 bootstrap 95% CI 与逐 query W/L/T。实测默认配置在这批数据上保持稳定，唯一显著效果是关闭权威性加分明显变差（ΔMRR -0.1775，95% CI [-0.3417, -0.0258]）；结论、运行方式与“用户自有历史数据调优”设计见 `docs/search-quality.md`。评分管线内部增加 `enhance.Options` 参数化入口，生产默认值不变。
+- **搜索结果溯源头按会话压缩**：首次调用保留完整 `retrieved_at` / `usage_note`，同一 MCP 会话的后续新结果省略重复头，缓存命中只显示 `cache_age_seconds`；无会话场景输出紧凑时间戳，避免多轮调用反复占用上下文。
+- **正文质量门控与抓取回退**：`pkg/fetch` 新增 markdown 质量画像（人机验证页、导航/链接壳），`cleanfetch` 的远端、本地 webfetch 与 Jina 命中低质量正文时继续沿回退链尝试；`fetch_top_n` 遇到低质量抓取保留原 snippet 并追加提示，不再用空壳覆盖可用摘要。批量抓取按归一化 URL 去重。
+- **真实引擎解析快照**：Bing 补 2026-11-19 真实 SERP 快照；DDG 补同日真实结果页快照，覆盖选择器、`uddg` 重定向解码与摘要提取。DDG 出口间歇性返回 HTTP 202 验证页时保留合成 fixture，复采方法见 `pkg/search/engine/ddg/testdata/README.md`。
+- **`/metrics` 业务计数改为进程内聚合**：工具/供应商请求、成功失败、缓存命中与延迟分桶由进程内计数器维护，抓取时不再回读 SQLite；控制台关闭时业务计数仍输出，`websearch_telemetry_enabled` 只表示持久化遥测是否启用。
+
+### 变更
+
+- **`max_retries` 默认值 3 → 1**：上游 webfetch 自身会对 429/502/503 与传输错误重试，旧默认值会把尝试次数放大到 4 次、最坏等待约 11.5 秒；示例配置与文档同步说明语义。
+- **HEAD 预检复用连接池**：直连路径缓存 HEAD client 并复用 keep-alive，减少每个 URL 新建 TCP/TLS；代理路径继续逐请求固定目标 IP，保留 SSRF 防护。
 
 ### 修复
 

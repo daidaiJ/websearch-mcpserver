@@ -53,7 +53,7 @@
 
 ### 可观测性与测试护栏
 
-- [ ] **T2. 引擎解析契约与真实快照（部分落地 2026-11-11）**：`bing` / `ddg` 已补内联 HTML 解析契约 fixture（选择器、广告过滤、重定向解码），`so360` 沿用真实出口 fixture；`baidu` 的 JSON 解析与 `google` 的 HTML 解析已有既有表驱动用例。**剩余**：把 `google` / `bing` / `baidu` 的真实响应快照纳入 fixture 并加定期线上冒烟，现有 fixture 均为合成样本，防不住上游改版导致的静默零结果。
+- [ ] **T2. 引擎解析契约与真实快照（部分落地 2026-11-19）**：`bing` 已补 2026-11-19 真实 SERP 快照；`ddg` 已补同日真实结果页快照并覆盖选择器/重定向解码/摘要提取，出口间歇性返回 HTTP 202 验证页，复采方法见 `pkg/search/engine/ddg/testdata/README.md`；`so360` 沿用真实出口 fixture；`baidu` 的 JSON 解析与 `google` 的 HTML 解析已有既有表驱动用例。**剩余**：继续补 `google` / `baidu` 真实响应快照，并为真实快照加定期线上冒烟，防住上游改版导致的静默零结果。
 
 ### DSH 生态调研衍生的改进参考（2026-11-07）
 
@@ -66,7 +66,7 @@
 - [x] **D5. 工具面与 server instructions（2026-11-11 落地）**：`NewMCPServer` 在 `ServerOptions.Instructions` 下发中英双语工具选择纪律（发现 / 读正文 / 查论文 / 本地文件 / 历史），说明参数默认值与作用域；调用方显式设置时尊重其值。`skills/websearch-mcp/SKILL.md` 增补「参数纪律」。长度控制在数行，避免常驻系统提示膨胀。
 - [ ] **D6. 垂直源 / 官方源窄查（只做 optional action）**：对标插件有 34 垂直源与 2.5s 官方源 lookup；本项目已有 9 学术引擎与 GitHub 特判，可只补包管理 registry + 官方发布源一路，**不要全量扩面**——与「深耕不扩面」定位冲突。
 - [ ] **D7. 配置分层与热重载**：`config.go` 1,863 行 / 236 字段、`config.example.yaml` 559 行，dashboard 只能改白名单、不能热重载装配。引入 preset 分层（profile → bundle → patch）比继续堆字段划算。
-- [ ] **D8. 实时指标与显式 DI（部分落地 2026-11-11）**：`/metrics` 已补进程内 gauge（在飞 HTTP 请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时不再 503；工具/供应商计数仍从 SQLite 当日回读，全仓无 tracing；`mcp/options.go` 的包级变量 + `ServerOption func() error` 全局装配不支持多实例；`core.ShowMeta` 已改为 `atomic.Bool`，但仍是包级全局状态。
+- [ ] **D8. 实时指标与显式 DI（部分落地 2026-11-19）**：`/metrics` 已补进程内 gauge（在飞 HTTP 请求、uptime、goroutine、堆分配、`websearch_telemetry_enabled`），控制台关闭时不再 503；工具/供应商计数已改为进程内聚合，抓取不再回读 SQLite；全仓仍无 tracing；`mcp/options.go` 的包级变量 + `ServerOption func() error` 全局装配不支持多实例；`core.ShowMeta` 已改为 `atomic.Bool`，但仍是包级全局状态。
 
 **不跟**：Wigolo 的 1.5GB 本地模型 + 浏览器池（毁掉单二进制轻量定位）、10+ 工具面（与「客户端最多 5 工具」的省 token 设计冲突）、PTC 全套（可降维成 `search_many` 式批量 query 并发，与 E1 一起评估）。
 

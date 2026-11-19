@@ -339,7 +339,7 @@ cleanfetch:
   max_fetch_size_mb: 10     # HEAD pre-check max file size (MB), reject above (default 10); also the per-result byte cap for fetch_top_n
   use_system_proxy: false   # Auto-use system proxy (env vars + Windows registry), default false
   auto_proxy: true          # Native cleanfetch/PDF fetches follow the global proxy (including system-proxy detection), default true; false = force direct
-  max_retries: 3            # Max retries (429/502/503 only), default 3
+  max_retries: 1            # Max retries (upstream retries 429/502/503 and transport errors), default 1
 
 # PDF parser (disabled by default, independent of cleanfetch)
 # MinerU AI enhancement (optional): with Token uses Standard API (remote URL, ≤200MB/600 pages), without Token uses Agent API (local file, ≤10MB/20 pages)
@@ -664,7 +664,7 @@ dashboard:
 | `cleanfetch.max_fetch_size_mb` | 10 | HEAD pre-check threshold; also the per-result byte cap for `fetch_top_n` |
 | `cleanfetch.use_system_proxy` | false | Auto-use system proxy (env vars + Windows registry) |
 | `cleanfetch.auto_proxy` | true | Native cleanfetch/PDF fetches follow the global proxy; false = force direct (independent of the API-provider `proxy.api_providers` switch) |
-| `cleanfetch.max_retries` | 3 | Only retries on 429/502/503 |
+| `cleanfetch.max_retries` | 1 | Upstream retries for 429/502/503 and transport errors; a failed page enters the fallback chain after about 2s |
 | `pdf_parser.enabled` | false | Independent of cleanfetch |
 | `pdf_parser.max_pages` | 20 | Max pages parsed per call when pages is omitted; a single pages range is capped at 1000 pages wide |
 | `pdf_parser.mineru_model` | pipeline | pipeline / vlm |

@@ -386,7 +386,7 @@ cleanfetch:
   max_fetch_size_mb: 10     # HEAD 预检最大文件大小（MB），超过拒绝抓取（默认 10）；也是 fetch_top_n 单条正文字节上限
   use_system_proxy: false   # 自动使用系统代理（环境变量+注册表），默认 false
   auto_proxy: true          # 原生 cleanfetch 自动跟随全局代理（含系统代理检测），默认 true；false = 强制直连
-  max_retries: 3            # 最大重试次数（仅 429/502/503），默认 3
+  max_retries: 1            # 最大重试次数（上游对 429/502/503 与传输错误重试），默认 1
 
 # ==============================================
 # PDF 解析工具（基于 go-webfetch，独立于 cleanfetch）

@@ -78,7 +78,7 @@ Once registered, your LLM client gets 4 MCP tools covering one connected workflo
 ```bash
 curl http://127.0.0.1:8338/__admin/api/providers   # per-source state machine and failure breakdown
 curl http://127.0.0.1:8338/__admin/api/metrics     # Prometheus text metrics (inside the dashboard access boundary)
-curl http://127.0.0.1:8338/metrics                 # same data at the standard scrape endpoint (no admin password; requires dashboard.enabled)
+curl http://127.0.0.1:8338/metrics                 # standard scrape endpoint (no admin password; business counters come from in-process aggregation)
 ```
 
 **Then adjust** — each common want maps to one setting:

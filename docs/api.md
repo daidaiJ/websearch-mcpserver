@@ -223,9 +223,9 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 | 路径 | `GET /metrics` |
 | Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
 
-Prometheus / OpenMetrics 文本格式的只读聚合。进程内指标始终可用：在飞 HTTP 请求数、进程 uptime、goroutine 数、堆分配字节数与 `websearch_telemetry_enabled`。控制中心启用时再追加今日 MCP 工具调用（按工具名）与搜索供应商调用（按供应商名）的请求数、成功/失败数、缓存命中数与延迟分桶；这部分来自遥测库的脱敏记录（查询只存哈希与关键词，不含 URL、原文或密钥），不做主动探测。
+Prometheus / OpenMetrics 文本格式的只读聚合。进程内指标始终可用：在飞 HTTP 请求数、进程 uptime、goroutine 数、堆分配字节数与 `websearch_telemetry_enabled`。MCP 工具调用（按工具名）与搜索供应商调用（按供应商名）的请求数、成功/失败数、缓存命中数与延迟分桶由进程内计数器聚合，抓取 `/metrics` 不回读 SQLite，进程启动后累计、跨天清零。遥测库只负责控制台历史持久化（只存脱敏元数据，查询只存哈希与关键词，不含 URL、原文或密钥），不做主动探测。
 
-- 进程内指标不依赖控制中心；遥测序列随 `dashboard.enabled: true` 出现，关闭时省略并在 `websearch_telemetry_enabled` 标 0。
+- 业务计数不依赖控制中心，有调用事件即输出；`websearch_telemetry_enabled` 只表示 SQLite 持久化遥测是否启用（`dashboard.enabled: true` 为 1，关闭为 0）。
 - 端点只读，与写操作守卫无关；只接受 `GET` / `HEAD`。
 - 示例：`curl -s http://127.0.0.1:8338/metrics`
 

@@ -496,7 +496,7 @@ type CleanFetchConfig struct {
 	MaxFetchSizeMB int    `mapstructure:"max_fetch_size_mb"` // 最大抓取文件大小（MB），HEAD 预检用，默认 10
 	UseSystemProxy bool   `mapstructure:"use_system_proxy"`  // 自动使用系统代理（默认 false）
 	AutoProxy      *bool  `mapstructure:"auto_proxy"`        // 原生抓取是否自动跟随全局代理（默认 true）
-	MaxRetries     int    `mapstructure:"max_retries"`       // 最大重试次数（默认 3）
+	MaxRetries     int    `mapstructure:"max_retries"`       // 最大重试次数（默认 1；上游对 429/502/503 与传输错误重试）
 }
 
 // AutoProxyEnabled 报告原生 cleanfetch 是否自动跟随全局代理，默认开启。
@@ -1431,7 +1431,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	if conf.CleanFetch.MaxRetries <= 0 {
-		conf.CleanFetch.MaxRetries = 3
+		conf.CleanFetch.MaxRetries = 1
 	}
 
 	// MinerU 远程 PDF 精准解析默认开启（false 则远程 URL 一律不走 MinerU）
@@ -1537,7 +1537,7 @@ func Default() *Config {
 			MaxInlineLines: 100,
 			TimeoutSec:     30,
 			MaxFetchSizeMB: 10,
-			MaxRetries:     3,
+			MaxRetries:     1,
 		},
 		PDFParser: PDFParserConfig{
 			MinerURemotePDF: true,

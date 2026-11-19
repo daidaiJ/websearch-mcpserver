@@ -223,9 +223,9 @@ claude mcp add --transport http websearch-mcp http://localhost:8338/mcp
 | Path | `GET /metrics` |
 | Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
 
-Read-only aggregates in Prometheus / OpenMetrics text format. In-process metrics are always available: in-flight HTTP requests, process uptime, goroutine count, heap-allocated bytes and `websearch_telemetry_enabled`. When the dashboard is enabled, today's MCP tool calls (by tool name) and search provider calls (by provider name) are appended with request, success/failure, cache-hit counts and latency buckets; that part comes from the privacy-preserving telemetry store (queries are stored as hashes and keywords only; no URLs, raw text or secrets) and nothing is actively probed.
+Read-only aggregates in Prometheus / OpenMetrics text format. In-process metrics are always available: in-flight HTTP requests, process uptime, goroutine count, heap-allocated bytes and `websearch_telemetry_enabled`. MCP tool calls (by tool name) and search provider calls (by provider name) with request, success/failure, cache-hit counts and latency buckets are aggregated by in-process counters; scraping `/metrics` does not read back SQLite, and the counters accumulate from process start and reset at day rollover. The telemetry store only persists dashboard history (sanitized metadata; queries are stored as hashes and keywords only; no URLs, raw text or secrets), and nothing is actively probed.
 
-- In-process metrics do not require the dashboard; telemetry series appear with `dashboard.enabled: true` and are omitted otherwise, with `websearch_telemetry_enabled` set to 0.
+- Business counters do not require the dashboard and appear as soon as calls are recorded; `websearch_telemetry_enabled` only reports whether SQLite-backed telemetry persistence is enabled (`dashboard.enabled: true` gives 1, disabled gives 0).
 - Read-only and independent of the write guard; accepts `GET` / `HEAD` only.
 - Example: `curl -s http://127.0.0.1:8338/metrics`
 
