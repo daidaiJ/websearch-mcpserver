@@ -68,6 +68,7 @@
   "tool.search.main_engine_also_failed": "{{.Err}}（主搜索引擎亦失败: {{.MainErr}}）",
   "tool.search.no_valid_results": "搜索未返回有效结果",
   "tool.search.page_empty_maybe_antibot": "页面内容为空(可能被反爬)",
+  "tool.search.fetch_low_quality": "> ⚠️ 页面未返回可用正文（可能是导航壳或人机验证页）：仅有以上摘要与 URL。请打开原页核实或改用其它来源。",
   "tool.search.content_budget_truncated": "\n\n…（内容已按 max_chars 上下文预算截断，可用 cleanfetch 读取完整正文）",
   "tool.search.antibot_blocked": "> ⚠️ 正文抓取被网站反爬防护拦截（JS 挑战/WAF/验证码）：无法获取该页面全文，仅有以上摘要与 URL。请改用其它来源，或稍后用 cleanfetch 重试该页面。",
   "tool.search.fetch_failed": "> ⚠️ 正文抓取失败（{{.Err}}）：仅有以上摘要与 URL。如需正文可用 cleanfetch 重试该页面。",

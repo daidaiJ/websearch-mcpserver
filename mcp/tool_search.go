@@ -11,6 +11,7 @@ import (
 
 	"websearch/pkg/cache"
 	"websearch/pkg/errcode"
+	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
@@ -146,7 +147,7 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		if err != nil {
 			log.ErrorT("log.mcp.cache_query_error_skipping_cache", "err", err)
 		} else if rec != nil && !rec.Academic {
-			if result, ok := finishCachedWebSearch(ctx, rec, hitType, query, intent, cacheQuery, requestCache, opts.maxContentChars); ok {
+			if result, ok := finishCachedWebSearch(req, ctx, rec, hitType, query, intent, cacheQuery, requestCache, opts.maxContentChars); ok {
 				cacheHit = true
 				if parsed, parseErr := rec.GetRawResults(); parseErr == nil {
 					resultCount = len(parsed)
@@ -331,7 +332,7 @@ func webSearchCacheQuery(query string, months, n int, filters ...searchcore.Doma
 	return "web:v3:" + string(key)
 }
 
-func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, query, intent, cacheQuery string, requestCache *cache.Cache, maxContentChars int) (*mcp.CallToolResult, bool) {
+func finishCachedWebSearch(req *mcp.CallToolRequest, _ context.Context, rec *cache.CacheRecord, hitType, query, intent, cacheQuery string, requestCache *cache.Cache, maxContentChars int) (*mcp.CallToolResult, bool) {
 	results, parseErr := rec.GetRawResults()
 	if parseErr == nil && hasTransientResultFiles(results) {
 		return nil, false
@@ -348,7 +349,7 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 			if parseErr == nil {
 				recordSearchHistory(query, results)
 			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + rec.Summary}}}, true
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: provenanceHeaderForRequest(req, rec.CreatedAt, time.Since(rec.CreatedAt)) + rec.Summary}}}, true
 		}
 		fallthrough
 	case "query_only":
@@ -368,7 +369,7 @@ func finishCachedWebSearch(_ context.Context, rec *cache.CacheRecord, hitType, q
 		if intent != "" && summarizerInst != nil && rec.Summary == "" {
 			go asyncSummarize(query, cacheQuery, intent, results, requestCache)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + ret}}}, true
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: provenanceHeaderForRequest(req, rec.CreatedAt, time.Since(rec.CreatedAt)) + ret}}}, true
 	}
 	return nil, false
 }
@@ -419,7 +420,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 					output += "\n\n" + searchcore.FormatMD(i+1, result.Title, result.Url, result.Content)
 				}
 			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(output, diag, len(results))}}}, nil, nil
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: provenanceHeaderForRequest(req, prov.retrievedAt, prov.cacheAge) + appendDiagnostics(output, diag, len(results))}}}, nil, nil
 		}
 		log.ErrorT("log.mcp.llm_summary_failed_falling_back_to", "sumErr", sumErr)
 	}
@@ -437,7 +438,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 	if requestCache != nil {
 		storeCacheRecord(requestCache, cacheQuery, intent, false, results, "", ttl)
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: searchcore.ProvenanceHeader(prov.retrievedAt, prov.cacheAge) + appendDiagnostics(ret, diag, len(results))}}}, nil, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: provenanceHeaderForRequest(req, prov.retrievedAt, prov.cacheAge) + appendDiagnostics(ret, diag, len(results))}}}, nil, nil
 }
 
 // storeCacheRecord 写入缓存：代次作废（Clear 并发）是设计内竞态，静默跳过；
@@ -536,7 +537,11 @@ func enrichTopN(ctx context.Context, results []search.SearchResult, n int, fetch
 			body, err := fetch(ctx, u)
 			if err != nil {
 				log.WarnT("log.mcp.fetch_top_n_fetch_failed", "u", u, "err", err)
-				out[i].Content = annotateFetchFailure(out[i].Content, err)
+				if fetchcontent.IsLowQuality(err) {
+					out[i].Content = annotateLowQuality(out[i].Content)
+				} else {
+					out[i].Content = annotateFetchFailure(out[i].Content, err)
+				}
 				return
 			}
 			if strings.TrimSpace(body.text) == "" {
@@ -544,11 +549,30 @@ func enrichTopN(ctx context.Context, results []search.SearchResult, n int, fetch
 				out[i].Content = annotateFetchFailure(out[i].Content, errors.New(i18n.T("tool.search.page_empty_maybe_antibot")))
 				return
 			}
+			if !body.savedToFile {
+				if quality := fetchcontent.AssessContent(body.text); quality.LowQuality() {
+					log.WarnT("log.mcp.fetch_top_n_low_quality", "u", u, "kind", quality.Kind(), "visible_chars", quality.VisibleChars)
+					out[i].Content = annotateLowQuality(out[i].Content)
+					return
+				}
+			}
 			out[i].Content, out[i].ContentSaved = body.text, body.savedToFile
 		}(i, u)
 	}
 	wg.Wait()
 	return out
+}
+
+// annotateLowQuality 页面只返回导航壳或验证页时保留原摘要，明确提示 agent
+// 不要把它当正文；与普通抓取失败区分，避免继续等待或误判为网络故障。
+func annotateLowQuality(snippet string) string {
+	var sb strings.Builder
+	if s := strings.TrimSpace(snippet); s != "" {
+		sb.WriteString(s)
+		sb.WriteString("\n\n")
+	}
+	sb.WriteString(i18n.T("tool.search.fetch_low_quality"))
+	return sb.String()
 }
 
 // annotateFetchFailure 抓取失败时把原因显式标注在结果上，防止 agent 把

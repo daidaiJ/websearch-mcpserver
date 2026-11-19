@@ -13,7 +13,6 @@ import (
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
-	searchcore "websearch/pkg/search/core"
 	"websearch/pkg/telemetry"
 )
 
@@ -26,7 +25,7 @@ import (
 // academicsearch 工具：handler、学术搜索与结果合并。
 // AcademicSearchHandler 学术搜索 tool handler。
 func AcademicSearchHandler(ctx context.Context, req *mcp.CallToolRequest, params *AcademicSearchParams) (*mcp.CallToolResult, any, error) {
-	return doAcademicSearch(ctx, params.Query, params.Engines, params.TimeRange, params.Page)
+	return doAcademicSearchWithRequest(ctx, req, params.Query, params.Engines, params.TimeRange, params.Page)
 }
 
 // doWebSearch 通用网页搜索逻辑。
@@ -34,6 +33,12 @@ func AcademicSearchHandler(ctx context.Context, req *mcp.CallToolRequest, params
 
 // doAcademicSearch 学术搜索逻辑。
 func doAcademicSearch(ctx context.Context, query string, engines []string, timeRange string, page int) (result *mcp.CallToolResult, extra any, err error) {
+	return doAcademicSearchWithRequest(ctx, nil, query, engines, timeRange, page)
+}
+
+// doAcademicSearchWithRequest 携带原始工具请求，用于按 MCP 会话压缩
+// 重复的 provenance 提示；测试与内部调用可传 nil。
+func doAcademicSearchWithRequest(ctx context.Context, req *mcp.CallToolRequest, query string, engines []string, timeRange string, page int) (result *mcp.CallToolResult, extra any, err error) {
 	started := time.Now()
 	requestID := telemetry.RequestID(ctx)
 	if requestID == "" {
@@ -71,7 +76,7 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 				ret, mergeErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results})
 				if mergeErr == nil {
 					// 缓存命中：retrieved_at 为原检索时间，附带 cache_age_seconds
-					ret = searchcore.ProvenanceHeader(rec.CreatedAt, time.Since(rec.CreatedAt)) + ret
+					ret = provenanceHeaderForRequest(req, rec.CreatedAt, time.Since(rec.CreatedAt)) + ret
 					return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 				}
 			}
@@ -127,7 +132,7 @@ func doAcademicSearch(ctx context.Context, query string, engines []string, timeR
 			log.ErrorT("log.mcp.cache_write_error_ignoring", "err", storeErr)
 		}
 	}
-	ret = searchcore.ProvenanceHeader(time.Now(), 0) + ret
+	ret = provenanceHeaderForRequest(req, time.Now(), 0) + ret
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 }
 

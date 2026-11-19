@@ -41,6 +41,7 @@ func TestFetchPageWithFallback(t *testing.T) {
 		{"prefer degrades", config.MCPHubFetchPrefer, hubErr, localOK, "local", "", 1},
 		{"prefer title degrades", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# Project"}, localOK, "local", "", 1},
 		{"prefer navigation degrades", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# Project\n[Skip to content](#main)"}, localOK, "local", "", 1},
+		{"prefer nav shell degrades", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# App\n\n[Home](/) [Docs](/docs) [Pricing](/pricing)"}, localOK, "local", "", 1},
 		{"prefer short body", config.MCPHubFetchPrefer, &fakeHubFetcher{text: "# Project\nOpen"}, localErr, "# Project\nOpen", "", 1},
 		{"prefer both fail", config.MCPHubFetchPrefer, hubErr, localErr, "", "hub failed", 1},
 		{"fallback uses hub", config.MCPHubFetchFallback, hubOK, localErr, "hub", "", 1},

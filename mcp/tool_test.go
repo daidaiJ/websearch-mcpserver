@@ -13,6 +13,7 @@ import (
 	"time"
 	"websearch/internal/testenv"
 	"websearch/pkg/config"
+	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/webfetch"
 	"websearch/pkg/search"
@@ -223,6 +224,53 @@ func TestPDFParserHandler_RejectsPrivateURL(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "内网") && !strings.Contains(err.Error(), "不允许") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestEnrichTopN_LowQualityKeepsSnippet 验证导航壳/验证页不会覆盖已有摘要，
+// 而是保留摘要并给出明确提示。
+func TestEnrichTopN_LowQualityKeepsSnippet(t *testing.T) {
+	in := []search.SearchResult{{Title: "a", Url: "https://a.example/x", Content: "snip-a"}}
+	fetch := func(_ context.Context, rawURL string) (pageContent, error) {
+		return pageContent{text: "# App\n\n[Home](/) [Docs](/docs) [Pricing](/pricing)"}, nil
+	}
+	out := enrichTopN(context.Background(), in, 1, fetch)
+	if !strings.Contains(out[0].Content, "snip-a") {
+		t.Fatalf("snippet should be kept, got %q", out[0].Content)
+	}
+	if !strings.Contains(out[0].Content, "未返回可用正文") {
+		t.Fatalf("low-quality warning missing, got %q", out[0].Content)
+	}
+	if strings.Contains(out[0].Content, "[Docs]") {
+		t.Fatalf("navigation shell must not replace the snippet, got %q", out[0].Content)
+	}
+}
+
+// TestEnrichTopN_LowQualityErrorKeepsSnippet 验证 fetch 返回质量错误时同样
+// 保留摘要，而不是走普通“抓取失败”文案。
+func TestEnrichTopN_LowQualityErrorKeepsSnippet(t *testing.T) {
+	in := []search.SearchResult{{Title: "a", Url: "https://a.example/x", Content: "snip-a"}}
+	low := &fetchcontent.LowQualityError{Kind: fetchcontent.QualityNavOnly, URL: "https://a.example/x"}
+	fetch := func(_ context.Context, rawURL string) (pageContent, error) {
+		return pageContent{}, low
+	}
+	out := enrichTopN(context.Background(), in, 1, fetch)
+	if !strings.Contains(out[0].Content, "snip-a") || !strings.Contains(out[0].Content, "未返回可用正文") {
+		t.Fatalf("low-quality error should keep snippet with a specific warning, got %q", out[0].Content)
+	}
+}
+
+func TestMergeFetchURLsCanonical(t *testing.T) {
+	got := mergeFetchURLs("https://Example.com/a/#frag", []string{
+		"https://example.com/a",
+		"https://example.com/a?utm_source=x",
+		"https://example.com/b/",
+		"https://example.com/b",
+		" ",
+	})
+	want := []string{"https://Example.com/a/#frag", "https://example.com/b/"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("mergeFetchURLs = %v, want %v", got, want)
 	}
 }
 

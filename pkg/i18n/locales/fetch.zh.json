@@ -3,6 +3,8 @@
   "fetch.pdfium.no_pages": "PDFium 没有可解析的页码",
   "fetch.pdfium.no_text": "PDFium 未提取到文本（可能是扫描件/图片型 PDF）",
   "fetch.pdfium.read_failed": "读取 PDF 文件失败",
+  "fetch.quality.bot_check": "页面返回人机验证/反爬提示，正文不可用",
+  "fetch.quality.nav_only": "页面只返回导航/链接，正文未加载（可能需要 JavaScript 渲染）",
   "fetch.webfetch.empty_body_js": "未获得页面正文(可能需要 JavaScript 渲染)",
   "fetch.webfetch.mineru_token_required": "MinerU 精准解析 API 需要 Token",
   "fetch.webfetch.mineru_disabled": "MinerU 未启用，无法查询已有任务",

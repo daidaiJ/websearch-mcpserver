@@ -109,3 +109,27 @@ func TestProvenanceHeader(t *testing.T) {
 		t.Errorf("缓存响应应含 cache_age_seconds: %q", cached)
 	}
 }
+
+func TestCompactProvenanceHeader(t *testing.T) {
+	retrieved := time.Date(2026, 10, 6, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))
+	fresh := CompactProvenanceHeader(retrieved, 0)
+	if !strings.Contains(fresh, "retrieved_at: 2026-10-06T12:00:00+08:00") {
+		t.Errorf("compact header missing timestamp: %q", fresh)
+	}
+	if strings.Contains(fresh, "usage_note") {
+		t.Errorf("compact header must not repeat usage_note: %q", fresh)
+	}
+	cached := CompactProvenanceHeader(retrieved, 90*time.Second)
+	if !strings.Contains(cached, "cache_age_seconds: 90") {
+		t.Errorf("compact cache header missing age: %q", cached)
+	}
+	if got := CompactProvenanceHeader(time.Time{}, 0); got != "" {
+		t.Errorf("zero timestamp = %q, want empty", got)
+	}
+	if got := CacheAgeHeader(90 * time.Second); !strings.Contains(got, "cache_age_seconds: 90") || strings.Contains(got, "retrieved_at") {
+		t.Errorf("cache-age-only header = %q", got)
+	}
+	if got := CacheAgeHeader(0); got != "" {
+		t.Errorf("non-cached cache-age header = %q, want empty", got)
+	}
+}

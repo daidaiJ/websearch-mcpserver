@@ -217,8 +217,13 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 	if err != nil {
 		return nil, wrapClassified(err)
 	}
-	if res.Mode == "inline" && !fetchcontent.HasPageBody(res.Markdown, res.Title) {
-		return nil, fmt.Errorf("%w: %w", errcode.New(errcode.Challenge, i18n.T("fetch.webfetch.empty_body_js")), &webfetch.EmptyContentError{URL: rawURL, Title: res.Title, CharCount: res.TotalChars})
+	if res.Mode == "inline" {
+		if !fetchcontent.HasPageBody(res.Markdown, res.Title) {
+			return nil, fmt.Errorf("%w: %w", errcode.New(errcode.Challenge, i18n.T("fetch.webfetch.empty_body_js")), &webfetch.EmptyContentError{URL: rawURL, Title: res.Title, CharCount: res.TotalChars})
+		}
+		if quality := fetchcontent.AssessContent(res.Markdown); quality.LowQuality() {
+			return nil, lowQualityError(rawURL, quality)
+		}
 	}
 	return &Result{
 		Title:       res.Title,
@@ -231,6 +236,20 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 		PageCount:   res.PageCount,
 		ParseEngine: "pdf-lib",
 	}, nil
+}
+
+// lowQualityError 把质量门控结果转成带错误码的错误链；Error 仍保留
+// LowQualityError 供 fetch_top_n 识别并选择“保留摘要”的提示。
+func lowQualityError(rawURL string, quality fetchcontent.ContentQuality) error {
+	kind := quality.Kind()
+	msg := kind.Message()
+	return fmt.Errorf("%w: %w", errcode.New(errcode.NoResult, msg),
+		&fetchcontent.LowQualityError{
+			Kind:          kind,
+			URL:           rawURL,
+			VisibleChars:  quality.VisibleChars,
+			LinkTextShare: quality.LinkTextShare,
+		})
 }
 
 // isPDFURL 判断远程 URL 是否指向 PDF 文件。

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
 	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/jina"
@@ -135,16 +136,23 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 	return textResult(sb.String()), nil, nil
 }
 
-// mergeFetchURLs 合并 url 与 urls：trim、去重、保持顺序。
+// mergeFetchURLs 合并 url 与 urls：trim、按 canonical URL 去重、保持顺序。
 func mergeFetchURLs(url string, urls []string) []string {
 	seen := make(map[string]bool, len(urls)+1)
 	out := make([]string, 0, len(urls)+1)
 	for _, u := range append([]string{url}, urls...) {
 		u = strings.TrimSpace(u)
-		if u == "" || seen[u] {
+		if u == "" {
 			continue
 		}
-		seen[u] = true
+		key := antirobot.NormalizeURL(u)
+		if key == "" {
+			key = u
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		out = append(out, u)
 	}
 	return out
@@ -227,14 +235,24 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		var errs []string
 		for _, f := range remote {
 			text, err := f.Fetch(ctx, rawURL)
-			if err == nil && fetchcontent.HasPageBody(text, "") {
-				return text, nil
+			if err == nil {
+				if !fetchcontent.HasPageBody(text, "") {
+					err = errors.New(i18n.T("tool.cleanfetch.empty_result"))
+				} else if quality := fetchcontent.AssessContent(text); quality.LowQuality() {
+					kind := quality.Kind()
+					err = fmt.Errorf("%s: %w", kind.Message(),
+						&fetchcontent.LowQualityError{
+							Kind:          kind,
+							URL:           rawURL,
+							VisibleChars:  quality.VisibleChars,
+							LinkTextShare: quality.LinkTextShare,
+						})
+				} else {
+					return text, nil
+				}
 			}
 			if ctx.Err() != nil {
 				return "", ctx.Err()
-			}
-			if err == nil {
-				err = errors.New(i18n.T("tool.cleanfetch.empty_result"))
 			}
 			errs = append(errs, err.Error())
 		}

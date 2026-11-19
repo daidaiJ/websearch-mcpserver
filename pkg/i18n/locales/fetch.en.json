@@ -3,6 +3,8 @@
   "fetch.pdfium.no_pages": "PDFium has no parsable pages",
   "fetch.pdfium.no_text": "PDFium extracted no text (the PDF may be scanned/image-based)",
   "fetch.pdfium.read_failed": "reading the PDF file failed",
+  "fetch.quality.bot_check": "the page returned a human-verification/anti-bot prompt; the body is unavailable",
+  "fetch.quality.nav_only": "the page returned navigation links only; the body did not load (JavaScript rendering may be required)",
   "fetch.webfetch.empty_body_js": "no page body retrieved (JavaScript rendering may be required)",
   "fetch.webfetch.mineru_token_required": "the MinerU precise API requires a token",
   "fetch.webfetch.mineru_disabled": "MinerU is not enabled, so an existing task cannot be queried",

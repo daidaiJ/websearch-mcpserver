@@ -124,6 +124,16 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 	if !fetchcontent.HasPageBody(resp.Data.Content, resp.Data.Title) {
 		return nil, errors.New(i18n.T("fetch.jina.empty_body"))
 	}
+	if quality := fetchcontent.AssessContent(resp.Data.Content); quality.LowQuality() {
+		kind := quality.Kind()
+		return nil, fmt.Errorf("%s: %w", kind.Message(),
+			&fetchcontent.LowQualityError{
+				Kind:          kind,
+				URL:           rawURL,
+				VisibleChars:  quality.VisibleChars,
+				LinkTextShare: quality.LinkTextShare,
+			})
+	}
 	return &resp.Data, nil
 }
 

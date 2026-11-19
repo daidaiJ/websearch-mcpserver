@@ -69,6 +69,7 @@
   "tool.search.main_engine_also_failed": "{{.Err}} (the primary search engine also failed: {{.MainErr}})",
   "tool.search.no_valid_results": "the search returned no valid results",
   "tool.search.page_empty_maybe_antibot": "the page content is empty (possibly blocked by anti-bot protection)",
+  "tool.search.fetch_low_quality": "> ⚠️ The page returned no usable body (it may be a navigation shell or a human-verification page): only the summary and URL above are available. Open the page to verify or use another source.",
   "tool.search.content_budget_truncated": "\n\n… (content truncated by the max_chars context budget; use cleanfetch for the full body)",
   "tool.search.antibot_blocked": "> ⚠️ The site's anti-bot protection blocked the full-text fetch (JS challenge / WAF / CAPTCHA): the page body is unavailable, only the summary and URL above. Use another source, or retry the page later with cleanfetch.",
   "tool.search.fetch_failed": "> ⚠️ Full-text fetch failed ({{.Err}}): only the summary and URL above are available. Use cleanfetch to retry the page if you need the body.",

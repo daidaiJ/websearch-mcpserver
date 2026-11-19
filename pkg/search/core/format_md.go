@@ -86,3 +86,24 @@ func ProvenanceHeader(retrievedAt time.Time, cacheAge time.Duration) string {
 	sb.WriteString("> 📌 usage_note: snippet 日期仅用于定位来源，日期、金额、版本等细节必须读原页核实。\n")
 	return sb.String()
 }
+
+// CompactProvenanceHeader 是同一会话后续调用使用的短头：保留溯源时间与
+// 缓存年龄，去掉每条响应重复的 usage_note。
+func CompactProvenanceHeader(retrievedAt time.Time, cacheAge time.Duration) string {
+	if retrievedAt.IsZero() {
+		return ""
+	}
+	if cacheAge > 0 {
+		return fmt.Sprintf("> retrieved_at: %s | cache_age_seconds: %d\n", retrievedAt.Format(time.RFC3339), int64(cacheAge.Seconds()))
+	}
+	return fmt.Sprintf("> retrieved_at: %s\n", retrievedAt.Format(time.RFC3339))
+}
+
+// CacheAgeHeader 是同一会话后续缓存命中的最短提示：首次响应已说明
+// retrieved_at，此处只保留 agent 判断结果新鲜度需要的缓存年龄。
+func CacheAgeHeader(cacheAge time.Duration) string {
+	if cacheAge <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("> cache_age_seconds: %d\n", int64(cacheAge.Seconds()))
+}
