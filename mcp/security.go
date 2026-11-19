@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"websearch/pkg/i18n"
@@ -261,6 +262,53 @@ func (e *unsafeRedirectError) Unwrap() error { return errUnsafeRedirect }
 // maxRedirectHops HEAD 预检允许跟随的重定向跳数上限。
 const maxRedirectHops = 5
 
+// headClientCache 缓存直连 HEAD 预检 client。HEAD 不是一次性下载：
+// 复用连接池可以避免每个 URL 都新建 TCP/TLS，同时保留逐跳 SSRF 校验。
+// 代理路径仍需逐请求 pinning，不进入此缓存。
+var headClientCache sync.Map // key -> *http.Client
+
+func headHTTPClient() *http.Client {
+	endpoint := ""
+	useSystemProxy := false
+	if webfetchLazyCfg != nil {
+		endpoint = nativeFetchProxy(*webfetchLazyCfg)
+		useSystemProxy = webfetchLazyCfg.CleanFetch.UseSystemProxy
+	}
+	if endpoint != "" || useSystemProxy {
+		// 代理路径需要把目标 IP 固定后交给代理，复用普通 transport 会退化成
+		// “目标主机名直连代理”。继续走 pdfHTTPClient 的 pinning 逻辑。
+		return pdfHTTPClient(5 * time.Second)
+	}
+	key := "direct"
+	if cached, ok := headClientCache.Load(key); ok {
+		return cached.(*http.Client)
+	}
+
+	transport := &http.Transport{
+		DialContext:           cropDialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
+		MaxIdleConns:          32,
+		MaxIdleConnsPerHost:   8,
+		IdleConnTimeout:       90 * time.Second,
+	}
+	client := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= maxRedirectHops {
+				return errors.New(i18n.T("tool.security.redirect_hops_exceeded", "Max", maxRedirectHops))
+			}
+			if err := validateURLSecurity(req.URL.String()); err != nil {
+				return &unsafeRedirectError{cause: err}
+			}
+			return nil
+		},
+	}
+	actual, _ := headClientCache.LoadOrStore(key, client)
+	return actual.(*http.Client)
+}
+
 // headCheck HEAD 预检：检查 Content-Length 防止下载过大文件。
 // 重定向逐跳复跑 validateURLSecurity（F3）：公网 URL 302 到内网/云 metadata
 // 时原实现会跟随并把 HEAD 打到链路本地地址。
@@ -279,7 +327,7 @@ func headCheckWithLimit(ctx context.Context, rawURL string, maxSizeMB int) error
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 
-	client := pdfHTTPClient(5 * time.Second)
+	client := headHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		if errors.Is(err, errUnsafeRedirect) {
