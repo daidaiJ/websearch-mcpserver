@@ -35,6 +35,8 @@ vendor/
 /start-mcp.vbs
 *.html
 qwen-code-export-*.html
+# 引擎解析契约真实快照需要入库
+!pkg/search/engine/*/testdata/*.html
 
 # docs: 官方文档直接跟踪；无关/草稿/历史文档放 docs/archive/ 与 docs/plans/（忽略）
 docs/archive/

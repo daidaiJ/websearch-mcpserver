@@ -105,7 +105,11 @@ func TestDuckDuckGoRateLimit(t *testing.T) {
 
 	// 立即第二次应该被限流（返回空结果）
 	time.Sleep(100 * time.Millisecond)
-	resp2, _ := eng.Search("test2", 1, antirobot.TimeRangeNone)
+	resp2, err2 := eng.Search("test2", 1, antirobot.TimeRangeNone)
+	if resp2 == nil {
+		fmt.Printf("第二次（限流）: 无结果（%v）\n", err2)
+		return
+	}
 	fmt.Printf("第二次（限流）: %d 条结果\n", len(resp2.Results))
 }
 
