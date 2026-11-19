@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"testing"
 	"time"
@@ -133,6 +134,7 @@ func TestLongRunStabilitySoak(t *testing.T) {
 	runtime.ReadMemStats(&gotMem)
 
 	if leaked := gotGoroutines - baseGoroutines; leaked > 2 {
+		_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
 		t.Errorf("goroutine leak: baseline %d, now %d (+%d)", baseGoroutines, gotGoroutines, leaked)
 	}
 	heapGrowth := float64(gotMem.HeapAlloc) / float64(baseMem.HeapAlloc)

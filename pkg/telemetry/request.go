@@ -242,5 +242,7 @@ func RecordEventContext(ctx context.Context, event Event) {
 func RecordContext(ctx context.Context, event Event) {
 	if store := Default(); store != nil {
 		store.RecordContext(ctx, event)
+		return
 	}
+	recordRuntime(event)
 }

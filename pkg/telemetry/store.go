@@ -269,7 +269,9 @@ func Default() *Store {
 func Record(e Event) {
 	if s := Default(); s != nil {
 		_ = s.Record(e)
+		return
 	}
+	recordRuntime(e)
 }
 
 func (s *Store) Close() error {
@@ -286,6 +288,7 @@ func (s *Store) Record(e Event) error {
 	if e.Kind == "" {
 		e.Kind = "tool"
 	}
+	recordRuntime(e)
 	hash, chars, lang, topic, keywords := summarizeQuery(e.Query)
 	errSummary := summarizeError(e.Error)
 	errorKind := e.ErrorKind

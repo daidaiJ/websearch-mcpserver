@@ -13,6 +13,7 @@ import (
 
 func newMetricsTestMux(t *testing.T) (*http.ServeMux, *telemetry.Store) {
 	t.Helper()
+	telemetry.ResetRuntimeMetrics()
 	store, err := telemetry.Open(filepath.Join(t.TempDir(), "dashboard.db"), 30)
 	if err != nil {
 		t.Fatal(err)
@@ -62,8 +63,10 @@ func TestMetricsEndpointRendersPrometheusText(t *testing.T) {
 	}
 }
 
-// TestMetricsEndpointWithoutTelemetry 遥测未启用时仍输出进程内指标。
+// TestMetricsEndpointWithoutTelemetry 遥测未启用时仍输出进程内指标与
+// 进程内业务计数；只有持久化序列被关闭。
 func TestMetricsEndpointWithoutTelemetry(t *testing.T) {
+	telemetry.ResetRuntimeMetrics()
 	mux := http.NewServeMux()
 	New().registerMetricsHandler(mux, nil)
 	rec := httptest.NewRecorder()
@@ -82,7 +85,32 @@ func TestMetricsEndpointWithoutTelemetry(t *testing.T) {
 		}
 	}
 	if strings.Contains(body, "websearch_tool_requests_total") {
-		t.Errorf("遥测关闭时不应输出工具聚合\n%s", body)
+		t.Errorf("没有事件时不应输出工具聚合\n%s", body)
+	}
+}
+
+// TestMetricsEndpointWithoutTelemetryUsesRuntimeCounters 验证 dashboard
+// 关闭时业务计数仍由进程内聚合提供，不依赖 SQLite。
+func TestMetricsEndpointWithoutTelemetryUsesRuntimeCounters(t *testing.T) {
+	telemetry.ResetRuntimeMetrics()
+	old := telemetry.Default()
+	telemetry.SetDefault(nil)
+	t.Cleanup(func() { telemetry.SetDefault(old) })
+	telemetry.Record(telemetry.Event{Kind: "tool", Tool: "smartsearch", Success: true, Duration: 120 * time.Millisecond})
+
+	mux := http.NewServeMux()
+	New().registerMetricsHandler(mux, nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+	for _, want := range []string{
+		`websearch_telemetry_enabled 0`,
+		`websearch_tool_requests_total{tool="smartsearch"} 1`,
+		`websearch_tool_duration_ms_bucket{tool="smartsearch",le="250"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("输出缺少 %q\n%s", want, body)
+		}
 	}
 }
 

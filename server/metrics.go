@@ -7,18 +7,17 @@ import (
 	"strings"
 	"time"
 
-	"websearch/pkg/log"
 	"websearch/pkg/telemetry"
 )
 
 // latencyBucketsMS 与 dashboard 端点共用同一套延迟分桶（毫秒）。
-var latencyBucketsMS = []float64{50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000}
+var latencyBucketsMS = telemetry.RuntimeLatencyBuckets
 
 // registerMetricsHandler 暴露标准 Prometheus 文本端点 /metrics。
 //
 // 进程内指标（在飞请求、uptime、goroutine、堆分配）始终可用；工具/供应商
-// 聚合来自遥测库，遥测未启用时只省略这部分序列。只读脱敏，不含密钥、URL
-// 或查询原文；该端点与 loopback 写守卫无关（写端点仍受 dashboard 访问控制）。
+// 聚合来自进程内计数器，不依赖遥测库或 SQLite。遥测库只负责 dashboard 的
+// 持久化，抓取 /metrics 时不再回读数据库。
 func (s *Server) registerMetricsHandler(mux *http.ServeMux, metrics *telemetry.Store) {
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -27,14 +26,7 @@ func (s *Server) registerMetricsHandler(mux *http.ServeMux, metrics *telemetry.S
 		}
 		var sb strings.Builder
 		renderProcessMetrics(&sb, s, metrics != nil)
-		if metrics != nil {
-			snapshot, err := metrics.Metrics(latencyBucketsMS)
-			if err != nil {
-				log.ErrorT("log.server.metrics_query_failed", "err", err)
-			} else {
-				sb.WriteString(renderMetricsText(snapshot))
-			}
-		}
+		sb.WriteString(renderMetricsText(telemetry.RuntimeSnapshot()))
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write([]byte(sb.String()))
@@ -78,22 +70,30 @@ func renderProcessMetrics(sb *strings.Builder, s *Server, telemetryEnabled bool)
 // renderMetricsText 渲染 OpenMetrics/Prometheus 文本格式。
 func renderMetricsText(snapshot telemetry.MetricsSnapshot) string {
 	var sb strings.Builder
-	sb.WriteString("# HELP websearch_tool_requests_total MCP tool calls recorded today (passive telemetry)\n")
-	sb.WriteString("# TYPE websearch_tool_requests_total counter\n")
-	for _, point := range snapshot.Tools {
-		labels := fmt.Sprintf(`tool="%s"`, escapeMetricsLabel(point.Name))
-		writeMetricsPoint(&sb, "websearch_tool", labels, point)
+	buckets := snapshot.Buckets
+	if len(buckets) == 0 {
+		buckets = latencyBucketsMS
 	}
-	sb.WriteString("# HELP websearch_provider_requests_total Search provider calls recorded today (passive telemetry)\n")
-	sb.WriteString("# TYPE websearch_provider_requests_total counter\n")
-	for _, point := range snapshot.Sources {
-		labels := fmt.Sprintf(`provider="%s"`, escapeMetricsLabel(point.Name))
-		writeMetricsPoint(&sb, "websearch_provider", labels, point)
+	if len(snapshot.Tools) > 0 {
+		sb.WriteString("# HELP websearch_tool_requests_total MCP tool calls recorded by this process (in-memory)\n")
+		sb.WriteString("# TYPE websearch_tool_requests_total counter\n")
+		for _, point := range snapshot.Tools {
+			labels := fmt.Sprintf(`tool="%s"`, escapeMetricsLabel(point.Name))
+			writeMetricsPoint(&sb, "websearch_tool", labels, point, buckets)
+		}
+	}
+	if len(snapshot.Sources) > 0 {
+		sb.WriteString("# HELP websearch_provider_requests_total Search provider calls recorded by this process (in-memory)\n")
+		sb.WriteString("# TYPE websearch_provider_requests_total counter\n")
+		for _, point := range snapshot.Sources {
+			labels := fmt.Sprintf(`provider="%s"`, escapeMetricsLabel(point.Name))
+			writeMetricsPoint(&sb, "websearch_provider", labels, point, buckets)
+		}
 	}
 	return sb.String()
 }
 
-func writeMetricsPoint(sb *strings.Builder, prefix, labels string, point telemetry.MetricsPoint) {
+func writeMetricsPoint(sb *strings.Builder, prefix, labels string, point telemetry.MetricsPoint, buckets []float64) {
 	total := point.Requests
 	fmt.Fprintf(sb, "%s_requests_total{%s} %d\n", prefix, labels, total)
 	fmt.Fprintf(sb, "%s_success_total{%s} %d\n", prefix, labels, point.Successes)
@@ -104,7 +104,7 @@ func writeMetricsPoint(sb *strings.Builder, prefix, labels string, point telemet
 		fmt.Fprintf(sb, "%s_duration_ms_count{%s} %d\n", prefix, labels, point.DurationCount)
 	}
 	fmt.Fprintf(sb, "%s_duration_ms_bucket{%s,le=\"+Inf\"} %d\n", prefix, labels, total)
-	for i, bound := range latencyBucketsMS {
+	for i, bound := range buckets {
 		if i >= len(point.Buckets) {
 			break
 		}
