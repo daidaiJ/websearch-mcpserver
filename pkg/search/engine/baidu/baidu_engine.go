@@ -1,6 +1,7 @@
 package baidu
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,8 +24,9 @@ import (
 // ──────────────────────────────────────────────────────────────────────────────
 
 type baiduEngine struct {
-	opts    BaiduOpts
-	limiter *antirobot.RateLimiter
+	opts     BaiduOpts
+	endpoint string // 测试可覆写；空值使用百度正式入口
+	limiter  *antirobot.RateLimiter
 
 	mu          sync.Mutex
 	client      *http.Client
@@ -81,7 +83,9 @@ type baiduFeed struct {
 }
 
 type baiduResponse struct {
-	Feed baiduFeed `json:"feed"`
+	Feed     baiduFeed `json:"feed"`
+	AntiFlag int       `json:"antiFlag"`
+	Message  string    `json:"message"`
 }
 
 // ── 接口实现 ──
@@ -145,12 +149,17 @@ func (e *baiduEngine) SearchContext(ctx context.Context, query string, page int,
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	// 检测百度验证码重定向
-	if strings.Contains(resp.Request.URL.String(), "wappass.baidu.com/static/captcha") {
+	// tn=json 正常响应必须是 JSON；验证码跳转 / HTML 页面均按反爬拦截处理，
+	// 避免把挑战页误报成 JSON 解析错误。
+	finalURL := ""
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+	if reason := baiduAntiBotReason(finalURL, resp.Header.Get("Content-Type"), body); reason != "" {
 		if ctx.Err() == nil {
 			e.recordFail()
 		}
-		return nil, fmt.Errorf("blocked by Baidu CAPTCHA")
+		return nil, fmt.Errorf("blocked by Baidu anti-bot (%s)", reason)
 	}
 
 	results, err := e.parseResponse(body)
@@ -214,7 +223,11 @@ func (e *baiduEngine) buildURL(query string, page int, timeRange antirobot.TimeR
 		q.Set("gpc", fmt.Sprintf("stf=%d,%d|stftype=1", past, now))
 	}
 
-	return "https://www.baidu.com/s?" + q.Encode()
+	base := e.endpoint
+	if base == "" {
+		base = "https://www.baidu.com/s"
+	}
+	return base + "?" + q.Encode()
 }
 
 func baiduTimeRangeSeconds(tr antirobot.TimeRange) int {
@@ -306,10 +319,54 @@ func (e *baiduEngine) rotateSession() {
 
 // ── 响应解析 ──
 
+// baiduAntiBotReason 识别百度验证码/挑战页：tn=json 的正常响应应为 JSON，
+// 验证码跳转或 HTML 页面都说明请求被拦截。
+func baiduAntiBotReason(finalURL, contentType string, body []byte) string {
+	u := strings.ToLower(finalURL)
+	for _, marker := range []string{
+		"wappass.baidu.com",
+		"seccaptcha",
+		"bioc-static.cdn.bcebos.com/pages/ds_svcp.html",
+	} {
+		if strings.Contains(u, marker) {
+			return "captcha redirect"
+		}
+	}
+
+	b := bytes.TrimSpace(body)
+	b = bytes.TrimPrefix(b, []byte("\xef\xbb\xbf"))
+	b = bytes.TrimSpace(b)
+	// Content-Type 可能被错误标注；合法 JSON 优先按 JSON 处理，避免误杀。
+	if len(b) > 0 && (b[0] == '{' || b[0] == '[') {
+		return ""
+	}
+
+	ct := strings.ToLower(contentType)
+	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xhtml+xml") {
+		return "HTML challenge page"
+	}
+	if len(b) > 0 && b[0] == '<' {
+		return "HTML challenge page"
+	}
+	return ""
+}
+
 func (e *baiduEngine) parseResponse(body []byte) ([]antirobot.Result, error) {
+	if reason := baiduAntiBotReason("", "", body); reason != "" {
+		return nil, fmt.Errorf("blocked by Baidu anti-bot (%s)", reason)
+	}
+
 	var resp baiduResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("JSON parse error: %w", err)
+	}
+
+	if resp.AntiFlag == 1 {
+		msg := strings.TrimSpace(resp.Message)
+		if msg == "" {
+			msg = "antiFlag set"
+		}
+		return nil, fmt.Errorf("blocked by Baidu anti-bot (antiFlag: %s)", msg)
 	}
 
 	if len(resp.Feed.Entry) == 0 {

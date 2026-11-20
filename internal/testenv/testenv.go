@@ -44,6 +44,8 @@ const (
 	Baidu           = "baidu"
 	Bing            = "bing"
 	So360           = "so360"
+	Sogou           = "sogou"
+	Mojeek          = "mojeek"
 	Wikipedia       = "wikipedia"
 	GoogleNews      = "googlenews"
 	Google          = "google"
@@ -62,6 +64,8 @@ var probeURLs = map[string]string{
 	Baidu:           "https://www.baidu.com",
 	Bing:            "https://www.bing.com",
 	So360:           "https://www.so.com",
+	Sogou:           "https://www.sogou.com",
+	Mojeek:          "https://www.mojeek.com",
 	Wikipedia:       "https://zh.wikipedia.org",
 	GoogleNews:      "https://news.google.com/rss",
 	Google:          "https://www.google.com/generate_204",
@@ -196,7 +200,9 @@ func classify(err error) string {
 	// 反爬拦截：HTTP 可达但被识别（CAPTCHA/WAF/sorry 页）
 	for _, s := range []string{
 		"CAPTCHA", "captcha", "blocked by", "WAF", "sorry",
-		"验证码", "反爬", "challenge",
+		"验证码", "反爬", "challenge", "百度安全验证",
+		"invalid character '<'", "seccaptcha",
+		"wappass.baidu.com", "bioc-static.cdn.bcebos.com",
 	} {
 		if strings.Contains(msg, s) {
 			return "blocked/出口 IP 被反爬拦截"
@@ -206,6 +212,7 @@ func classify(err error) string {
 	// 上游限流：服务端窗口限流属于场景类失败，auto 模式应跳过而非判回归
 	for _, s := range []string{
 		"429", "rate limit", "rate-limit", "too many requests", "HTTP 202",
+		"HTTP 403", "rate-limited", "quota",
 	} {
 		if strings.Contains(msg, s) {
 			return "rate_limited/上游限流"

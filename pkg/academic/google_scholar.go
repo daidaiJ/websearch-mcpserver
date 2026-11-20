@@ -115,6 +115,11 @@ func (e *googleScholarEngine) Search(query string, page int, timeRange antirobot
 			if readErr != nil {
 				return nil, readErr
 			}
+			// sgsync 是 Google 的 JS 挑战页：默认客户端跟随 302 后会拿到
+			// 200 + "Verifying..."，页面没有 data-rp，按空结果处理会掩盖拦截。
+			if scholarChallengeResponse(resp, body) {
+				return nil, fmt.Errorf("google scholar: access denied (JS challenge)")
+			}
 			return parseScholarHTML(body)
 		}
 		resp.Body.Close()
@@ -126,6 +131,27 @@ func (e *googleScholarEngine) Search(query string, page int, timeRange antirobot
 		}
 		return nil, fmt.Errorf("google scholar HTTP %d", resp.StatusCode)
 	}
+}
+
+// scholarChallengeResponse 识别跟随重定向后落到的 Google 挑战页。
+func scholarChallengeResponse(resp *http.Response, body []byte) bool {
+	if resp != nil && resp.Request != nil && resp.Request.URL != nil {
+		u := resp.Request.URL
+		if strings.EqualFold(u.Hostname(), "www.google.com") && strings.HasPrefix(u.Path, "/sgsync") {
+			return true
+		}
+		if strings.Contains(u.RawQuery, "sg_fe=scife") {
+			return true
+		}
+	}
+
+	head := body
+	if len(head) > 4096 {
+		head = head[:4096]
+	}
+	s := strings.ToLower(string(head))
+	return strings.Contains(s, "<title>verifying") ||
+		strings.Contains(s, "/sgsync?")
 }
 
 // ── HTML 解析 ──

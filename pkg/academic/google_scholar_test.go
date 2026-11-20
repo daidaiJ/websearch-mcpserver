@@ -1,12 +1,63 @@
 package academic
 
 import (
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 
 	"websearch/pkg/antirobot"
 )
+
+func TestScholarChallengeResponse(t *testing.T) {
+	respWithURL := func(raw string) *http.Response {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{Request: &http.Request{URL: u}}
+	}
+
+	tests := []struct {
+		name string
+		resp *http.Response
+		body string
+		want bool
+	}{
+		{
+			name: "sgsync final URL",
+			resp: respWithURL("https://www.google.com/sgsync?url=https%3A%2F%2Fscholar.google.com&sg_fe=scife"),
+			body: `<html><body>challenge</body></html>`,
+			want: true,
+		},
+		{
+			name: "verifying page title",
+			resp: respWithURL("https://scholar.google.com/scholar?q=x"),
+			body: `<html><head><title>Verifying...</title></head></html>`,
+			want: true,
+		},
+		{
+			name: "captcha form is handled by parser",
+			resp: respWithURL("https://scholar.google.com/scholar?q=x"),
+			body: `<form id="gs_captcha_f"></form>`,
+			want: false,
+		},
+		{
+			name: "normal results",
+			resp: respWithURL("https://scholar.google.com/scholar?q=x"),
+			body: `<div data-rp="1"><h3><a>Paper</a></h3></div>`,
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := scholarChallengeResponse(tt.resp, []byte(tt.body)); got != tt.want {
+				t.Fatalf("scholarChallengeResponse() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestGoogleScholarSearch(t *testing.T) {
 	if testing.Short() {

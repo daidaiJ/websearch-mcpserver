@@ -2,6 +2,9 @@ package baidu
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -155,6 +158,19 @@ func TestParseResponse_Empty(t *testing.T) {
 	}
 }
 
+func TestParseResponse_AntiFlag(t *testing.T) {
+	e := &baiduEngine{}
+
+	body := []byte(`{"antiFlag": 1, "message": "Forbid spider access"}`)
+	_, err := e.parseResponse(body)
+	if err == nil {
+		t.Fatal("expected anti-bot error for antiFlag")
+	}
+	if !strings.Contains(err.Error(), "blocked by Baidu anti-bot") || !strings.Contains(err.Error(), "Forbid spider access") {
+		t.Fatalf("antiFlag error should carry Baidu message, got %v", err)
+	}
+}
+
 func TestParseResponse_InvalidJSON(t *testing.T) {
 	e := &baiduEngine{}
 
@@ -162,6 +178,107 @@ func TestParseResponse_InvalidJSON(t *testing.T) {
 	_, err := e.parseResponse(body)
 	if err == nil {
 		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestParseResponse_HTMLChallenge(t *testing.T) {
+	e := &baiduEngine{}
+
+	body := []byte(`<!DOCTYPE html><html><head><title>百度安全验证</title></head><body>请完成验证</body></html>`)
+	_, err := e.parseResponse(body)
+	if err == nil {
+		t.Fatal("expected anti-bot error for HTML challenge page")
+	}
+	if !strings.Contains(err.Error(), "blocked by Baidu anti-bot") {
+		t.Fatalf("error should identify anti-bot page, got %v", err)
+	}
+	if strings.Contains(err.Error(), "JSON parse error") {
+		t.Fatalf("HTML challenge must not be reported as JSON parse error, got %v", err)
+	}
+}
+
+func TestBaiduAntiBotReason(t *testing.T) {
+	tests := []struct {
+		name        string
+		finalURL    string
+		contentType string
+		body        []byte
+		want        string
+	}{
+		{
+			name:     "wappass redirect",
+			finalURL: "https://wappass.baidu.com/static/captcha/tuxing.html?x=1",
+			want:     "captcha redirect",
+		},
+		{
+			name:     "seccaptcha landing page",
+			finalURL: "https://bioc-static.cdn.bcebos.com/pages/ds_svcp.html?biocOrigin=https://seccaptcha-gs.baidu.com",
+			want:     "captcha redirect",
+		},
+		{
+			name:        "html content type",
+			contentType: "text/html; charset=utf-8",
+			body:        []byte(`<!DOCTYPE html><html></html>`),
+			want:        "HTML challenge page",
+		},
+		{
+			name:        "json body with wrong content type",
+			contentType: "text/html; charset=utf-8",
+			body:        []byte(`{"feed":{"entry":[]}}`),
+			want:        "",
+		},
+		{
+			name: "html body without content type",
+			body: []byte("\xef\xbb\xbf  \n<!DOCTYPE html><html></html>"),
+			want: "HTML challenge page",
+		},
+		{
+			name:        "normal json",
+			contentType: "application/json; charset=utf-8",
+			body:        []byte(`{"feed":{"entry":[]}}`),
+			want:        "",
+		},
+		{
+			name:        "plain text parse error is not anti-bot",
+			contentType: "text/plain",
+			body:        []byte("not json at all"),
+			want:        "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := baiduAntiBotReason(tt.finalURL, tt.contentType, tt.body); got != tt.want {
+				t.Fatalf("baiduAntiBotReason() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBaiduSearch_HTMLChallenge(t *testing.T) {
+	origBase, origJitter := baiduBaseDelay, baiduJitter
+	baiduBaseDelay, baiduJitter = time.Millisecond, time.Millisecond
+	t.Cleanup(func() {
+		baiduBaseDelay, baiduJitter = origBase, origJitter
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = io.WriteString(w, `<!DOCTYPE html><html><head><title>百度安全验证</title></head><body>请完成验证</body></html>`)
+	}))
+	defer srv.Close()
+
+	e := NewBaiduWeb(BaiduOpts{Enabled: true, PerSec: 1000, PerMin: 10000}).(*baiduEngine)
+	e.endpoint = srv.URL
+	e.mu.Lock()
+	e.client = srv.Client()
+	e.mu.Unlock()
+
+	_, err := e.Search("golang concurrency", 1, antirobot.TimeRangeNone)
+	if err == nil {
+		t.Fatal("expected anti-bot error")
+	}
+	if !strings.Contains(err.Error(), "blocked by Baidu anti-bot") {
+		t.Fatalf("expected anti-bot error, got %v", err)
 	}
 }
 
