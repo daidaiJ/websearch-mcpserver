@@ -88,11 +88,15 @@ jobs:
         run: go test -race -short ./...
 
       # SSRF 预检是纯函数：种子语料常驻，PR 上跑短窗口模糊测试防回归。
+      # 用迭代次数而不是 -fuzztime=10s：CI 固定的 Go 1.26 在时间窗口到期瞬间
+      # 存在协调器竞态，会把正常收尾误报为 "context deadline exceeded"
+      # （go.dev/issue/75804，后续工具链已修复）。按 exec 数停止不会创建带
+      # deadline 的 context，从路径上避开该问题。
       - name: Fuzz SSRF guards (short window)
         run: |
-          go test -run=^$ -fuzz=FuzzValidateURLSecurity -fuzztime=10s ./mcp/
-          go test -run=^$ -fuzz=FuzzIsPublicIP -fuzztime=10s ./mcp/
-          go test -run=^$ -fuzz=FuzzIsPrivateHostFast -fuzztime=10s ./mcp/
+          go test -run=^$ -fuzz=FuzzValidateURLSecurity -fuzztime=20000x ./mcp/
+          go test -run=^$ -fuzz=FuzzIsPublicIP -fuzztime=20000x ./mcp/
+          go test -run=^$ -fuzz=FuzzIsPrivateHostFast -fuzztime=20000x ./mcp/
 
       # 只在 master 推送时回写，PR 走只读恢复：避免每个 PR 都新增一份缓存
       # 条目、把 10GB 配额的历史挤掉（PR 分支的 GOCACHE 也无法被其他 PR 复用）。
