@@ -52,6 +52,8 @@ type Config struct {
 	Network            string              `mapstructure:"network"`         // 学术搜索适配区域: china / international，不是网页来源或豆包过滤
 	BlackListHost      []string            `mapstructure:"black_list_host"` // 全局屏蔽站点
 	RateLimit          RateLimitConfig     `mapstructure:"rate_limit"`      // 全局限流配置
+	Limits             LimitsConfig        `mapstructure:"limits"`          // 进程内并发准入（瘦虚机/多客户端共享时的资源上限）
+	Memory             MemoryConfig        `mapstructure:"memory"`          // 可选内存策略：更积极的 GC 与空闲归还 OS
 	Baidu              BaiduConfig         `mapstructure:"baidu"`
 	Tavily             TavilyConfig        `mapstructure:"tavily"`
 	Exa                ExaConfig           `mapstructure:"exa"`
@@ -438,6 +440,65 @@ type GoogleConfig struct {
 type RateLimitConfig struct {
 	PerSec int `mapstructure:"per_sec"` // 每秒请求数上限（默认 3）
 	PerMin int `mapstructure:"per_min"` // 每分钟请求数上限（默认 60）
+}
+
+// LimitsConfig 进程内并发准入控制：用带缓冲 channel 给 MCP 工具调用与出站
+// 搜索/抓取各设一道闸门，超出时在队列预算内等待，预算耗尽即快速失败。
+// 限额只约束并发，不改变单次请求的行为与结果；零值取保守默认，负值显式关闭。
+type LimitsConfig struct {
+	MaxInflight int `mapstructure:"max_inflight"`  // 并发 tools/call 上限；0=默认 4，负数=不限制
+	MaxOutbound int `mapstructure:"max_outbound"`  // 并发出站请求（搜索/抓取）上限；0=默认 12，负数=不限制
+	QueueWaitMS int `mapstructure:"queue_wait_ms"` // 满额后的排队预算（毫秒）；0=默认 2000，负数=不等待
+}
+
+// MemoryConfig 可选内存回收策略。默认 off：完全沿用 Go 运行时默认值。
+// balanced / aggressive 降低 GC 触发阈值，并在无工具调用、空闲达到预设窗口
+// 且堆仍高于下限时调用 debug.FreeOSMemory 把空闲堆归还系统（瘦虚机适用）。
+type MemoryConfig struct {
+	Mode    string `mapstructure:"mode"`     // off（默认）/ balanced / aggressive
+	LimitMB int    `mapstructure:"limit_mb"` // >0 时设置 Go 软内存上限（GOMEMLIMIT 语义）
+}
+
+const (
+	defaultMaxInflight = 4
+	defaultMaxOutbound = 12
+	defaultQueueWaitMS = 2000
+)
+
+// MaxInflightOrDefault 返回 tools/call 并发上限。
+func (c LimitsConfig) MaxInflightOrDefault() int {
+	switch {
+	case c.MaxInflight < 0:
+		return 0
+	case c.MaxInflight == 0:
+		return defaultMaxInflight
+	default:
+		return c.MaxInflight
+	}
+}
+
+// MaxOutboundOrDefault 返回出站请求并发上限。
+func (c LimitsConfig) MaxOutboundOrDefault() int {
+	switch {
+	case c.MaxOutbound < 0:
+		return 0
+	case c.MaxOutbound == 0:
+		return defaultMaxOutbound
+	default:
+		return c.MaxOutbound
+	}
+}
+
+// QueueWait 返回满额后的排队预算；负值 = 不排队，立即失败。
+func (c LimitsConfig) QueueWait() time.Duration {
+	switch {
+	case c.QueueWaitMS < 0:
+		return 0
+	case c.QueueWaitMS == 0:
+		return defaultQueueWaitMS * time.Millisecond
+	default:
+		return time.Duration(c.QueueWaitMS) * time.Millisecond
+	}
 }
 
 // ── 学术引擎配置 ──
@@ -1142,6 +1203,13 @@ type ApipoolConfig struct {
 	Strategy string         `mapstructure:"strategy"` // "round-robin"(默认) / "priority" / "weighted"
 	Engines  []string       `mapstructure:"engines"`  // 供应商优先级顺序（默认: anysearch, baidu, tavily, exa）
 	Weights  map[string]int `mapstructure:"weights"`  // weighted 策略的供应商权重（单 Key 权重，实际权重按可用 Key 数累加）
+	// MCPHubFallback 把 mcp_hub 托管 MCP 级联作为后备补充供应商：追加在已配置
+	// 供应商之后、baidu_web 之前，无需 API Key，可提供额外匿名用量。
+	// 显式在 engines 里写 mcphub 可自行决定其位置（默认关闭）。
+	MCPHubFallback bool `mapstructure:"mcphub_fallback"`
+	// MCPHubDedupe 让 mcphub 跳过于 apipool 已启用供应商同源的托管 server
+	// （如 anysearch / exa），避免同一出口 IP 被重复计数触发限流。默认开启。
+	MCPHubDedupe *bool `mapstructure:"mcphub_dedupe"`
 }
 
 // GetApipoolStrategy 返回 apipool 策略，默认 round-robin。
@@ -1166,6 +1234,11 @@ func (c ApipoolConfig) GetEngines() []string {
 		return engines
 	}
 	return []string{"anysearch", "baidu", "tavily", "exa"}
+}
+
+// DedupeMCPHubSources 报告是否要跳过于 apipool 同源的托管 server（默认跳过）。
+func (c ApipoolConfig) DedupeMCPHubSources() bool {
+	return c.MCPHubDedupe == nil || *c.MCPHubDedupe
 }
 
 // GetWeights 返回 weighted 策略的供应商权重（供应商名 → 单 Key 权重），

@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	mcpserver "websearch/mcp"
+	"websearch/pkg/admission"
+	"websearch/pkg/memguard"
 	"websearch/pkg/telemetry"
 )
 
@@ -65,6 +68,44 @@ func renderProcessMetrics(sb *strings.Builder, s *Server, telemetryEnabled bool)
 	} else {
 		sb.WriteString("websearch_telemetry_enabled 0\n")
 	}
+
+	if ingress, outbound, ok := mcpserver.AdmissionStats(); ok {
+		renderAdmissionMetrics(sb, "ingress", ingress)
+		renderAdmissionMetrics(sb, "outbound", outbound)
+	}
+
+	memPolicy := memguard.CurrentStats()
+	mode := memguard.ModeOff
+	if memPolicy.Enabled {
+		mode = memPolicy.Mode
+	}
+	fmt.Fprintf(sb, "# HELP websearch_memory_policy Active memory policy (off/balanced/aggressive)\n")
+	fmt.Fprintf(sb, "# TYPE websearch_memory_policy gauge\n")
+	fmt.Fprintf(sb, "websearch_memory_policy{mode=\"%s\"} 1\n", escapeMetricsLabel(mode))
+	fmt.Fprintf(sb, "# HELP websearch_memory_free_os_total Idle FreeOSMemory reclaims since start\n")
+	fmt.Fprintf(sb, "# TYPE websearch_memory_free_os_total counter\n")
+	fmt.Fprintf(sb, "websearch_memory_free_os_total %d\n", memPolicy.FreeOSTotal)
+}
+
+// renderAdmissionMetrics renders one concurrency gate: capacity, live slots,
+// queued callers, and cumulative admitted/shed counts.
+func renderAdmissionMetrics(sb *strings.Builder, gate string, s admission.Stats) {
+	labels := fmt.Sprintf(`gate="%s"`, gate)
+	fmt.Fprintf(sb, "# HELP websearch_admission_capacity Configured concurrency slots (0 = unlimited)\n")
+	fmt.Fprintf(sb, "# TYPE websearch_admission_capacity gauge\n")
+	fmt.Fprintf(sb, "websearch_admission_capacity{%s} %d\n", labels, s.Capacity)
+	fmt.Fprintf(sb, "# HELP websearch_admission_inflight Slots currently held\n")
+	fmt.Fprintf(sb, "# TYPE websearch_admission_inflight gauge\n")
+	fmt.Fprintf(sb, "websearch_admission_inflight{%s} %d\n", labels, s.Inflight)
+	fmt.Fprintf(sb, "# HELP websearch_admission_queued Callers waiting for a slot\n")
+	fmt.Fprintf(sb, "# TYPE websearch_admission_queued gauge\n")
+	fmt.Fprintf(sb, "websearch_admission_queued{%s} %d\n", labels, s.Queued)
+	fmt.Fprintf(sb, "# HELP websearch_admission_admitted_total Acquisitions granted\n")
+	fmt.Fprintf(sb, "# TYPE websearch_admission_admitted_total counter\n")
+	fmt.Fprintf(sb, "websearch_admission_admitted_total{%s} %d\n", labels, s.Admitted)
+	fmt.Fprintf(sb, "# HELP websearch_admission_shed_total Acquisitions rejected after the wait budget\n")
+	fmt.Fprintf(sb, "# TYPE websearch_admission_shed_total counter\n")
+	fmt.Fprintf(sb, "websearch_admission_shed_total{%s} %d\n", labels, s.Shed)
 }
 
 // renderMetricsText 渲染 OpenMetrics/Prometheus 文本格式。

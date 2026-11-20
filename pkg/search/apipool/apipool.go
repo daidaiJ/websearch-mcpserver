@@ -38,6 +38,14 @@ func NewApipoolProvider(name string, engine core.SearchInf, pool *provider.KeyPo
 	return ApipoolProvider{name: name, engine: engine, pool: pool}
 }
 
+// Name 返回供应商配置名；未显式命名时回退引擎名。
+func (p ApipoolProvider) Name() string {
+	if p.name != "" {
+		return p.name
+	}
+	return p.engine.Name()
+}
+
 // ApipoolSearchImpl API Key 池轮转搜索引擎。
 //
 // 支持三种策略：
@@ -87,6 +95,19 @@ func (a *ApipoolSearchImpl) SetMaxSize(n int) {
 }
 
 func (a *ApipoolSearchImpl) Name() string { return "apipool" }
+
+// ProviderNames returns the configured provider order (tests and startup logs).
+func (a *ApipoolSearchImpl) ProviderNames() []string {
+	out := make([]string, 0, len(a.providers))
+	for _, p := range a.providers {
+		name := p.name
+		if name == "" {
+			name = p.engine.Name()
+		}
+		out = append(out, name)
+	}
+	return out
+}
 
 func (a *ApipoolSearchImpl) Search(query string) (string, error) {
 	results, err := a.SearchRaw(query)

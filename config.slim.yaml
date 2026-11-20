@@ -1,0 +1,100 @@
+# ==============================================
+# websearch-mcp 瘦虚机配置样例（2C2G / 2C4G 轻量云主机）
+#
+# 目标：保留 smartsearch / academicsearch / cleanfetch 的完整链路，
+# 用并发准入、缓存与源裁剪把常驻内存和突发占用压到最低。
+# 复制为 config.yaml 后按需修改；更完整的字段说明见 config.example.yaml。
+#
+# 与默认配置的差别：
+#   - limits 收紧为 2 个并发调用 / 8 个并发出站请求
+#   - 开启搜索缓存（同查询 6h 内不再出网）
+#   - 关闭需要代理的海外源与按 IP 限流的可选源
+#   - 关闭控制中心、search_history 与 PDF 解析（按需再打开）
+# ==============================================
+
+port: 8338
+
+# 只监听回环。远程主机用 SSH 隧道或反向代理接入，确需对外开放时再改 0.0.0.0
+# 并配置 auth_token。
+# host: "127.0.0.1"
+
+# 日志级别 warn：瘦虚机不落 info 级调用日志。
+log_level: warn
+language: auto
+mode: engine
+network: china
+upstream_timeout_sec: 20
+
+# 进程内并发准入：满额时在 1.5s 内排队，超预算快速返回“服务繁忙”，
+# 避免突发调用在进程里堆 goroutine、socket 与页缓冲。
+limits:
+  max_inflight: 2
+  max_outbound: 8
+  queue_wait_ms: 1500
+
+# 更积极的内存回收：空闲 10s、堆 >4MB 时把空闲堆归还系统，并设 256MB 软上限。
+# 代价是更频繁的 GC；回收只在没有工具调用在飞时触发。
+memory:
+  mode: aggressive
+  limit_mb: 256
+
+# 单引擎出站限流，保持默认即可。
+rate_limit:
+  per_sec: 3
+  per_min: 60
+
+# 国内出口只保留可达的网页源；下列源默认关闭，显式写出便于按需打开。
+# 有代理时可把 duckduckgo / google_news / wikipedia 改回 true。
+duckduckgo:
+  enabled: false
+google:
+  enabled: false
+so360:
+  enabled: false
+wikipedia:
+  enabled: false
+google_news:
+  enabled: false
+github:
+  enabled: false
+
+academic:
+  enabled: true
+  enhance: true
+
+# 搜索缓存：同查询 6h 内直接命中，减少出网与评分开销。
+cache:
+  enabled: true
+  storage_path: "./data/search_cache.db"
+  max_open_conns: 1
+
+# 网页抓取：单页上限 5MB，内联正文 20k 字符，超出落盘由 result_ref 分段读回。
+cleanfetch:
+  enabled: true
+  timeout_sec: 20
+  max_fetch_size_mb: 5
+  max_inline_chars: 20000
+  auto_proxy: true
+
+smartsearch:
+  max_size: 10
+  fetch_top_n: 0
+  engine_timeout_sec: 8
+  inline_max_chars: 20000
+
+# PDF 解析按需打开：远程 PDF 与本地 PDF 会带来额外的下载与解析内存。
+pdf_parser:
+  enabled: false
+
+# 本地历史默认关闭；需要时改 true 并预留 data/ 目录。
+search_history:
+  enabled: false
+
+# 不启用控制中心（避免遥测库与常驻 HTTP 页面开销）。
+dashboard:
+  enabled: false
+
+# 若使用 mode: apipool，可把 mcphub 作为无 Key 后备补充源：
+# apipool:
+#   mcphub_fallback: true   # 追加在已配置供应商之后、baidu_web 之前
+#   mcphub_dedupe: true     # 跳过与 apipool 同源的托管 server，避免叠加 IP 限流

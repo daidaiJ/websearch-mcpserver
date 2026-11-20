@@ -23,6 +23,10 @@ func (c Config) APISourceEnabled(name string) bool {
 		enabled = c.TinyFish.Enabled
 	case "keenable":
 		enabled = c.Keenable.Enabled
+	case "mcphub":
+		// mcphub 的开关是 mcp_hub.enabled（默认开启），没有独立 API Key 开关。
+		v := c.MCPHub.IsEnabled()
+		return v
 	default:
 		return false
 	}

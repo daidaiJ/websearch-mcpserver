@@ -2,9 +2,13 @@ package antirobot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"websearch/pkg/admission"
+	"websearch/pkg/i18n"
 )
 
 // ── 搜索策略 ──
@@ -133,6 +137,16 @@ func (s *Searcher) execOne(parent context.Context, eng Engine, query string, pag
 	}
 	ch := make(chan outcome, 1)
 	go func() {
+		// Global outbound gate: a burst of tool calls must not fan out into an
+		// unbounded set of concurrent engine requests. Shed before opening the
+		// socket when the per-request budget is already spent.
+		release, gateErr := admission.Acquire(ctx)
+		if gateErr != nil {
+			ch <- outcome{err: admissionError(gateErr)}
+			return
+		}
+		defer release()
+
 		var resp *SearchResponse
 		var err error
 		// 优先走 ctx 入口：软超时或客户端断连后引擎立即中止在飞请求，
@@ -160,4 +174,14 @@ func (s *Searcher) execOne(parent context.Context, eng Engine, query string, pag
 			Error:  fmt.Sprintf("timeout after %s", timeout),
 		}
 	}
+}
+
+// admissionError turns a shed/failed outbound slot into a localizable engine
+// failure. ErrBusy is the local budget; DeadlineExceeded means the gate wait
+// was cut short by the engine soft timeout, so both map to "request not sent".
+func admissionError(err error) error {
+	if errors.Is(err, admission.ErrBusy) || errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%s: %w", i18n.T("search.engine.admission_rejected"), err)
+	}
+	return err
 }

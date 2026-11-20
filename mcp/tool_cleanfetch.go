@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
 	fetchcontent "websearch/pkg/fetch"
@@ -95,7 +96,7 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 	}
 
 	if len(urls) == 1 {
-		text, err := fetchCleanPage(ctx, urls[0])
+		text, err := fetchCleanPageWithAdmission(ctx, urls[0])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -112,7 +113,7 @@ func cleanFetch(ctx context.Context, req *mcp.CallToolRequest, params *CleanFetc
 		wg.Add(1)
 		go func(i int, u string) {
 			defer wg.Done()
-			text, err := fetchCleanPage(ctx, u)
+			text, err := fetchCleanPageWithAdmission(ctx, u)
 			items[i] = batchItem{text: text, err: err}
 		}(i, u)
 	}
@@ -181,6 +182,17 @@ func fetchViaGithubAPI(ctx context.Context, rawURL string) (text string, matched
 // fetchCleanPage 抓取单个 URL：SSRF 预检后按 mcp_hub.fetch_mode
 // 选择远端抓取链（供应商 fetch API → MCP 托管抓取）与本地 webfetch/Jina 的
 // 顺序，任一层失败自动降级。
+// fetchCleanPageWithAdmission holds one outbound slot for the whole fetch,
+// including site-specific API and Jina fallbacks.
+func fetchCleanPageWithAdmission(ctx context.Context, rawURL string) (string, error) {
+	release, err := admission.Acquire(ctx)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", i18n.T("tool.limits.fetch_shed"), err)
+	}
+	defer release()
+	return fetchCleanPage(ctx, rawURL)
+}
+
 func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	if err := validateURLSecurity(rawURL); err != nil {
 		return "", err

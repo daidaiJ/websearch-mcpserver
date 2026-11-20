@@ -176,5 +176,8 @@
   "log.server.server_shutdown_failed": "server shutdown failed: {{.err}}",
   "log.server.server_start_failed": "server start failed: {{.err}}",
   "log.server.server_start_on": "server start on {{.addr}}",
-  "log.server.shutting_down_server": "shutting down server..."
+  "log.server.shutting_down_server": "shutting down server...",
+  "log.mcp.admission_shed": "admission shed tool call: tool={{.tool}}, inflight={{.inflight}}, queued={{.queued}}",
+  "log.search.mode.apipool_mcphub_unavailable": "apipool: mcphub fallback unavailable, skipped: {{.err}}",
+  "log.search.mode.apipool_mcphub_source_deduped": "apipool: skipped hosted MCP server already covered by a configured provider: {{.name}}"
 }

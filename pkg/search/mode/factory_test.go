@@ -101,3 +101,71 @@ func TestInitWikipediaEngine_DisabledByDefault(t *testing.T) {
 		t.Fatalf("wikipedia engine should be disabled by default, got %v", a)
 	}
 }
+
+// TestBuildApipoolModeMCPHubFallback 后备补充源：mcphub_fallback 打开时把托管
+// MCP 级联追加在已配置供应商之后；mcp_hub 关闭时不注入。
+func TestBuildApipoolModeMCPHubFallback(t *testing.T) {
+	conf := config.Default()
+	conf.Apipool.Engines = []string{"anysearch"}
+	conf.Apipool.MCPHubFallback = true
+	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "parallel"}}
+
+	got := BuildApipoolMode(*conf, ProviderPools{}, nil)
+	ap, ok := got.(interface{ ProviderNames() []string })
+	if !ok {
+		t.Fatalf("expected apipool engine, got %T", got)
+	}
+	names := ap.ProviderNames()
+	want := []string{"anysearch", "mcphub"}
+	if len(names) != len(want) || names[0] != want[0] || names[1] != want[1] {
+		t.Fatalf("providers = %v, want %v", names, want)
+	}
+
+	disabled := false
+	conf.MCPHub.Enabled = &disabled
+	got = BuildApipoolMode(*conf, ProviderPools{}, nil)
+	ap, ok = got.(interface{ ProviderNames() []string })
+	if !ok {
+		t.Fatalf("expected apipool engine, got %T", got)
+	}
+	for _, name := range ap.ProviderNames() {
+		if name == "mcphub" {
+			t.Fatalf("disabled mcp_hub must not be injected: %v", ap.ProviderNames())
+		}
+	}
+}
+
+// TestBuildApipoolMCPHubDedupesSharedSources 同一来源（anysearch/exa）已在
+// apipool 里启用时，mcphub 不再重复请求，避免同一出口 IP 被两条链路叠加限流。
+func TestBuildApipoolMCPHubDedupesSharedSources(t *testing.T) {
+	conf := config.Default()
+	conf.MCPHub.Servers = []config.MCPHubServerConfig{{Name: "parallel"}, {Name: "anysearch"}, {Name: "exa"}}
+
+	got, err := buildApipoolMCPHub(*conf, map[string]bool{"anysearch": true, "exa": true})
+	if err != nil {
+		t.Fatalf("build hub: %v", err)
+	}
+	hub, ok := got.(*mcphub.Hub)
+	if !ok {
+		t.Fatalf("expected *mcphub.Hub, got %T", got)
+	}
+	for _, name := range hub.RotationNames() {
+		if name == "mcp_hub_anysearch" || name == "mcp_hub_exa" {
+			t.Fatalf("shared sources must be deduped, rotation=%v", hub.RotationNames())
+		}
+	}
+	if len(hub.RotationNames()) != 1 || hub.RotationNames()[0] != "mcp_hub_parallel" {
+		t.Fatalf("rotation = %v, want only parallel", hub.RotationNames())
+	}
+
+	disabled := false
+	conf.Apipool.MCPHubDedupe = &disabled
+	got, err = buildApipoolMCPHub(*conf, map[string]bool{"anysearch": true, "exa": true})
+	if err != nil {
+		t.Fatalf("build hub without dedupe: %v", err)
+	}
+	hub = got.(*mcphub.Hub)
+	if len(hub.RotationNames()) != 3 {
+		t.Fatalf("dedupe off must keep all servers, rotation=%v", hub.RotationNames())
+	}
+}

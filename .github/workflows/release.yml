@@ -205,7 +205,7 @@ jobs:
             fi
             stage="pkg/websearch-mcpserver-${osarch}"
             mkdir -p "$stage"
-            cp "$bin" "$cli" config.example.yaml dashboard.example.yaml LICENSE README.MD README.EN.md "$stage/"
+            cp "$bin" "$cli" config.example.yaml config.slim.yaml dashboard.example.yaml LICENSE README.MD README.EN.md "$stage/"
             cp -R skills "$stage/skills"
             mkdir -p "$stage/third_party/pdfium"
             cp -R "third_party/pdfium/${pdfium_arch}" "$stage/third_party/pdfium/"

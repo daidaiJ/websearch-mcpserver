@@ -12,6 +12,7 @@ import (
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
+	"websearch/pkg/memguard"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -36,6 +37,9 @@ func NewMCPServer(conf config.Config, opts *mcp.ServerOptions) *mcp.Server {
 
 	server.AddReceivingMiddleware(createLoggingMiddleware())
 	server.AddReceivingMiddleware(ClientAttributionMiddleware)
+	ingressGate, outboundGate := publishAdmissionGates(conf)
+	mem := memguard.Start(memguard.Config{Mode: conf.Memory.Mode, LimitMB: conf.Memory.LimitMB})
+	server.AddReceivingMiddleware(admissionMiddleware(ingressGate, outboundGate, mem))
 	registerTools(server, conf)
 	// 只读观测 Resource（capabilities/health）：mcp_resources: false 时整体关闭
 	if conf.ResourcesEnabled() {

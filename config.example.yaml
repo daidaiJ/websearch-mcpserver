@@ -80,6 +80,25 @@ rate_limit:
   per_min: 60  # 每分钟请求数上限（默认 60）
 
 # ==============================================
+# 进程内并发准入（默认开启；限定并发，不改变单次请求的结果）
+# 满额时在 queue_wait_ms 内排队，预算耗尽返回“服务繁忙”，避免突发流量
+# 把 goroutine、socket 与页缓冲堆在进程里（瘦虚机 / 多客户端共享时尤其明显）。
+# 显式负数 = 关闭对应限额；调低后并发上限优先于单请求内的多引擎扇出。
+# ==============================================
+limits:
+  max_inflight: 4      # 并发 tools/call 上限（默认 4）；负数 = 不限制
+  max_outbound: 12     # 并发出站请求（搜索/抓取）上限（默认 12）；负数 = 不限制
+  queue_wait_ms: 2000  # 满额后的排队预算（毫秒，默认 2000）；负数 = 立即失败
+
+# 内存回收策略（可选；默认 off 完全沿用 Go 运行时默认值）
+# balanced: GOGC=75，空闲 60s 且堆 >16MB 时 FreeOSMemory 归还系统
+# aggressive: GOGC=40，空闲 10s 且堆 >4MB 即归还（瘦虚机推荐）
+# limit_mb >0 时同时设置 Go 软内存上限（GOMEMLIMIT 语义）
+# memory:
+#   mode: balanced
+#   limit_mb: 0
+
+# ==============================================
 # 百度千帆 AI Search API（mode=baidu/apipool/hybrid 时需要）
 # 获取地址: https://console.bce.baidu.com/iam/#/iam/apikey/list
 # 环境变量: BAIDU_SK
@@ -553,6 +572,11 @@ log:
 #     # - yuanbao         # 不在默认列表；有 Key 时显式加入
 #   weights:              # weighted 策略的供应商权重（单 Key 权重，实际权重 = 配置权重 × 当前可用 Key 数累加）
 #                         # 默认值: anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0；显式 0 = 不参与加权起始选择
+#   mcphub_fallback: true # 把 mcp_hub 托管 MCP 级联作为后备补充源（默认 false）：
+#                         # 追加在已配置供应商之后、baidu_web 之前，无 Key 也能分摊匿名限流；
+#                         # 也可在 engines 里显式写 mcphub 自行决定位置
+#   mcphub_dedupe: true   # 跳过与 apipool 已启用供应商同源的托管 server（默认 true）
+#                         # 例：apipool 已有 anysearch/exa 时，mcphub 不再重复请求同源，避免叠加 IP 限流
 #     anysearch: 30000
 #     baidu: 1500
 #     tavily: 1200

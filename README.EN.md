@@ -87,7 +87,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
 | Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits; `GET /metrics` always serves in-process metrics and adds sanitized telemetry aggregates when the console is enabled |
-| Lightweight deploy | Single binary, no CGO, reference-counted process management, embeddable as a single-instance Go module |
+| Lightweight deploy | Single binary, no CGO, reference-counted process management; `config.slim.yaml` targets 2C2G VMs (admission control + cache + memory reclaim); embeddable as a single-instance Go module |
 | Chinese / English | `language: auto|zh|en` covers logs, MCP tool descriptions and parameter docs, and the console UI in one switch; `auto` follows the system language, and the console additionally negotiates per request from the browser language |
 
 ---

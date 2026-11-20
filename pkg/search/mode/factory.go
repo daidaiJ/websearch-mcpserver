@@ -3,10 +3,12 @@
 package mode
 
 import (
+	"errors"
 	"strings"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search/adapter"
 	"websearch/pkg/search/apipool"
@@ -131,6 +133,37 @@ func BuildMCPHubMode(conf config.Config, ads EngineAdapters, fallback *adapter.B
 	fallbacks := hub.FallbackNames()
 	log.InfoT("log.search.mode.search_mode_mcphub_rotation_fallback_final", "join", strings.Join(hub.RotationNames(), " → "), "join2", strings.Join(fallbacks, " → "))
 	return hub
+}
+
+// buildApipoolMCPHub 构建 apipool 后备补充源使用的托管 MCP 级联。
+// 本地网页引擎不重复注入：apipool 里 baidu_web 已作为独立供应商兜底，
+// 这里只让托管 server 之间级联与冷却。
+//
+// taken 是 apipool 已装好的供应商标识；同名托管 server 会被跳过，避免同一
+// 来源（如 anysearch / exa）在同一进程里被两条链路重复请求、叠加 IP 限流。
+func buildApipoolMCPHub(conf config.Config, taken map[string]bool) (core.SearchInf, error) {
+	hubCfg := conf.MCPHub
+	if conf.Apipool.DedupeMCPHubSources() && len(taken) > 0 {
+		servers := hubCfg.GetServers()
+		kept := make([]config.MCPHubServerConfig, 0, len(servers))
+		for _, s := range servers {
+			name := strings.ToLower(strings.TrimSpace(s.Name))
+			if taken[name] {
+				log.InfoT("log.search.mode.apipool_mcphub_source_deduped", "name", s.Name)
+				continue
+			}
+			kept = append(kept, s)
+		}
+		if len(kept) == 0 {
+			return nil, errors.New(i18n.T("provider.mcphub.no_backends"))
+		}
+		hubCfg.Servers = kept
+	}
+	hub, err := mcphub.New(hubCfg, conf.Proxy.ProxyResolver(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return hub, nil
 }
 
 // BuildBaiduMode 百度千帆搜索（enable_ai_search 控制端点，失败自动回退百度网页搜索）。
@@ -272,6 +305,7 @@ func BuildApipoolMode(conf config.Config, pools ProviderPools, baiduWeb *adapter
 	tinyfishPool, keenablePool := pools.Tinyfish, pools.Keenable
 	// 按配置顺序构建供应商（web 兜底始终追加在末尾）
 	var providers []apipool.ApipoolProvider
+	insertMCPHubAt := -1
 	for _, name := range conf.Apipool.GetEngines() {
 		if !conf.APISourceEnabled(name) {
 			continue
@@ -321,8 +355,30 @@ func BuildApipoolMode(conf config.Config, pools ProviderPools, baiduWeb *adapter
 			// keyed 端点按 credits 计费；pool 为 nil 走 public 免 Key 档（按 IP 限流）
 			keenable := provider.NewKeenableSearch(keenablePool, conf.Keenable.IsLive(), 0)
 			providers = append(providers, apipool.NewApipoolProvider("keenable", keenable, keenablePool))
+		case "mcphub":
+			// 先占位，等全部供应商装好后再构建：去重需要知道哪些来源已在 apipool 里。
+			insertMCPHubAt = len(providers)
 		default:
 			log.InfoT("log.search.mode.apipool_unknown_provider_skipped", "name", name)
+		}
+	}
+	// 后备补充源：未显式写进 engines 时，把托管 MCP 级联追加在已配置供应商之后、
+	// baidu_web 之前。无 Key 可用，能分摊匿名限流、提供额外搜索用量。
+	if conf.Apipool.MCPHubFallback && insertMCPHubAt < 0 {
+		insertMCPHubAt = len(providers)
+	}
+	if insertMCPHubAt >= 0 {
+		taken := make(map[string]bool, len(providers))
+		for _, p := range providers {
+			taken[p.Name()] = true
+		}
+		if hub, err := buildApipoolMCPHub(conf, taken); err == nil {
+			p := apipool.NewApipoolProvider("mcphub", hub, nil)
+			providers = append(providers, p)
+			copy(providers[insertMCPHubAt+1:], providers[insertMCPHubAt:len(providers)-1])
+			providers[insertMCPHubAt] = p
+		} else {
+			log.WarnT("log.search.mode.apipool_mcphub_unavailable", "err", err)
 		}
 	}
 	// 百度网页搜索作为最终兜底（无需 Key，始终在末尾）

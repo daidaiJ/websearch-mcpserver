@@ -8,6 +8,7 @@
   - [Binary Download](#binary-download)
   - [Docker](#docker)
   - [Build from Source](#build-from-source)
+  - [Thin VM Deployment (2C2G and below)](#thin-vm-deployment-2c2g-and-below)
 - [Register MCP Client](#register-mcp-client)
   - [Claude Code](#claude-code)
   - [Qwen Code](#qwen-code)
@@ -170,6 +171,56 @@ go build -o websearch-mcp-cli ./cmd/cli
 go build -ldflags="-X main.version=v1.0.0" -o websearch ./cmd/
 go build -ldflags="-X main.version=v1.0.0" -o websearch-mcp-cli ./cmd/cli
 ```
+
+---
+
+### Thin VM Deployment (2C2G and below)
+
+`config.slim.yaml` in the repository root targets 2C2G / 2C4G light cloud hosts:
+
+```bash
+cp config.slim.yaml config.yaml
+./websearch-mcpserver start
+```
+
+It keeps the full `smartsearch` / `academicsearch` / `cleanfetch` chain and only changes three things: admission drops to 2 concurrent calls / 8 outbound requests, search caching is on, and optional surfaces that need a proxy or extra state (overseas engines, dashboard, history, PDF parsing) are off. Flip them back to `true` individually as needed.
+
+#### Measured (Tencent Cloud Debian 13, 2 vCPU / 1.9 GB, AMD EPYC 7K83)
+
+| Scenario | Latency | Process RSS |
+|---|---|---|
+| Idle | — | 30.6 MB |
+| One `smartsearch` (Baidu + Bing) | 1.66 s | peak 36.5 MB |
+| `cleanfetch` of a 95 KB page | 1.67 s | peak 46.6 MB |
+| 10 sequential searches | 12.2 s | 0.10 s process CPU total |
+| 12 concurrent searches (`max_inflight: 2`) | 4 succeeded, 8 returned busy after the 1.5 s budget; 2.7 s total | peak 42.7 MB |
+| 12 concurrent searches (`max_inflight: 4`) | 3 succeeded, 9 got empty engine results; 1.4 s total | peak 43.3 MB |
+| Same query, cache hit | 1 ms | — |
+
+Host side: used memory rose from 471 MB to 525 MB with the server resident; 1.4 GB stayed available, and the process accounts for about 2% of the VM.
+
+> A higher concurrency cap is not better: with 4 in flight the same egress doubles its instantaneous engine requests and 9 of 12 calls got empty results; with 2 in flight four calls succeeded and the rest failed fast, which is the more stable outcome.
+
+#### Returning memory to the OS
+
+`config.slim.yaml` sets `memory.mode: aggressive`: GOGC=40, and `debug.FreeOSMemory` runs after 10 s idle when the heap is above 4 MB. After fetching a 95 KB page:
+
+| Point in time | `memory.mode: off` | `memory.mode: aggressive` |
+|---|---|---|
+| Fetch peak | 42.0 MB | 42.6 MB |
+| Idle 5–10 s | 43.9 MB | 39.3 MB |
+| Idle 20–35 s | 43.9 MB | 37.7 MB |
+
+The absolute gain is about 5–6 MB: on a 2C2G host its value is returning memory after a fetch burst; the steady-state idle drop is small. If CPU were the bottleneck (it is not on this host), keep `off` or `balanced`.
+
+`websearch_memory_free_os_total` on `GET /metrics` counts reclaims (3 in this run). Use `balanced` for a milder policy, or keep `off` for stock Go behavior.
+
+#### Observability
+
+- `websearch_admission_{capacity,inflight,queued,admitted_total,shed_total}{gate="ingress|outbound"}`
+- `websearch_memory_policy{mode=...}` and `websearch_memory_free_os_total`
+
+> Method: single runs, `mode: engine` (Baidu + Bing; Bing reachable directly), cache cleared before each run, unique query suffix per run. Network latency varies by egress; RSS is sampled with `ps -o rss`.
 
 ---
 

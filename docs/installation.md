@@ -8,6 +8,7 @@
   - [二进制下载](#二进制下载)
   - [Docker](#docker)
   - [源码构建](#源码构建)
+  - [瘦虚机部署（2C2G 及以下）](#瘦虚机部署2c2g-及以下)
 - [注册 MCP 客户端](#注册-mcp-客户端)
   - [Claude Code](#claude-code)
   - [Qwen Code](#qwen-code)
@@ -170,6 +171,56 @@ go build -o websearch-mcp-cli ./cmd/cli
 go build -ldflags="-X main.version=v1.0.0" -o websearch ./cmd/
 go build -ldflags="-X main.version=v1.0.0" -o websearch-mcp-cli ./cmd/cli
 ```
+
+---
+
+### 瘦虚机部署（2C2G 及以下）
+
+仓库根目录的 `config.slim.yaml` 面向 2C2G / 2C4G 轻量云主机：
+
+```bash
+cp config.slim.yaml config.yaml
+./websearch-mcpserver start
+```
+
+它保留 `smartsearch` / `academicsearch` / `cleanfetch` 的完整链路，只做三件事：把并发准入收紧到 2 个调用 / 8 个出站请求，开启搜索缓存，关掉需要代理的海外源与控制中心、历史库、PDF 解析等可选面。需要 PDF 或海外源时逐个改回 `true` 即可。
+
+#### 实测（腾讯云 Debian 13，2 vCPU / 1.9 GB，AMD EPYC 7K83）
+
+| 场景 | 耗时 | 进程 RSS |
+|---|---|---|
+| 常驻空闲 | — | 30.6 MB |
+| 单次 `smartsearch`（百度 + Bing） | 1.66 s | 峰值 36.5 MB |
+| `cleanfetch` 抓取 95 KB 页面 | 1.67 s | 峰值 46.6 MB |
+| 10 次串行搜索 | 12.2 s | 进程 CPU 合计 0.10 s |
+| 12 个并发搜索（`max_inflight: 2`） | 4 个成功、8 个在 1.5 s 预算后返回忙碌；总 2.7 s | 峰值 42.7 MB |
+| 12 个并发搜索（`max_inflight: 4`） | 3 个成功、9 个引擎空结果；总 1.4 s | 峰值 43.3 MB |
+| 相同查询缓存命中 | 1 ms | — |
+
+主机侧：服务常驻后已用内存从 471 MB 升到 525 MB，可用仍有 1.4 GB；进程常驻约占整机 2%。
+
+> 并发上限不是越大越好：4 个并发时同一出口对搜索引擎的瞬时请求翻倍，12 个请求里有 9 个只拿到空结果；2 个并发时 4 个成功、其余快速失败，结果质量更稳定。
+
+#### 内存归还
+
+`config.slim.yaml` 设置 `memory.mode: aggressive`：GOGC=40，空闲 10 s 且堆大于 4 MB 时调用 `debug.FreeOSMemory`。抓取 95 KB 页面后的实测：
+
+| 时间点 | `memory.mode: off` | `memory.mode: aggressive` |
+|---|---|---|
+| 抓取峰值 | 42.0 MB | 42.6 MB |
+| 空闲 5–10 s | 43.9 MB | 39.3 MB |
+| 空闲 20–35 s | 43.9 MB | 37.7 MB |
+
+绝对收益约 5–6 MB：2C2G 上它的价值主要在突发抓取后把内存还给系统，稳态空闲的下降很小；如果 CPU 是瓶颈（本机不是），保持 `off` 或 `balanced` 即可。
+
+`GET /metrics` 的 `websearch_memory_free_os_total` 记录回收次数（本次 3 次）。想更保守可用 `balanced`；完全沿用 Go 默认则保持 `off`。
+
+#### 观测
+
+- `websearch_admission_{capacity,inflight,queued,admitted_total,shed_total}{gate="ingress|outbound"}`
+- `websearch_memory_policy{mode=...}` 与 `websearch_memory_free_os_total`
+
+> 测量口径：单次运行、`mode: engine`（百度 + Bing，Bing 直连可用），每次运行前清空缓存，查询带唯一后缀；网络耗时随出口变化，RSS 为 `ps -o rss` 采样值。
 
 ---
 

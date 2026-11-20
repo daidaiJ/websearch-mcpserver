@@ -85,6 +85,21 @@ rate_limit:
   per_sec: 3                # Requests per second (default 3)
   per_min: 60               # Requests per minute (default 60)
 
+# In-process admission control (enabled by default; bounds concurrency only)
+# When full, calls queue for queue_wait_ms and then fail with "server busy",
+# so a burst cannot pile goroutines, sockets and page buffers into the process.
+limits:
+  max_inflight: 4           # concurrent tools/call calls (default 4); 0 = default, negative = unlimited
+  max_outbound: 12          # concurrent outbound search/fetch requests (default 12); 0 = default, negative = unlimited
+  queue_wait_ms: 2000       # queue budget when full (default 2000); 0 = default, negative = fail fast
+
+# Memory reclamation policy (default off: Go runtime defaults, unchanged)
+# balanced: GOGC=75, FreeOSMemory after 60s idle with heap >16MB
+# aggressive: GOGC=40, FreeOSMemory after 10s idle with heap >4MB; limit_mb also sets a soft limit
+memory:
+  mode: off                 # off / balanced / aggressive
+  limit_mb: 0               # >0 sets a Go soft memory limit (GOMEMLIMIT semantics)
+
 # Blocked sites (applies to all search engines)
 black_list_host:
   - "csdn.net"
@@ -487,6 +502,10 @@ pdf_parser:
 #     exa: 1200
 #     doubao: 500
 #     yuanbao: 0          # Pay-as-you-go source stays out of weighted starts unless given a positive weight
+#   mcphub_fallback: true # use the mcp_hub hosted-MCP cascade as a backup source (default false):
+#                         # appended after configured providers and before baidu_web; keyless extra capacity
+#   mcphub_dedupe: true   # skip hosted servers already covered by an apipool provider (default true),
+#                         # e.g. anysearch/exa already in apipool, so the same egress IP is not double-counted
 
 # Log rotation
 
@@ -635,9 +654,16 @@ dashboard:
 | `doubao.icp_host_only` | false | Global only: true restricts to China ICP-filed sites; false is unrestricted; unused by Custom |
 | `rate_limit.per_sec` | 3 | Global rate limit |
 | `rate_limit.per_min` | 60 | Global rate limit |
+| `limits.max_inflight` | 4 | Concurrent `tools/call` cap; 0 = default, negative = unlimited |
+| `limits.max_outbound` | 12 | Concurrent outbound search/fetch cap; 0 = default, negative = unlimited |
+| `limits.queue_wait_ms` | 2000 | Queue budget when full; 0 = default, negative = fail fast |
+| `memory.mode` | off | `off` keeps Go defaults / `balanced` GOGC=75, reclaim after 60s idle / `aggressive` GOGC=40, reclaim after 10s idle (recommended for 2C2G) |
+| `memory.limit_mb` | 0 | >0 sets a Go soft memory limit; 0 = unset |
 | `apipool.strategy` | round-robin | `round-robin` rotates provider across requests / `priority` fixed order / `weighted` weighted-random |
 | `apipool.engines` | [anysearch, baidu, tavily, exa] | Provider priority order, web-engine fallback always last; `doubao`/`yuanbao`/`tinyfish`/`keenable` are not in the default list — add them explicitly when you have a key (keenable may also run keyless) |
 | `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0, tinyfish=1200, keenable=800 | weighted per-key weights, accumulated by available key count; doubao 500 matches the free-tier monthly credits; yuanbao defaults to 0 (pay-as-you-go source stays out of weighted starts unless configured); tinyfish 1200 matches its 12,000 searches/day free tier and keenable 800 its keyless public tier |
+| `apipool.mcphub_fallback` | false | Use the mcp_hub hosted-MCP cascade as a backup provider, appended after configured providers and before baidu_web |
+| `apipool.mcphub_dedupe` | true | Skip hosted servers already covered by an apipool provider (anysearch/exa) so the same egress IP is not double-counted |
 | `doubao.version` | global | Global / Custom; concurrent both goes through hybrid, not inside the adapter |
 | `doubao.num_results` | 10 | Global max 20; Custom max 50 |
 | `doubao.time_range` | "" | Custom default; MCP request-level `time_range` wins (mapped to OneDay/OneWeek/OneMonth/OneYear) |

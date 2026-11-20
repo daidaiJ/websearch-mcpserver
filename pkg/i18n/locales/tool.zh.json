@@ -139,5 +139,7 @@
   "tool.pdf.page_budget_used": "\n> 单次页预算 {{.Budget}} 页已用完，其余页请再次调用并用 pages 指定（如 \"{{.From}}-{{.To}}\"）。",
   "tool.pdf.pages_spec_invalid": "pages 参数格式非法: \"{{.Spec}}\"，示例：1-10 或 1,3,5-7",
   "tool.pdf.pages_range_over_limit": "pages 区间 {{.From}}-{{.To}} 展开后超过 {{.Cap}} 页上限，请用 pages 指定具体页码（如 \"1-{{.Cap}}\"）",
-  "tool.pdf.output_dir_local_only": "output_dir 仅用于已配置 MinerU Token 的本地 PDF 精准归档"
+  "tool.pdf.output_dir_local_only": "output_dir 仅用于已配置 MinerU Token 的本地 PDF 精准归档",
+  "tool.limits.server_busy": "服务端并发已达上限，本次调用未执行；请稍后重试",
+  "tool.limits.fetch_shed": "抓取并发已达上限，本次抓取未执行；请稍后重试"
 }

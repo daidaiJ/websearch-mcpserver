@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/cache"
 	"websearch/pkg/errcode"
 	fetchcontent "websearch/pkg/fetch"
@@ -534,6 +535,13 @@ func enrichTopN(ctx context.Context, results []search.SearchResult, n int, fetch
 			if len(strings.TrimSpace(out[i].Content)) >= minContentLenForFetch {
 				return
 			}
+			release, gateErr := admission.Acquire(ctx)
+			if gateErr != nil {
+				// 正文增强是可选项：超预算时保留摘要，不把整次搜索拖成失败。
+				log.WarnT("log.mcp.fetch_top_n_fetch_failed", "u", u, "err", gateErr)
+				return
+			}
+			defer release()
 			body, err := fetch(ctx, u)
 			if err != nil {
 				log.WarnT("log.mcp.fetch_top_n_fetch_failed", "u", u, "err", err)

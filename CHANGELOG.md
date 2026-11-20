@@ -6,6 +6,10 @@
 
 ### 新增
 
+- **并发准入与瘦虚机预设**：新增 `limits`（默认 4 个并发 `tools/call`、12 个并发出站请求、满额排队 2 s）。准入用带缓冲 channel 的闸门实现，超出预算的调用直接返回“服务繁忙”，不再把 goroutine、socket 与页缓冲堆进进程；异步路径（引擎扇出、`fetch_top_n`、批量 `cleanfetch`）共享同一出站闸门。新增 `config.slim.yaml`（2C2G / 2C4G）与 `/metrics` 的 `websearch_admission_*` 指标。实测见 `docs/installation.md`「瘦虚机部署」。
+- **内存回收策略 `memory`**：`off`（默认，沿用 Go 默认）/ `balanced`（GOGC=75，空闲 60 s 归还）/ `aggressive`（GOGC=40，空闲 10 s、堆 >4 MB 即 `debug.FreeOSMemory`），可选 `limit_mb` 设置软内存上限。重载 95 KB 页面后实测：`off` 停留在 43.9 MB，`aggressive` 20–35 s 回落到 37.7 MB；`/metrics` 新增 `websearch_memory_policy` 与 `websearch_memory_free_os_total`。
+- **apipool 的 mcphub 后备补充源**：`apipool.mcphub_fallback: true` 把 `mcp_hub` 托管 MCP 级联追加在已配置供应商之后、`baidu_web` 之前，无 Key 也能提供额外匿名用量；也可在 `apipool.engines` 里显式写 `mcphub` 自行决定位置。`apipool.mcphub_dedupe`（默认 true）跳过与 apipool 已启用供应商同源的托管 server（anysearch / exa），避免同一出口 IP 被两条链路叠加限流。
+
 - **smartsearch 域名过滤参数**：新增 `include_domains` / `exclude_domains`（各最多 20 条），按结果 URL 的 host 做含子域匹配，支持裸域名、`*.` 前缀与完整 URL，排除优先。过滤在 hybrid 单引擎截断与 `fetch_top_n` 抓取之前执行，被排除的 URL 不消耗抓取预算；缓存键包含归一化名单，不同过滤条件互不复用；学术-only 请求显式传域名过滤会报错。
 - **搜索质量调优基准**：`bench/tuning` 受开源项目 `fangchenghao/dsh-web-search` 的公开基准启发，沿用其 MIT 许可回放集（20 条中英 query + 5 引擎真实快照），新增 `searchbench` 离线 sweep：RRF K、词汇对齐、共识/权威/新鲜度/域名品质/稀有词倍率、阈值、MMR、引擎权重逐项输出 P@8 / R@8 / MRR@8、配对 bootstrap 95% CI 与逐 query W/L/T。实测默认配置在这批数据上保持稳定，唯一显著效果是关闭权威性加分明显变差（ΔMRR -0.1775，95% CI [-0.3417, -0.0258]）；结论、运行方式与“用户自有历史数据调优”设计见 `docs/search-quality.md`。评分管线内部增加 `enhance.Options` 参数化入口，生产默认值不变。
 - **搜索结果溯源头按会话压缩**：首次调用保留完整 `retrieved_at` / `usage_note`，同一 MCP 会话的后续新结果省略重复头，缓存命中只显示 `cache_age_seconds`；无会话场景输出紧凑时间戳，避免多轮调用反复占用上下文。
@@ -16,6 +20,7 @@
 
 ### 变更
 
+- **进程内并发默认受限**：未显式配置 `limits` 时也会按 4 / 12 / 2000 ms 的默认值准入；需要旧的“来者不拒”行为可显式设 `limits.max_inflight: -1` 与 `limits.max_outbound: -1`。
 - **`max_retries` 默认值 3 → 1**：上游 webfetch 自身会对 429/502/503 与传输错误重试，旧默认值会把尝试次数放大到 4 次、最坏等待约 11.5 秒；示例配置与文档同步说明语义。
 - **HEAD 预检复用连接池**：直连路径缓存 HEAD client 并复用 keep-alive，减少每个 URL 新建 TCP/TLS；代理路径继续逐请求固定目标 IP，保留 SSRF 防护。
 

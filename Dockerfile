@@ -52,6 +52,7 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem
 COPY --from=builder /app/websearch .
 COPY --from=builder /app/config.example.yaml ./config.yaml
+COPY --from=builder /app/config.slim.yaml ./config.slim.yaml
 
 # 可选的 PDFium 后端随镜像分发；运行时按 /app/third_party/pdfium/<arch>/
 # 自动发现，与 Release 整包同一版本与校验和来源。

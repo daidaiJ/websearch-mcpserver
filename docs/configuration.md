@@ -84,6 +84,21 @@ rate_limit:
   per_sec: 3                # 每秒请求数上限（默认 3）
   per_min: 60               # 每分钟请求数上限（默认 60）
 
+# 进程内并发准入（默认开启；只约束并发，不改变单次请求的结果）
+# 满额时在 queue_wait_ms 内排队，预算耗尽返回“服务繁忙”，
+# 避免突发调用把 goroutine、socket 与页缓冲堆在进程里。
+limits:
+  max_inflight: 4           # 并发 tools/call 上限（默认 4）；0=默认，负数=不限制
+  max_outbound: 12          # 并发出站请求（搜索/抓取）上限（默认 12）；0=默认，负数=不限制
+  queue_wait_ms: 2000       # 满额后的排队预算（默认 2000）；0=默认，负数=立即失败
+
+# 内存回收策略（默认 off：完全沿用 Go 运行时默认值）
+# balanced: GOGC=75，空闲 60s 且堆 >16MB 时 FreeOSMemory 归还系统
+# aggressive: GOGC=40，空闲 10s 且堆 >4MB 即归还；limit_mb 同时设置软内存上限
+memory:
+  mode: off                 # off / balanced / aggressive
+  limit_mb: 0               # >0 时设置 Go 软内存上限（GOMEMLIMIT 语义）
+
 # 屏蔽站点（对所有搜索引擎生效）
 black_list_host:
   - "csdn.net"
@@ -495,6 +510,10 @@ pdf_parser:
 #     exa: 1200
 #     doubao: 500
 #     yuanbao: 0          # 后付费源默认不参与加权起始；显式配正数才会被加权选中
+#   mcphub_fallback: true # 把 mcp_hub 托管 MCP 级联作为后备补充源（默认 false）：
+#                         # 追加在已配置供应商之后、baidu_web 之前；无 Key 也能提供额外匿名用量
+#   mcphub_dedupe: true   # 跳过与 apipool 已启用供应商同源的托管 server（默认 true），
+#                         # 例如 apipool 已有 anysearch/exa 时，mcphub 不再重复请求，避免叠加 IP 限流
 
 # 日志滚动
 log:
@@ -628,9 +647,16 @@ dashboard:
 | `doubao.icp_host_only` | false | 仅 Global：true 限国内 ICP 备案站点，false 不限制；Custom 不使用 |
 | `rate_limit.per_sec` | 3 | 全局限流 |
 | `rate_limit.per_min` | 60 | 全局限流 |
+| `limits.max_inflight` | 4 | 并发 `tools/call` 上限；0=默认，负数=不限制 |
+| `limits.max_outbound` | 12 | 并发出站搜索/抓取上限；0=默认，负数=不限制 |
+| `limits.queue_wait_ms` | 2000 | 满额排队预算；0=默认，负数=立即失败 |
+| `memory.mode` | off | `off` 沿用 Go 默认 / `balanced` GOGC=75 空闲 60s 归还 / `aggressive` GOGC=40 空闲 10s 归还（2C2G 推荐） |
+| `memory.limit_mb` | 0 | >0 时设置 Go 软内存上限；0 = 不设 |
 | `apipool.strategy` | round-robin | `round-robin` 跨请求轮转供应商 / `priority` 固定优先级顺序 / `weighted` 加权随机 |
 | `apipool.engines` | [anysearch, baidu, tavily, exa] | 供应商优先级顺序，网页引擎兜底始终在末尾；`doubao`/`yuanbao`/`tinyfish`/`keenable` 不在默认列表，有 Key（keenable 也可无 Key）时显式加入 |
 | `apipool.weights` | anysearch=30000, baidu=1500, tavily=1200, exa=1200, doubao=500, yuanbao=0, tinyfish=1200, keenable=800 | weighted 策略单 Key 权重，实际权重按可用 Key 数累加；豆包 500 对齐免费档每月积分；元宝默认 0（后付费源不参与加权起始，需显式配权重）；TinyFish 1200 对齐免费搜索 12000 次/天，Keenable 800 为 public 免 Key 档 |
+| `apipool.mcphub_fallback` | false | 把 mcp_hub 托管 MCP 级联作为后备补充供应商，追加在已配置供应商之后、baidu_web 之前 |
+| `apipool.mcphub_dedupe` | true | 跳过与 apipool 已启用供应商同源的托管 server（anysearch/exa），避免同一出口 IP 叠加限流 |
 | `doubao.version` | global | Global / Custom；两版并发走 hybrid，适配器内不提供 both |
 | `doubao.num_results` | 10 | Global 最大 20；Custom 最大 50 |
 | `doubao.time_range` | "" | Custom 默认时间范围；MCP 请求级 `time_range` 优先（映射 OneDay/OneWeek/OneMonth/OneYear） |
