@@ -320,12 +320,13 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 	}
 	engineConfigured := map[string]bool{
 		"baidu_web": true, "bing": true, "google": true, "duckduckgo": true,
-		"so360": true, "wikipedia": true, "googlenews": true, "github": true,
+		"so360": true, "sogou": true, "mojeek": true, "wikipedia": true, "googlenews": true, "github": true,
 	}
 	engineEnabled := map[string]bool{
 		"baidu_web": conf.Baidu.WebEnabled, "bing": conf.Bing.Enabled,
 		"google": conf.Google.Enabled, "duckduckgo": conf.DuckDuckGo.Enabled,
-		"so360": conf.So360.Enabled, "wikipedia": conf.Wikipedia.Enabled,
+		"so360": conf.So360.Enabled, "sogou": conf.Sogou.Enabled, "mojeek": conf.Mojeek.Enabled,
+		"wikipedia":  conf.Wikipedia.Enabled,
 		"googlenews": conf.GoogleNews.Enabled, "github": conf.GitHub.Enabled,
 	}
 	engineReady := map[string]bool{}
@@ -405,6 +406,8 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 		{ID: "google", Name: "Google", Group: "web", Configured: engineConfigured["google"], Active: active["google"], aliases: []string{"google"}},
 		{ID: "duckduckgo", Name: "DuckDuckGo", Group: "web", Configured: engineConfigured["duckduckgo"], Active: active["duckduckgo"], aliases: []string{"duckduckgo"}},
 		{ID: "so360", Name: loc.T("dashboard.source.so360.name"), Group: "web", Configured: true, Active: active["so360"], aliases: []string{"so360"}},
+		{ID: "sogou", Name: loc.T("dashboard.source.sogou.name"), Group: "web", Configured: true, Active: active["sogou"], aliases: []string{"sogou"}},
+		{ID: "mojeek", Name: loc.T("dashboard.source.mojeek.name"), Group: "web", Configured: true, Active: active["mojeek"], aliases: []string{"mojeek"}},
 		{ID: "wikipedia", Name: "Wikipedia", Group: "web", Configured: true, Active: active["wikipedia"], aliases: []string{"wikipedia"}},
 		{ID: "googlenews", Name: "Google News", Group: "web", Configured: true, Active: active["googlenews"], aliases: []string{"googlenews", "google_news"}},
 		{ID: "github", Name: "GitHub", Group: "web", Configured: true, Active: active["github"], aliases: []string{"github", "github_api"}},

@@ -337,7 +337,7 @@ func TestBuildDashboardOverviewSortsSourcesByState(t *testing.T) {
 		got = append(got, s.ID)
 	}
 	// 已启用在前（保持目录顺序），已配置未启用居中，未配置最后。
-	want := []string{"baidu_web", "bing", "google", "duckduckgo", "github", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable", "so360", "wikipedia", "googlenews"}
+	want := []string{"baidu_web", "bing", "google", "duckduckgo", "github", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable", "so360", "sogou", "mojeek", "wikipedia", "googlenews"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("sources 顺序 = %v, want %v", got, want)
 	}
@@ -411,12 +411,12 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 	conf.Mode = config.ModeHybrid
 	conf.Tavily.Enabled = &off
 	conf.Anysearch.APIKey = ""
-	conf.So360.Enabled, conf.Wikipedia.Enabled, conf.GoogleNews.Enabled = true, true, true
+	conf.So360.Enabled, conf.Sogou.Enabled, conf.Mojeek.Enabled, conf.Wikipedia.Enabled, conf.GoogleNews.Enabled = true, true, true, true, true
 	conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://127.0.0.1:1"}
 	conf.Academic = config.AcademicConfig{Enabled: true, DisableArxiv: true}
 	catalog := SourceCatalog(conf, testLoc())
-	if len(catalog) != 25 {
-		t.Fatalf("catalog must include 16 web and 9 academic sources: %d", len(catalog))
+	if len(catalog) != 27 {
+		t.Fatalf("catalog must include 18 web and 9 academic sources: %d", len(catalog))
 	}
 	if s := sourceByID(t, catalog, "tavily"); s.Enabled || !s.Configured || s.Active || s.Category != "api" || s.ControlPath != "tavily.enabled" {
 		t.Fatalf("stored key must not override disabled source: %+v", s)
@@ -424,7 +424,7 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 	if s := sourceByID(t, catalog, "anysearch"); !s.Configured || !s.Enabled || !s.Active || !strings.Contains(s.Condition, "匿名") {
 		t.Fatalf("anonymous AnySearch must remain available without a key: %+v", s)
 	}
-	for _, id := range []string{"so360", "wikipedia", "googlenews"} {
+	for _, id := range []string{"so360", "sogou", "mojeek", "wikipedia", "googlenews"} {
 		if s := sourceByID(t, catalog, id); !s.Enabled || !s.Active || s.Category != "engine" || s.Group != "web" {
 			t.Fatalf("new engine missing from route: %+v", s)
 		}

@@ -68,6 +68,8 @@ type Config struct {
 	Log                LogConfig           `mapstructure:"log"`
 	Bing               BingConfig          `mapstructure:"bing"`
 	So360              So360Config         `mapstructure:"so360"`
+	Sogou              SogouConfig         `mapstructure:"sogou"`
+	Mojeek             MojeekConfig        `mapstructure:"mojeek"`
 	Wikipedia          WikipediaConfig     `mapstructure:"wikipedia"`
 	GoogleNews         GoogleNewsConfig    `mapstructure:"google_news"`
 	DuckDuckGo         DuckDuckGoConfig    `mapstructure:"duckduckgo"`
@@ -362,6 +364,25 @@ type So360Config struct {
 	PerSec     int      `mapstructure:"per_sec"`     // 每秒限流（默认 3）
 	PerMin     int      `mapstructure:"per_min"`     // 每分钟限流（默认 60）
 	SafeSearch int      `mapstructure:"safe_search"` // 0=关, 1/2=开（请求带 secure=1）
+}
+
+// SogouConfig 搜狗搜索（sogou.com）配置。
+// 国内直连可用（2026-11-20 出口实测：200 + 自然结果），无需代理。
+type SogouConfig struct {
+	Enabled bool     `mapstructure:"enabled"` // 总开关（默认 false）
+	Blocked []string `mapstructure:"blocked"` // 搜狗专用屏蔽域名（与 black_list_host 合并）
+	PerSec  int      `mapstructure:"per_sec"` // 每秒限流（默认 2）
+	PerMin  int      `mapstructure:"per_min"` // 每分钟限流（默认 30）
+}
+
+// MojeekConfig Mojeek（mojeek.com）配置。
+// 独立英文索引；页面可能返回 altcha PoW 挑战，引擎内自动求解并缓存 chllg。
+type MojeekConfig struct {
+	Enabled    bool     `mapstructure:"enabled"`     // 总开关（默认 false）
+	Blocked    []string `mapstructure:"blocked"`     // Mojeek 专用屏蔽域名
+	PerSec     int      `mapstructure:"per_sec"`     // 每秒限流（默认 1）
+	PerMin     int      `mapstructure:"per_min"`     // 每分钟限流（默认 20）
+	SafeSearch int      `mapstructure:"safe_search"` // 0=关, 1/2=开（请求 safe=1）
 }
 
 // WikipediaConfig 维基百科引擎配置（MediaWiki API，零 Key）。

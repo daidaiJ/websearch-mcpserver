@@ -47,6 +47,8 @@
   "mcp.cap.engines_head": "\n## Web engines (config switches; not a statement of reachability)\n\n",
   "mcp.cap.engine.baidu_web": "- baidu_web: {{.Enabled}} (off by default; measured as CAPTCHA-blocked)\n",
   "mcp.cap.engine.so360": "- so360: {{.Enabled}} (usable directly from mainland China)\n",
+  "mcp.cap.engine.sogou": "- sogou: {{.Enabled}} (usable directly from mainland China; anti-bot errors are surfaced per engine)\n",
+  "mcp.cap.engine.mojeek": "- mojeek: {{.Enabled}} (independent English index; altcha PoW is solved in-process)\n",
   "mcp.cap.engine.wikipedia": "- wikipedia: {{.Enabled}} (requires a proxy)\n",
   "mcp.cap.engine.googlenews": "- googlenews: {{.Enabled}} (requires a proxy; redirect links resolve back to the publisher)\n",
   "mcp.cap.engine.google": "- google: {{.Enabled}} (off by default; the JS challenge cannot be bypassed by spoofing)\n",

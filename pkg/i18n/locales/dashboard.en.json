@@ -4,6 +4,8 @@
   "dashboard.source.yuanbao.name": "Yuanbao Search",
   "dashboard.source.baidu_web.name": "Baidu Web",
   "dashboard.source.so360.name": "360 Search",
+  "dashboard.source.sogou.name": "Sogou Search",
+  "dashboard.source.mojeek.name": "Mojeek",
 
   "dashboard.condition.engine": "participates in engine/hybrid mode",
   "dashboard.condition.baidu_web": "participates in engine/hybrid; usable as web fallback in baidu/apipool",

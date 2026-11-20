@@ -110,6 +110,8 @@ func renderCapabilities(conf config.Config) string {
 	fmt.Fprintf(&b, "- bing: %v\n", conf.Bing.Enabled)
 	b.WriteString(i18n.T("mcp.cap.engine.baidu_web", "Enabled", conf.Baidu.WebEnabled))
 	b.WriteString(i18n.T("mcp.cap.engine.so360", "Enabled", conf.So360.Enabled))
+	b.WriteString(i18n.T("mcp.cap.engine.sogou", "Enabled", conf.Sogou.Enabled))
+	b.WriteString(i18n.T("mcp.cap.engine.mojeek", "Enabled", conf.Mojeek.Enabled))
 	b.WriteString(i18n.T("mcp.cap.engine.wikipedia", "Enabled", conf.Wikipedia.Enabled))
 	b.WriteString(i18n.T("mcp.cap.engine.googlenews", "Enabled", conf.GoogleNews.Enabled))
 	b.WriteString(i18n.T("mcp.cap.engine.google", "Enabled", conf.Google.Enabled))

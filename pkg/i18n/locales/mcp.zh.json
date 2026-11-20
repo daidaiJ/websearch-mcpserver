@@ -47,6 +47,8 @@
   "mcp.cap.engines_head": "\n## 网页引擎（配置开关；不代表联网可用性）\n\n",
   "mcp.cap.engine.baidu_web": "- baidu_web: {{.Enabled}}（默认关闭，实测被 CAPTCHA 识别）\n",
   "mcp.cap.engine.so360": "- so360: {{.Enabled}}（国内直连可用）\n",
+  "mcp.cap.engine.sogou": "- sogou: {{.Enabled}}（国内直连可用；antispider 触发时该引擎失败透传）\n",
+  "mcp.cap.engine.mojeek": "- mojeek: {{.Enabled}}（独立英文索引；altcha PoW 自动求解）\n",
   "mcp.cap.engine.wikipedia": "- wikipedia: {{.Enabled}}（需代理）\n",
   "mcp.cap.engine.googlenews": "- googlenews: {{.Enabled}}（需代理，跳转链接回源发布方）\n",
   "mcp.cap.engine.google": "- google: {{.Enabled}}（默认关闭，JS 挑战无法伪装绕过）\n",

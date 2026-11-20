@@ -110,6 +110,8 @@
   "log.search.hybrid.hybrid_engine_bucket_off_topic_dropped": "hybrid: engine {{.name}} 整桶判为 off-topic（{{.len}} 条结果，回声率过低），已丢弃",
   "log.search.hybrid.hybrid_engine_failed": "hybrid: engine {{.name}} failed ({{.kind}}): {{.reason}}",
   "log.search.mode.360_search_engine_enabled_direct_connection": "360 搜索引擎已启用（直连可用，零 Key）",
+  "log.search.mode.sogou_engine_enabled_direct_connection": "搜狗搜索引擎已启用（直连可用，零 Key；命中 antispider 时透传拦截错误）",
+  "log.search.mode.mojeek_engine_enabled_altcha": "Mojeek 搜索引擎已启用（独立英文索引，零 Key；altcha PoW 挑战自动求解）",
   "log.search.mode.academic_engines_enabled": "学术引擎已启用: {{.engines}}",
   "log.search.mode.academic_engines_not_enabled_academic_enabled": "学术引擎未启用（academic.enabled=false）",
   "log.search.mode.academic_score_enhancement_enabled_threshold": "学术评分增强已启用（阀值={{.threshold}}）",

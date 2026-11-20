@@ -198,6 +198,21 @@ so360:
   # per_min: 60             # Rate limit per minute (default 60)
   # safe_search: 0          # Safe search: 0=off, 1/2=on (sends secure=1)
 
+# Sogou engine (sogou.com, third Chinese index, no key, no proxy needed; verified reachable from a CN egress on 2026-11-20)
+sogou:
+  enabled: false            # Master switch (default false)
+  blocked: []               # Sogou-specific blocked domains (merged with black_list_host)
+  # per_sec: 2              # Rate limit per second (default 2)
+  # per_min: 30             # Rate limit per minute (default 30)
+
+# Mojeek engine (mojeek.com, independent English index, no key; altcha PoW solved in-process)
+mojeek:
+  enabled: false            # Master switch (default false)
+  blocked: []               # Mojeek-specific blocked domains (merged with black_list_host)
+  # per_sec: 1              # Rate limit per second (default 1)
+  # per_min: 20             # Rate limit per minute (default 20)
+  # safe_search: 0          # Safe search: 0=off, 1/2=on (sends safe=1)
+
 # Wikipedia engine (MediaWiki API, keyless, reference-type source; needs proxy)
 wikipedia:
   enabled: false            # Master switch (default false)
@@ -686,6 +701,10 @@ dashboard:
 | `smartsearch.engine_timeout_sec` | 10 | Per-engine soft timeout (seconds): a timed-out engine is reported as `timeout` in the failure list while other engines still return results; negative = rely on the request ctx deadline only |
 | `so360.enabled` | false | 360 search engine (so.com, second Chinese index, keyless, direct-connect reachable from CN; verified 2026-10-06) |
 | `so360.blocked` | [] | 360-specific blocked domains (merged with black_list_host) |
+| `sogou.enabled` | false | Sogou search engine (sogou.com, third Chinese index, keyless, direct-connect reachable from CN; verified 2026-11-20; antispider blocks surface as that engine's failure) |
+| `sogou.blocked` | [] | Sogou-specific blocked domains (merged with black_list_host) |
+| `mojeek.enabled` | false | Mojeek search engine (mojeek.com, independent English index, keyless; altcha PoW challenges are solved in-process and `chllg` is cached) |
+| `mojeek.blocked` | [] | Mojeek-specific blocked domains (merged with black_list_host) |
 | `wikipedia.enabled` | false | Wikipedia engine (MediaWiki API, keyless, reference-type source; needs proxy, verified 2026-10-06) |
 | `wikipedia.lang` | zh | Language edition |
 | `google_news.enabled` | false | Google News RSS engine (keyless news index with structured dates; needs proxy, verified 2026-10-06; redirect links are resolved to publisher URLs) |

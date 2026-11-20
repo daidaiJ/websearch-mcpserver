@@ -4,6 +4,8 @@
   "dashboard.source.yuanbao.name": "元宝搜索",
   "dashboard.source.baidu_web.name": "百度网页",
   "dashboard.source.so360.name": "360 搜索",
+  "dashboard.source.sogou.name": "搜狗搜索",
+  "dashboard.source.mojeek.name": "Mojeek",
 
   "dashboard.condition.engine": "参与 engine/hybrid 模式",
   "dashboard.condition.baidu_web": "参与 engine/hybrid；baidu/apipool 可作为网页回退",

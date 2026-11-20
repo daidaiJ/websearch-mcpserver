@@ -17,7 +17,9 @@ import (
 	"websearch/pkg/search/engine/github"
 	"websearch/pkg/search/engine/google"
 	"websearch/pkg/search/engine/googlenews"
+	"websearch/pkg/search/engine/mojeek"
 	"websearch/pkg/search/engine/so360"
+	"websearch/pkg/search/engine/sogou"
 	"websearch/pkg/search/engine/wikipedia"
 	"websearch/pkg/search/hybrid"
 	"websearch/pkg/search/provider"
@@ -31,6 +33,8 @@ import (
 type EngineAdapters struct {
 	BaiduWeb  *adapter.EngineSearchAdapter
 	So360     *adapter.EngineSearchAdapter
+	Sogou     *adapter.EngineSearchAdapter
+	Mojeek    *adapter.EngineSearchAdapter
 	Wikipedia *adapter.EngineSearchAdapter
 	GNews     *adapter.EngineSearchAdapter
 	GitHub    core.SearchInf // GitHubWithFallback（API 失败回退 Bing 站点限定检索）
@@ -46,6 +50,12 @@ func BuildEngineMode(conf config.Config, fallback *adapter.BingSearchAdapter, ad
 	}
 	if ads.So360 != nil {
 		engines = append(engines, ads.So360)
+	}
+	if ads.Sogou != nil {
+		engines = append(engines, ads.Sogou)
+	}
+	if ads.Mojeek != nil {
+		engines = append(engines, ads.Mojeek)
 	}
 	if ads.Wikipedia != nil {
 		engines = append(engines, ads.Wikipedia)
@@ -88,6 +98,12 @@ func BuildMCPHubMode(conf config.Config, ads EngineAdapters, fallback *adapter.B
 	}
 	if ads.So360 != nil {
 		engines["so360"] = ads.So360
+	}
+	if ads.Sogou != nil {
+		engines["sogou"] = ads.Sogou
+	}
+	if ads.Mojeek != nil {
+		engines["mojeek"] = ads.Mojeek
 	}
 	if ads.Wikipedia != nil {
 		engines["wikipedia"] = ads.Wikipedia
@@ -347,6 +363,12 @@ func BuildHybridMode(conf config.Config, pools ProviderPools, ads EngineAdapters
 	if ads.So360 != nil {
 		engines = append(engines, ads.So360)
 	}
+	if ads.Sogou != nil {
+		engines = append(engines, ads.Sogou)
+	}
+	if ads.Mojeek != nil {
+		engines = append(engines, ads.Mojeek)
+	}
 	if ads.Wikipedia != nil {
 		engines = append(engines, ads.Wikipedia)
 	}
@@ -479,6 +501,41 @@ func InitSo360Engine(conf config.Config) *adapter.EngineSearchAdapter {
 	})
 	a := adapter.NewEngineSearchAdapter("so360", eng)
 	log.InfoT("log.search.mode.360_search_engine_enabled_direct_connection")
+	return a
+}
+
+// InitSogouEngine 初始化搜狗引擎（国内直连可用，零 Key；命中 antispider 时透传拦截错误）。
+func InitSogouEngine(conf config.Config) *adapter.EngineSearchAdapter {
+	if !conf.Sogou.Enabled {
+		return nil
+	}
+	blocked := bing.MergeBlocked(conf.BlackListHost, conf.Sogou.Blocked)
+	eng := sogou.NewSogou(sogou.SogouOpts{
+		Enabled: true,
+		Blocked: blocked,
+		PerSec:  conf.Sogou.PerSec,
+		PerMin:  conf.Sogou.PerMin,
+	})
+	a := adapter.NewEngineSearchAdapter("sogou", eng)
+	log.InfoT("log.search.mode.sogou_engine_enabled_direct_connection")
+	return a
+}
+
+// InitMojeekEngine 初始化 Mojeek 引擎（独立英文索引，零 Key；altcha PoW 挑战由引擎内求解）。
+func InitMojeekEngine(conf config.Config) *adapter.EngineSearchAdapter {
+	if !conf.Mojeek.Enabled {
+		return nil
+	}
+	blocked := bing.MergeBlocked(conf.BlackListHost, conf.Mojeek.Blocked)
+	eng := mojeek.NewMojeek(mojeek.MojeekOpts{
+		Enabled:    true,
+		Blocked:    blocked,
+		PerSec:     conf.Mojeek.PerSec,
+		PerMin:     conf.Mojeek.PerMin,
+		SafeSearch: conf.Mojeek.SafeSearch,
+	})
+	a := adapter.NewEngineSearchAdapter("mojeek", eng)
+	log.InfoT("log.search.mode.mojeek_engine_enabled_altcha")
 	return a
 }
 

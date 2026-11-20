@@ -77,6 +77,22 @@ func TestInitSo360Engine_DisabledByDefault(t *testing.T) {
 	}
 }
 
+// TestInitSogouAndMojeekEngine_DisabledByDefault 零 Key 新引擎默认关闭，显式开启才注册。
+func TestInitSogouAndMojeekEngine_DisabledByDefault(t *testing.T) {
+	if a := InitSogouEngine(config.Config{}); a != nil {
+		t.Fatalf("sogou engine should be disabled by default, got %v", a)
+	}
+	if a := InitSogouEngine(config.Config{Sogou: config.SogouConfig{Enabled: true}}); a == nil {
+		t.Fatal("sogou engine should be enabled with sogou.enabled=true")
+	}
+	if a := InitMojeekEngine(config.Config{}); a != nil {
+		t.Fatalf("mojeek engine should be disabled by default, got %v", a)
+	}
+	if a := InitMojeekEngine(config.Config{Mojeek: config.MojeekConfig{Enabled: true}}); a == nil {
+		t.Fatal("mojeek engine should be enabled with mojeek.enabled=true")
+	}
+}
+
 // TestInitWikipediaEngine_DisabledByDefault wikipedia 零 Key 新引擎默认关闭。
 // 需代理跳过逻辑与 DDG 一致（ProxyResolver 返回 nil 时不注册），依赖环境代理
 // 状态，不做真网断言。

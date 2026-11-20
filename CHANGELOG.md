@@ -12,6 +12,7 @@
 - **正文质量门控与抓取回退**：`pkg/fetch` 新增 markdown 质量画像（人机验证页、导航/链接壳），`cleanfetch` 的远端、本地 webfetch 与 Jina 命中低质量正文时继续沿回退链尝试；`fetch_top_n` 遇到低质量抓取保留原 snippet 并追加提示，不再用空壳覆盖可用摘要。批量抓取按归一化 URL 去重。
 - **真实引擎解析快照**：Bing 补 2026-11-19 真实 SERP 快照；DDG 补同日真实结果页快照，覆盖选择器、`uddg` 重定向解码与摘要提取。DDG 出口间歇性返回 HTTP 202 验证页时保留合成 fixture，复采方法见 `pkg/search/engine/ddg/testdata/README.md`。
 - **`/metrics` 业务计数改为进程内聚合**：工具/供应商请求、成功失败、缓存命中与延迟分桶由进程内计数器维护，抓取时不再回读 SQLite；控制台关闭时业务计数仍输出，`websearch_telemetry_enabled` 只表示持久化遥测是否启用。
+- **搜狗与 Mojeek 零 Key 网页引擎（默认关闭）**：搜狗（`sogou.enabled`）解析 `div.rb` / `div.vrwrap`，`/link?url=` 优先取 `data-url` 真实目标，跳转 `antispider` 或验证码页按该引擎反爬失败透传；Mojeek（`mojeek.enabled`）解析独立英文索引，页面下发 altcha PoW 时按 PBKDF2/SHA-256 前缀碰撞在进程内求解并缓存 `chllg`，过期或挑战复发时失效缓存、下次请求重新求解。两者均接入 `engine` / `hybrid` / `mcphub` 引擎池、控制中心来源表与能力资源，限流默认分别为 2/s·30/min 与 1/s·20/min
 
 ### 变更
 
@@ -22,6 +23,7 @@
 
 - `cleanfetch` 远端抓取只返回标题或跳转导航时，继续尝试已有回退链，避免把空壳当正文；短小的有效正文仍正常返回，无需新增参数或配置。（来自 PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33)，作者 [@MattLYT](https://github.com/MattLYT)）
 - **Windows 系统代理探测改用安全 DLL 加载**：`wininet.dll` 既不在 KnownDLLs 也不在 Go 的 sysdll 白名单内，`syscall.NewLazyDLL` 会按默认搜索顺序解析，exe 同目录放同名 DLL 即可劫持（实测可命中伪造副本）。改用 `windows.NewLazySystemDLL`（`LOAD_LIBRARY_SEARCH_SYSTEM32`）后只从 System32 加载；`golang.org/x/sys` 本就在依赖树内，二进制体积无变化
+- **反爬响应不再伪装成解析错误/零结果**：百度 `antiFlag=1` 直接返回带 `message` 的拦截错误，重定向到 wappass/seccaptcha 或返回 HTML 的响应在 JSON 解析前按反爬拦截报错；Google Scholar 跟随 302 落到 `/sgsync` 的 `Verifying...` 挑战页时返回明确的 JS challenge 错误，而不是空结果；集成测试门控把 `invalid character '<'` 等 HTML 解析失败统一归为 blocked 场景，GitHub 匿名配额耗尽的 HTTP 403 归为 rate_limited 场景。
 
 ## v3.10.7 — 2026-11-14（PDF 本地解析加固与可选 PDFium 后端、搜索质量闭环、CI/分发改进）
 

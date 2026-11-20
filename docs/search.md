@@ -27,7 +27,7 @@
 
 | 模式 | 说明 | 需要 Key |
 |------|------|----------|
-| `engine` | 百度网页搜索 + Bing + 360（启用时）并发（代理可用时自动加入 DuckDuckGo / Wikipedia / Google News，启用时加入 Google；`github.enabled` 开启时加入 GitHub） | **无需** |
+| `engine` | 百度网页搜索 + Bing + 360 / 搜狗 / Mojeek（启用时）并发（代理可用时自动加入 DuckDuckGo / Wikipedia / Google News，启用时加入 Google；`github.enabled` 开启时加入 GitHub） | **无需** |
 | `baidu` | 百度千帆搜索（`enable_ai_search` 控制端点），失败自动回退百度网页搜索；无 SK 时直接用百度网页搜索 | `BAIDU_SK`（可选） |
 | `apipool` | API Key 池轮转：每次只调一个供应商，失败自动切换；支持 `round-robin` / `priority` / `weighted` 策略；网页引擎兜底 | 各 Key 可选 |
 | `tavily` | Tavily Search API（[获取 Key](https://app.tavily.com/home)） | `TAVILY_SK` |
@@ -35,7 +35,7 @@
 | `anysearch` | AnySearch API（[获取 Key](https://www.anysearch.com/console/api-keys)）；无 Key 时走匿名档（免鉴权，按出口 IP 限流） | `ANYSEARCH_API_KEY`（可选） |
 | `doubao` | 豆包联网搜索 Global / Custom（[获取 Key](https://console.volcengine.com/search-infinity/api-key)） | `DOUBAO_SEARCH_API_KEY` |
 | `yuanbao` | 腾讯云元宝搜索（API KEY 方式；[文档](https://cloud.tencent.com/document/product/1806/130615)） | `TENCENTCLOUD_WSA_APIKEY` |
-| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + GitHub(启用时) + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + TinyFish(有 Key 时) + Keenable(有 Key 或显式开启时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
+| `hybrid` | 全引擎混合（Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + 搜狗 + Mojeek + Wikipedia + Google News + GitHub(启用时) + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + TinyFish(有 Key 时) + Keenable(有 Key 或显式开启时) + Bing + DuckDuckGo + Google） | 各 Key 可选 |
 | `mcphub` | 零 Key 托管 MCP 级联：parallel → anysearch → exa → firecrawl，失败冷却后切下一个；单 server 可选 Key | **无需**（可选 Key） |
 
 > 所有模式主引擎失败均自动回退。无 Key 时自动降级为 `engine`。`baidu`/`tavily`/`exa`/`anysearch`/`doubao`/`yuanbao` 均支持 `sk_list` 多 Key 轮询（同供应商重复 Key 自动去重），`sk_list` 为空时自动用 `api_key` 作为单元素列表。
@@ -46,7 +46,7 @@
 
 | 模式 | 参与引擎 |
 |------|----------|
-| `engine` | 百度网页搜索 + Bing + 360（若启用）+ Google（若启用）+ DuckDuckGo / Wikipedia / Google News（若代理可用）+ GitHub（若启用），并发 |
+| `engine` | 百度网页搜索 + Bing + 360（若启用）+ 搜狗（若启用）+ Mojeek（若启用）+ Google（若启用）+ DuckDuckGo / Wikipedia / Google News（若代理可用）+ GitHub（若启用），并发 |
 | `baidu` | 百度千帆（`enable_ai_search` 控制端点）→ 失败回退百度网页搜索 |
 | `tavily` | Tavily；无 Key 时回退 Bing |
 | `exa` | Exa；无 Key 时回退 Bing |
@@ -54,7 +54,7 @@
 | `doubao` | 豆包联网搜索 Global/Custom（`doubao.version`）；无 Key 时回退 Bing |
 | `yuanbao` | 腾讯云元宝搜索（API KEY 方式）；本地月上限达到后按不可用处理并回退 Bing |
 | `apipool` | 按配置顺序轮转 anysearch / baidu / tavily / exa（`doubao`/`yuanbao`/`tinyfish`/`keenable` 需显式写入 `apipool.engines`），网页引擎始终兜底 |
-| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + Wikipedia + Google News + GitHub(启用时) + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + TinyFish(有 Key 时) + Keenable(有 Key 或显式开启时) + Bing + Google + DuckDuckGo，并发 |
+| `hybrid` | Anysearch + 百度智能搜索 + 百度网页搜索 + 360 + 搜狗 + Mojeek + Wikipedia + Google News + GitHub(启用时) + Tavily + Exa + 豆包(有 Key 时) + 元宝(有 Key 时) + TinyFish(有 Key 时) + Keenable(有 Key 或显式开启时) + Bing + Google + DuckDuckGo，并发 |
 | `mcphub` | 按 `mcp_hub.servers` 顺序级联托管 MCP（默认 parallel → anysearch → exa → firecrawl），一次请求命中一个；失败冷却后切换，全部失败回退 Bing |
 
 ---
@@ -76,6 +76,8 @@
 | `yuanbao` | 腾讯云元宝搜索 API KEY 方式（内置本地黑名单过滤；回传 0~1 相关性分数） | ✅ | 否 |
 | `baidu_api` | 百度千帆搜索（`enable_ai_search` 控制端点） | ❌ | 否 |
 | `so360` | 360 搜索（HTML，中文第二索引；默认关闭，`so360.enabled` 开启） | ❌ | 否 |
+| `sogou` | 搜狗搜索（HTML，中文第三索引；默认关闭，`sogou.enabled` 开启；antispider 拦截作为该引擎失败透传） | ❌ | 否 |
+| `mojeek` | Mojeek（HTML，独立英文索引；默认关闭，`mojeek.enabled` 开启；altcha PoW 挑战自动求解） | ❌ | 否 |
 | `wikipedia` | Wikipedia MediaWiki API（参考型来源；默认关闭，`wikipedia.enabled` 开启，`lang` 选语言版本） | ❌ | 是（自动检测） |
 | `google_news` | Google News RSS（跳转链接回源发布方 URL，带结构化发布日期；默认关闭，`google_news.enabled` 开启，`edition` 选版本） | ❌ | 是（自动检测） |
 | `github` | GitHub REST API 仓库搜索（零 Key 匿名档 search 10/min；配 PAT 提额 30/min；带结构化创建日期与 ★/语言元信息；默认关闭，`github.enabled` 开启，`github.api_key`/`token_list` 配 PAT；API 失败或零结果自动回退 Bing `site:github.com` 检索） | 否（PAT 可选） | 否 |

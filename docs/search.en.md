@@ -27,7 +27,7 @@
 
 | Mode | Description | Key Required |
 |------|-------------|--------------|
-| `engine` | Baidu web search + Bing + so360 (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled, GitHub when `github.enabled`) | **None** |
+| `engine` | Baidu web search + Bing + so360 / Sogou / Mojeek (if enabled) concurrently (DuckDuckGo / Wikipedia / Google News join when a proxy is available, Google when enabled, GitHub when `github.enabled`) | **None** |
 | `baidu` | Baidu Qianfan search (`enable_ai_search` controls endpoint), falls back to Baidu web search; uses Baidu web search directly when no SK | `BAIDU_SK` (optional) |
 | `apipool` | API key pool rotation: one provider per request, auto-switch on failure; supports `round-robin` / `priority` / `weighted` strategies; web-engine fallback | All optional |
 | `tavily` | Tavily Search API ([get key](https://app.tavily.com/home)) | `TAVILY_SK` |
@@ -35,7 +35,7 @@
 | `anysearch` | AnySearch API ([get key](https://www.anysearch.com/console/api-keys)); anonymous tier (no auth header, IP-rate-limited) when keyless | `ANYSEARCH_API_KEY` (optional) |
 | `doubao` | Doubao Search Global / Custom ([get key](https://console.volcengine.com/search-infinity/api-key)) | `DOUBAO_SEARCH_API_KEY` |
 | `yuanbao` | Tencent Yuanbao Search (API KEY mode; [docs](https://cloud.tencent.com/document/product/1806/130615)) | `TENCENTCLOUD_WSA_APIKEY` |
-| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + GitHub if enabled + Tavily + Exa + Doubao if keyed + Yuanbao if keyed + TinyFish if keyed + Keenable if keyed or explicitly enabled + Bing + DuckDuckGo + Google) | All optional |
+| `hybrid` | Full mix (Anysearch + Baidu AI + Baidu web + so360 + Sogou + Mojeek + Wikipedia + Google News + GitHub if enabled + Tavily + Exa + Doubao if keyed + Yuanbao if keyed + TinyFish if keyed + Keenable if keyed or explicitly enabled + Bing + DuckDuckGo + Google) | All optional |
 | `mcphub` | Keyless hosted-MCP cascade: parallel → anysearch → exa → firecrawl, cool down and switch on failure; optional per-server key | **None** (optional key) |
 
 > All modes auto-fallback on primary engine failure. Auto-degrades to `engine` mode when keys are missing. `baidu`/`tavily`/`exa`/`anysearch`/`doubao`/`yuanbao` all support `sk_list` multi-key rotation (duplicate keys within one provider are deduplicated automatically); `sk_list` falls back to `api_key` as a single-element list when empty.
@@ -46,7 +46,7 @@
 
 | Mode | Engines |
 |------|---------|
-| `engine` | Baidu web + Bing + so360 (if enabled) + Google (if enabled) + DuckDuckGo / Wikipedia / Google News (if proxy available) + GitHub (if enabled), concurrent |
+| `engine` | Baidu web + Bing + so360 (if enabled) + Sogou (if enabled) + Mojeek (if enabled) + Google (if enabled) + DuckDuckGo / Wikipedia / Google News (if proxy available) + GitHub (if enabled), concurrent |
 | `baidu` | Baidu Qianfan (`enable_ai_search` controls endpoint) → falls back to Baidu web search |
 | `tavily` | Tavily; falls back to Bing when no key |
 | `exa` | Exa; falls back to Bing when no key |
@@ -54,7 +54,7 @@
 | `doubao` | Doubao Search Global/Custom (`doubao.version`); falls back to Bing when no key |
 | `yuanbao` | Tencent Yuanbao Search (API KEY mode); once the local monthly cap is hit the source is treated as unavailable and falls back to Bing |
 | `apipool` | Rotates anysearch / baidu / tavily / exa in configured order (`doubao` / `yuanbao` / `tinyfish` / `keenable` must be listed in `apipool.engines`), Baidu web search always last |
-| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Wikipedia + Google News + GitHub (if enabled) + Tavily + Exa + Doubao (if keyed) + Yuanbao (if keyed) + TinyFish (if keyed) + Keenable (if keyed or explicitly enabled) + Bing + Google + DuckDuckGo, concurrent |
+| `hybrid` | Anysearch + Baidu AI + Baidu web + so360 + Sogou + Mojeek + Wikipedia + Google News + GitHub (if enabled) + Tavily + Exa + Doubao (if keyed) + Yuanbao (if keyed) + TinyFish (if keyed) + Keenable (if keyed or explicitly enabled) + Bing + Google + DuckDuckGo, concurrent |
 | `mcphub` | Cascades hosted MCP servers in `mcp_hub.servers` order (default parallel → anysearch → exa → firecrawl), one per request; cools down and switches on failure, falls back to Bing when all fail |
 
 ---
@@ -76,6 +76,8 @@
 | `yuanbao` | Tencent Yuanbao Search API KEY mode (local blacklist; returns a 0-1 relevance score) | ✅ | No |
 | `baidu_api` | Baidu Qianfan search (`enable_ai_search` controls endpoint) | ❌ | No |
 | `so360` | 360 Search (HTML, second Chinese index; disabled by default, enable via `so360.enabled`) | ❌ | No |
+| `sogou` | Sogou Search (HTML, third Chinese index; disabled by default, enable via `sogou.enabled`; antispider blocks surface as that engine's failure) | ❌ | No |
+| `mojeek` | Mojeek (HTML, independent English index; disabled by default, enable via `mojeek.enabled`; altcha PoW challenges are solved in-process) | ❌ | No |
 | `wikipedia` | Wikipedia MediaWiki API (reference source; disabled by default, enable via `wikipedia.enabled`, `lang` picks the edition) | ❌ | Yes (auto-detected) |
 | `google_news` | Google News RSS (redirect links resolved to publisher URLs, structured publish dates; disabled by default, enable via `google_news.enabled`, `edition` picks the locale) | ❌ | Yes (auto-detected) |
 | `github` | GitHub REST API repository search (zero-key anonymous tier 10 searches/min; PAT raises it to 30/min; structured creation dates with ★/language metadata; disabled by default, enable via `github.enabled`, PAT via `github.api_key`/`token_list`; on API failure or zero results it automatically falls back to Bing with `site:github.com`) | No (PAT optional) | No |

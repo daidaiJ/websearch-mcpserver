@@ -196,6 +196,21 @@ so360:
   # per_min: 60             # 每分钟限流（默认 60）
   # safe_search: 0          # 安全搜索：0=关, 1/2=开（secure=1）
 
+# 搜狗引擎（sogou.com，中文第三索引，无需 Key、无需代理，2026-11-20 出口实测可用）
+sogou:
+  enabled: false            # 总开关（默认 false）
+  blocked: []               # 搜狗专用屏蔽（与 black_list_host 合并）
+  # per_sec: 2              # 每秒限流（默认 2）
+  # per_min: 30             # 每分钟限流（默认 30）
+
+# Mojeek 引擎（mojeek.com，独立英文索引，无需 Key；altcha PoW 自动求解）
+mojeek:
+  enabled: false            # 总开关（默认 false）
+  blocked: []               # Mojeek 专用屏蔽（与 black_list_host 合并）
+  # per_sec: 1              # 每秒限流（默认 1）
+  # per_min: 20             # 每分钟限流（默认 20）
+  # safe_search: 0          # 安全搜索：0=关, 1/2=开（safe=1）
+
 # Wikipedia 引擎（MediaWiki API，零 Key，参考型来源；需代理）
 wikipedia:
   enabled: false            # 总开关（默认 false）
@@ -679,6 +694,10 @@ dashboard:
 | `smartsearch.engine_timeout_sec` | 10 | 单引擎软超时（秒）：超时引擎按 `timeout` 进失败清单，其余引擎结果照常返回；负数 = 只依赖请求 ctx 死线 |
 | `so360.enabled` | false | 360 搜索引擎（so.com，中文第二索引，零 Key、国内直连可用；2026-10-06 出口实测） |
 | `so360.blocked` | [] | 360 专用屏蔽域名（与 black_list_host 合并） |
+| `sogou.enabled` | false | 搜狗搜索引擎（sogou.com，中文第三索引，零 Key、国内直连可用；2026-11-20 出口实测；antispider 拦截透传为该引擎失败） |
+| `sogou.blocked` | [] | 搜狗专用屏蔽域名（与 black_list_host 合并） |
+| `mojeek.enabled` | false | Mojeek 搜索引擎（mojeek.com，独立英文索引，零 Key；altcha PoW 挑战自动求解并缓存 `chllg`） |
+| `mojeek.blocked` | [] | Mojeek 专用屏蔽域名（与 black_list_host 合并） |
 | `wikipedia.enabled` | false | Wikipedia 引擎（MediaWiki API，零 Key，参考型来源；需代理，2026-10-06 出口实测） |
 | `wikipedia.lang` | zh | 语言版本 |
 | `google_news.enabled` | false | Google News RSS 引擎（零 Key 新闻索引，带结构化发布日期；需代理，2026-10-06 出口实测；跳转链接自动回源发布方 URL） |

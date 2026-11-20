@@ -34,6 +34,10 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	// ── 初始化 360 搜索引擎（无需 API Key，国内直连可用） ──
 	so360Adapter := mode.InitSo360Engine(conf)
 
+	// ── 初始化搜狗/Mojeek 搜索引擎（无需 API Key） ──
+	sogouAdapter := mode.InitSogouEngine(conf)
+	mojeekAdapter := mode.InitMojeekEngine(conf)
+
 	// ── 初始化 Wikipedia 引擎（无需 API Key，需代理） ──
 	wikiAdapter := mode.InitWikipediaEngine(conf)
 
@@ -53,6 +57,8 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	ads := mode.EngineAdapters{
 		BaiduWeb:  baiduWebAdapter,
 		So360:     so360Adapter,
+		Sogou:     sogouAdapter,
+		Mojeek:    mojeekAdapter,
 		Wikipedia: wikiAdapter,
 		GNews:     gnewsAdapter,
 		GitHub:    githubAdapter,
