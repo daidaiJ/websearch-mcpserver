@@ -8,6 +8,44 @@
 
 ## 待办
 
+### AnyCrawl 抓取层借鉴（2026-11-20）
+
+> 来源：`any4ai/AnyCrawl`（MIT）main `129bed7` 的 `packages/scrape/src` 代码走查。它的搜索层是 Google / SearXNG / AC-Engine 单引擎选择，可迁移价值集中在失败语义、会话生命周期、能力声明和空壳识别。当前项目只有单个 `proxy.endpoint` 或系统代理（`ProxyConfig`），没有代理池，因此 proxy tier / sticky proxy / stealth upgrade / 浏览器池均不采纳；以下五项按「固定出口 + 纯 Go」改写，只借鉴设计，不引入 Node/TS 依赖。
+>
+> 建议顺序：X1 / X2 先做（不动抓取协议），X4 先小流量验证命中率，X3 先在搜狗灰度，X5 最后用基准验证。
+
+- [ ] **X1. 统一失败分类与恢复决策（P0，功能 + 性能）**
+  现状：`pkg/errcode` 与 `core.ClassifyFailure` 已有错误码，但各引擎仍自行维护 backoff / recordFail；`hybrid` 只能从 error string 和失败清单反推处置。
+  方向：在 `pkg/antirobot` 增加 `FailureKind`（timeout / rate_limit / challenge / blocked / network / parse / no_result）与 `RecoveryDecision{Retry, SessionAction, Cooldown, SkipEngine}`；引擎返回带分类的错误或提供 `Classify(err)`，`hybrid` 统一决定是否重试、冷却、换会话或跳过。无代理池，动作限定为 `retry / rotate_session / cooldown / skip`，不设 proxy action。
+  收益：避免对 403/验证码做无意义重试；失败清单、控制中心与遥测口径一致。
+  验收：各引擎单测覆盖分类；`hybrid` 失败清单与 `errcode` 一致；固定 fixture 下搜索耗时不增加；`go test ./...` 全绿。
+
+- [ ] **X2. JS 空壳预检前移（P0，功能 + 性能）**
+  现状：`pkg/fetch/quality.go` 的 `ContentQuality` 只接收 Markdown（设计上不依赖原始 HTML），本地 webfetch 仍先完成抓取与转换，再判定低质量并走回退链。
+  方向：借鉴 `autoEngine.analyzeHtmlForJSRequirement`，在 `pkg/fetch` 新增独立的 `AnalyzeHTMLShell(raw []byte)`，由 `webfetch` 在转 Markdown 前调用；信号包括空 `#root` / `#app` / `__next`、可见文本 <100 且 HTML >2KB、noscript 兜底、脚本数 >10 且文本 <500。强信号标记 `needs_remote_render`，让 `cleanfetch` / `fetch_top_n` 跳过本地解析，优先走 Jina / mcphub 渲染链。
+  收益：JS 站点少一次无效解析与等待；降低把空壳当正文返回的概率。
+  验收：新增静态页 / JS 壳 / 验证码页 fixture；静态页零误判；JS 壳页端到端延迟下降；现有 webfetch / Jina 测试全绿。
+
+- [ ] **X3. 固定出口下的会话租约（P1，功能）**
+  现状：`ddg` / `baidu` / `bing` / `google` / `so360` 已有会话轮换，但 cookie/UA 状态分散在各引擎，并发请求可能共用同一会话。
+  方向：借鉴 `StickyBrowserManager` 的 lease 语义，简化为 HTTP 版：每引擎维护带 TTL 的 session（cookie jar + UA + 可选 header 快照），并发请求独占租约；命中 antispider / 验证码时 retire 当前 session，下一次请求新建。只锁会话分配，不锁整个请求；不绑定代理出口。
+  收益：减少并发请求互相污染 cookie；被拦截后不再复用脏会话。
+  验收：并发测试无共享 cookie；antispider fixture 能触发 retire；会话数有上限且空闲回收；真网搜狗/百度拦截率不上升。
+
+- [ ] **X4. 页面正文缓存与准入（P1，性能 + 功能）**
+  现状：`cleanfetch` 与 `fetch_top_n` 每次都重新抓取；搜索缓存按 query 维度，跨 query 的同一 URL 不共享正文，重复抓同一页仍要付网络与解析成本。AnyCrawl `CacheManager` 按 URL + options 哈希缓存页面，写入前用 `shouldCache` 拒绝非 2xx 和低质量正文，命中时跳过抓取。
+  方向：在现有 SQLite 增加 `page_cache`（归一化 URL + 提取格式 + 创建时间 + TTL），正文可存 BLOB 或 `fetchdata` 文件索引；写入前复用 `pkg/fetch/quality.go`，拒绝验证码、空壳和低质量正文；默认 TTL 1h、容量上限 64MB，过期与 LRU 清理复用 cache 后台协程；配置 `cleanfetch.page_cache.enabled`（默认关闭，命中率验证后开启）。
+  收益：重复 URL 的 cleanfetch / fetch_top_n 从「网络 + 解析」降为本地读；降低上游限流与验证码触发概率。
+  验收：同 URL 不同 query 能命中；低质量正文不写入；容量上限与过期清理可测；关闭开关后行为与当前一致；命中/未命中延迟对比有数据。
+
+- [ ] **X5. 单引擎自适应软超时（P2，性能）**
+  现状：`smartsearch.engine_timeout_sec` 全局默认 10s，慢引擎每次拖满预算。
+  方向：借鉴 `smartWait` 的按域滚动统计，在 `hybrid` 维护每引擎滚动 p95（样本 ≥20 才启用），软超时取 `clamp(p95*2, 2s, 配置上限)`；低样本时沿用配置值，只缩短不放大。
+  收益：降低长尾延迟，同时保留慢引擎的成功请求。
+  验收：合成慢引擎基准总耗时下降；真实套件超时失败数不增加；提供关闭开关。
+
+> 配套维护项：X3 / X4 落地时给 `adapter.EngineSearchAdapter` 补可选 `Capabilities()`（`MaxPerPage` / `RequiresProxy` / `SupportsTimeRange` / `Region`），把注册条件从 `mode` 的硬编码逐步收敛；该接口本身是维护项，不单独立项。
+
 ### 结果质量收尾
 
 - [ ] **Q3. LLM 摘要请求无 token/预算控制**
