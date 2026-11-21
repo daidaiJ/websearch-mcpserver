@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"websearch/pkg/admission"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestAdmissionMiddlewareShedsWhenIngressIsFull(t *testing.T) {

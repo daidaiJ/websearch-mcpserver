@@ -5,12 +5,13 @@ import (
 	"errors"
 	"sync/atomic"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"websearch/pkg/admission"
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/memguard"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type admissionGates struct {
