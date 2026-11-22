@@ -228,6 +228,7 @@ func (a *ApipoolSearchImpl) SearchRaw(query string) ([]core.SearchResult, error)
 // callProviderWithRetry 调用单个供应商，按失败分类处置 key 并重试（B3 查表）：
 //   - KeyErrorAuth        → 冷却该 key 30 分钟，同 pool 换下一个 key 重试；
 //   - KeyErrorRateLimit   → 短冷却该 key（keyRateLimitCooldown），同 pool 换下一个 key 重试；
+//   - KeyErrorQuota       → 冷却该 key 30 分钟（配额按日/月恢复），同 pool 换下一个 key 重试；
 //   - KeyErrorTransport / KeyErrorContent / 非 KeyError → 与 key 无关，不冷却也不换 key，
 //     直接返回错误让 apipool 级联到下一个供应商；
 //   - 池内无可用 key（NextUsable 取不到）→ 引擎返回 ErrNoAvailableKey 包装错误，
@@ -258,6 +259,8 @@ func (a *ApipoolSearchImpl) callProviderWithRetry(ctx context.Context, p Apipool
 			p.pool.MarkInvalid(ke.Key)
 		case provider.KeyErrorRateLimit:
 			p.pool.MarkInvalidFor(ke.Key, a.rateLimitCooldown())
+		case provider.KeyErrorQuota:
+			p.pool.MarkInvalidFor(ke.Key, provider.KeyQuotaCooldown)
 		default:
 			// transport / content / 未分类：与 key 无关，不冷却任何 key，不换 key
 			return nil, err

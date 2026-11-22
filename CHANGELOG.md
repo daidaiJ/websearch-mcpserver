@@ -26,6 +26,7 @@
 
 ### 修复
 
+- **AnySearch 402 配额与凭据防泄漏**：HTTP 402 按配额耗尽处理（`KeyErrorQuota`，单个 Key 冷却 30 分钟，apipool 自动换 Key；匿名档返回可操作提示），不再把已耗尽的 Key 反复打上游；AnySearch envelope 错误只保留 code/request_id，不转发上游 message；mcphub 错误文本与遥测摘要统一脱敏 `as_sk_`、`api_key=`、`password=`、`username=` 等形态，避免 402 body 中的凭据进入日志或控制台。
 - `cleanfetch` 远端抓取只返回标题或跳转导航时，继续尝试已有回退链，避免把空壳当正文；短小的有效正文仍正常返回，无需新增参数或配置。（来自 PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33)，作者 [@MattLYT](https://github.com/MattLYT)）
 - **Windows 系统代理探测改用安全 DLL 加载**：`wininet.dll` 既不在 KnownDLLs 也不在 Go 的 sysdll 白名单内，`syscall.NewLazyDLL` 会按默认搜索顺序解析，exe 同目录放同名 DLL 即可劫持（实测可命中伪造副本）。改用 `windows.NewLazySystemDLL`（`LOAD_LIBRARY_SEARCH_SYSTEM32`）后只从 System32 加载；`golang.org/x/sys` 本就在依赖树内，二进制体积无变化
 - **反爬响应不再伪装成解析错误/零结果**：百度 `antiFlag=1` 直接返回带 `message` 的拦截错误，重定向到 wappass/seccaptcha 或返回 HTML 的响应在 JSON 解析前按反爬拦截报错；Google Scholar 跟随 302 落到 `/sgsync` 的 `Verifying...` 挑战页时返回明确的 JS challenge 错误，而不是空结果；集成测试门控把 `invalid character '<'` 等 HTML 解析失败统一归为 blocked 场景，GitHub 匿名配额耗尽的 HTTP 403 归为 rate_limited 场景。

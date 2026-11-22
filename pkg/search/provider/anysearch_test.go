@@ -186,14 +186,68 @@ func TestAnysearch_SearchRaw_StatusError_KeyError(t *testing.T) {
 	}
 }
 
-// TestAnysearch_SearchRaw_CodeNotZero envelope code=-1 应返回 KeyError。
+// TestAnysearch_SearchRaw_CodeNotZero envelope code=-1 应返回 KeyError，且不转发
+// 上游 message（可能含凭据），只保留 code/request_id。
 func TestAnysearch_SearchRaw_CodeNotZero(t *testing.T) {
-	engine, _ := newAnysearchTestServer(t, http.StatusOK, `{"code":-1,"message":"upstream error","request_id":"rid-2"}`)
+	engine, _ := newAnysearchTestServer(t, http.StatusOK, `{"code":-1,"message":"api_key=as_sk_secret_value","request_id":"rid-2"}`)
 
 	_, err := engine.SearchRaw("q")
 	var ke *KeyError
 	if !errors.As(err, &ke) {
 		t.Fatalf("expected KeyError, got %v", err)
+	}
+	if strings.Contains(err.Error(), "as_sk_secret_value") || strings.Contains(err.Error(), "api_key") {
+		t.Fatalf("error leaked upstream message: %v", err)
+	}
+	if !strings.Contains(err.Error(), "rid-2") {
+		t.Fatalf("error should retain request_id: %v", err)
+	}
+}
+
+// TestAnysearch_SearchRaw_QuotaExhausted_KeyError 402 配额耗尽应冷却该 key，
+// 且错误不包含上游 body 中可能出现的凭据。
+func TestAnysearch_SearchRaw_QuotaExhausted_KeyError(t *testing.T) {
+	engine, _ := newAnysearchTestServer(t, http.StatusPaymentRequired,
+		`{"code":-1,"message":"quota exhausted","data":{"api_key":"as_sk_secret_value"}}`)
+
+	_, err := engine.SearchRaw("q")
+	var ke *KeyError
+	if !errors.As(err, &ke) {
+		t.Fatalf("expected KeyError, got %v", err)
+	}
+	if ke.Kind != KeyErrorQuota || ke.Key != "sk-test-1" {
+		t.Fatalf("expected quota error for sk-test-1, got kind=%s key=%s", ke.Kind, ke.Key)
+	}
+	if strings.Contains(err.Error(), "as_sk_secret_value") {
+		t.Fatalf("error leaked upstream credential: %v", err)
+	}
+}
+
+// TestAnysearch_Keyless_QuotaExhausted 匿名档 402 返回可操作的本地化提示，
+// 不包装 KeyError，也不透传 body。
+func TestAnysearch_Keyless_QuotaExhausted(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusPaymentRequired)
+		_, _ = w.Write([]byte(`{"code":-1,"message":"quota exhausted","data":{"api_key":"as_sk_secret_value"}}`))
+	}))
+	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
+
+	engine := NewAnysearchSearch(nil, 10, nil)
+	engine.endpoint = srv.URL
+	_, err := engine.SearchRaw("q")
+	if err == nil {
+		t.Fatal("expected quota error")
+	}
+	var ke *KeyError
+	if errors.As(err, &ke) {
+		t.Fatalf("匿名档 402 不应是 KeyError, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "402") {
+		t.Fatalf("error should mention HTTP 402: %v", err)
+	}
+	if strings.Contains(err.Error(), "as_sk_secret_value") {
+		t.Fatalf("error leaked upstream credential: %v", err)
 	}
 }
 

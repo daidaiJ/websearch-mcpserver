@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"websearch/pkg/errcode"
 )
 
 // ── KeyPool SK 去重 ──────────────────────────────────────────────────────
@@ -99,5 +101,14 @@ func TestNewKeyError_ZeroKindIsTransport(t *testing.T) {
 	ke := NewKeyError("", "k", errors.New("x"))
 	if ke.Kind != KeyErrorTransport {
 		t.Fatalf("零 Kind 应强制写成 transport, got %q", ke.Kind)
+	}
+}
+
+func TestKeyErrorKindByStatus_Quota(t *testing.T) {
+	if got := keyErrorKindByStatus(402); got != KeyErrorQuota {
+		t.Fatalf("402 = %q, want %q", got, KeyErrorQuota)
+	}
+	if got := NewKeyError(KeyErrorQuota, "k", errors.New("402")); got.ErrorCode() != errcode.RateLimit {
+		t.Fatalf("quota error code = %q, want %q", got.ErrorCode(), errcode.RateLimit)
 	}
 }

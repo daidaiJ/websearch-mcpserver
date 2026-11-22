@@ -94,6 +94,10 @@ func (p *KeyPool) MarkInvalid(key string) {
 // 导出供 apipool 查表使用，避免跨包硬编码。
 const KeyRateLimitCooldown = 5 * time.Minute
 
+// KeyQuotaCooldown 配额耗尽类失败的冷却时长。配额通常按日/月恢复，
+// 用短冷却会让已耗尽的 key 很快被再次打上游。
+const KeyQuotaCooldown = 30 * time.Minute
+
 // MarkInvalidFor 标记指定 key 失效 ttl 时长（rate_limit 类短冷却用）。
 // ttl <= 0 视为立即恢复（清零失效时间）。ttl > 0 时取
 // max(已有截止, now+ttl)，避免并发 429 的短冷却覆盖尚未到期的鉴权冷却（B6 同类）。
@@ -140,8 +144,10 @@ type KeyErrorKind string
 const (
 	// KeyErrorAuth 鉴权失败（401/403/invalid api key 等）→ 该 key 确实不可用，冷却 30 分钟。
 	KeyErrorAuth KeyErrorKind = "auth"
-	// KeyErrorRateLimit 限流 / 配额耗尽（429 等）→ 该 key 只需短冷却（5 分钟）。
+	// KeyErrorRateLimit 限流 / 短时配额（429 等）→ 该 key 只需短冷却（5 分钟）。
 	KeyErrorRateLimit KeyErrorKind = "rate_limit"
+	// KeyErrorQuota 配额耗尽（402 等）→ 该 key 冷却 30 分钟，避免持续打已耗尽额度的 key。
+	KeyErrorQuota KeyErrorKind = "quota"
 	// KeyErrorTransport 传输层失败（超时 / DNS / 连接重置 / 5xx）→ 与 key 无关，不冷却。
 	KeyErrorTransport KeyErrorKind = "transport"
 	// KeyErrorContent 业务性失败（空结果 / 上游业务报错）→ 与 key 无关，不冷却。
@@ -166,11 +172,14 @@ func NewKeyError(kind KeyErrorKind, key string, err error) *KeyError {
 }
 
 // keyErrorKindByStatus 把 HTTP 状态码映射为 KeyErrorKind：
-// 401/403 鉴权失败 → auth；429 限流 → rate_limit；5xx → transport；其余 → content。
+// 401/403 鉴权失败 → auth；402 配额耗尽 → quota；429 限流 → rate_limit；
+// 5xx → transport；其余 → content。
 func keyErrorKindByStatus(status int) KeyErrorKind {
 	switch {
 	case status == 401 || status == 403:
 		return KeyErrorAuth
+	case status == 402:
+		return KeyErrorQuota
 	case status == 429:
 		return KeyErrorRateLimit
 	case status >= 500:
@@ -195,7 +204,7 @@ func (e *KeyError) ErrorCode() errcode.Code {
 	switch e.Kind {
 	case KeyErrorAuth:
 		return errcode.AccessDenied
-	case KeyErrorRateLimit:
+	case KeyErrorRateLimit, KeyErrorQuota:
 		return errcode.RateLimit
 	case KeyErrorContent:
 		return errcode.Unknown

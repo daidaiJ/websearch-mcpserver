@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"websearch/pkg/i18n"
+	"websearch/pkg/redact"
 	"websearch/pkg/telemetry"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -113,7 +114,7 @@ func contentText(content []mcp.Content) string {
 }
 
 func truncateErr(s string) string {
-	s = strings.TrimSpace(s)
+	s = redact.Credentials(strings.TrimSpace(s))
 	if len(s) > 240 {
 		return s[:240] + "..."
 	}
@@ -138,7 +139,8 @@ func shouldCooldown(err error) bool {
 		"timeout", "timed out", "deadline exceeded", "connection", "connect:", "no such host",
 		"eof", "tls", "429", "too many requests", "rate limit", "401", "403", "unauthorized",
 		"forbidden", "502", "503", "504", "server closed",
-		"keyless access is unavailable", "quota", "monthly limit", "monthly cap",
+		"402", "payment required", "insufficient", "keyless access is unavailable",
+		"quota", "monthly limit", "monthly cap",
 	} {
 		if strings.Contains(msg, needle) {
 			return true
@@ -155,4 +157,19 @@ func isAuthError(err error) bool {
 	return strings.Contains(msg, "401") || strings.Contains(msg, "403") ||
 		strings.Contains(msg, "unauthorized") || strings.Contains(msg, "forbidden") ||
 		strings.Contains(msg, "invalid api key")
+}
+
+// isQuotaError 识别配额耗尽类错误：换同 server 的下一个 Key 重试，
+// 并让该 Key 进入 30 分钟冷却。
+func isQuotaError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{"402", "payment required", "quota", "insufficient", "monthly limit", "monthly cap"} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
 }

@@ -213,7 +213,7 @@ func (s *server) callWithKeys(ctx context.Context, tool string, args map[string]
 		if err == nil {
 			return res, nil
 		}
-		if !isAuthError(err) {
+		if !isAuthError(err) && !isQuotaError(err) {
 			return toolResult{}, err
 		}
 		s.keys.MarkInvalid(key)

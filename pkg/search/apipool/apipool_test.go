@@ -498,6 +498,37 @@ func TestApipool_RateLimitErrorShortCooldown(t *testing.T) {
 	}
 }
 
+// TestApipool_QuotaErrorCoolsKey 配额耗尽（402）冷却该 key 30 分钟并换下一个 key 重试。
+func TestApipool_QuotaErrorCoolsKey(t *testing.T) {
+	pool1, _ := provider.NewKeyPool([]string{"k1", "k2"})
+	calls := 0
+	e1 := &poolAwareEngine{
+		name: "anysearch", pool: pool1,
+		errFn: func(key string) error {
+			calls++
+			if key == "k1" {
+				return provider.NewKeyError(provider.KeyErrorQuota, key, fmt.Errorf("402 payment required"))
+			}
+			return nil
+		},
+		result: []core.SearchResult{{Title: "t1", Engine: "anysearch"}},
+	}
+	ap := NewApipoolSearch("round-robin", ApipoolProvider{engine: e1, pool: pool1})
+	results, err := ap.SearchRaw("test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results[0].Title != "t1" {
+		t.Fatalf("expected t1, got %+v", results)
+	}
+	if got := pool1.Available(); got != 1 {
+		t.Errorf("quota 失败应冷却 k1（剩 k2 可用）: Available=%d, want 1", got)
+	}
+	if calls != 2 {
+		t.Errorf("quota 失败应换 key 重试一次: calls=%d, want 2", calls)
+	}
+}
+
 // TestApipool_ContentErrorDoesNotCoolKeys content 类失败（空结果等）不冷却任何 key（B3）。
 func TestApipool_ContentErrorDoesNotCoolKeys(t *testing.T) {
 	pool1, _ := provider.NewKeyPool([]string{"k1"})

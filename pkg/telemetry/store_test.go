@@ -385,6 +385,23 @@ func TestRawQueryIsNeverStored(t *testing.T) {
 	}
 }
 
+func TestSummarizeErrorRedactsAnySearchCredentials(t *testing.T) {
+	msg := "anysearch 402: api_key=as_sk_5d1f0c9a7b3e4d2f8a6c1b0e9d7f3a52 username=temp_user password=K7mQ2xRtbV9d"
+	got := summarizeError(errors.New(msg))
+	for _, secret := range []string{"as_sk_5d1f0c9a7b3e4d2f8a6c1b0e9d7f3a52", "temp_user", "K7mQ2xRtbV9d"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("summarizeError left %q in %q", secret, got)
+		}
+	}
+}
+
+func TestSummarizeQueryRedactsAnySearchKey(t *testing.T) {
+	_, _, _, _, keywords := summarizeQuery("api_key=as_sk_5d1f0c9a7b3e4d2f8a6c1b0e9d7f3a52")
+	if strings.Contains(keywords, "as_sk_") {
+		t.Fatalf("summarizeQuery leaked key in keywords: %q", keywords)
+	}
+}
+
 // TestOpenWithMaxOpenConns 连接池上限按参数生效，0/负值取包内默认。
 func TestOpenWithMaxOpenConns(t *testing.T) {
 	for _, tc := range []struct {

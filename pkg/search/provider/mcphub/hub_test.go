@@ -571,3 +571,54 @@ func TestHubAllKeysCoolingSkipsUpstream(t *testing.T) {
 		}
 	}
 }
+
+func anysearchToolResult() toolResult {
+	return toolResult{Text: "### AnySearch\n- **URL**: https://example.com/any\n\nbody"}
+}
+
+// TestHubQuotaErrorRotatesKey 402 配额耗尽应换同 server 的下一个 Key，而不是直接级联。
+func TestHubQuotaErrorRotatesKey(t *testing.T) {
+	cfg := config.MCPHubConfig{
+		CooldownSec: 1,
+		Servers: []config.MCPHubServerConfig{{
+			Name:   "anysearch",
+			SKList: []string{"k1", "k2"},
+		}},
+	}
+	fake := &fakeCaller{
+		keyErrs: map[string]error{"k1": errors.New("402 payment required: quota exhausted")},
+		results: map[string]toolResult{"anysearch/search": anysearchToolResult()},
+	}
+	h, err := newHub(cfg, testProxy, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.SearchRaw("q"); err != nil {
+		t.Fatal(err)
+	}
+	calls := fake.snapshot()
+	if len(calls) != 2 || calls[0].key != "k1" || calls[1].key != "k2" {
+		t.Fatalf("quota error should rotate k1 -> k2, calls = %+v", calls)
+	}
+}
+
+// TestHubQuotaErrorCoolsServer 全部 Key 配额耗尽后，server 进入冷却，后续请求不再打上游。
+func TestHubQuotaErrorCoolsServer(t *testing.T) {
+	fake := &fakeCaller{errs: map[string]error{
+		"anysearch/search": errors.New("402 payment required: quota exhausted"),
+	}}
+	h, err := newHub(testConfig("anysearch"), testProxy, fake, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.SearchRaw("q"); err == nil {
+		t.Fatal("expected quota failure")
+	}
+	before := len(fake.snapshot())
+	if _, err := h.SearchRaw("q"); err == nil {
+		t.Fatal("expected cooled failure")
+	}
+	if after := len(fake.snapshot()); after != before {
+		t.Fatalf("quota-cooled server should not be called again: before=%d after=%d", before, after)
+	}
+}

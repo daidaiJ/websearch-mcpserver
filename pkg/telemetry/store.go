@@ -17,6 +17,8 @@ import (
 	"time"
 	"unicode"
 
+	"websearch/pkg/redact"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -696,11 +698,10 @@ func boolInt(v bool) int {
 }
 
 var (
-	reURL    = regexp.MustCompile(`(?i)https?://\S+`)
-	reEmail  = regexp.MustCompile(`(?i)\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b`)
-	reIP     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	reLong   = regexp.MustCompile(`\b\d{5,}\b`)
-	reSecret = regexp.MustCompile(`(?i)\b(?:sk|pk|api|key|token|bearer)[-_]?[a-z0-9_-]{8,}\b`)
+	reURL   = regexp.MustCompile(`(?i)https?://\S+`)
+	reEmail = regexp.MustCompile(`(?i)\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b`)
+	reIP    = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
+	reLong  = regexp.MustCompile(`\b\d{5,}\b`)
 )
 
 func summarizeQuery(q string) (string, int, string, string, string) {
@@ -715,7 +716,7 @@ func summarizeQuery(q string) (string, int, string, string, string) {
 	clean = reEmail.ReplaceAllString(clean, "[email]")
 	clean = reIP.ReplaceAllString(clean, "[ip]")
 	clean = reLong.ReplaceAllString(clean, "[number]")
-	clean = reSecret.ReplaceAllString(clean, "[secret]")
+	clean = redact.Credentials(clean)
 	lang := detectLanguage(clean)
 	topic := classifyTopic(strings.ToLower(clean))
 	keywords := safeKeywords(clean)
@@ -791,7 +792,7 @@ func summarizeError(err error) string {
 	msg := err.Error()
 	msg = reURL.ReplaceAllString(msg, "[url]")
 	msg = reEmail.ReplaceAllString(msg, "[email]")
-	msg = reSecret.ReplaceAllString(msg, "[secret]")
+	msg = redact.Credentials(msg)
 	msg = strings.TrimSpace(msg)
 	if len([]rune(msg)) > 220 {
 		msg = string([]rune(msg)[:220]) + "…"

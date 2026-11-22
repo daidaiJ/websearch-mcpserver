@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -44,9 +45,9 @@ type anysearchResult struct {
 }
 
 type anysearchSearchResp struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    struct {
+	Code      int    `json:"code"`
+	RequestID string `json:"request_id"`
+	Data      struct {
 		Results []anysearchResult `json:"results"`
 	} `json:"data"`
 }
@@ -125,17 +126,25 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err))
 	}
 	if res.StatusCode() != 200 {
+		if res.StatusCode() == http.StatusPaymentRequired {
+			// 402 body 可能带上游自动生成的凭据，只返回本地化提示，不转发 body。
+			if a.keys == nil {
+				return nil, errors.New(i18n.T("provider.anysearch.quota_exhausted_anon"))
+			}
+			return nil, NewKeyError(KeyErrorQuota, key, errors.New(i18n.T("provider.anysearch.quota_exhausted_key")))
+		}
 		if a.keys == nil {
 			return nil, errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode()))
 		}
 		return nil, NewKeyError(keyErrorKindByStatus(res.StatusCode()), key, errors.New(i18n.T("provider.anysearch.bad_status", "Status", res.StatusCode())))
 	}
 	if resp.Code != 0 {
+		err := anysearchAPIError(resp)
 		if a.keys == nil {
-			return nil, errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message))
+			return nil, err
 		}
 		// envelope 业务错误：与 key 无关，不冷却
-		return nil, NewKeyError(KeyErrorContent, key, errors.New(i18n.T("provider.anysearch.api_error", "Code", resp.Code, "Message", resp.Message)))
+		return nil, NewKeyError(KeyErrorContent, key, err)
 	}
 	if len(resp.Data.Results) == 0 {
 		return nil, errors.New(i18n.T("provider.anysearch.empty_results"))
@@ -158,6 +167,15 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		})
 	}
 	return ret, nil
+}
+
+// anysearchAPIError keeps the stable code and request ID; upstream message and
+// body are intentionally omitted because a 402 body may contain credentials.
+func anysearchAPIError(resp anysearchSearchResp) error {
+	if resp.RequestID != "" {
+		return errors.New(i18n.T("provider.anysearch.api_error_code_rid", "Code", resp.Code, "RequestID", resp.RequestID))
+	}
+	return errors.New(i18n.T("provider.anysearch.api_error_code", "Code", resp.Code))
 }
 
 // isBlockedHost 本地黑名单过滤：AnySearch API 不支持 exclude_domains 参数，

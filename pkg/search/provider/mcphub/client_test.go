@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -119,5 +120,17 @@ func TestMCPCallerFallsBackWithoutClientUserAgent(t *testing.T) {
 		if ua != defaultUserAgent {
 			t.Fatalf("upstream User-Agent = %q, want default", ua)
 		}
+	}
+}
+
+func TestTruncateErrRedactsCredentials(t *testing.T) {
+	got := truncateErr("upstream error: api_key=as_sk_secret_value username=temp_user password=K7mQ2xRtbV9d")
+	for _, secret := range []string{"as_sk_secret_value", "temp_user", "K7mQ2xRtbV9d"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("truncateErr left %q in %q", secret, got)
+		}
+	}
+	if !strings.Contains(got, "[secret]") {
+		t.Fatalf("truncateErr did not mark redaction: %q", got)
 	}
 }
