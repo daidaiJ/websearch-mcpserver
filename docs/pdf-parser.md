@@ -4,6 +4,8 @@
 
 本仓库本地廉价路径走 `go-webfetch` 的 `Page.GetPlainText`，底层是 [`ledongthuc/pdf`](https://github.com/ledongthuc/pdf)（`rsc/pdf` 的 fork）。精准路径走 MinerU。这次对照只回答一件事：**上游这个库日常够不够用，病态输入上差到什么程度。**
 
+云端多供应商（MinerU 限流后的 LlamaParse 兜底与额度冷却）见 [`pdf-parser-providers.md`](pdf-parser-providers.md)。
+
 ## 结论
 
 日常结构正常的 PDF，ledongthuc 抽得出正文，作为「抓网页顺手取文本」的廉价路径够用。
