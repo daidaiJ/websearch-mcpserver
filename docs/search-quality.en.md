@@ -49,6 +49,8 @@ Production defaults: RRF K=60, lexical weight 0.5, consensus/authority/recency/d
 
 The `dsh-web-search` numbers come from running its offline `node scripts/bench.mjs` at 0.24.2 (tier-aware replay; all five engines in this capture are marked primary, so it matches our replay of every list). These are not an apples-to-apples comparison of rankers. This project adds domain-quality, authority, lexical-alignment and rare-term signals on top of RRF, and the corpus is dominated by official documentation and release notes — exactly where authority signals apply. Treat it as two pipelines on the same data, not a universal quality claim.
 
+The authority boost gained a data/statistics intent gate in 2026-11: when a query carries GDP / population / census / statistics / indicators / dataset signals, official primary sources such as `.gov`, `.gov.cn`, the World Bank, the IMF and the OECD receive an extra boost; other queries are unaffected. Disable this branch with `smartsearch.primary_source_boost: false`. The 20-query corpus here is dominated by technical documentation and does not cover that branch.
+
 ## 5. Parameter effects
 
 The full table is produced by `searchbench`; the rows below are the interpretable ones.

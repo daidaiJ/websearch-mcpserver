@@ -17,8 +17,13 @@
 - **真实引擎解析快照**：Bing 补 2026-11-19 真实 SERP 快照；DDG 补同日真实结果页快照，覆盖选择器、`uddg` 重定向解码与摘要提取。DDG 出口间歇性返回 HTTP 202 验证页时保留合成 fixture，复采方法见 `pkg/search/engine/ddg/testdata/README.md`。
 - **`/metrics` 业务计数改为进程内聚合**：工具/供应商请求、成功失败、缓存命中与延迟分桶由进程内计数器维护，抓取时不再回读 SQLite；控制台关闭时业务计数仍输出，`websearch_telemetry_enabled` 只表示持久化遥测是否启用。
 - **搜狗与 Mojeek 零 Key 网页引擎（默认关闭）**：搜狗（`sogou.enabled`）解析 `div.rb` / `div.vrwrap`，`/link?url=` 优先取 `data-url` 真实目标，跳转 `antispider` 或验证码页按该引擎反爬失败透传；Mojeek（`mojeek.enabled`）解析独立英文索引，页面下发 altcha PoW 时按 PBKDF2/SHA-256 前缀碰撞在进程内求解并缓存 `chllg`，过期或挑战复发时失效缓存、下次请求重新求解。两者均接入 `engine` / `hybrid` / `mcphub` 引擎池、控制中心来源表与能力资源，限流默认分别为 2/s·30/min 与 1/s·20/min
+- **搜索结果预算改为排名优先**：`max_chars` / `depth=deep` 与 `inline_max_chars` 超限时按结果顺序分配正文，排名靠前的结果优先保留完整正文，尾部条目只留标题/URL/摘录并标注“正文已省略”；完整渲染仍写入 `fetchdata/search-*.md` 并返回 `result_ref`，固定骨架本身已超上限时回退整单预览。
+- **cleanfetch 站点特判扩展**：StackExchange 问题页走 API v2.3（Markdown 正文、已采纳回答优先、最多 5 个回答/30 条评论），Wikipedia `/wiki/` 条目走 MediaWiki extract API，arXiv `/abs/` 与 `/html/` 走 export API（标题/作者/摘要/分类/DOI）；专用 API 失败自动回落 webfetch → Jina Reader 链，`/pdf/` 仍走 PDF 解析分支。
+- **权威评分补数据/统计意图（可配置）**：查询命中 GDP、人口、普查、统计、指标、数据集等信号时，`.gov`、`.gov.cn`、世界银行、IMF、OECD 等官方一手源获得额外权威加分；非数据查询不受影响。`smartsearch.primary_source_boost` 默认 true，显式设 false 可关闭该分支。
 
 ### 变更
+
+- **正文预算语义**：`max_chars` 从“按条均分”改为“按排名分配、每条保底 200 字符”；`inline_max_chars` 超限时不再整单只给预览，排名靠前的结果正文继续保留在响应内。无配置变更。
 
 - **进程内并发默认受限**：未显式配置 `limits` 时也会按 4 / 12 / 2000 ms 的默认值准入；需要旧的“来者不拒”行为可显式设 `limits.max_inflight: -1` 与 `limits.max_outbound: -1`。
 - **`max_retries` 默认值 3 → 1**：上游 webfetch 自身会对 429/502/503 与传输错误重试，旧默认值会把尝试次数放大到 4 次、最坏等待约 11.5 秒；示例配置与文档同步说明语义。
