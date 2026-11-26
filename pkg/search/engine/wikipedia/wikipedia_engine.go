@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
@@ -123,7 +124,7 @@ func (e *wikipediaEngine) SearchContext(ctx context.Context, query string, page 
 	req.Header.Set("User-Agent", "websearch-mcpserver/1.0 (MediaWiki search engine)")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, err
 	}

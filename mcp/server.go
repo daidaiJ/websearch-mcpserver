@@ -118,24 +118,6 @@ func registerTools(server *mcp.Server, conf config.Config) {
 	log.InfoT("log.mcp.available_tool_cleanfetch")
 	setState("cleanfetch", "registered")
 
-	// ── 注册 file_search 工具（接入时探测通过才暴露，见 ensureEverything） ──
-	if ensureEverything() {
-		fileDesc := i18n.T("mcp.tool.file_search.desc")
-		if len(everythingRoots) > 0 {
-			fileDesc += i18n.T("mcp.tool.file_search.roots", "RootCount", len(everythingRoots))
-		}
-		fileDesc += i18n.T("mcp.tool.file_search.time")
-		fileDesc += i18n.T("mcp.tool.file_search.paging")
-		addTool(server, &mcp.Tool{
-			Name:        "file_search",
-			Description: fileDesc,
-		}, FileSearch)
-		log.InfoT("log.mcp.available_tool_file_search")
-		setState("file_search", "registered")
-	} else {
-		setState("file_search", "unavailable")
-	}
-
 	// ── 注册 pdf_parser 工具（默认关闭） ──
 	if conf.PDFParser.Enabled && webfetchInst != nil {
 		pdfDesc := i18n.T("mcp.tool.pdf_parser.desc")
@@ -175,11 +157,12 @@ func registerTools(server *mcp.Server, conf config.Config) {
 	}
 
 	publishTools(states)
+	registerEverything(server)
 }
 
 func RegisterRouter(mux *http.ServeMux, conf config.Config) {
 	// MCP Server 惰性创建：NewMCPServer 内的工具注册包含 Everything 探测
-	// （ensureEverything），推迟到首个客户端请求时执行，避免 websearch 与
+	// （registerEverything），推迟到首个客户端请求时执行，避免 websearch 与
 	// Everything 双自启动的时序竞争导致 file_search 在进程周期内缺失。
 	var (
 		once      sync.Once

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/quota"
 	"websearch/pkg/telemetry"
 )
@@ -19,7 +20,7 @@ type searchQuota struct {
 // SetSearchQuota attaches the runtime budget to a pool before sharing the pool.
 // Fetch adapters keep using NextUsable without spending search allowance.
 func (p *KeyPool) SetSearchQuota(provider string, service *quota.Service) {
-	if service.SearchEnforced(provider) {
+	if service.TracksSearch(provider) {
 		p.searchQuota = &searchQuota{provider: provider, service: service}
 	}
 }
@@ -73,6 +74,9 @@ func (p *KeyPool) searchCandidates() []string {
 }
 
 func (p *KeyPool) recordQuotaSkip(ctx context.Context, query, reason string) {
+	if admission.IsDiagnostic(ctx) {
+		return
+	}
 	telemetry.RecordEventContext(ctx, telemetry.Event{
 		Kind: telemetry.QuotaSkipEvent, Tool: "smartsearch", Provider: p.searchQuota.provider, Query: query, Detail: reason,
 	})

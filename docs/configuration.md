@@ -334,10 +334,10 @@ cache:
 #   max_open_conns: 1        # 遥测库 SQLite 连接池上限（默认 1，上限 32）
 #   secrets_path: "./data/dashboard-secrets.json" # 私密覆盖文件，不回显 Key
 #   config_path: ""          # 独立配置文件路径；空 = 主配置同目录 dashboard.yaml
-#   admin_password: ""       # 写操作口令（明文）；与 admin_password_sha256 二选一
-#   admin_password_sha256: "" # 写操作口令（SHA-256 十六进制）
+#   admin_password: ""       # 管理操作口令（明文）；与 admin_password_sha256 二选一
+#   admin_password_sha256: "" # 管理操作口令（SHA-256 十六进制）
 #   allowed_networks: []     # 只读放行网段（CIDR/裸 IP）；空 = 仅本机 loopback
-#   write_allowed_networks: [] # 独立写白名单；空/非法 = 仅 loopback，仍需管理员口令
+#   write_allowed_networks: [] # 独立操作白名单；空/非法 = 仅 loopback
 #   quotas:
 #     reset: monthly         # monthly / weekly / daily / none（仅手动重置）
 #     reset_day: 1           # monthly 的每月重置日（1-28）
@@ -558,15 +558,16 @@ log:
 
 > 本文只覆盖安全要点；**完整配置参考**（含 `shortcut` 快捷方式落位、`brand.footer` 关于块、全部键的默认值）见 [dashboard.md](dashboard.md)。
 
-### 访问与写操作模型
+### 访问与操作权限
 
 | 场景 | 规则 |
 |------|------|
 | 读取（页面 + 只读 API） | 默认仅本机 loopback；`dashboard.allowed_networks` 显式放行的网段只读 |
-| 写操作（设置 / 密钥 / 重启 / 清缓存 / 额度重置与修正） | **默认仅 loopback**；显式 `dashboard.write_allowed_networks` 可放行指定来源；所有来源仍须 `X-Admin-Password` 头，已配置用户名时还须匹配 `X-Admin-User` |
-| 管理员口令 | 只能配置在 `dashboard.yaml`（`admin_password` 明文或 `admin_password_sha256` 十六进制），**WebUI 无法读取或修改**；未配置 = 所有写端点禁用（安全的默认） |
+| 免密运行态操作 | 解除单源或全部路由冷却、强刷 Tavily / TinyFish 官方额度、清搜索缓存、清空搜索历史、清理过期或全部合规临时抓取文件、手动重探 Everything、代理连通检查、单源试搜、单 URL 试抓。直接调用免密 POST 只需通过操作来源校验。默认仅 loopback，允许 `dashboard.write_allowed_networks` 中的显式来源。 |
+| 验密的管理操作 | 设置保存与备份恢复、密钥管理、重启、额度重置与修正、查看 Everything 完整索引范围。须通过页面/API 访问边界和操作来源校验，并提供 `X-Admin-Password`。已配置用户名时还需 `X-Admin-User`。 |
+| 管理员口令 | 只能配置在 `dashboard.yaml`（`admin_password` 明文或 `admin_password_sha256` 十六进制），WebUI 无法读取或修改。未配置时，验密操作禁用。 |
 
-- 两份白名单均接受 CIDR 或裸 IP；任一条目非法时，该白名单**整体回退为仅 loopback**（fail-closed）。读白名单 `allowed_networks` 不授予写权限，写白名单 `write_allowed_networks` 不替代页面/API 的读取访问门槛，也不替代管理员口令。
+- 两份白名单均接受 CIDR 或裸 IP，任一条目非法时该白名单整体回退 loopback。实际连接来源决定访问权限。在浏览器内打开页面和执行操作应同时满足两份白名单要求。只在操作白名单中的来源可以直接调用九个免密 POST 端点。免密端点拒绝浏览器跨站请求，无 `Origin` 的原生调用仍检查 `RemoteAddr`。可能消耗供应商额度的诊断须确认后执行。
 - Docker 固定发布到宿主回环，如 `-p 127.0.0.1:8338:8338`。宿主浏览器请求在容器内可能表现为 bridge 网关；须以服务端实际看到的请求来源 IP 为准，`docker inspect` 的网关地址只供核对，不能单独作为已实测的访问来源。需要宿主写入时，只把这个实测地址的 `/32` 同时加入读/写白名单，不放行整个 bridge 子网。
 
 ```yaml
@@ -640,7 +641,7 @@ dashboard:
 | `port` | 8338 | stop/kill/status 无配置时也用此端口 |
 | `mode` | engine | 按模式组合允许源；不可用时仅可使用已启用回退，AnySearch 无 Key 可走匿名档 |
 | `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` / `tinyfish.enabled` / `keenable.enabled` | true（省略） | API 源独立开关；false 保留 Key，约束所有模式；AnySearch 匿名档同受约束 |
-| `dashboard.write_allowed_networks` | [] | 独立写白名单；默认仅 loopback；非法条目整体 fail-closed，仍需管理员口令 |
+| `dashboard.write_allowed_networks` | [] | 运行态和验密操作的独立来源白名单。默认仅 loopback，非法条目使白名单整体回退 loopback。 |
 | `mcp_resources` | true | MCP Resource 观测开关：`search://capabilities` 与 `search://health`，只读、不含密钥、不占工具槽位 |
 | `mcp_stateless` | false | MCP 无状态 HTTP 模式：每个 POST 独立处理、免会话握手，便于水平扩展；GET SSE 返回 405 |
 | `baidu.web_enabled` | false | 百度网页搜索引擎默认禁用（实测被 CAPTCHA 识别），出口 IP 干净时可显式开启 |

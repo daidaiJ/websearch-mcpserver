@@ -126,7 +126,7 @@ func (b *BaiduSearchImpl) search(ctx context.Context, query string) ([]core.Sear
 	if err != nil {
 		return nil, err
 	}
-	res, err := client.DefaultClient.R().SetContext(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
+	res, err := client.Request(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
 	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key

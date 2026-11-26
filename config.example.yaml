@@ -595,6 +595,7 @@ log:
 #   max_open_conns: 1        # 遥测库 SQLite 连接池上限（默认 1，上限 32）
 #   client_projects: {}
 #   secrets_path: "./data/dashboard-secrets.json"
+# 控制中心的免密运行态操作与验密管理操作范围见 dashboard.example.yaml 和 docs/dashboard.md。
 
 # ── Everything 本地文件检索（file_search 工具） ──────────────────────────────
 # 基于 Windows 下 Everything (voidtools) 的 HTTP Server 索引做本地文件快速检索。

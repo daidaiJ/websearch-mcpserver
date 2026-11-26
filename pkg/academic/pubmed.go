@@ -1,14 +1,18 @@
 package academic
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -34,20 +38,34 @@ func (e *pubmedEngine) Name() string                    { return "pubmed" }
 func (e *pubmedEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *pubmedEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *pubmedEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	offset := (page - 1) * 10
 	if offset < 0 {
 		offset = 0
 	}
 
 	// ── esearch: 获取 PMID 列表 ──
-	esearchURL := fmt.Sprintf("%s/esearch.fcgi?db=pubmed&term=%s&retstart=%d&retmax=10&usehistory=y",
+	diagnostic := admission.IsDiagnostic(ctx)
+	esearchURL := fmt.Sprintf("%s/esearch.fcgi?db=pubmed&term=%s&retstart=%d&retmax=10",
 		eutilsAPI, url.QueryEscape(query), offset)
-
-	esearchResp, err := e.client.Get(esearchURL)
+	if !diagnostic {
+		esearchURL += "&usehistory=y"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, esearchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	esearchResp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("pubmed esearch: %w", err)
 	}
 	defer esearchResp.Body.Close()
+	if diagnostic && esearchResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("pubmed esearch HTTP %d", esearchResp.StatusCode)
+	}
 
 	esearchBody, err := io.ReadAll(esearchResp.Body)
 	if err != nil {
@@ -62,11 +80,31 @@ func (e *pubmedEngine) Search(query string, page int, timeRange antirobot.TimeRa
 		return &antirobot.SearchResponse{Engine: "pubmed", Results: []antirobot.Result{}}, nil
 	}
 
+	if diagnostic {
+		results := make([]antirobot.Result, 0, len(pmids))
+		for _, id := range pmids {
+			number, err := strconv.ParseUint(id, 10, 64)
+			if err != nil || number == 0 {
+				continue
+			}
+			pmid := strconv.FormatUint(number, 10)
+			results = append(results, antirobot.Result{
+				Type: antirobot.ResultPaper, Engine: "pubmed",
+				Title: "PMID " + pmid, URL: "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/",
+			})
+		}
+		return &antirobot.SearchResponse{Engine: "pubmed", Results: results}, nil
+	}
+
 	// ── efetch: 获取论文详情 ──
 	efetchURL := fmt.Sprintf("%s/efetch.fcgi?db=pubmed&retmode=xml&id=%s",
 		eutilsAPI, strings.Join(pmids, ","))
 
-	efetchResp, err := e.client.Get(efetchURL)
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, efetchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	efetchResp, err := e.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("pubmed efetch: %w", err)
 	}

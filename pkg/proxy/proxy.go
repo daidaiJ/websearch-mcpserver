@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"websearch/pkg/admission"
 )
 
 // ProxyResolver 代理端点动态解析函数。
@@ -157,7 +159,7 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	resp, err := inner.RoundTrip(req)
-	if err != nil || resp.StatusCode != http.StatusTooManyRequests {
+	if err != nil || resp.StatusCode != http.StatusTooManyRequests || admission.IsDiagnostic(req.Context()) {
 		return resp, err
 	}
 

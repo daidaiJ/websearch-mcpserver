@@ -7,10 +7,14 @@
 #
 # 安全模型：
 #   - 访问：默认仅本机 loopback；allowed_networks 只授予读取，不授权写入。
-#   - 写操作（设置/密钥/重启/清缓存/额度管理）：默认仅本机；
-#     write_allowed_networks 可独立放行指定来源，所有写入仍需管理员口令。
-#   - admin_password 只能在这里手改，WebUI 无法读取或修改它；
-#     未配置口令 = 所有写端点禁用（安全的默认）。
+#   - 操作来源默认仅本机，write_allowed_networks 可独立放行指定来源。
+#   - 免密范围：路由冷却解除、官方额度强刷、清搜索缓存/历史/临时抓取文件、
+#     Everything 重探、代理检查、单源试搜和单 URL 试抓。直接调用只需操作来源许可，
+#     浏览器跨站请求会被拒绝。
+#     可能消耗供应商额度的诊断仍须确认。
+#   - 设置保存/备份恢复、密钥、重启、额度重置/修正、查看 Everything 完整索引范围
+#     须通过读取和操作来源校验，并提供管理员口令。
+#     admin_password 只能在这里手改，WebUI 无法读取或修改。未配置时禁用验密操作。
 
 dashboard:
   enabled: true
@@ -32,7 +36,7 @@ dashboard:
   allowed_networks: []
   write_allowed_networks: []
   # Docker 固定发布 -p 127.0.0.1:8338:8338，按服务端实测请求来源放行网关单地址 /32。
-  # 以下仅示意，不能照抄或扩大至整个 bridge 子网；写入仍须配置管理员口令。
+  # 以下仅示意，不能照抄或扩大至整个 bridge 子网；验密操作还须配置管理员口令。
   # allowed_networks: ["172.17.0.1/32"]
   # write_allowed_networks: ["172.17.0.1/32"]
   # 独立 overlay 显式 [] 可清空主配置中的写白名单。

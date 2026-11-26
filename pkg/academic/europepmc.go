@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -34,6 +36,10 @@ func (e *europePMCEngine) Name() string                    { return "europepmc" 
 func (e *europePMCEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *europePMCEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *europePMCEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	params := url.Values{
 		"query":    {query},
 		"format":   {"json"},
@@ -47,13 +53,13 @@ func (e *europePMCEngine) Search(query string, page int, timeRange antirobot.Tim
 
 	u := europePMCPath + "?" + params.Encode()
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "websearch/1.0")
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("europe pmc request: %w", err)
 	}

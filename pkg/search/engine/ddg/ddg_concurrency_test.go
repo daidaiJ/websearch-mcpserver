@@ -284,3 +284,32 @@ func TestDDGLocalRateLimitIsAttributable(t *testing.T) {
 		t.Fatalf("本端限流应返回空结果, got %+v", resp)
 	}
 }
+
+func TestReleaseRouteCooldownAllowsNextSearch(t *testing.T) {
+	withShortCooldown(t, 30*time.Second)
+	antirobot.SetHealthStore("")
+	t.Cleanup(func() { antirobot.SetHealthStore("") })
+
+	var hits atomic.Int32
+	withDDGTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		if hits.Add(1) == 1 {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		fmt.Fprint(w, okHTML)
+	})
+
+	e := cooldownTestEngine()
+	if _, err := e.Search("before", 1, antirobot.TimeRangeNone); err == nil || hits.Load() != 1 {
+		t.Fatalf("expected the first search to enter cooldown, hits=%d, err=%v", hits.Load(), err)
+	}
+	if _, err := e.Search("blocked", 1, antirobot.TimeRangeNone); err == nil || hits.Load() != 1 {
+		t.Fatalf("expected cooldown to block the next search, hits=%d, err=%v", hits.Load(), err)
+	}
+	if cleared := antirobot.ReleaseRouteCooldown("duckduckgo"); cleared != 1 {
+		t.Fatalf("expected to release one route, got %d", cleared)
+	}
+	if _, err := e.Search("released", 1, antirobot.TimeRangeNone); err != nil || hits.Load() != 2 {
+		t.Fatalf("expected the released search to reach upstream, hits=%d, err=%v", hits.Load(), err)
+	}
+}

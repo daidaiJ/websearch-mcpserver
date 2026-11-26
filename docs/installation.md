@@ -142,18 +142,12 @@ services:
 
 > 控制中心配置也可以放别处：用环境变量 `WEBSEARCH_DASHBOARD_CONFIG` 或 `dashboard.config_path` 指定路径（详见 [dashboard.md](dashboard.md)）。
 
-**控制台在 Docker 下的访问边界**：写操作（设置 / API Key / 重启 / 清缓存 / 额度）要求请求来源是容器内的 **loopback**，而桥接网络 + 端口发布时来源是 bridge 网关（如 `172.17.0.1`）——**默认 compose 部署下控制台只读**：页面、调用记录与指标都能看，设置类操作一律返回 403。
+**控制台在 Docker 下的访问边界**。端口经桥接网络发布时，容器可能把宿主请求识别为 bridge 网关。两份白名单默认都只允许容器内的 loopback。
 
-- 只读：从宿主机浏览器打开控制台，需把 bridge 网段加入放行白名单（默认 bridge 落在 `172.16.0.0/12` 内，自定义网络按实际网段填，尽量收窄）：
-
-  ```yaml
-  # dashboard.yaml
-  dashboard:
-    allowed_networks: ["172.16.0.0/12"]
-  ```
-
-- 要写操作（Linux 主机）：改用 `network_mode: host`，容器与主机共用网络栈，主机浏览器访问 `127.0.0.1:8338` 来源即为 loopback，此时 `ports` 映射会被忽略。
-- 不改网络也行：直接在宿主机改 `config.yaml` / `dashboard.yaml` 后重启容器——写操作只是便利，文件才是配置来源。
+- 保持回环端口映射。需要宿主只读访问时，在 `allowed_networks` 中加入服务端实际看到的宿主来源单地址，例如已实测的 IPv4 `/32`。需要执行操作时，再把同一地址加入 `write_allowed_networks`。
+- 列举的运行态维护和人工诊断免密，跨站浏览器请求仍被拒绝。可能消耗额度的诊断在执行前要求确认。保存或恢复设置、管理密钥、重启及额度重置或修正继续验密。
+- Linux 主机也可以使用 `network_mode: host`。宿主浏览器访问回环时，服务看到的来源为 loopback，`ports` 映射在此模式下被忽略。管理操作仍须管理员口令。
+- 也可直接修改宿主挂载的 `config.yaml` / `dashboard.yaml` 后重启容器。完整范围见 [控制中心安全模型](dashboard.md#安全模型)。
 
 本地构建：
 
@@ -685,7 +679,7 @@ launchctl list | grep websearch
 | 端口被占用 | `status` 查看是否已运行，或 `kill` 后重启 |
 | 缓存结果过旧 | 缓存 6h 自动过期，或删除 `cache.storage_path` 文件重启 |
 | Docker 容器立即退出 | 确认挂载了 `config.yaml`，检查日志输出 |
-| Docker 下控制台设置页 403 | 写操作要求来源为 loopback；桥接网络下控制台只读，见 [Docker](#docker) 小节 |
+| Docker 下控制台设置页 403 | 核对服务端看到的连接来源、两份白名单及管理员口令，见 [Docker](#docker) 小节 |
 | stop 后进程仍在 | 等待最多 10s；若仍在用 `kill` 强制结束 |
 | 搜索无结果或限流 | 检查 `rate_limit` 配置（默认 3/s, 60/min）；Google 等引擎代理不可用时自动跳过 |
 

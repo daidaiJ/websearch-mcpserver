@@ -81,7 +81,8 @@ type dashboardOverview struct {
 	Sources         []SourceView  `json:"sources"`
 	AcademicSources []SourceView  `json:"academic_sources"`
 	// ConfiguredTools 是公开 MCP 工具的固定清单，不依赖是否已经产生调用。
-	ConfiguredTools []MCPToolView `json:"configured_tools"`
+	ConfiguredTools []MCPToolView     `json:"configured_tools"`
+	Diagnostics     diagnosticOptions `json:"diagnostics"`
 	// Brand 是控制台品牌呈现（标题/主题/主色/logo），允许自托管用户自定义。
 	Brand map[string]any `json:"brand"`
 	// Language 是本响应实际使用的语言（Accept-Language 协商结果）。
@@ -105,6 +106,7 @@ func buildDashboardOverview(conf config.Config, observed telemetry.Overview, loc
 		Sources:         web,
 		AcademicSources: academic,
 		ConfiguredTools: mcpToolCatalog(conf, loc),
+		Diagnostics:     diagnosticOptionsFor(conf, slices.Concat(web, academic)),
 		Brand:           brandView(conf),
 		Language:        loc.Code(),
 	}

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
@@ -164,16 +165,24 @@ func (t pdfDownloadTransport) RoundTrip(req *http.Request) (*http.Response, erro
 					Config:    &tls.Config{ServerName: proxyURL.Hostname()},
 				}).DialContext
 			}
-			return transport.RoundTrip(pinned)
+			resp, err := transport.RoundTrip(pinned)
+			if resp != nil {
+				resp.Request = req // Keep the logical origin for redirects and parsing.
+			}
+			return resp, err
 		}
 	}
 	return transport.RoundTrip(req)
 }
 
 func pdfHTTPClient(timeout time.Duration) *http.Client {
+	return publicHTTPClient(timeout, webfetchLazyCfg)
+}
+
+func publicHTTPClient(timeout time.Duration, conf *config.Config) *http.Client {
 	transport := pdfDownloadTransport{}
-	if webfetchLazyCfg != nil {
-		endpoint := nativeFetchProxy(*webfetchLazyCfg)
+	if conf != nil {
+		endpoint := nativeFetchProxy(*conf)
 		if endpoint != "" {
 			transport.proxy = func(*http.Request) (*url.URL, error) {
 				u, err := url.Parse(endpoint)
@@ -182,7 +191,7 @@ func pdfHTTPClient(timeout time.Duration) *http.Client {
 				}
 				return u, nil
 			}
-		} else if webfetchLazyCfg.CleanFetch.UseSystemProxy {
+		} else if conf.CleanFetch.UseSystemProxy {
 			transport.proxy = http.ProxyFromEnvironment
 		}
 	}

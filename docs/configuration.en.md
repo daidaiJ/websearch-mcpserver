@@ -339,9 +339,10 @@ cache:
 #   max_open_conns: 1        # telemetry SQLite pool cap (default 1, hard ceiling 32)
 #   secrets_path: "./data/dashboard-secrets.json" # Private overlay; keys are never returned
 #   config_path: ""          # Overlay file path; empty = dashboard.yaml next to the main config
-#   admin_password: ""       # Write-operation password (plaintext); or use the SHA-256 form
-#   admin_password_sha256: "" # Write-operation password (lowercase hex SHA-256)
+#   admin_password: ""       # Admin password (plaintext); or use the SHA-256 form
+#   admin_password_sha256: "" # Admin password (lowercase hex SHA-256)
 #   allowed_networks: []     # Read-only CIDR/IP allowlist; empty = loopback only
+#   write_allowed_networks: [] # Independent operation allowlist; empty/invalid = loopback only
 #   quotas:
 #     reset: monthly         # monthly / weekly / daily / none (manual reset only)
 #     reset_day: 1           # Day of month for the monthly reset (1-28)
@@ -570,10 +571,11 @@ Academic search filters registered sources using request-level `engines` before 
 | Scenario | Rule |
 |----------|------|
 | Reads (pages + read-only APIs) | Loopback only by default; networks explicitly listed in `dashboard.allowed_networks` get read-only access |
-| Writes (settings / keys / restart / cache clear / quota reset & adjust) | **Loopback only by default**; explicit `dashboard.write_allowed_networks` permits specified sources; every write still requires `X-Admin-Password`, plus matching `X-Admin-User` when a username is configured |
-| Admin password | Configured only in `dashboard.yaml` (`admin_password` plaintext or `admin_password_sha256` hex); **the WebUI can never read or modify it**; unset password = all write endpoints disabled (secure default) |
+| Password-free runtime operations | Release one or all routing cooldowns, refresh official Tavily / TinyFish usage, clear the search cache, clear search history, clean expired or all eligible temporary fetch files, recheck Everything, check proxy connectivity, test one search source, and test one fetch URL. Direct calls to password-free POST endpoints require only the operation source check. Loopback-only by default, with explicit peers allowed by `dashboard.write_allowed_networks`. |
+| Authenticated administration | Save settings, restore backups, manage keys, restart, reset or adjust quota, and view the full Everything index scope. Requests must pass both the page/API access gate and the operation source check. Send the correct `X-Admin-Password` and `X-Admin-User` when configured. |
+| Admin password | Configured only in `dashboard.yaml` (`admin_password` plaintext or `admin_password_sha256` hex). The WebUI cannot read or change it. An unset password disables authenticated operations. |
 
-- Both allowlists accept CIDRs or bare IPs. Any invalid entry **falls that entire allowlist back to loopback-only** (fail-closed). `allowed_networks` does not grant writes; `write_allowed_networks` does not replace the page/API read-access gate or the admin password.
+- Both allowlists accept CIDRs or bare IPs. An invalid entry makes its entire list fall back to loopback. The actual connection peer determines access. Using the console in a browser requires both allowlists. Peers on the operation allowlist alone can directly call the nine password-free POST endpoints. Password-free endpoints reject cross-origin browser requests. Native requests without an `Origin` header still use the `RemoteAddr` check. Diagnostics that may consume provider quota require confirmation.
 - Docker: keep the host publication fixed to loopback, for example `-p 127.0.0.1:8338:8338`. Host-browser connections may appear as a bridge gateway inside the container. Use the request source IP actually observed by the server; the gateway from `docker inspect` is only a cross-check, not proof of the request source. For host writes, put only that observed address as a `/32` in both allowlists, never the whole bridge subnet.
 
 ```yaml
@@ -647,7 +649,7 @@ dashboard:
 | `port` | 8338 | stop/kill/status also use this port when no config |
 | `mode` | engine | Selects permitted sources; only enabled fallbacks can be used, while keyless AnySearch can use its anonymous tier |
 | `baidu.enabled` / `tavily.enabled` / `exa.enabled` / `anysearch.enabled` / `doubao.enabled` / `yuanbao.enabled` / `tinyfish.enabled` / `keenable.enabled` | true (omitted) | Independent API source switches; false keeps keys and applies to every mode, including anonymous AnySearch |
-| `dashboard.write_allowed_networks` | [] | Independent write allowlist; loopback-only by default; invalid entries fail closed; admin password still required |
+| `dashboard.write_allowed_networks` | [] | Independent source allowlist for runtime and authenticated operations. Loopback-only by default. An invalid entry makes the entire list fall back to loopback. |
 | `mcp_resources` | true | MCP Resource observability toggle: `search://capabilities` and `search://health`, read-only, secret-free, no tool slot |
 | `mcp_stateless` | false | Stateless MCP HTTP mode: each POST handled independently, no session handshake, easier horizontal scaling; GET SSE returns 405 |
 | `baidu.web_enabled` | false | Baidu web search engine disabled by default (CAPTCHA-blocked in testing); may be enabled explicitly with clean egress IPs |

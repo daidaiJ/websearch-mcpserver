@@ -177,7 +177,10 @@ docker build -t websearch-mcpserver .
 > 控制中心 = `pkg/dashboard`（后端）+ `pkg/dashboard/web`（前端）+ `pkg/telemetry`（遥测）+ `pkg/quota`（额度），随主分支演进。
 
 1. **前端零第三方依赖，原生二进制内嵌**：页面资源经 `go:embed`（`//go:embed web/*`）打进 exe，无 CDN、无外部请求、无框架。**htmx 评估结论（2026-09-19）：不引入**——当前交互量（筛选/刷新/弹窗/轮询）用原生 JS（`app.js` 单文件 + CSS 变量主题）完全覆盖，htmx 需要 SSR 片段接口配合，改造收益低于依赖与重构成本；若未来页面复杂度明显上升再评估。改前端时保持"零依赖 + go:embed"约束，新增资源放 `pkg/dashboard/web/`。
-2. **写操作安全模型（不可退让）**：所有写端点（设置/密钥/重启/清缓存/额度重置修正）**默认仅 loopback** + `X-Admin-Password` 头，服务端常量时间比较。用户可在 `dashboard.yaml` 配置 `write_allowed_networks` 放行任意 CIDR/IP；空值或任一非法条目均回退 loopback。读白名单及转发头不授予写权限。口令只能配在 `dashboard.yaml`（`admin_password` / `admin_password_sha256`），**永远不出现在设置页白名单和 secrets 覆盖文件**——WebUI 无法读取或修改它。未配置口令 = 写端点整体禁用。
+2. **访问与操作安全模型（不可退让）**：页面和只读 API 由 loopback 与 `allowed_networks` 放行。
+   - 两类操作都按真实连接来源校验，默认仅 loopback，可在 `dashboard.yaml` 用 `write_allowed_networks` 放行 CIDR/IP。空值或任一非法条目均回退 loopback。读白名单和转发头不授予操作权限。
+   - **免密运行态操作仅限**解除单源或全部路由冷却、强刷 Tavily / TinyFish 官方额度、清搜索缓存、清空搜索历史、清理过期或全部合规临时抓取文件、手动重探 Everything、代理连通检查、单源试搜、单 URL 试抓。免密 POST 只要求通过操作来源校验。浏览器跨站请求会被拒绝，无 `Origin` 的原生客户端仍按 `RemoteAddr` 校验。可能消耗供应商额度的试搜和试抓仍会提示并要求确认。试抓可能依次调用多个远端服务。
+   - **其余管理操作**（设置保存与备份恢复、密钥管理、重启、额度重置与修正、查看 Everything 完整索引范围）须通过页面/API 访问边界和操作来源校验，并提供 `X-Admin-Password`，配置用户名时还须 `X-Admin-User`，服务端常量时间比较。口令只能配置在 `dashboard.yaml`（`admin_password` / `admin_password_sha256`），不能从界面读取或修改，也不写入 secrets 覆盖文件。未配置口令时仅禁用需要验密的操作。
 3. **配置分层与回退**：控制中心专属配置（口令/网段/额度/品牌）住独立 `dashboard.yaml`（`config.Load` 的 overlay，`WEBSEARCH_DASHBOARD_CONFIG` 可改路径），按字段覆盖主配置；主 `config.yaml` 零改动即可升级，删文件即回退。新键一律"零值 = 安全默认"，不允许要求老配置迁移脚本。
 4. **隐私出网红线**：遥测只存脱敏元数据（查询哈希/主题/语言/关键词），错误文本服务端正则脱敏后才落库；密钥值任何接口永不回显（服务端不出网，前端掩码不算数）。新增端点时先过一遍"响应体会不会带密钥/原文"。
 5. **品牌可定制**：`dashboard.brand`（title/logo/theme/accent）走 overview/settings 响应注入；主题 = `green/blue/mono` 三预设（CSS 变量块）+ accent 覆盖，本浏览器选择存 localStorage。桌面快捷方式图标跟主题（`cmd/assets/app-{theme}.ico`）；`start`/`open`/`install` 读取 `.lnk` 逐项校验目标、参数、工作目录与图标，主题或图标内容变化时落盘带内容哈希的新 ico 并重建。

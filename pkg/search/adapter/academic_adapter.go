@@ -12,7 +12,9 @@ import (
 	"sync"
 
 	"websearch/pkg/academic"
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
@@ -91,6 +93,31 @@ func NewAcademicAdapter(conf AcademicConfig) *AcademicAdapter {
 
 	searcher := antirobot.NewSearcher(antirobot.StrategyParallel, engines)
 	return &AcademicAdapter{searcher: searcher, engines: engines, unpaywallEmail: conf.UnpaywallEmail, openalexOpts: conf.OpenAlex}
+}
+
+// DiagnosticSearch queries one contextual academic engine directly. This
+// leaves DOI resolution, enrichment, and per-engine retries out of the trial.
+func (a *AcademicAdapter) DiagnosticSearch(ctx context.Context, name, query string) ([]core.SearchResult, error) {
+	for _, engine := range a.engines {
+		if engine.Name() != name {
+			continue
+		}
+		contextual, ok := engine.(antirobot.ContextEngine)
+		if !ok {
+			break
+		}
+		release, err := admission.Acquire(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		res, err := contextual.SearchContext(ctx, query, 1, antirobot.TimeRangeNone)
+		if err != nil {
+			return nil, err
+		}
+		return toSearchResults(res.Results), nil
+	}
+	return nil, errcode.New(errcode.Unknown, i18n.T("search.academic.engines_unavailable", "Engines", []string{name}))
 }
 
 // SearchAcademicRaw 实现 core.AcademicSearcher 接口，返回学术论文搜索结果。

@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 	"websearch/pkg/log"
 )
 
@@ -46,6 +49,10 @@ func (e *semanticScholarEngine) Region() antirobot.NetworkRegion {
 }
 
 func (e *semanticScholarEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *semanticScholarEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	offset := (page - 1) * 10
 	if offset < 0 {
 		offset = 0
@@ -70,7 +77,7 @@ func (e *semanticScholarEngine) Search(query string, page int, timeRange antirob
 	// proxy 层 retryTransport 对 429 已按 Retry-After 自动重试一次，两者叠加后
 	// 单引擎最多 3 次引擎内请求，勿再加大。
 	for attempt := 0; ; attempt++ {
-		req, err := http.NewRequest("GET", u, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +86,7 @@ func (e *semanticScholarEngine) Search(query string, page int, timeRange antirob
 			req.Header.Set("x-api-key", e.apiKey)
 		}
 
-		resp, err := e.client.Do(req)
+		resp, err := webclient.Do(e.client, req)
 		if err != nil {
 			return nil, fmt.Errorf("semantic scholar request: %w", err)
 		}
@@ -96,18 +103,22 @@ func (e *semanticScholarEngine) Search(query string, page int, timeRange antirob
 		if resp.StatusCode != 429 && resp.StatusCode != 503 {
 			return nil, fmt.Errorf("semantic scholar HTTP %d", resp.StatusCode)
 		}
-		if e.apiKey == "" || e.keyDisabled.Load() {
+		if e.apiKey == "" || e.keyDisabled.Load() || admission.IsDiagnostic(ctx) {
 			return nil, fmt.Errorf("semantic scholar HTTP %d", resp.StatusCode)
 		}
 		if attempt == 0 {
-			time.Sleep(ssRetryBackoff + time.Duration(rand.Int63n(int64(time.Second))))
+			if err := antirobot.SleepCtx(ctx, ssRetryBackoff+time.Duration(rand.Int63n(int64(time.Second)))); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		// 第二次仍限流：降级为匿名模式（engine 为进程级长生命周期单例，
 		// 并发下最坏多打一次带 key 请求，无害）
 		e.keyDisabled.Store(true)
 		log.WarnT("log.academic.semantic_scholar_repeated_429_on_api")
-		time.Sleep(ssDegradedWait)
+		if err := antirobot.SleepCtx(ctx, ssDegradedWait); err != nil {
+			return nil, err
+		}
 	}
 }
 

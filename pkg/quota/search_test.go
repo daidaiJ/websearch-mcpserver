@@ -53,6 +53,76 @@ func TestSearchQuotaUsesSelectedOfficialKeyAndReservesBeforeSending(t *testing.T
 	}
 }
 
+func TestTavilyKeyQuotaDoesNotSpendOtherKeysAllowance(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		usage string
+	}{
+		{"with account limit", `{"key":{"usage":0,"limit":1},"account":{"plan_usage":0,"plan_limit":100}}`},
+		{"with key limit only", `{"key":{"usage":0,"limit":1}}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				fmt.Fprint(w, tt.usage)
+			}))
+			t.Cleanup(endpoint.Close)
+			conf := config.Config{Tavily: config.TavilyConfig{SKList: []string{"a", "b"}}}
+			conf.Dashboard.Quotas.EnforceProviders = []string{"tavily"}
+			service := newService(conf, endpoint.URL, endpoint.Client(), openSearchQuotaStore(t))
+			ctx := context.Background()
+
+			primeB, err := service.AdmitSearch(ctx, "tavily", "b")
+			if err != nil {
+				t.Fatal(err)
+			}
+			primeB(false)
+			finishA, err := service.AdmitSearch(ctx, "tavily", "a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			finishB, err := service.AdmitSearch(ctx, "tavily", "b")
+			if err != nil {
+				t.Fatalf("key B should have one search while key A is pending: %v", err)
+			}
+			_, err = service.AdmitSearch(ctx, "tavily", "b")
+			requireSearchSkip(t, err, SkipOfficial)
+			finishB(false)
+			finishA(true)
+			finishB, err = service.AdmitSearch(ctx, "tavily", "b")
+			if err != nil {
+				t.Fatalf("key B should have one search after key A is sent: %v", err)
+			}
+			finishB(true)
+			_, err = service.AdmitSearch(ctx, "tavily", "b")
+			requireSearchSkip(t, err, SkipOfficial)
+		})
+	}
+}
+
+func TestTavilyAccountQuotaReservesOtherKeysWhenAccountIdentityIsUnclear(t *testing.T) {
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"key":{"usage":0,"limit":100},"account":{"plan_usage":0,"plan_limit":1}}`)
+	}))
+	t.Cleanup(endpoint.Close)
+	conf := config.Config{Tavily: config.TavilyConfig{SKList: []string{"a", "b"}}}
+	conf.Dashboard.Quotas.EnforceProviders = []string{"tavily"}
+	service := newService(conf, endpoint.URL, endpoint.Client(), openSearchQuotaStore(t))
+	ctx := context.Background()
+
+	finishA, err := service.AdmitSearch(ctx, "tavily", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.AdmitSearch(ctx, "tavily", "b")
+	requireSearchSkip(t, err, SkipOfficial)
+	finishA(false)
+	finishB, err := service.AdmitSearch(ctx, "tavily", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finishB(true)
+}
+
 func TestSearchQuotaRecoversAtTinyFishUTCMidnightWithoutQueryingFetch(t *testing.T) {
 	var requests atomic.Int32
 	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -129,6 +199,31 @@ func TestSearchQuotaSeedsExistingUsageAndAdjustmentOnce(t *testing.T) {
 	}
 	finish(true)
 	_, err = reopened.AdmitSearch(ctx, "exa", "key")
+	requireSearchSkip(t, err, SkipLocalLimit)
+}
+
+func TestSearchQuotaTracksUsageWhilePreviouslyEnforcedProviderIsDisabled(t *testing.T) {
+	ctx := context.Background()
+	conf := config.Config{Exa: config.ExaConfig{APIKey: "key"}}
+	conf.Dashboard.Quotas = config.QuotasConfig{Limits: map[string]int{"exa": 1}, EnforceProviders: []string{"exa"}}
+	store := openSearchQuotaStore(t)
+	service := New(conf, store)
+	if err := service.ResetProvider("exa"); err != nil {
+		t.Fatal(err)
+	}
+
+	disabled := conf
+	disabled.Dashboard.Quotas.EnforceProviders = nil
+	service = New(disabled, store)
+	for range 2 {
+		finish, err := service.AdmitSearch(ctx, "exa", "key")
+		if err != nil {
+			t.Fatal(err)
+		}
+		finish(true)
+	}
+
+	_, err := New(conf, store).AdmitSearch(ctx, "exa", "key")
 	requireSearchSkip(t, err, SkipLocalLimit)
 }
 

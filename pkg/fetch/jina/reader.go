@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/admission"
+	"websearch/pkg/client"
 	"websearch/pkg/config"
 	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/i18n"
@@ -74,6 +76,10 @@ func NewFromConfig(jinaConf config.JinaConfig, proxyConf config.ProxyConfig) *Re
 }
 
 func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
+	return r.FetchContext(context.Background(), rawURL)
+}
+
+func (r *Reader) FetchContext(ctx context.Context, rawURL string) (*FetchResult, error) {
 	// 验证 URL 格式和协议
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -91,11 +97,15 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 	fetchURL := fmt.Sprintf("%s/%s", r.baseURL, rawURL)
 
 	// 使用带超时的 context
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var resp jinaResponse
-	res, err := r.client.R().
+	upstream := r.client
+	if admission.IsDiagnostic(ctx) {
+		upstream = resty.NewWithClient(client.DiagnosticHTTPClient(r.client.Client())).SetResponseBodyLimit(4 << 20)
+	}
+	res, err := upstream.R().
 		SetContext(ctx).
 		SetHeader("Accept", "application/json").
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", r.apiKey)).
@@ -108,7 +118,9 @@ func (r *Reader) Fetch(rawURL string) (*FetchResult, error) {
 		SetResult(&resp).
 		Get(fetchURL)
 	if err != nil {
-		log.ErrorT("log.fetch.jina.jina_reader_request_failed", "error", err.Error())
+		if !admission.IsDiagnostic(ctx) {
+			log.ErrorT("log.fetch.jina.jina_reader_request_failed", "error", err.Error())
+		}
 		return nil, fmt.Errorf("%s: %w", i18n.T("fetch.jina.request_failed"), err)
 	}
 	if res.StatusCode() != 200 {

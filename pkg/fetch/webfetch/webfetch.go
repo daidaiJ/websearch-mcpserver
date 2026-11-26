@@ -93,23 +93,10 @@ const (
 	fileCleanupCheckInterval = 1 * time.Minute
 )
 
-// savedFileRe 匹配本程序落盘的文件名（buildFilename：日期_时间_标题slug_6位hash.md，
-// slug 由上游 slugify 生成、不含下划线）。清理只删除匹配该模式的过期文件，
-// 用户放在输出目录里的其它文件（任意 .md/.txt 等）一律不动。
-var savedFileRe = regexp.MustCompile(`^\d{8}_\d{6}_.+_[0-9a-f]{6}\.md$`)
-
 // NewFromConfig 根据配置创建 Fetcher。proxyURL 为代理地址，空字符串表示不使用代理（仍回退到环境变量）。
 func NewFromConfig(cfg config.CleanFetchConfig, pdfCfg config.PDFParserConfig, proxyURL string) (*Fetcher, error) {
-	outputDir := cfg.FileOutputDir
-	if outputDir == "" {
-		// 默认 exe 同目录的 fetchdata 子目录（配置未指定时）
-		outputDir = filepath.Join(config.ExeBaseDir(), "fetchdata")
-	}
-
-	fileTTL := time.Duration(cfg.FileTTL) * time.Hour
-	if fileTTL <= 0 {
-		fileTTL = 24 * time.Hour
-	}
+	outputDir := cfg.OutputDir()
+	fileTTL := cfg.OutputTTL()
 
 	maxInlineLines := cfg.MaxInlineLines
 	if maxInlineLines <= 0 {
@@ -721,7 +708,7 @@ func (f *Fetcher) startFileJanitor(ttl time.Duration) {
 }
 
 // CleanExpiredFiles 立即清理输出目录中超过 TTL 的落盘文件，返回清理数量。
-// 只删除文件名匹配本程序保存模式（savedFileRe）的 .md 文件；
+// 只删除文件名匹配本程序保存模式的 .md 文件；
 // 目录、子目录、其它名字或扩展名的文件一律不动，防止误伤。
 func (f *Fetcher) CleanExpiredFiles() (int, error) {
 	entries, err := os.ReadDir(f.outputDir)
@@ -734,7 +721,7 @@ func (f *Fetcher) CleanExpiredFiles() (int, error) {
 	deadline := time.Now().Add(-f.fileTTL)
 	count := 0
 	for _, entry := range entries {
-		if entry.IsDir() || !savedFileRe.MatchString(entry.Name()) {
+		if !entry.Type().IsRegular() || !fetchcontent.IsWebOutputName(entry.Name()) {
 			continue
 		}
 		info, err := entry.Info()

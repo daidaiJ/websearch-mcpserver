@@ -19,6 +19,7 @@ import (
 
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
+	"websearch/pkg/history"
 	"websearch/pkg/i18n"
 	"websearch/pkg/quota"
 	"websearch/pkg/telemetry"
@@ -41,6 +42,12 @@ type Handler struct {
 	quota            *quota.Service
 	cache            *cache.Cache
 	restart          func()
+	history          *history.Store
+}
+
+// SetSearchHistory attaches the active history store before Register.
+func (h *Handler) SetSearchHistory(store *history.Store) {
+	h.history = store
 }
 
 func New(conf config.Config, store *telemetry.Store, searchCache *cache.Cache, restart func()) *Handler {
@@ -62,18 +69,26 @@ func IsLoopbackRemote(r *http.Request) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// authorizeWrite 是所有写端点的统一闸门：
-//  1. 默认仅 loopback；write_allowed_networks 可放行用户指定的 CIDR/IP，
-//     读白名单不会授予写权限，不信任 X-Forwarded-* / X-Real-IP；
-//  2. 管理员口令 —— 必须在 dashboard.yaml 显式配置 dashboard.admin_password
-//     （或 admin_password_sha256），经 X-Admin-Password 头随请求提交。
-//     该口令不在设置页白名单、不写入 secrets 覆盖文件，即 WebUI 无法读取
-//     或修改它；未配置口令时写端点整体禁用（安全的默认）。
-//  3. 管理员用户名 —— 可选：仅当 dashboard.admin_username 显式配置时才要求
-//     X-Admin-User 头匹配（常量时间比较）；未配置 = 与口令-only 行为一致，
-//     不做任何用户名检查。
+// authorizeLocalAction permits listed maintenance operations from the actual
+// loopback/write-allowlisted peer and rejects cross-origin browser mutations.
+func (h *Handler) authorizeLocalAction(w http.ResponseWriter, r *http.Request) bool {
+	if allowed, reason := h.localActionAccess(r); !allowed {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": reason})
+		return false
+	}
+	if err := localActionOrigins.Check(r); err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.write.cross_origin")})
+		return false
+	}
+	return true
+}
+
+var localActionOrigins = http.NewCrossOriginProtection()
+
+// authorizeWrite additionally authenticates configuration, credentials, service
+// restart, private scope and quota ledger requests.
 func (h *Handler) authorizeWrite(w http.ResponseWriter, r *http.Request) bool {
-	if allowed, reason := h.writeAccess(r); !allowed {
+	if allowed, reason := h.localActionAccess(r); !allowed {
 		writeJSON(w, http.StatusForbidden, map[string]any{"error": reason})
 		return false
 	}
@@ -98,6 +113,23 @@ func (h *Handler) authorizeWrite(w http.ResponseWriter, r *http.Request) bool {
 // 协商出的 Localizer（浏览器语言能被满足就用浏览器语言，否则回退 config.language），
 // handler 内用 i18n.FromContext(r.Context()) 取用。
 func (h *Handler) Register(mux *http.ServeMux, guard func(http.HandlerFunc) http.HandlerFunc) {
+	h.registerRoutes(mux, guard, guard)
+}
+
+// RegisterWithReadGuard applies the server's read network policy to the dashboard.
+// The listed runtime POSTs use their own write-network policy instead.
+func (h *Handler) RegisterWithReadGuard(mux *http.ServeMux, guard func(http.HandlerFunc) http.HandlerFunc) {
+	h.registerRoutes(mux, guard, func(next http.HandlerFunc) http.HandlerFunc { return next })
+}
+
+func (h *Handler) registerRoutes(mux *http.ServeMux, guard, runtimeGuard func(http.HandlerFunc) http.HandlerFunc) {
+	localAction := func(next http.HandlerFunc) http.HandlerFunc {
+		return runtimeGuard(i18n.HTTP(func(w http.ResponseWriter, r *http.Request) {
+			if h.authorizeLocalAction(w, r) {
+				next(w, r)
+			}
+		}))
+	}
 	assets, _ := fs.Sub(webFiles, "web")
 	fileServer := http.FileServer(http.FS(assets))
 	// 内嵌资源禁止启发式缓存：二进制升级后浏览器必须立即取到新资源
@@ -117,6 +149,8 @@ func (h *Handler) Register(mux *http.ServeMux, guard func(http.HandlerFunc) http
 	mux.HandleFunc("/__admin/api/calls", guard(i18n.HTTP(h.calls)))
 	mux.HandleFunc("/__admin/api/request-events", guard(i18n.HTTP(h.requestEvents)))
 	mux.HandleFunc("/__admin/api/quotas", guard(i18n.HTTP(h.quotas)))
+	mux.HandleFunc("/__admin/api/quotas/refresh", localAction(h.refreshQuotas))
+	mux.HandleFunc("/__admin/api/sources/cooldowns/release", localAction(h.releaseCooldown))
 	mux.HandleFunc("/__admin/api/quotas/reset", guard(i18n.HTTP(h.quotaReset)))
 	mux.HandleFunc("/__admin/api/quotas/adjust", guard(i18n.HTTP(h.quotaAdjust)))
 	mux.HandleFunc("/__admin/api/brand/logo", guard(i18n.HTTP(h.brandLogo)))
@@ -124,10 +158,14 @@ func (h *Handler) Register(mux *http.ServeMux, guard func(http.HandlerFunc) http
 	mux.HandleFunc("/__admin/api/providers", guard(i18n.HTTP(h.providers)))
 	mux.HandleFunc("/__admin/api/metrics", guard(i18n.HTTP(h.metricsHandler)))
 	mux.HandleFunc("/__admin/api/everything/scope", guard(i18n.HTTP(h.everythingScope)))
+	h.registerDiagnostics(mux, localAction)
 	mux.HandleFunc("/__admin/api/settings", guard(i18n.HTTP(h.settings)))
 	mux.HandleFunc("/__admin/api/secrets", guard(i18n.HTTP(h.secrets)))
 	mux.HandleFunc("/__admin/api/restart", guard(i18n.HTTP(h.restartService)))
-	mux.HandleFunc("/__admin/api/cache/clear", guard(i18n.HTTP(h.clearCache)))
+	mux.HandleFunc("/__admin/api/cache/clear", localAction(h.clearCache))
+	mux.HandleFunc("/__admin/api/history/clear", localAction(h.clearHistory))
+	mux.HandleFunc("/__admin/api/fetchdata/clear", localAction(h.clearTemporaryOutputs))
+	mux.HandleFunc("/__admin/api/storage", guard(i18n.HTTP(h.storageStats)))
 }
 
 // indexLangAnchor 是 index.html 中 <html lang> 的取值锚点（见 serveIndex）。
@@ -400,7 +438,11 @@ func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			out["credential_error"] = loc.T("dashboard.credentials.file_unavailable")
 		}
-		allowed, reason := h.writeAccess(r)
+		allowed, reason := h.localActionAccess(r)
+		out["local_action_allowed"] = allowed
+		if allowed && !h.conf.Dashboard.AdminPasswordConfigured() {
+			allowed, reason = false, loc.T("dashboard.write.no_password")
+		}
 		if failure, failed := out["config_error"].(string); failed {
 			allowed, reason = false, failure
 		}
@@ -436,10 +478,7 @@ func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) writeAccess(r *http.Request) (bool, string) {
-	if !h.conf.Dashboard.AdminPasswordConfigured() {
-		return false, i18n.TCtx(r.Context(), "dashboard.write.no_password")
-	}
+func (h *Handler) localActionAccess(r *http.Request) (bool, string) {
 	if IsLoopbackRemote(r) {
 		return true, ""
 	}
@@ -486,9 +525,6 @@ func (h *Handler) restartService(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) clearCache(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
-		return
-	}
-	if !h.authorizeWrite(w, r) {
 		return
 	}
 	var req struct {

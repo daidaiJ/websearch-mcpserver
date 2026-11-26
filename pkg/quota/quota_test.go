@@ -3,6 +3,7 @@ package quota
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -381,5 +382,34 @@ func TestProviderKeyCountCoversNewProviders(t *testing.T) {
 	}
 	if n := providerKeyCount(conf, "unknown"); n != 0 {
 		t.Fatalf("unknown provider key count = %d, want 0", n)
+	}
+}
+
+func TestRefreshBypassesTTLAndDebouncesOfficialQueries(t *testing.T) {
+	var hits atomic.Int32
+	svc := testService(t, tavilyConf("test-key"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, "%s%d%s", `{"key":{"usage":`, hits.Add(1), `,"limit":10}}`)
+	}), nil)
+	now := time.Now()
+	svc.now = func() time.Time { return now }
+
+	if used := f64(itemOf(svc.Get(t.Context()), "tavily").Used); used != "1" {
+		t.Fatalf("initial used = %s, want 1", used)
+	}
+	items, refreshed := svc.Refresh(t.Context())
+	if used := f64(itemOf(items, "tavily").Used); !refreshed || used != "2" {
+		t.Fatalf("refresh used = %s, refreshed = %v, want 2 and true", used, refreshed)
+	}
+	items, refreshed = svc.Refresh(t.Context())
+	if used := f64(itemOf(items, "tavily").Used); refreshed || used != "2" || hits.Load() != 2 {
+		t.Fatalf("coalesced used = %s, refreshed = %v, hits = %d", used, refreshed, hits.Load())
+	}
+	if used := f64(itemOf(svc.Get(t.Context()), "tavily").Used); used != "2" {
+		t.Fatalf("regular read used = %s, want refreshed value 2", used)
+	}
+	now = now.Add(time.Minute)
+	items, refreshed = svc.Refresh(t.Context())
+	if used := f64(itemOf(items, "tavily").Used); !refreshed || used != "3" {
+		t.Fatalf("refresh after debounce used = %s, refreshed = %v, want 3 and true", used, refreshed)
 	}
 }

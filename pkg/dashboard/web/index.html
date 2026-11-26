@@ -105,12 +105,14 @@
           <button type="button" id="save-sources" class="primary-btn" disabled data-i18n="web.action.save_and_restart"><span data-icon="save" aria-hidden="true"></span>保存并重启</button>
         </div>
         <p id="source-write-note" class="panel-note"></p>
+        <p data-local-action-note class="panel-note"></p>
         <p id="source-apply-note" class="panel-note apply-inline" role="status"></p>
         <div class="status-key">
           <span data-i18n="web.status.healthy"><i class="dot healthy"></i>正常</span>
           <span data-i18n="web.status.degraded"><i class="dot degraded"></i>不稳定</span>
           <span data-i18n="web.status.failing"><i class="dot down"></i>异常</span>
           <span data-i18n="web.status.unknown"><i class="dot unknown"></i>未知</span>
+          <button type="button" data-cooldown-release="all" data-i18n="web.runtime_action.release_all" disabled hidden>解除全部冷却</button>
         </div>
 
         <article class="panel">
@@ -125,7 +127,7 @@
         </article>
 
         <article class="panel">
-          <div class="panel-head"><div><h2 data-i18n="web.page.api_providers">API 供应商</h2></div><span class="muted" id="sources-api-counts">—</span></div>
+          <div class="panel-head"><div><h2 data-i18n="web.page.api_providers">API 供应商</h2></div><div class="row-actions"><span class="muted" id="sources-api-counts">—</span><button type="button" data-quota-refresh data-i18n="web.runtime_action.refresh_quota" disabled>刷新官方额度</button></div></div>
           <p class="panel-note" id="sources-api-note"></p>
           <div class="table-scroll">
             <table class="data-table source-quota-table">
@@ -167,6 +169,28 @@
         <p id="tools-apply-note" class="panel-note apply-inline" role="status"></p>
         <div id="tools-directory" class="section-directory"></div>
         <div id="tool-controls" class="capability-grid"></div>
+        <article class="panel" id="diagnostics-panel">
+          <div class="panel-head"><h2 data-i18n="web.diagnostics.title">人工诊断</h2></div>
+          <p class="panel-note" data-i18n="web.diagnostics.note">点击后执行，结果不计入日常调用和健康统计。</p>
+          <p data-local-action-note class="panel-note"></p>
+          <div class="form-grid">
+            <div>
+              <button id="diagnostic-proxy" type="button" class="scope-button" data-i18n="web.diagnostics.probe_proxy" disabled>检查代理连接</button>
+              <p id="diagnostic-proxy-result" class="panel-note" role="status"></p>
+            </div>
+            <form id="diagnostic-search">
+              <label><span data-i18n="web.diagnostics.search_source">搜索源</span><select name="source" required></select></label>
+              <label><span data-i18n="web.diagnostics.query">测试词</span><input name="query" maxlength="300" required></label>
+              <button type="submit" class="scope-button" data-i18n="web.diagnostics.run_search" disabled>试搜一次</button>
+              <p class="panel-note" role="status"></p>
+            </form>
+            <form id="diagnostic-fetch">
+              <label><span data-i18n="web.diagnostics.url">公开网页 URL</span><input name="url" type="url" maxlength="2048" required></label>
+              <button type="submit" class="scope-button" data-i18n="web.diagnostics.run_fetch" disabled>试抓一个网页</button>
+              <p class="panel-note" role="status"></p>
+            </form>
+          </div>
+        </article>
         <template id="academic-network-template">
               <details class="settings-advanced settings-wide">
                 <summary data-i18n="web.page.advanced_connection_and_academic_settings">高级连接与学术设置</summary>
@@ -294,7 +318,6 @@
             <h3 class="sub-head" data-i18n="web.page.advanced_actions">高级操作</h3>
             <div class="advanced-actions">
               <div><b data-i18n="web.action.restart_service">重启服务</b><small data-i18n="web.note.applies_saved_settings_or_new_keys">应用已保存的设置或新密钥</small><button id="restart-service" type="button" class="icon-btn" title="确认并重启服务" aria-label="确认并重启服务" data-icon="refresh-cw" data-i18n-title="web.action.confirm_and_restart_the_service" data-i18n-aria-label="web.action.confirm_and_restart_the_service"></button></div>
-              <div><b data-i18n="web.action.clear_search_cache">清空搜索缓存</b><small data-i18n="web.note.monitoring_history_is_kept">监控历史不会被删除</small><button id="clear-cache" type="button" class="danger icon-btn" title="确认并清空搜索缓存" aria-label="确认并清空搜索缓存" data-icon="rotate-ccw" data-i18n-title="web.action.confirm_and_clear_the_search_cache" data-i18n-aria-label="web.action.confirm_and_clear_the_search_cache"></button></div>
             </div>
             <div class="apply-status" aria-live="polite">
               <h3 class="sub-head" data-i18n="web.page.config_recovery">配置恢复</h3>
@@ -308,13 +331,40 @@
           </article>
           </div>
           <div class="settings-column">
+          <article class="panel" id="settings-storage">
+            <div class="panel-head">
+              <h2 data-i18n="web.storage.heading">本地存储</h2>
+              <button type="button" id="refresh-storage" class="icon-btn" data-icon="refresh-cw" aria-label="刷新存储统计" data-i18n-aria-label="web.storage.refresh" data-i18n-title="web.storage.refresh"></button>
+            </div>
+            <p class="panel-note" id="storage-note" role="status"></p>
+            <p data-local-action-note class="panel-note"></p>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr>
+                  <th data-i18n="web.storage.data">数据</th>
+                  <th class="num" data-i18n="web.storage.count">条目</th>
+                  <th class="num" data-i18n="web.storage.size">大小</th>
+                  <th data-i18n="web.label.actions">操作</th>
+                </tr></thead>
+                <tbody>
+                  <tr><th scope="row" data-i18n="web.storage.cache">搜索缓存</th><td class="num" id="storage-cache-count">—</td><td class="num" id="storage-cache-bytes">—</td><td><button type="button" class="danger" id="clear-cache" aria-label="确认并清空搜索缓存" data-i18n-aria-label="web.action.confirm_and_clear_the_search_cache" data-i18n="web.storage.clear" disabled>清空</button></td></tr>
+                  <tr><th scope="row" data-i18n="web.storage.history">搜索历史</th><td class="num" id="storage-history-count">—</td><td class="num" id="storage-history-bytes">—</td><td><button type="button" class="danger" id="clear-history" aria-label="清空搜索历史" data-i18n-aria-label="web.storage.clear_history" data-i18n="web.storage.clear" disabled>清空</button></td></tr>
+                  <tr><th scope="row" data-i18n="web.storage.fetchdata">临时输出</th><td class="num"><span id="storage-fetchdata-count">—</span><br><small id="storage-fetchdata-expired" class="muted"></small></td><td class="num" id="storage-fetchdata-bytes">—</td><td><div class="draft-actions">
+                    <button type="button" id="clear-expired-fetchdata" data-i18n="web.storage.clear_expired" disabled>清理过期</button>
+                    <button type="button" class="danger" id="clear-fetchdata" data-i18n="web.storage.clear_all" disabled>清理全部</button>
+                  </div></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="panel-note" data-i18n="web.storage.scope">临时输出仅计入本服务命名的顶层 Markdown 文件，最近 1 分钟内写入的文件会保留。数据库清空后会保留磁盘空间供后续写入复用。</p>
+          </article>
           <article class="panel" id="settings-credentials">
             <div class="panel-head"><div><h2 data-i18n="web.page.api_key_status">API Key 状态</h2></div><span class="muted" data-i18n="web.note.original_values_are_never_echoed">永不回显原值</span></div>
             <p id="secret-note" class="panel-note" role="status"></p>
             <div id="secret-list" class="secret-list"></div>
           </article>
           <article class="panel" id="settings-quotas">
-            <div class="panel-head"><div><h2 data-i18n="web.page.quota_management">额度管理</h2></div></div>
+            <div class="panel-head"><div><h2 data-i18n="web.page.quota_management">额度管理</h2></div><button type="button" data-quota-refresh data-i18n="web.runtime_action.refresh_quota" disabled>刷新官方额度</button></div>
             <div id="quota-controls"></div>
             <p class="panel-note" id="quota-manage-note"></p>
             <div class="table-scroll">

@@ -582,6 +582,22 @@ type CleanFetchConfig struct {
 	MaxRetries     int    `mapstructure:"max_retries"`       // 最大重试次数（默认 1；上游对 429/502/503 与传输错误重试）
 }
 
+// OutputDir resolves the directory shared by cleanfetch files and smartsearch dumps.
+func (c CleanFetchConfig) OutputDir() string {
+	if c.FileOutputDir != "" {
+		return c.FileOutputDir
+	}
+	return filepath.Join(ExeBaseDir(), "fetchdata")
+}
+
+// OutputTTL resolves the retention time for regular cleanfetch output files.
+func (c CleanFetchConfig) OutputTTL() time.Duration {
+	if ttl := time.Duration(c.FileTTL) * time.Hour; ttl > 0 {
+		return ttl
+	}
+	return 24 * time.Hour
+}
+
 // AutoProxyEnabled 报告原生 cleanfetch 是否自动跟随全局代理，默认开启。
 func (c CleanFetchConfig) AutoProxyEnabled() bool {
 	return c.AutoProxy == nil || *c.AutoProxy
@@ -898,7 +914,7 @@ type DashboardConfig struct {
 	// AllowedNetworks 显式放行可「查看」控制台的来源网段（CIDR，如 192.168.1.0/24）。
 	// 空列表 = 仅本机 loopback 可访问；不授予写权限。
 	AllowedNetworks []string `mapstructure:"allowed_networks"`
-	// WriteAllowedNetworks grants password-protected writes from explicit IPs/CIDRs.
+	// WriteAllowedNetworks permits runtime actions and authenticated administrative writes from explicit IPs/CIDRs.
 	// Empty lists or invalid entries fail closed to loopback-only writes.
 	WriteAllowedNetworks []string `mapstructure:"write_allowed_networks"`
 	// Shortcut 控制快捷方式落位行为（Windows）：desktop（默认，桌面）/
@@ -906,8 +922,8 @@ type DashboardConfig struct {
 	// 删除已知位置）。start/open/install 都会按当前配置与 exe 路径校正
 	// .lnk；uninstall 始终清理全部已知位置。
 	Shortcut string `mapstructure:"shortcut"`
-	// AdminPassword 是写操作（设置/密钥/重启/清缓存/额度管理）的口令，必须在
-	// config.yaml 显式配置。出于安全考虑它不在控制台设置页的白名单里，也不能
+	// AdminPassword 是写操作（设置/密钥/重启/备份恢复/额度账本）的口令，必须在
+	// dashboard.yaml 显式配置。出于安全考虑它不在控制台设置页的白名单里，也不能
 	// 写入 secrets 覆盖文件——即 WebUI 永远无法读取或修改它。二选一：明文或
 	// SHA-256 十六进制（admin_password_sha256 = sha256(明文) 的小写十六进制）。
 	// AdminUsername 是可选的管理员用户名：仅当显式配置时，写请求才必须携带
@@ -1113,7 +1129,7 @@ func (d DashboardConfig) OverlayOverridesSetting(path string) bool {
 }
 
 // AdminPasswordConfigured 报告管理员口令是否已显式配置。
-// 未配置时所有写端点直接禁用（返回 403），这是安全的默认。
+// 未配置时需管理员身份的端点禁用（返回 403），这是安全的默认。
 func (d DashboardConfig) AdminPasswordConfigured() bool {
 	return d.AdminPassword != "" || d.AdminPasswordSHA256 != ""
 }

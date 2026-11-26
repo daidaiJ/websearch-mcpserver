@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
@@ -45,7 +47,7 @@ type arxivEngine struct {
 
 	mu            sync.Mutex
 	cooldown      time.Duration
-	cooldownUntil time.Time
+	routeCooldown antirobot.RouteCooldown
 
 	// 状态代次：每次进入冷却递增。请求开始时取快照，成功路径只在
 	// 「本次请求期间没有并发请求进入冷却」时清冷却（B2）。
@@ -124,7 +126,7 @@ func (e *arxivEngine) SearchContext(ctx context.Context, query string, page int,
 	}
 
 	// 429/503：预算内等待重试一次，注定超时才放弃进冷却
-	if status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable {
+	if !admission.IsDiagnostic(ctx) && (status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable) {
 		return e.handleRateLimited(ctx, start, retryAfter, query, page, timeRange, gen)
 	}
 
@@ -132,7 +134,7 @@ func (e *arxivEngine) SearchContext(ctx context.Context, query string, page int,
 		return nil, fmt.Errorf("arxiv HTTP %d", status)
 	}
 
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && !admission.IsDiagnostic(ctx) {
 		e.recordSuccess(gen)
 	}
 	return e.parse(body)
@@ -167,7 +169,7 @@ func (e *arxivEngine) fetch(ctx context.Context, query string, page int, timeRan
 		return nil, 0, 0, fmt.Errorf("arxiv request: %w", err)
 	}
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("arxiv request: %w", err)
 	}
@@ -237,20 +239,16 @@ func (e *arxivEngine) enterCooldown(retryAfter time.Duration) {
 	cd := antirobot.NextCooldownDuration(e.cooldown, arxivRateCooldown, arxivCooldownMax, retryAfter)
 	until := time.Now().Add(cd)
 	e.cooldown = cd
-	e.cooldownUntil = until
 	e.stateEpoch++
+	e.routeCooldown = antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_429_503"), until, cd)
 	e.mu.Unlock()
-	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_429_503"), until, cd)
 }
 
 // cooldownRemaining 返回冷却剩余时长，不在冷却期返回 0。
 func (e *arxivEngine) cooldownRemaining() time.Duration {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if d := time.Until(e.cooldownUntil); d > 0 {
-		return d
-	}
-	return 0
+	return e.routeCooldown.Remaining()
 }
 
 // recordSuccess 搜索成功后重置冷却：只在「本次请求期间没有并发请求进入冷却」时
@@ -260,27 +258,16 @@ func (e *arxivEngine) recordSuccess(since uint64) {
 	clear := e.stateEpoch == since
 	if clear {
 		e.cooldown = 0
-		e.cooldownUntil = time.Time{}
-	}
-	e.mu.Unlock()
-	if clear {
+		e.routeCooldown = antirobot.RouteCooldown{}
 		antirobot.ClearCooldown(e.Name())
 	}
+	e.mu.Unlock()
 }
 
 // adoptPersistedCooldown 收养上一次进程落盘的冷却：未过期则继续避让至截止时间，
 // 已过期仅续接翻倍档位（升级记忆跨进程存活）。实现与 ddg 引擎一致（P1-5）。
 func (e *arxivEngine) adoptPersistedCooldown() {
-	until, cd, ok := antirobot.AdoptCooldown(e.Name())
-	if !ok {
-		return
-	}
-	e.mu.Lock()
-	e.cooldown = cd
-	if !until.IsZero() {
-		e.cooldownUntil = until
-	}
-	e.mu.Unlock()
+	e.routeCooldown, e.cooldown = antirobot.AdoptRouteCooldown(e.Name())
 }
 
 // ── XML 解析 ──

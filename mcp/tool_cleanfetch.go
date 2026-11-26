@@ -13,6 +13,7 @@ import (
 	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
+	"websearch/pkg/errcode"
 	fetchcontent "websearch/pkg/fetch"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/sitefetch"
@@ -300,7 +301,9 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		log.InfoT("log.mcp.remote_fetch_failed_degrading_to_local", "err", err)
+		if !admission.IsDiagnostic(ctx) {
+			log.InfoT("log.mcp.remote_fetch_failed_degrading_to_local", "err", err)
+		}
 		text, localErr := local(ctx, rawURL)
 		if localErr == nil {
 			return text, nil
@@ -314,7 +317,13 @@ func fetchPageWithFallback(ctx context.Context, rawURL, mode string, remote []mc
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		log.InfoT("log.mcp.local_fetch_failed_trying_the_remote", "localErr", localErr)
+		if admission.IsDiagnostic(ctx) {
+			if errcode.CodeOf(localErr) == errcode.Blocked {
+				return "", localErr
+			}
+		} else {
+			log.InfoT("log.mcp.local_fetch_failed_trying_the_remote", "localErr", localErr)
+		}
 		text, remoteErr := tryRemote()
 		if remoteErr == nil {
 			return text, nil

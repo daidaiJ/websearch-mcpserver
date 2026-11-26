@@ -99,6 +99,8 @@ func main() {
 
 #### Option 2: Embed in Existing HTTP Server
 
+The embedded handler uses the same quota ledger as the standalone HTTP server. Run one WebSearch MCP instance per process. After the host stops accepting requests and drains in-flight requests, call `srv.Close()` to release the server resources.
+
 ```go
 package main
 
@@ -138,7 +140,10 @@ func main() {
 
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
-    httpSrv.Shutdown(ctx)
+    // If shutdown times out, the host handles any remaining requests.
+    if err := httpSrv.Shutdown(ctx); err == nil {
+        _ = srv.Close()
+    }
 }
 ```
 

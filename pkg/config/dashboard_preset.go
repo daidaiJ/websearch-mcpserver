@@ -27,10 +27,10 @@ dashboard:
   # 快捷方式落位（Windows）：desktop（桌面，默认）/ start（开始菜单，开始屏幕
   # 可搜索并手动固定）/ both / off（不创建）。完整配置项见 docs/dashboard.md。
   shortcut: desktop
-  # 本机管理口令：写操作（设置 / API Key / 重启 / 清缓存 / 额度管理）需要它，
+  # 本机管理口令：管理操作（设置 / API Key / 重启 / 恢复备份 / 修改额度账本）需要它，
   # 仅限本机使用；如需更换请手改本文件后重启（WebUI 无法修改口令）。
   admin_password: %q
-  # 可选管理员用户名：配置后写请求还需携带匹配的 X-Admin-User；
+  # 可选管理员用户名：配置后上述管理请求还需携带匹配的 X-Admin-User；
   # 不配置 = 只验证口令（与上游行为一致）。同样 WebUI 无法读取或修改。
   # admin_username: "admin"
   storage_path: "./data/dashboard.db"
@@ -67,7 +67,7 @@ func EnsureDashboardFile(dir string) (bool, string, error) {
 	}
 	password := randomPassword()
 	if password == "" {
-		// 随机源不可用的极端场景：宁可留空（写操作保持禁用）也不写死默认口令
+		// 随机源不可用的极端场景：宁可留空（需验密的管理操作保持禁用）也不写死默认口令
 		password = ""
 	}
 	content := fmt.Sprintf(dashboardPresetTemplate, password)

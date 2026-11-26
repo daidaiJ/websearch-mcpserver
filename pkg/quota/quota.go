@@ -35,7 +35,8 @@ const (
 	tinyfishSearchDailyLimit = 12000
 	tinyfishFetchDailyLimit  = 1000
 	// cacheTTL 保证控制中心不会高频访问官方端点。
-	cacheTTL = 5 * time.Minute
+	cacheTTL        = 5 * time.Minute
+	refreshInterval = 10 * time.Second
 	// requestTimeout 是单次额度查询的整体超时。
 	requestTimeout = 12 * time.Second
 	// providerTavily / providerTinyfish 是被查询的供应商名。
@@ -99,10 +100,11 @@ type Service struct {
 	tinyfishSearchURL string
 	tinyfishFetchURL  string
 
-	mu       sync.Mutex
-	cached   []Item
-	cachedAt time.Time
-	routes   map[string]*searchGuard
+	mu          sync.Mutex
+	cached      []Item
+	cachedAt    time.Time
+	routes      map[string]*searchGuard
+	lastRefresh time.Time
 }
 
 // New 使用 Tavily 官方端点与默认超时构造 Service；store 为 nil 时只返回
@@ -127,8 +129,13 @@ func newService(conf config.Config, endpoint string, client *http.Client, store 
 	}
 	routes := make(map[string]*searchGuard)
 	for _, provider := range config.QuotaSearchProviders() {
-		if conf.Dashboard.Quotas.Enforces(provider) {
-			routes[provider] = &searchGuard{snapshots: make(map[string]searchSnapshot)}
+		enforce := conf.Dashboard.Quotas.Enforces(provider)
+		if enforce {
+			routes[provider] = &searchGuard{enforce: true, snapshots: make(map[string]searchSnapshot)}
+		} else if store != nil && providerKeyConfigured(conf, provider) {
+			if present, err := store.HasSearchQuota(provider); err == nil && present {
+				routes[provider] = &searchGuard{initialized: true}
+			}
 		}
 	}
 	return &Service{conf: conf, store: store, client: client, endpoint: endpoint, now: time.Now,
@@ -143,16 +150,36 @@ func (s *Service) Get(ctx context.Context) []Item {
 	if s.cached != nil && s.clock().Sub(s.cachedAt) < cacheTTL {
 		return append([]Item(nil), s.cached...)
 	}
-	items := s.collect(ctx)
-	s.cached = items
-	s.cachedAt = s.clock()
+	items := s.collect(ctx, true)
+	if ctx.Err() == nil {
+		s.cached = items
+		s.cachedAt = s.clock()
+	}
 	return append([]Item(nil), items...)
+}
+
+// Refresh bypasses the regular cache without modifying local quota state.
+func (s *Service) Refresh(ctx context.Context) (items []Item, refreshed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ctx.Err() != nil || s.clock().Sub(s.lastRefresh) < refreshInterval {
+		return append([]Item{}, s.cached...), false
+	}
+
+	items = s.collect(ctx, false)
+	s.lastRefresh = s.clock()
+	if ctx.Err() != nil {
+		return append([]Item{}, s.cached...), false
+	}
+	s.cached = items
+	s.cachedAt = s.lastRefresh
+	return append([]Item(nil), items...), true
 }
 
 // collect 汇总官方与本地两条来源。没有遥测 store 时保持旧行为：只返回
 // 官方条目（含查询失败状态）。有遥测时，官方数字可用则官方优先（本地周期
 // 不参与计算），官方失败则回退本地用量。
-func (s *Service) collect(ctx context.Context) []Item {
+func (s *Service) collect(ctx context.Context, updateLedger bool) []Item {
 	now := s.clock()
 	// 两个官方端点并行查询：各自 12s 超时，串行最坏 24s 会拖慢控制中心面板。
 	var (
@@ -171,7 +198,7 @@ func (s *Service) collect(ctx context.Context) []Item {
 	if s.store != nil {
 		if names, err := s.store.QuotaProviders(); err == nil {
 			for _, name := range names {
-				if item, ok := s.localItem(name, now); ok {
+				if item, ok := s.localItem(name, now, updateLedger); ok {
 					byName[name] = item
 				}
 			}
@@ -179,14 +206,14 @@ func (s *Service) collect(ctx context.Context) []Item {
 		// 配置里显式给过上限、但遥测还没见过的供应商也要出现（显示 0 用量）。
 		for name := range s.routes {
 			if _, ok := byName[name]; !ok {
-				if item, ok := s.localItem(name, now); ok {
+				if item, ok := s.localItem(name, now, updateLedger); ok {
 					byName[name] = item
 				}
 			}
 		}
 		for name := range s.conf.Dashboard.Quotas.Limits {
 			if _, ok := byName[name]; !ok {
-				if item, ok := s.localItem(name, now); ok {
+				if item, ok := s.localItem(name, now, updateLedger); ok {
 					byName[name] = item
 				}
 			}
@@ -221,7 +248,7 @@ func (s *Service) collect(ctx context.Context) []Item {
 // 不在 limits 白名单里的免费引擎不生成条目（避免给免费引擎编造上限）。
 // 上限口径为「单 Key 积分」：配置了多把 Key 时自动乘以 Key 数，与 apipool
 // 的实际消耗容量（Key 数累加）对齐，用户无需手工换算。
-func (s *Service) localItem(name string, now time.Time) (Item, bool) {
+func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item, bool) {
 	if name == "" {
 		return Item{}, false
 	}
@@ -258,7 +285,7 @@ func (s *Service) localItem(name string, now time.Time) (Item, bool) {
 	// 策略为 none 时不自动推进，只认手动重置。
 	if start := s.conf.Dashboard.Quotas.PeriodStart(now); !start.IsZero() {
 		if periodStart < start.Unix() {
-			if err := s.store.SetQuotaState(name, start.Unix(), 0); err == nil {
+			if !updateLedger || s.store.SetQuotaState(name, start.Unix(), 0) == nil {
 				periodStart, adjust = start.Unix(), 0
 			}
 		}
@@ -350,7 +377,7 @@ func (s *Service) ResetProvider(provider string) error {
 	if s.store == nil {
 		return fmt.Errorf("遥测未启用，无法重置本地用量")
 	}
-	if s.SearchEnforced(provider) {
+	if s.TracksSearch(provider) {
 		route := s.routes[provider]
 		route.mu.Lock()
 		err := s.store.SetSearchQuotaUsed(provider, s.clock().UnixNano(), 0)
@@ -361,7 +388,9 @@ func (s *Service) ResetProvider(provider string) error {
 		if err != nil {
 			return err
 		}
-		return s.invalidate()
+		if s.SearchEnforced(provider) {
+			return s.invalidate()
+		}
 	}
 	if err := s.store.SetQuotaState(provider, s.clock().Unix()+1, 0); err != nil {
 		return err
@@ -376,7 +405,7 @@ func (s *Service) SetProviderUsed(provider string, used int64) error {
 		return fmt.Errorf("遥测未启用，无法修正本地用量")
 	}
 	now := s.clock()
-	if s.SearchEnforced(provider) {
+	if s.TracksSearch(provider) {
 		route := s.routes[provider]
 		route.mu.Lock()
 		window, err := s.store.SearchQuotaPeriodStart(provider, s.searchWindow(now))
@@ -387,7 +416,9 @@ func (s *Service) SetProviderUsed(provider string, used int64) error {
 		if err != nil {
 			return err
 		}
-		return s.invalidate()
+		if s.SearchEnforced(provider) {
+			return s.invalidate()
+		}
 	}
 	periodStart, _, err := s.store.QuotaState(provider)
 	if err != nil {
@@ -410,7 +441,7 @@ func (s *Service) SetProviderUsed(provider string, used int64) error {
 
 func (s *Service) invalidate() error {
 	s.mu.Lock()
-	s.cached = nil
+	s.cachedAt = time.Time{}
 	s.mu.Unlock()
 	return nil
 }

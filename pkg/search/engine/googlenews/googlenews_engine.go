@@ -15,7 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 	"websearch/pkg/log"
 	"websearch/pkg/proxy"
 )
@@ -139,7 +141,7 @@ func (e *gnewsEngine) SearchContext(ctx context.Context, query string, page int,
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "application/rss+xml, application/xml, text/xml, */*")
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +155,9 @@ func (e *gnewsEngine) SearchContext(ctx context.Context, query string, page int,
 	}
 
 	results := e.parseRSS(body)
-	e.resolvePublisherURLs(results)
+	if !admission.IsDiagnostic(ctx) {
+		e.resolvePublisherURLs(results)
+	}
 	return &antirobot.SearchResponse{Engine: "googlenews", Results: results}, nil
 }
 

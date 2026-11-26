@@ -224,6 +224,29 @@ func withinCall(occurredAt string, started time.Time) bool {
 	return !parsed.Before(started.Add(-2 * time.Second))
 }
 
+// CloseRuntimeResources releases the MCP components after HTTP requests have drained.
+func CloseRuntimeResources() error {
+	webfetchMu.Lock()
+	fetcher := webfetchInst
+	webfetchInst, webfetchLazyCfg = nil, nil
+	webfetchMu.Unlock()
+
+	var err error
+	if fetcher != nil {
+		err = fetcher.Close()
+	}
+	if cacheInst != nil {
+		err = errors.Join(err, cacheInst.Close())
+		cacheInst = nil
+		cacheNamespace = ""
+	}
+	if historyInst != nil {
+		historyInst.Close()
+		historyInst = nil
+	}
+	return err
+}
+
 func GetCache() *cache.Cache {
 	return cacheInst
 }

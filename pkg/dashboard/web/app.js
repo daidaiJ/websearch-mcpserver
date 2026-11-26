@@ -103,10 +103,11 @@ const SECRET_ACTIONS = {
 const SECRET_API = '/__admin/api/secrets';
 
 const state = {
-  overview: null, overviewError: null, overviewStale: false,
-  quotas: null, quotaError: null,
+  overview: null, overviewError: null, overviewStale: false, overviewRequest: 0,
+  quotas: null, quotaError: null, quotaRequest: 0, runtimeAction: '',
   clients: { rows: null, error: null, tab: null, dimension: 'application', application: '', days: 7, windowDays: 7, loading: false, request: 0 },
   settings: null, settingsError: null, settingsDirty: false, settingsLoaded: false,
+  storage: { data: null, error: null, clearing: false, request: 0 },
   draft: {}, draftBefore: {}, invalidDraft: {}, openSources: new Set(), draftRevision: '', saving: false, applying: false, applyResult: null, adminPass: '', adminUser: '',
   events: { rows: null, error: null, loading: false, exporting: false, expanded: new Set(), details: new Map() },
   filters: { status: '', errorKind: '', tool: '', provider: '', application: '', project: '', cacheHit: '' },
@@ -214,8 +215,10 @@ async function fetchJSON(path, options = {}) {
 /* ---------- loaders (each panel fails on its own) ---------- */
 
 async function loadOverview() {
+  const request = ++state.overviewRequest;
   try {
     const data = await fetchJSON('/__admin/api/overview');
+    if (request !== state.overviewRequest) return;
     state.overview = data;
     // The source catalog is the schema this page is built around; older
     // payloads are shown as-is but flagged so they are never read as current.
@@ -223,6 +226,7 @@ async function loadOverview() {
     state.overviewError = null;
     if (data && data.brand) applyBrand(data.brand);
   } catch (e) {
+    if (request !== state.overviewRequest) return;
     state.overviewError = e.message;
   }
   renderSystem();
@@ -231,6 +235,7 @@ async function loadOverview() {
   renderCallTrend();
   renderMCPTools();
   renderCapabilityStates();
+  renderDiagnosticControls();
   renderWebSources();
   renderSourcePages();
   renderUsageSourceOptions();
@@ -257,13 +262,21 @@ async function loadClients() {
 }
 
 async function loadQuotas() {
+  if (state.runtimeAction === 'quota') return;
+  const request = ++state.quotaRequest;
   try {
     const data = await fetchJSON('/__admin/api/quotas');
+    if (request !== state.quotaRequest) return;
     state.quotas = Array.isArray(data) ? data : [];
     state.quotaError = null;
   } catch (e) {
+    if (request !== state.quotaRequest) return;
     state.quotaError = e.message;
   }
+  renderQuotas();
+}
+
+function renderQuotas() {
   renderWebSources();
   renderSourcePages();
   renderQuotaManage();
@@ -719,7 +732,7 @@ function mountConfigControls() {
     '<button type="button" data-jump-section="capability-' + id + '">' + esc(t(label)) + '</button>').join('');
   $('#tool-controls').innerHTML = TOOL_CONFIGS.map(([id, label, description, common, advanced]) => {
     const scope = id === 'file_search'
-      ? '<button id="everything-scope-button" type="button" class="scope-button" aria-expanded="false" aria-controls="everything-scope">' + esc(t('web.config.show_scope')) + '</button><div id="everything-scope" aria-live="polite"></div>'
+      ? '<button id="everything-scope-button" type="button" class="scope-button" aria-expanded="false" aria-controls="everything-scope">' + esc(t('web.config.show_scope')) + '</button><button id="diagnostic-everything" type="button" class="scope-button" disabled>' + esc(t('web.diagnostics.reprobe_everything')) + '</button><p id="diagnostic-everything-result" class="panel-note" role="status"></p><div id="everything-scope" aria-live="polite"></div>'
       : '';
     return '<article id="capability-' + id + '" class="panel capability"><div class="panel-head"><h2>' +
       esc(t(label)) + '</h2><span class="muted capability-state" data-tool-state="' + id + '"></span></div><p class="panel-note">' +
@@ -871,7 +884,9 @@ function renderCapabilityStates() {
     const model = id === 'llm' && llm?.enabled ? llm.model_id : '';
     const fetch = id === 'cleanfetch' && typeof tool?.fetch_enabled === 'boolean'
       ? t('web.note.saved_content_reads_available_url_fetching') + (tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')) : '';
-    el.textContent = [enabled, registration, model, scope, fetch].filter(Boolean).join(' · ');
+    const connectivity = file?.connectivity === 'available' ? t('web.diagnostics.connectivity_available') :
+      file?.connectivity === 'unavailable' ? t('web.diagnostics.connectivity_unavailable') : '';
+    el.textContent = [enabled, registration, model, scope, fetch, connectivity].filter(Boolean).join(' · ');
   });
 }
 
@@ -903,6 +918,103 @@ async function toggleEverythingScope() {
   }
 }
 
+
+function renderDiagnosticControls() {
+  const options = state.overview?.diagnostics;
+  const search = $('#diagnostic-search');
+  const select = search?.elements?.namedItem('source');
+  if (!select) return;
+  const selected = select.value;
+  const sources = options?.sources || [];
+  select.replaceChildren(...sources.map(({ id, name }) => new Option(name, id)));
+  if (sources.some(({ id }) => id === selected)) select.value = selected;
+  const file = state.overview?.configured_tools?.find(tool => tool.name === 'file_search');
+  const fetch = state.overview?.configured_tools?.find(tool => tool.name === 'cleanfetch');
+  for (const [selector, enabled] of [
+    ['#diagnostic-proxy', true], ['#diagnostic-everything', file?.enabled],
+    ['#diagnostic-search button', sources.length], ['#diagnostic-fetch button', fetch?.fetch_enabled],
+  ]) {
+    const button = $(selector);
+    if (button) button.disabled = !enabled || !localActionAvailable() || Boolean(button.dataset.running);
+  }
+}
+
+function diagnosticResultText(result) {
+  const message = [result.ok ? t('web.status.success') : t('web.status.failure'), fmtMS(result.elapsed_ms)];
+  if (result.endpoint) message.push(result.endpoint);
+  const kinds = {
+    unconfigured: t('web.diagnostics.unconfigured'),
+    invalid_endpoint: t('web.diagnostics.invalid_endpoint'),
+    blocked: t('web.diagnostics.blocked'),
+    challenge: t('web.diagnostics.challenge'),
+  };
+  if (result.error_kind) message.push(result.error_detail || kinds[result.error_kind] || errorKindLabel(result.error_kind));
+  if (typeof result.result_count === 'number') message.push(t('web.diagnostics.result_count', { count: fmtInt(result.result_count) }));
+  if (result.titles?.length) message.push(result.titles.join(' / '));
+  if (result.fetch) {
+    const { node, attempts, body_status, characters, remote_redirects } = result.fetch;
+    if (node) message.push(t('web.diagnostics.fetch_node', { node: displayName(node) }));
+    if (attempts?.length > 1) message.push(attempts.map(displayName).join(' → '));
+    message.push(body_status === 'available'
+      ? t('web.diagnostics.fetch_chars', { count: fmtInt(characters) }) : t('web.diagnostics.no_body'));
+    if (remote_redirects) message.push(t('web.diagnostics.remote_redirects'));
+  }
+  return message.join(' · ');
+}
+
+async function runDiagnostic(kind, button, view, payload = {}) {
+  if (!localActionAvailable() || button.disabled) return;
+  button.dataset.running = 'true';
+  button.disabled = true;
+  view.textContent = '';
+  try {
+    const result = await localActionPost('/__admin/api/diagnostics/' + kind, payload);
+    setNote(view, diagnosticResultText(result), result.ok ? 'ok' : 'bad');
+    for (const { title, url } of result.links || []) {
+      if (!/^https:\/\/pubmed\.ncbi\.nlm\.nih\.gov\/[1-9][0-9]*\/$/.test(url)) continue;
+      const link = document.createElement('a');
+      link.textContent = title;
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      view.append(' · ', link);
+    }
+    if (kind === 'everything') await loadOverview();
+  } catch (e) {
+    setNote(view, e.message, 'bad');
+  } finally {
+    delete button.dataset.running;
+    renderDiagnosticControls();
+  }
+}
+
+function wireDiagnostics() {
+  for (const kind of ['proxy', 'everything']) {
+    const button = $('#diagnostic-' + kind);
+    button?.addEventListener('click', () => runDiagnostic(kind, button, $('#diagnostic-' + kind + '-result')));
+  }
+  const search = $('#diagnostic-search');
+  search?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const { source, query } = Object.fromEntries(new FormData(search));
+    const chosen = state.overview?.diagnostics?.sources?.find(item => item.id === source);
+    if (!chosen) return;
+    const button = search.querySelector('button');
+    if (button.disabled) return;
+    if (chosen.confirm && !(await confirmDialog(t('web.diagnostics.run_search'), t('web.diagnostics.confirm_search', { source: chosen.name })))) return;
+    await runDiagnostic('search', button, search.querySelector('[role=status]'), { source, query, confirm: Boolean(chosen.confirm) });
+  });
+  const fetch = $('#diagnostic-fetch');
+  fetch?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const { url } = Object.fromEntries(new FormData(fetch));
+    const services = state.overview?.diagnostics?.fetch_services || [];
+    const button = fetch.querySelector('button');
+    if (button.disabled) return;
+    if (services.length && !(await confirmDialog(t('web.diagnostics.run_fetch'), t('web.diagnostics.confirm_fetch', { sources: services.map(displayName).join(', ') })))) return;
+    await runDiagnostic('fetch', button, fetch.querySelector('[role=status]'), { url, confirm: services.length > 0 });
+  });
+}
 
 /* ---------- sources ---------- */
 
@@ -941,7 +1053,7 @@ function sourceRowHtml(s, detailed) {
   const cells = [
     `<td class="src-name"><b>${esc(name)}</b>${detailed ? sourceDrawerButton(s, name) : ''}${s.participation ? `<small class="source-participation">${esc(s.participation)}</small>` : ''}${s.condition ? `<small class="source-condition">${esc(s.condition)}</small>` : ''}</td>`,
     `<td${heading('web.label.enabled')}>${sourceControl(s)}</td>`,
-    `<td${heading('web.label.historical_health')}><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}${cooldownBadge(s.actual_cooldown)}</td>`,
+    `<td${heading('web.label.historical_health')}><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}${cooldownBadge(s.actual_cooldown, detailed, name)}</td>`,
     `<td${heading('web.label.last_20')}>${healthStrip(s)}</td>`,
     `<td class="num"${heading('web.label.attempts_today')}>${today ? fmtInt(today.requests) : '<span class="dim">—</span>'}</td>`,
     `<td class="num"${heading('web.label.success_rate')}>${successRate === null ? '<span class="dim">—</span>' : esc(Math.round(successRate * 100) + '%')}</td>`,
@@ -985,12 +1097,15 @@ function cooldownLabel(seconds) {
   return t('web.label.cooldown_countdown', { count: fmtInt(seconds) });
 }
 
-function cooldownBadge(cooldown) {
+function cooldownBadge(cooldown, detailed, name) {
   if (!cooldown) return '';
   const seconds = cooldownSeconds(cooldown.until);
   if (!(seconds > 0)) return '';
   const title = [errorKindLabel(cooldown.kind), fmtAt(cooldown.until)].filter(Boolean).join(' · ');
-  return `<span class="kind-chip route-cooldown" data-route-cooldown-until="${esc(cooldown.until)}" title="${esc(title)}">${esc(cooldownLabel(seconds))}</span>`;
+  const badge = `<span class="kind-chip route-cooldown" data-route-cooldown-until="${esc(cooldown.until)}" title="${esc(title)}">${esc(cooldownLabel(seconds))}</span>`;
+  if (!detailed) return badge;
+  const label = esc(t('web.runtime_action.release_source', { Name: name }));
+  return `<span class="route-cooldown-control">${badge} <button type="button" class="icon-btn" data-cooldown-release="${esc(cooldown.engine)}" data-cooldown-name="${esc(name)}" title="${label}" aria-label="${label}" disabled>${icon('rotate-ccw')}</button></span>`;
 }
 
 function updateRoutingCooldowns() {
@@ -999,8 +1114,58 @@ function updateRoutingCooldowns() {
   $$('[data-route-cooldown-until]', page).forEach(badge => {
     const seconds = cooldownSeconds(badge.dataset.routeCooldownUntil);
     if (seconds > 0) badge.textContent = cooldownLabel(seconds);
-    else badge.remove();
+    else (badge.closest?.('.route-cooldown-control') || badge).remove();
   });
+  renderRuntimeActionButtons();
+}
+
+function renderRuntimeActionButtons() {
+  const disabled = !localActionAvailable() || Boolean(state.runtimeAction);
+  $$('[data-cooldown-release], [data-quota-refresh]').forEach(button => { button.disabled = disabled; });
+  const all = $('[data-cooldown-release="all"]');
+  if (all) all.hidden = ![...(webSources() || []), ...(academicSources() || [])]
+    .some(source => source.actual_cooldown && cooldownSeconds(source.actual_cooldown.until) > 0);
+}
+
+async function releaseRoutingCooldown(engine, name) {
+  if (!localActionAvailable() || state.runtimeAction) return;
+  state.runtimeAction = 'cooldown';
+  renderRuntimeActionButtons();
+  try {
+    const title = engine === 'all' ? t('web.runtime_action.release_all') : t('web.runtime_action.release_source', { Name: name });
+    if (!(await confirmDialog(title, t('web.runtime_action.release_confirm')))) return;
+    const result = await localActionPost('/__admin/api/sources/cooldowns/release', { engine, confirm: true });
+    await loadOverview();
+    toast(t('web.runtime_action.released', { Count: fmtInt(result.cleared) }));
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.runtimeAction = '';
+    renderRuntimeActionButtons();
+  }
+}
+
+async function refreshOfficialQuotas() {
+  if (!localActionAvailable() || state.runtimeAction) return;
+  state.runtimeAction = 'quota';
+  renderRuntimeActionButtons();
+  try {
+    if (!(await confirmDialog(t('web.runtime_action.refresh_quota'), t('web.runtime_action.quota_confirm')))) return;
+    state.quotaRequest++;
+    const result = await localActionPost('/__admin/api/quotas/refresh', { confirm: true });
+    state.quotas = result.items;
+    state.quotaError = null;
+    renderQuotas();
+    const failed = result.items.some(item => item.status === 'query_failed' || item.official_query_failed || item.details?.fetch_error);
+    toast(t(result.refreshed
+      ? failed ? 'web.runtime_action.quota_partial' : 'web.runtime_action.quota_refreshed'
+      : 'web.runtime_action.quota_debounced'), failed);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.runtimeAction = '';
+    renderRuntimeActionButtons();
+  }
 }
 
 function suspendBadge(s) {
@@ -1021,6 +1186,14 @@ function draftValue(key) {
 
 function writeAllowed() {
   return Boolean(!state.settingsError && state.settings && !state.settings.config_error && state.settings.revision && state.settings.write_access && state.settings.write_access.allowed && adminConfigured());
+}
+
+function localActionAllowed() {
+  return !state.settingsError && state.settings?.local_action_allowed === true;
+}
+
+function localActionAvailable() {
+  return localActionAllowed() && !state.applying && !state.saving;
 }
 
 function sourceControl(s) {
@@ -1080,6 +1253,7 @@ function renderSourcePages(force = false) {
   });
   renderConfigInputs();
   renderDraftState();
+  renderRuntimeActionButtons();
 }
 
 /* ---------- effective config summary ---------- */
@@ -1545,8 +1719,13 @@ function writeReason() {
 }
 
 function renderWriteAccess() {
+  renderRuntimeActionButtons();
+  renderDiagnosticControls();
+  const localReason = localActionReason();
+  $$('[data-local-action-note]').forEach(note => setNote(note, localReason, localReason ? 'warn' : ''));
   ['#source-write-note', '#settings-write-note', '#tools-write-note'].forEach(sel => setNote($(sel), writeAllowed() ? '' : writeReason(), writeAllowed() ? '' : 'warn'));
-  ['#restart-service', '#clear-cache', '#retry-apply', '#restore-backup', '#everything-scope-button'].forEach(sel => { const el = $(sel); if (el) el.disabled = !writeAllowed() || state.applying || state.saving; });
+  ['#restart-service', '#retry-apply', '#restore-backup', '#everything-scope-button'].forEach(sel => { const el = $(sel); if (el) el.disabled = !writeAllowed() || state.applying || state.saving; });
+  renderStorage();
   $$('[data-quota-reset], [data-quota-adjust]').forEach(el => { el.disabled = !writeAllowed() || state.applying || state.saving || Boolean(state.quotaError); });
   renderConfigInputs();
   renderOrderedFields();
@@ -1562,6 +1741,73 @@ function renderWriteAccess() {
     $('#restore-backup').disabled = !writeAllowed() || state.applying || state.saving || !select.value;
   }
   renderDraftState();
+}
+
+async function loadStorage() {
+  const request = ++state.storage.request;
+  try {
+    const data = await fetchJSON('/__admin/api/storage', { signal: AbortSignal.timeout(5000) });
+    if (request !== state.storage.request) return;
+    state.storage.data = data;
+    state.storage.error = null;
+  } catch (e) {
+    if (request !== state.storage.request) return;
+    state.storage.error = e.message;
+  }
+  renderStorage();
+}
+
+function storageSize(bytes) {
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let unit = 0;
+  while (bytes >= 1024 && unit < units.length - 1) {
+    bytes /= 1024;
+    unit++;
+  }
+  return new Intl.NumberFormat(I18N_LANG, { maximumFractionDigits: unit ? 1 : 0 }).format(bytes) + ' ' + units[unit];
+}
+
+function renderStorage() {
+  const note = $('#storage-note');
+  if (!note) return;
+  const { data, error, clearing } = state.storage;
+  const problem = error || data?.cache?.error || data?.history?.error || data?.fetchdata?.error;
+  setNote(note, problem || (!data ? t('web.note.loading_2') : ''), problem ? 'bad' : '');
+  for (const kind of ['cache', 'history', 'fetchdata']) {
+    const entry = data?.[kind];
+    const available = !error && entry?.enabled && !entry.error;
+    setText('#storage-' + kind + '-count', available ? fmtInt(entry.count) : entry && !entry.enabled ? t('web.storage.disabled') : '—');
+    setText('#storage-' + kind + '-bytes', available ? storageSize(entry.bytes) : '—');
+  }
+  setText('#storage-fetchdata-expired', !error && data?.fetchdata && !data.fetchdata.error ?
+    t('web.storage.expired_count', { Count: fmtInt(data.fetchdata.expired) }) : '');
+  const canClear = localActionAvailable() && !error && !clearing;
+  const controls = [
+    ['#clear-cache', data?.cache, 'count'],
+    ['#clear-history', data?.history, 'count'],
+    ['#clear-expired-fetchdata', data?.fetchdata, 'expired'],
+    ['#clear-fetchdata', data?.fetchdata, 'clearable'],
+  ];
+  for (const [selector, entry, field] of controls) {
+    const button = $(selector);
+    if (button) button.disabled = !canClear || !entry?.enabled || !!entry.error || !entry[field];
+  }
+}
+
+async function clearStorage(button, endpoint, title, message, payload = {}) {
+  if (!localActionAvailable() || button.disabled || state.storage.clearing) return;
+  state.storage.clearing = true;
+  renderStorage();
+  try {
+    if (!(await confirmDialog(title, message))) return;
+    const res = await localActionPost(endpoint, { confirm: true, ...payload });
+    toast(t('web.storage.cleared', { Count: fmtInt(res.cleared) }));
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.storage.clearing = false;
+    await loadStorage();
+  }
 }
 
 async function confirmDialog(title, copy, diff) {
@@ -1594,8 +1840,20 @@ async function postJSON(path, payload, headers) {
   });
 }
 
+function localActionReason() {
+  if (localActionAllowed()) return '';
+  if (state.settingsError) return t('web.runtime_action.permission_unavailable');
+  if (!state.settings) return t('web.runtime_action.permission_loading');
+  return t('web.runtime_action.source_not_allowed');
+}
+
+async function localActionPost(path, payload) {
+  if (!localActionAvailable()) throw new Error(localActionReason() || t('web.note.applying_configuration'));
+  return postJSON(path, payload);
+}
+
 /* ---------- 管理员口令（写操作统一闸门） ---------- */
-// 服务端约束：写端点限 loopback 或独立写白名单 + X-Admin-Password 头；
+// 配置、凭证和账本等敏感操作限 loopback 或独立写白名单 + X-Admin-Password 头；
 // 口令只能配置在 dashboard.yaml，控制台永远读不到也改不了它。
 
 function adminConfigured() {
@@ -1976,7 +2234,7 @@ function quotaUsageHtml(q, showReset) {
   const source = `<span class="muted" title="${esc(local ? '' : q.source)}">${esc(local ? t('web.quota.local') : t('web.quota.official'))}</span>`;
   const unit = q.unit === 'credits' ? t('web.quota.credits') : t('web.quota.calls');
   const details = q.details || {};
-  const amount = quotaMetric(!local && q.provider === 'tinyfish' ? t('web.quota.search') : '', q.used, q.limit, q.remaining, unit);
+  const amount = quotaMetric(!local && q.provider === 'tinyfish' ? t('web.quota.tinyfish_search_reference') : '', q.used, q.limit, q.remaining, unit);
   let breakdown = '';
   if (!local && q.provider === 'tinyfish') {
     breakdown = num(details.fetch_used) !== null && details.fetch_limit > 0
@@ -2217,6 +2475,7 @@ function nav(page, push) {
     else el.removeAttribute('aria-current');
   });
   if (page !== 'tools' && $('#everything-scope-button')?.getAttribute('aria-expanded') === 'true') toggleEverythingScope();
+  if (page === 'settings') loadStorage();
   $('#page-title').textContent = PAGES[page];
   if (push !== false && location.hash !== '#' + page) history.pushState(null, '', '#' + page);
   // 隐藏页的表格尺寸为 0，切页后重新判定溢出并挂粘性滚动条
@@ -2235,6 +2494,7 @@ function wire() {
   $('#save-sources').addEventListener('click', saveSettings);
   $('#save-tools').addEventListener('click', saveSettings);
   $('#everything-scope-button').addEventListener('click', toggleEverythingScope);
+  wireDiagnostics();
   $('#undo-settings').addEventListener('click', discardDraft);
   $('#undo-sources').addEventListener('click', discardDraft);
   $('#undo-tools').addEventListener('click', discardDraft);
@@ -2295,21 +2555,24 @@ function wire() {
       toast(e.message, true);
     }
   });
-  $('#clear-cache').addEventListener('click', async () => {
-    if (!(await confirmDialog(t('web.action.clear_search_cache'), t('web.dialog.this_cannot_be_undone_but_monitoring_history_is_not_deleted')))) return;
-    try {
-      const res = await securePost('/__admin/api/cache/clear', { confirm: true });
-      toast(`${t('web.msg.cleared')} ` + fmtInt(res.cleared) + ` ${t('web.note.cached')}`);
-    } catch (e) {
-      toast(e.message, true);
-    }
-  });
+  $('#refresh-storage').addEventListener('click', loadStorage);
+  $('#clear-cache').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/cache/clear',
+    t('web.action.clear_search_cache'), t('web.dialog.this_cannot_be_undone_but_monitoring_history_is_not_deleted')));
+  $('#clear-history').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/history/clear',
+    t('web.storage.clear_history'), t('web.storage.history_confirm')));
+  $('#clear-expired-fetchdata').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/fetchdata/clear',
+    t('web.storage.clear_expired'), t('web.storage.expired_confirm'), { scope: 'expired' }));
+  $('#clear-fetchdata').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/fetchdata/clear',
+    t('web.storage.clear_all'), t('web.storage.all_confirm'), { scope: 'all' }));
   document.addEventListener('input', markDirty);
   document.addEventListener('change', e => {
     const { orderKey } = e.target.dataset;
     if (orderKey && e.target.type === 'checkbox') changeOrderedConfig(orderKey, e.target.value, e.target.checked, 0);
   });
   document.addEventListener('click', e => {
+    const release = e.target.closest('[data-cooldown-release]');
+    if (release) releaseRoutingCooldown(release.dataset.cooldownRelease, release.dataset.cooldownName);
+    if (e.target.closest('[data-quota-refresh]')) refreshOfficialQuotas();
     const jump = e.target.closest('[data-jump-section]');
     if (jump) {
       const target = document.getElementById(jump.dataset.jumpSection);

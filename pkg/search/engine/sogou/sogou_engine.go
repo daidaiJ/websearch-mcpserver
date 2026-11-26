@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -93,7 +94,7 @@ func (e *sogouEngine) SearchContext(ctx context.Context, query string, page int,
 	}
 	e.setHeaders(req)
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		if ctx.Err() == nil {
 			e.recordFail()

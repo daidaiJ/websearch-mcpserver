@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -10,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -62,6 +65,10 @@ func (e *googleScholarEngine) Name() string                    { return "google_
 func (e *googleScholarEngine) Region() antirobot.NetworkRegion { return antirobot.RegionInternational }
 
 func (e *googleScholarEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *googleScholarEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	start := (page - 1) * 10
 	if start < 0 {
 		start = 0
@@ -86,7 +93,7 @@ func (e *googleScholarEngine) Search(query string, page int, timeRange antirobot
 	// 单引擎最多 3 次上游请求——可接受，勿再加大次数。
 	for attempt := 0; ; attempt++ {
 		scholarURL := fmt.Sprintf(scholarURLFormat, e.domain, params.Encode())
-		req, err := http.NewRequest("GET", scholarURL, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", scholarURL, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +102,7 @@ func (e *googleScholarEngine) Search(query string, page int, timeRange antirobot
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
-		resp, err := e.client.Do(req)
+		resp, err := webclient.Do(e.client, req)
 		if err != nil {
 			return nil, fmt.Errorf("google scholar request: %w", err)
 		}
@@ -125,8 +132,10 @@ func (e *googleScholarEngine) Search(query string, page int, timeRange antirobot
 		resp.Body.Close()
 
 		retryable := resp.StatusCode == 403 || resp.StatusCode == 429 || resp.StatusCode == 503
-		if retryable && attempt < 2 {
-			time.Sleep(scholarRetryBase<<attempt + time.Duration(rand.Int63n(int64(500*time.Millisecond))))
+		if retryable && attempt < 2 && !admission.IsDiagnostic(ctx) {
+			if err := antirobot.SleepCtx(ctx, scholarRetryBase<<attempt+time.Duration(rand.Int63n(int64(500*time.Millisecond)))); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		return nil, fmt.Errorf("google scholar HTTP %d", resp.StatusCode)

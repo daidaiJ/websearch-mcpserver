@@ -98,7 +98,11 @@ func (it Item) ModifiedTime() (time.Time, bool) {
 // Probe 探测 HTTP Server 可用性：连通、鉴权通过、JSON 输出正常三者齐备才可用。
 // 返回 ErrUnavailable / ErrAuth 便于区分提示；服务端正常返回 nil。
 func (c *Client) Probe(ctx context.Context) error {
-	_, err := c.doQuery(ctx, url.Values{"s": {""}, "j": {"1"}, "c": {"1"}})
+	probe := *c
+	httpClient := *c.http
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	probe.http = &httpClient
+	_, err := probe.doQuery(ctx, url.Values{"s": {""}, "j": {"1"}, "c": {"1"}})
 	return err
 }
 

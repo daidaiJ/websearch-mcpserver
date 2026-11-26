@@ -2,6 +2,7 @@ package quota
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -44,21 +45,33 @@ func SearchSkipMessage(loc *i18n.Localizer, reason string) string {
 type searchGuard struct {
 	mu          sync.Mutex
 	initialized bool
+	enforce     bool
 	poll        chan struct{}
 	snapshots   map[string]searchSnapshot
-	completed   uint64
-	pending     uint64
+	providerUse searchReservations
+	keyUse      map[string]*searchReservations
 	yuanbaoTill time.Time
 }
 
-type searchSnapshot struct {
-	item      Item
-	checkedAt time.Time
+type searchReservations struct {
 	completed uint64
-	window    int64
+	pending   uint64
+}
+
+type searchSnapshot struct {
+	item              Item
+	checkedAt         time.Time
+	providerCompleted uint64
+	keyCompleted      uint64
+	window            int64
 }
 
 func (s *Service) SearchEnforced(provider string) bool {
+	return s.TracksSearch(provider) && s.routes[provider].enforce
+}
+
+// TracksSearch also accounts for direct usage between two opt-in periods.
+func (s *Service) TracksSearch(provider string) bool {
 	return s != nil && s.routes[provider] != nil
 }
 
@@ -89,13 +102,17 @@ func (s *Service) AdmitSearch(ctx context.Context, provider, key string) (finish
 		return nil, err
 	}
 
-	// Avoid a quota API call if the configured hard limit already disallows this search.
-	if reason := s.localBlockReason(provider); reason != "" {
-		return nil, &SkipError{Reason: reason}
-	}
-	if s.officialSearchUsageAvailable(provider) {
-		if err := s.refreshSearchSnapshot(ctx, route, provider, key); err != nil {
-			return nil, err
+	limit := int64(math.MaxInt64)
+	if route.enforce {
+		limit = s.localSearchLimit(provider)
+		// Avoid a quota API call if the configured hard limit already disallows this search.
+		if reason := s.localBlockReason(provider); reason != "" {
+			return nil, &SkipError{Reason: reason}
+		}
+		if s.officialSearchUsageAvailable(provider) {
+			if err := s.refreshSearchSnapshot(ctx, route, provider, key); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -103,10 +120,13 @@ func (s *Service) AdmitSearch(ctx context.Context, provider, key string) (finish
 	defer route.mu.Unlock()
 	now := s.clock()
 	snapshot := route.snapshots[key]
-	if s.officialLimitReached(provider, route, snapshot, now) {
+	if route.enforce && s.officialLimitReached(provider, key, route, snapshot, now) {
 		return nil, &SkipError{Reason: SkipOfficial}
 	}
-	revision, ok, err := s.store.ReserveSearchQuota(ctx, provider, s.searchWindow(now), s.localSearchLimit(provider))
+	revision, ok, err := s.store.ReserveSearchQuota(ctx, provider, s.searchWindow(now), limit)
+	if !route.enforce && (err != nil || !ok) {
+		return func(bool) {}, nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -116,15 +136,33 @@ func (s *Service) AdmitSearch(ctx context.Context, provider, key string) (finish
 	if !ok {
 		return nil, &SkipError{Reason: SkipLocalLimit}
 	}
-	route.pending++
+	route.providerUse.pending++
+	var keyUse *searchReservations
+	if route.enforce && provider == providerTavily {
+		if route.keyUse == nil {
+			route.keyUse = make(map[string]*searchReservations)
+		}
+		keyUse = route.keyUse[key]
+		if keyUse == nil {
+			keyUse = &searchReservations{}
+			route.keyUse[key] = keyUse
+		}
+		keyUse.pending++
+	}
 	var once sync.Once
 	return func(sent bool) {
 		once.Do(func() {
 			route.mu.Lock()
 			defer route.mu.Unlock()
-			route.pending--
+			route.providerUse.pending--
+			if keyUse != nil {
+				keyUse.pending--
+			}
 			if sent {
-				route.completed++
+				route.providerUse.completed++
+				if keyUse != nil {
+					keyUse.completed++
+				}
 			} else {
 				_ = s.store.ReleaseSearchQuota(provider, revision)
 			}
@@ -234,7 +272,11 @@ func (s *Service) refreshSearchSnapshot(ctx context.Context, route *searchGuard,
 		}
 		pending := make(chan struct{})
 		route.poll = pending
-		completed := route.completed
+		providerCompleted := route.providerUse.completed
+		var keyCompleted uint64
+		if use := route.keyUse[key]; use != nil {
+			keyCompleted = use.completed
+		}
 		route.mu.Unlock()
 		var item Item
 		pollCtx, cancel := context.WithTimeout(ctx, searchUsageTimeout)
@@ -253,7 +295,10 @@ func (s *Service) refreshSearchSnapshot(ctx context.Context, route *searchGuard,
 		cancel()
 		route.mu.Lock()
 		if ctx.Err() == nil {
-			route.snapshots[key] = searchSnapshot{item: item, checkedAt: s.clock(), completed: completed, window: window}
+			route.snapshots[key] = searchSnapshot{
+				item: item, checkedAt: s.clock(), window: window,
+				providerCompleted: providerCompleted, keyCompleted: keyCompleted,
+			}
 		}
 		close(pending)
 		route.poll = nil
@@ -270,7 +315,7 @@ func (snap searchSnapshot) current(now time.Time) bool {
 	return err != nil || now.Before(reset)
 }
 
-func (s *Service) officialLimitReached(provider string, route *searchGuard, snap searchSnapshot, now time.Time) bool {
+func (s *Service) officialLimitReached(provider, key string, route *searchGuard, snap searchSnapshot, now time.Time) bool {
 	if provider == providerTinyfish {
 		window, err := s.store.SearchQuotaPeriodStart(provider, s.searchWindow(now))
 		if err != nil || window == 0 || snap.window != window {
@@ -278,21 +323,27 @@ func (s *Service) officialLimitReached(provider string, route *searchGuard, snap
 		}
 	}
 	item := snap.item
-	if !snap.current(now) || item.Status != "available" || item.Used == nil || item.Limit == nil || *item.Limit <= 0 {
+	if !snap.current(now) || item.Status != "available" {
 		return false
 	}
-	// The official endpoint does not expose a shared-account ID. Subtract this
-	// process's reservations conservatively without summing different keys' balances.
-	reserved := float64(route.completed-snap.completed+route.pending) + 1
-	if *item.Used+reserved > *item.Limit {
-		return true
-	}
+	providerReserved := float64(route.providerUse.completed-snap.providerCompleted+route.providerUse.pending) + 1
 	if provider == providerTavily {
+		// Account identity is unavailable. Keep a conservative shared-account
+		// reservation, while each key's own allowance only sees that key's requests.
+		planUsed, _ := item.Details["account_plan_usage"].(float64)
+		planLimit, _ := item.Details["account_plan_limit"].(float64)
+		if planLimit > 0 && planUsed+providerReserved > planLimit {
+			return true
+		}
 		keyUsed, _ := item.Details["key_usage"].(float64)
 		keyLimit, _ := item.Details["key_limit"].(float64)
-		return keyLimit > 0 && keyUsed+reserved > keyLimit
+		keyReserved := 1.0
+		if use := route.keyUse[key]; use != nil {
+			keyReserved += float64(use.completed - snap.keyCompleted + use.pending)
+		}
+		return keyLimit > 0 && keyUsed+keyReserved > keyLimit
 	}
-	return false
+	return item.Used != nil && item.Limit != nil && *item.Limit > 0 && *item.Used+providerReserved > *item.Limit
 }
 
 // SearchBlockReason reports current route evidence for the source table without
@@ -318,7 +369,7 @@ func (s *Service) SearchBlockReason(provider string) string {
 			return ""
 		}
 		for _, key := range usableProviderKeys(s.conf, provider) {
-			if !s.officialLimitReached(provider, route, route.snapshots[key], now) {
+			if !s.officialLimitReached(provider, key, route, route.snapshots[key], now) {
 				return ""
 			}
 		}

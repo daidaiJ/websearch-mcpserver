@@ -10,7 +10,6 @@
   "dashboard.source.so360.name": "360 Search",
   "dashboard.source.sogou.name": "Sogou Search",
   "dashboard.source.mojeek.name": "Mojeek",
-
   "dashboard.condition.mcphub": "Hosted MCP search backend; joins mcphub or a configured API pool",
   "dashboard.locked.endpoint": "this endpoint is hidden and can only be changed in the configuration file",
   "dashboard.validate.setting_not_editable": "Setting {{.Path}} is outside the editable fields",
@@ -27,7 +26,6 @@
   "dashboard.condition.api_key_hybrid": "requires a configured key; participates in hybrid or apipool.engines",
   "dashboard.condition.keenable": "keyed tier when a key is configured; without a key set enabled: true explicitly or add it to apipool.engines (the public keyless tier is rate limited per IP and does not join hybrid automatically)",
   "dashboard.condition.academic": "requires academic.enabled; no key needed",
-
   "dashboard.suffix.proxy_unresolved": "; proxy endpoint not currently resolved",
   "dashboard.suffix.academic_intl": "; requires international network and a proxy resolver; connectivity not probed",
   "dashboard.suffix.doubao_custom": "; Custom; ICP restrictions do not apply",
@@ -35,7 +33,6 @@
   "dashboard.suffix.doubao_global": "; Global; no ICP registration restriction",
   "dashboard.suffix.yuanbao_no_cap": "; local monthly cap disabled, usage beyond the free quota is billed",
   "dashboard.suffix.yuanbao_cap": "; local monthly cap {{.Limit}} calls, calling stops once reached",
-
   "dashboard.tool.smartsearch.label": "Smart Search",
   "dashboard.tool.smartsearch.desc": "General-purpose web search tool",
   "dashboard.tool.academicsearch.label": "Academic Search",
@@ -46,14 +43,13 @@
   "dashboard.tool.pdf_parser.desc": "PDF text extraction with MinerU fallback",
   "dashboard.tool.file_search.label": "Local File Search",
   "dashboard.tool.file_search.desc": "Everything local file index search (read-only)",
-
-  "dashboard.write.no_password_restart": "admin password not configured, write operations disabled; set dashboard.admin_password in dashboard.yaml and restart",
-  "dashboard.write.no_password": "admin password not configured, write operations disabled",
+  "dashboard.write.cross_origin": "Cross-origin browser requests cannot perform runtime actions",
+  "dashboard.write.no_password_restart": "admin password not configured, authenticated administrative actions disabled; set dashboard.admin_password in dashboard.yaml and restart",
+  "dashboard.write.no_password": "admin password not configured, authenticated administrative actions disabled",
   "dashboard.write.bad_user": "invalid admin username",
   "dashboard.write.bad_password": "invalid admin password",
   "dashboard.write.bad_allowlist": "invalid write access allowlist configuration",
   "dashboard.write.readonly": "this connection has read-only access",
-
   "dashboard.settings.paths_changed": "A configuration or credentials file path changed. Restart the service before editing settings.",
   "dashboard.locked.env": "overridden by environment variable",
   "dashboard.settings.conflict": "Configuration changed. Refresh settings before saving.",
@@ -85,5 +81,19 @@
   "dashboard.participation.proxy_disabled": "Proxy disabled",
   "dashboard.participation.mode": "Excluded from {{.Mode}} routing",
   "dashboard.participation.academic_disabled": "Academic search disabled",
-  "dashboard.participation.network_requirements": "Network or proxy requirements unmet"
+  "dashboard.participation.network_requirements": "Network or proxy requirements unmet",
+  "dashboard.runtime.engine_required": "Choose a source or release all cooldowns.",
+  "dashboard.runtime.confirm_required": "Confirm the action first.",
+  "dashboard.storage.confirm_required": "Confirm the operation before clearing data.",
+  "dashboard.storage.clear_failed": "Could not clear the selected storage.",
+  "dashboard.storage.stats_failed": "Could not read storage statistics.",
+  "dashboard.diagnostics.fetch_disabled": "URL fetching is disabled in the running configuration.",
+  "dashboard.diagnostics.source_unavailable": "Choose a configured and enabled search source.",
+  "dashboard.storage.scope_required": "Select expired files or all temporary files.",
+  "dashboard.diagnostics.busy": "Another diagnostic is running. Try again shortly.",
+  "dashboard.storage.history_disabled": "Search history is disabled.",
+  "dashboard.diagnostics.invalid_input": "Enter a valid test query or public page URL.",
+  "dashboard.diagnostics.confirm_required": "Confirm that this diagnostic can use upstream quota.",
+  "dashboard.runtime.quota_timeout": "The official quota refresh timed out.",
+  "dashboard.storage.files_clear_failed": "Cleared {{.Count}} temporary files before a storage error. Refresh the totals and retry."
 }

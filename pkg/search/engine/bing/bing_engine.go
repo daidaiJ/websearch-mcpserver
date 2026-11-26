@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -106,7 +107,7 @@ func (e *bingEngine) SearchContext(ctx context.Context, query string, page int, 
 	sess := e.takeSession()
 	e.setHeaders(req, sess.ua)
 
-	resp, err := sess.client.Do(req)
+	resp, err := webclient.Do(sess.client, req)
 	if err != nil {
 		if ctx.Err() == nil {
 			e.recordFail()

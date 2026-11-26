@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
-	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
@@ -162,37 +160,8 @@ func applyEverything(conf config.Config) error {
 		log.WarnT("log.mcp.current_platform_is_everything_only_supports", "gOOS", runtime.GOOS, "uRL", conf.Everything.URL)
 	}
 	everythingLazyCfg = &conf.Everything
+	setEverythingConnectivity("")
 	return nil
-}
-
-// ensureEverything 惰性探测 Everything HTTP Server：连通且鉴权通过才初始化
-// 客户端并返回 true（file_search 工具随之暴露）。由首个 MCP 客户端接入时
-// 的工具注册触发；探测失败只记一条 Info，不影响其它工具。
-func ensureEverything() bool {
-	everythingMu.Lock()
-	defer everythingMu.Unlock()
-	if everythingInst != nil {
-		return true
-	}
-	if everythingLazyCfg == nil {
-		return false
-	}
-	cfg := *everythingLazyCfg
-	client := everything.New(cfg.URL, cfg.Username, cfg.Password,
-		time.Duration(cfg.TimeoutSec)*time.Second)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := client.Probe(ctx); err != nil {
-		log.InfoT("log.mcp.everything_http_server_probe_failed_file", "err", err)
-		return false
-	}
-	everythingInst = client
-	everythingRoots = cfg.Roots
-	everythingMaxResults = cfg.MaxResults
-	everythingNoise = everything.NoiseDirSet(cfg.NoiseDirs)
-	everythingMinAlign = cfg.MinAlignment
-	log.InfoT("log.mcp.everything_http_server_probe_passed_file", "uRL", cfg.URL, "len", len(cfg.Roots))
-	return true
 }
 
 func applyWebFetch(conf config.Config) error {

@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 	"websearch/pkg/config"
+	"websearch/pkg/fetch"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search"
@@ -24,17 +24,8 @@ import (
 // 惰性清理超 7 天的 search-*.md（仅在落盘发生时清理，不占后台协程）。
 // 动机：堵 Tavily raw_content 默认开启的响应体积失控口——超限用落盘零丢失，不用截断。
 
-const (
-	searchDumpFileTTL = 7 * 24 * time.Hour // 落盘文件保留时长
-)
-
 // searchDumpDir smartsearch 超限落盘目录（applySearchEngine 注入 cleanfetch.file_output_dir 原始配置值）。
 var searchDumpDir string
-
-// searchDumpFileRe 匹配本程序落盘的文件名（search-日期_时间-8位随机hex.md）。
-// 清理只删除匹配该模式的文件，与 webfetch 的 savedFileRe（日期开头命名）互不重叠，
-// 用户放在输出目录里的其它文件一律不动。
-var searchDumpFileRe = regexp.MustCompile(`^search-\d{8}_\d{6}-[0-9a-f]{8}\.md$`)
 
 // dumpSearchResultsIfOversize keeps the highest-ranked bodies inline when the
 // rendered response exceeds smartsearch.inline_max_chars. The complete render is
@@ -64,7 +55,7 @@ func dumpSearchResultsIfOversizeWithFormatter(query string, results []search.Sea
 		log.ErrorT("log.mcp.smartsearch_overflow_persist_failed_falling_back", "err", err)
 		return "", false
 	}
-	hint, err := resultFileNotice(path, searchDumpFileTTL)
+	hint, err := resultFileNotice(path, fetch.SearchOutputTTL)
 	if err != nil {
 		log.ErrorT("log.mcp.smartsearch_result_reference_creation_failed_falling", "err", err)
 		return "", false
@@ -183,10 +174,7 @@ func formatDumpPreview(results []search.SearchResult, chars, limit int, path, hi
 
 // writeSearchDump 写入落盘文件并触发惰性清理，返回文件绝对路径。
 func writeSearchDump(content string) (string, error) {
-	dir := searchDumpDir
-	if dir == "" {
-		dir = filepath.Join(config.ExeBaseDir(), "fetchdata")
-	}
+	dir := (config.CleanFetchConfig{FileOutputDir: searchDumpDir}).OutputDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -221,15 +209,15 @@ func writeSearchDump(content string) (string, error) {
 }
 
 // cleanupSearchDumps 清理目录中超 TTL 的 search-*.md（只动本程序命名模式的文件，
-// 目录里其它文件一律不动——与 webfetch savedFileRe 同纪律）。
+// 目录里其它文件一律不动）。
 func cleanupSearchDumps(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
-	deadline := time.Now().Add(-searchDumpFileTTL)
+	deadline := time.Now().Add(-fetch.SearchOutputTTL)
 	for _, e := range entries {
-		if e.IsDir() || !searchDumpFileRe.MatchString(e.Name()) {
+		if !e.Type().IsRegular() || !fetch.IsSearchOutputName(e.Name()) {
 			continue
 		}
 		info, ierr := e.Info()

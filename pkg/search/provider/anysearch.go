@@ -97,8 +97,7 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		MaxResults: a.numResults,
 	}
 	var resp anysearchSearchResp
-	call := client.DefaultClient.R().
-		SetContext(ctx).
+	call := client.Request(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).
 		SetResult(&resp)

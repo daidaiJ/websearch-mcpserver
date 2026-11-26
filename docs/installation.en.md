@@ -142,18 +142,12 @@ services:
 
 > The control-center config can live elsewhere too: point `WEBSEARCH_DASHBOARD_CONFIG` or `dashboard.config_path` at another path (see [dashboard.en.md](dashboard.en.md)).
 
-**Console access in Docker**: write operations (settings / API keys / restart / cache clear / quotas) require the request source to be **loopback inside the container**, but with bridge networking plus a published port the source is the bridge gateway (e.g. `172.17.0.1`) — so **the console is read-only in the default compose setup**: pages, call history and metrics all work, while any settings action returns 403.
+**Console access in Docker.** With a published port over bridge networking, the container may see the host request as a bridge gateway. Both allowlists default to loopback inside the container.
 
-- Read-only: to open the console from the host browser, add the bridge subnet to the allowlist (the default bridge sits inside `172.16.0.0/12`; for a custom network use its actual subnet, kept as narrow as possible):
-
-  ```yaml
-  # dashboard.yaml
-  dashboard:
-    allowed_networks: ["172.16.0.0/12"]
-  ```
-
-- Write operations (Linux hosts): switch to `network_mode: host` — the container shares the host network stack, so a host browser hitting `127.0.0.1:8338` is seen as loopback and writes are accepted (the `ports` mapping is ignored in that mode).
-- Leaving the network alone works too: edit `config.yaml` / `dashboard.yaml` on the host and restart the container — write operations are convenience, the files are the source of truth.
+- Keep the port mapping bound to loopback. For host-browser read access, add only the source address actually observed by the server to `allowed_networks`, for example a verified IPv4 `/32`. To allow operations, add the same address to `write_allowed_networks`.
+- Listed runtime maintenance and manual diagnostics are password-free. Cross-site browser requests are rejected, and trials that may consume provider quota require confirmation. Saving or restoring settings, managing keys, restarting, and quota resets or adjustments still require admin credentials.
+- On Linux, `network_mode: host` is another option. Requests sent to loopback are seen as loopback by the service, and the `ports` mapping is ignored. Authenticated operations still require an admin password.
+- You can also edit the mounted `config.yaml` / `dashboard.yaml` on the host and restart the container. See the [console security model](dashboard.en.md#security-model) for the complete operation list.
 
 Build locally:
 
@@ -688,7 +682,7 @@ launchctl list | grep websearch
 | Port in use | `status` to check if already running, or `kill` then restart |
 | Stale cache results | Cache auto-expires after 6h, or delete `cache.storage_path` file and restart |
 | Docker container exits immediately | Confirm `config.yaml` is mounted, check log output |
-| Console settings return 403 under Docker | Write operations require a loopback source; bridge networking is read-only — see the [Docker](#docker) section |
+| Console settings return 403 under Docker | Verify the connection source observed by the server, both allowlists, and the admin password. See [Docker](#docker) |
 | Process still running after stop | Wait up to 10s; if still running use `kill` to force terminate |
 | No results or rate-limited | Check `rate_limit` config (default 3/s, 60/min); Google etc. auto-skipped when proxy unavailable |
 

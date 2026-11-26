@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 )
 
 // crossrefPath 单测可指向 httptest 服务。
@@ -34,6 +36,10 @@ func (e *crossrefEngine) Name() string                    { return "crossref" }
 func (e *crossrefEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *crossrefEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *crossrefEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	offset := (page - 1) * 20
 	if offset < 0 {
 		offset = 0
@@ -41,13 +47,13 @@ func (e *crossrefEngine) Search(query string, page int, timeRange antirobot.Time
 
 	u := crossrefURL(query, offset, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "websearch/1.0 (mailto:search@example.com)")
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("crossref request: %w", err)
 	}

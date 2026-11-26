@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -37,6 +39,10 @@ func (e *openalexEngine) Name() string                    { return "openalex" }
 func (e *openalexEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *openalexEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *openalexEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	params := url.Values{
 		"search":   {query},
 		"page":     {fmt.Sprintf("%d", page)},
@@ -51,7 +57,7 @@ func (e *openalexEngine) Search(query string, page int, timeRange antirobot.Time
 	}
 
 	u := openalexAPI + "/works?" + params.Encode()
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, fmt.Errorf("openalex request: %w", err)
 	}
@@ -59,7 +65,7 @@ func (e *openalexEngine) Search(query string, page int, timeRange antirobot.Time
 		req.Header.Set("Authorization", "Bearer "+e.apiKey)
 	}
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("openalex request: %w", err)
 	}

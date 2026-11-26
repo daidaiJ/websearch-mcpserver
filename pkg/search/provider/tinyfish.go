@@ -108,8 +108,7 @@ func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackD
 	if err != nil {
 		return nil, err
 	}
-	req := client.DefaultClient.R().
-		SetContext(ctx).
+	req := client.Request(ctx).
 		SetHeader("X-API-Key", key).
 		SetQueryParam("query", query)
 	if lookbackDays > 0 {
@@ -154,8 +153,7 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 		return "", NoKeyError(t.name)
 	}
 	var resp tinyfishFetchResp
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("X-API-Key", key).
 		SetHeader("Content-Type", "application/json").
 		SetBody(tinyfishFetchReq{URLs: []string{rawURL}, Format: "markdown"}).

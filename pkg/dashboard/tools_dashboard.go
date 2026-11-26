@@ -27,9 +27,10 @@ type HistoryToolView struct {
 }
 
 type FileToolView struct {
-	AllowedRootCount  int  `json:"allowed_root_count"`
-	PathMetadataOnly  bool `json:"path_metadata_only"`
-	WhitelistEnforced bool `json:"whitelist_enforced"`
+	Connectivity      string `json:"connectivity,omitempty"`
+	AllowedRootCount  int    `json:"allowed_root_count"`
+	PathMetadataOnly  bool   `json:"path_metadata_only"`
+	WhitelistEnforced bool   `json:"whitelist_enforced"`
 }
 
 type PDFToolView struct {
@@ -83,7 +84,7 @@ func mcpToolCatalog(conf config.Config, loc *i18n.Localizer) []MCPToolView {
 		{
 			Name: "file_search", Label: loc.T("dashboard.tool.file_search.label"), Enabled: conf.Everything.URL != "",
 			Description: loc.T("dashboard.tool.file_search.desc"),
-			File: &FileToolView{AllowedRootCount: len(conf.Everything.Roots),
+			File: &FileToolView{Connectivity: mcpserver.EverythingConnectivity(), AllowedRootCount: len(conf.Everything.Roots),
 				PathMetadataOnly: true, WhitelistEnforced: len(conf.Everything.Roots) > 0},
 		},
 	}

@@ -64,7 +64,7 @@ func TestWriteGateMatrix(t *testing.T) {
 		{"本机+无口令-设置", "/__admin/api/settings", `{"changes":{"mode":"engine"},"confirm":false}`, "127.0.0.1:1", "", http.StatusForbidden},
 		{"本机+无口令-密钥", "/__admin/api/secrets", `{"name":"TAVILY_SK","value":"x","confirm":true}`, "127.0.0.1:1", "", http.StatusForbidden},
 		{"远程+口令-密钥", "/__admin/api/secrets", `{"name":"TAVILY_SK","value":"x","confirm":true}`, "192.168.1.9:5", "pw", http.StatusForbidden},
-		{"本机+无口令-清缓存", "/__admin/api/cache/clear", `{"confirm":true}`, "127.0.0.1:1", "", http.StatusForbidden},
+		{"本机+无口令-清缓存", "/__admin/api/cache/clear", `{"confirm":true}`, "127.0.0.1:1", "", http.StatusConflict}, // authorized, cache disabled in fixture
 		{"本机+无口令-额度重置", "/__admin/api/quotas/reset", `{"provider":"exa"}`, "127.0.0.1:1", "", http.StatusForbidden},
 	}
 	for _, tc := range cases {
@@ -76,7 +76,7 @@ func TestWriteGateMatrix(t *testing.T) {
 
 func TestWriteGateDisabledWithoutPassword(t *testing.T) {
 	_, mux := newWriteTestHandler(t, config.Config{})
-	// 未配置口令：即便来自本机，写端点也整体禁用
+	// 未配置口令：即便来自本机，管理写端点仍禁用
 	if code := doWrite(t, mux, http.MethodPost, "/__admin/api/restart", `{"confirm":true}`, "127.0.0.1:1", "").Code; code != http.StatusForbidden {
 		t.Fatalf("未配置口令时写操作应禁用, got %d", code)
 	}

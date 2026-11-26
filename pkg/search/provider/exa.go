@@ -166,8 +166,7 @@ func (e *ExaSearchImpl) search(ctx context.Context, query string) ([]core.Search
 	if err != nil {
 		return nil, err
 	}
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("x-api-key", key).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).

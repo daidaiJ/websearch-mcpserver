@@ -138,8 +138,7 @@ func (t *TavilySearchImpl) search(ctx context.Context, query string) ([]core.Sea
 	if err != nil {
 		return nil, err
 	}
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).

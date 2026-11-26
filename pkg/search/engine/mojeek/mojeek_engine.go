@@ -25,7 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -112,12 +114,16 @@ func (e *mojeekEngine) SearchContext(ctx context.Context, query string, page int
 		return nil, err
 	}
 
-	token, err := e.ensureToken(ctx)
-	if err != nil {
-		if ctx.Err() == nil {
-			e.recordFail()
+	var token string
+	if !admission.IsDiagnostic(ctx) {
+		var err error
+		token, err = e.ensureToken(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				e.recordFail()
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", e.buildURL(query, page, timeRange), nil)
@@ -126,7 +132,7 @@ func (e *mojeekEngine) SearchContext(ctx context.Context, query string, page int
 	}
 	e.setHeaders(req, token)
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		if ctx.Err() == nil {
 			e.recordFail()

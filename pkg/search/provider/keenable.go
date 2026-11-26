@@ -93,8 +93,7 @@ func (k *KeenableSearchImpl) SearchRaw(query string) ([]core.SearchResult, error
 
 func (k *KeenableSearchImpl) search(ctx context.Context, query string) ([]core.SearchResult, error) {
 	endpoint := k.baseURL + "/search"
-	req := client.DefaultClient.R().
-		SetContext(ctx).
+	req := client.Request(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(keenableSearchReq{Query: query, Mode: "pro", MaxResults: k.limit})
 	var key string
@@ -153,8 +152,7 @@ func (k *KeenableSearchImpl) search(ctx context.Context, query string) ([]core.S
 // 仅能抓已索引 URL；live=true 时从源站实抓并可抓未索引页。
 func (k *KeenableSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars int) (string, error) {
 	endpoint := k.baseURL + "/fetch"
-	req := client.DefaultClient.R().
-		SetContext(ctx).
+	req := client.Request(ctx).
 		SetQueryParam("url", rawURL)
 	if k.live {
 		req.SetQueryParam("live", "true")

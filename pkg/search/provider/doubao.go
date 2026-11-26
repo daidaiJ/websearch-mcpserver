@@ -268,8 +268,7 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		return nil, err
 	}
 	var resp doubaoGlobalSearchResponse
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("X-Traffic-Tag", doubaoTrafficTag).
@@ -338,8 +337,7 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		return nil, err
 	}
 	var resp doubaoCustomSearchResponse
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("X-Traffic-Tag", doubaoTrafficTag).
