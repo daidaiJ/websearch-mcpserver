@@ -81,6 +81,8 @@
 - [ ] **N7. GitHub 站点接入 + Reddit 整线放弃（2026-10-24 落地）**
   - **GitHub（落地）**：`pkg/search/engine/github` REST API 引擎——`api.github.com` 国内直连可达（无需代理）；零 Key 匿名档 search 10/min + PAT 提额 30/min（token 轮转 + 429/403 冷却，Retry-After / x-ratelimit-reset 双来源）；`github.enabled` 默认关闭（wikipedia 同口径），参与 engine/hybrid/mcphub。cleanfetch 站点特判：`pkg/fetch/sitefetch` 对 `github.com/<owner>/<repo>` 改走 API（元数据 + README raw），`blob` 页转 raw.githubusercontent 直取源文件（不耗 API 配额），token 与引擎同批（`github.api_key` / `token_list`，env `GITHUB_TOKEN`）。github.com HTML 是 JS 渲染抓不到，API 是唯一正道；code search 要求认证不做。
   - **Reddit（评审后不做，2026-10-24 用户拍板）**：官方 2026-09-30 公告进入关停周期——新公共 API 申请 2026-10-31 截止、RSS 2026-11-13 全线停止支持、未注册 app 2027-01-12 移除访问、公共 Data API 2027-03 终止。原方案（OAuth script app 100 QPM 优先 + RSS 兜底）两条通道均在死线上，建在将死的 API 上不值得；引擎失败虽可软降级，但整线收益期 < 5 个月。已完成的 OAuth/auth.ts 调研结论留档：script app 注册制（reddit.com/prefs/apps 自建）、client_credentials / password grant 均无 refresh token、过期静默重取（reddit-mcp-buddy src/core/auth.ts 模式）。上游若重新开放（Devvit/付费 API 出现普适免费档）再重立项目。
+- [ ] **N8. 医学/护理类免费托管 MCP 调研（2026-11-26，待拍板）**
+  免费托管集中在 PubMed 文献（cyanheads 公共托管、Pipeworx 匿名 50 次/天）与 usefulapi 的临床试验/药品结构化数据（50 次/月）；护理专属免费托管未发现，NANDA/CINAHL/UpToDate 均有付费墙。完整端点、额度、探测结果与接入建议见 [medical-mcp-servers.md](medical-mcp-servers.md)。默认不进 `mcphub` 级联，先作为可选 preset 评估；OAuth 类端点只适合人工客户端。
 - 原 N-llm（LLM 摘要有界 deadline）已落地，见下方归档表。
 
 - [ ] **E1. go-sdk v1.7.0 → v1.8.0（2026-07-28 新 spec：stateless core / extensions / elicitation / sampling / tasks）**
