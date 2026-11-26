@@ -43,11 +43,9 @@ for (const id of ['apply-note', 'apply-recovery', 'retry-apply', 'backup-select'
 }
 assert.match(settingsPage, /外观与维护[\s\S]*配置恢复[\s\S]*id="restore-backup"/);
 const sourcesPage = html.match(/<section id="page-sources"[\s\S]*?<\/section>/)[0];
-assert.doesNotMatch(sourcesPage, /运行 \/ 条件|参与运行|未参与/, 'source controls must not duplicate runtime participation');
 assert.equal((sourcesPage.match(/<th data-i18n="web.label.enabled">启用<\/th>/g) || []).length, 3);
 assert.equal((sourcesPage.match(/<th data-i18n="web.label.last_20">最近 20 次<\/th>/g) || []).length, 3);
-assert.equal((sourcesPage.match(/<th(?:\s|>)/g) || []).length, 24);
-assert.doesNotMatch(sourcesPage, /实际冷却|失败构成|成功 \/ 失败|P95|最近观测|<th>额度/);
+assert.equal((sourcesPage.match(/<th(?:\s|>)/g) || []).length, 25);
 assert.doesNotMatch(html, /bootstrap-switch|cdn\.|unpkg|jsdelivr/i);
 const modeInputs = Array.from(html.matchAll(/<input type="radio" name="mode" value="([^"]+)" data-key="mode">/g), match => match[1]);
 assert.deepEqual(modeInputs,
@@ -96,6 +94,26 @@ function settings() {
 
 (async () => {
   settings();
+  const secretDialog = element('#secret-dialog');
+  const secretLink = element('#secret-dialog-link');
+  secretLink.closest = () => element('.secret-link-row');
+  secretDialog.showModal = () => {};
+  secretDialog.addEventListener = (type, callback) => { secretDialog[type] = callback; };
+  run(`globalThis.secretPosts = []; globalThis.savedPost = postJSON; globalThis.savedLoad = loadSettings;
+    postJSON = async (url, payload) => { secretPosts.push({url, payload}); }; loadSettings = async () => {};`);
+  for (const secretValue of ['ghp_fixture', '']) {
+    run("editSecret('GITHUB_TOKEN')");
+    assert.match(secretLink.href, /^https:\/\/github\.com\/settings\/tokens$/);
+    element('#secret-dialog-input').value = secretValue;
+    element('#secret-dialog-pass').value = 'fixture-admin';
+    secretDialog.returnValue = 'confirm';
+    await secretDialog.close();
+    assert.equal(run("secretPosts.at(-1).url"), '/__admin/api/secrets');
+    assert.equal(run("secretPosts.at(-1).payload.name"), 'GITHUB_TOKEN');
+    assert.equal(run("secretPosts.at(-1).payload.value"), secretValue);
+    assert.equal(element('#secret-dialog-input').value, '');
+  }
+  run("postJSON = savedPost; loadSettings = savedLoad; state.adminPass = '';");
   const standardSwitch = run(`sourceControl({id:'bing', name:'Bing', enabled:false, control_path:'bing.enabled'})`);
   assert.match(standardSwitch, /class="form-check form-switch source-toggle"/);
   assert.match(standardSwitch, /class="form-check-input" type="checkbox" role="switch"/);
@@ -103,9 +121,17 @@ function settings() {
   assert.match(standardSwitch, /aria-label="Bing 配置启用"/);
   assert.doesNotMatch(standardSwitch, /<label|draft-mark/, 'switch has no redundant visible label');
   assert.doesNotMatch(standardSwitch, /class="toggle/);
-  const sourceRow = run(`sourceRowHtml({id:'bing',enabled:false,control_path:'bing.enabled',condition:'private runtime condition'},true)`);
+  now = 0;
+  const sourceRow = run(`sourceRowHtml({id:'bing',enabled:false,control_path:'bing.enabled',condition:'fixture participation', participation:'fixture inactive reason', p95_ms:147, error_kinds:[{kind:'timeout',count:2}], suspended:true, actual_cooldown:{kind:'rate_limit',until:'1970-01-01T00:00:41Z'}},true)`);
   assert.equal((sourceRow.match(/<td(?:\s|>)/g) || []).length, 8, 'cells must match the compact header');
-  assert.doesNotMatch(sourceRow, /source-condition|private runtime condition/);
+  assert.match(sourceRow, /fixture inactive reason[\s\S]*fixture participation/);
+  assert.match(sourceRow, /P95[^<]*147\s*ms/);
+  assert.match(sourceRow, /超时[^<]*2/);
+  assert.match(sourceRow, /观测告警/);
+  assert.match(sourceRow, /路由冷却[^<]*41/);
+  now = 41000;
+  assert.equal(run(`cooldownBadge({kind:'rate_limit',until:'1970-01-01T00:00:41Z'})`), '');
+  now = 0;
   assert.match(sourceRow, /health-strip/);
   assert.equal((run(`healthStrip({recent_outcomes:[true,false]})`).match(/<i /g) || []).length, 20);
   assert.doesNotMatch(sourceRow, /<small class="dim">bing<\/small>/, 'source names must omit ID remarks');
@@ -249,6 +275,23 @@ function settings() {
   run(`state.overview.configured_tools[0].file = {allowed_root_count:0,whitelist_enforced:false,path_metadata_only:true}; renderMCPTools();`);
   assert.match(element('#mcp-tools-list').innerHTML, /白名单根目录 0 · 目录未限制/);
   assert.doesNotMatch(element('#mcp-tools-list').innerHTML, /data-key="everything\./, 'root scope must remain read-only');
+  run(`state.overview.configured_tools.push({name:'search_history', enabled:true, registered:true, state:'registered', history:{retention_days:43}});
+    state.overview.tools.push({name:'search_history', status:'healthy', last_seen_at:'2026-10-08', today:{requests:4,successes:3,failures:1}});
+    renderMCPTools();`);
+  assert.match(element('#mcp-tools-note').textContent, /2 \/ 3/);
+  assert.match(element('#mcp-tools-list').innerHTML, /search_history[\s\S]*已注册[\s\S]*正常[\s\S]*4 次[\s\S]*保留 43 天/);
+  run(`Object.assign(state.overview, {
+    runtime:{version:'v9.8.7',uptime_seconds:3661,mcp_stateless:true,mcp_resources:false,searxng_enabled:false,
+      proxy:{mode:'explicit',resolved:true,api_providers:true},llm:{enabled:true,model_id:'fixture-summary',timeout_seconds:37},
+      mcp_hub:{enabled:true,fetch_mode:'prefer',servers:[{name:'parallel',enabled:true},{name:'exa',enabled:false}]}},
+    trend:[{day:'2026-10-07',successes:8,failures:2,cache_hits:4},{day:'2026-10-09',successes:3,failures:1,cache_hits:2}]
+  }); renderRuntime(); renderCallTrend();`);
+  assert.match(element('#runtime-list').innerHTML, /v9\.8\.7[\s\S]*1 小时[\s\S]*SearXNG[\s\S]*已移除/);
+  assert.match(element('#runtime-list').innerHTML, /显式端点[\s\S]*已解析[\s\S]*fixture-summary[\s\S]*37 秒[\s\S]*parallel[\s\S]*exa/);
+  assert.match(element('#call-trend').innerHTML, /<svg[\s\S]*2026-10-07[\s\S]*成功[^<]*8[^<]*失败[^<]*2[^<]*缓存命中[^<]*4/);
+  assert.match(element('#call-trend').innerHTML, /2026-10-08[\s\S]*2026-10-09/);
+  run('state.overview.trend = []; renderCallTrend();');
+  assert.doesNotMatch(element('#call-trend').innerHTML, /<svg/);
   if (html.includes('id="filter-kind"')) {
     assert.equal(run(`knownFilterEntries().tools.some(t => t[0] === 'file_search')`), true);
   }

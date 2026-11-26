@@ -72,7 +72,7 @@ const SYSTEM = { healthy: t('web.status.running_normally'), degraded: t('web.sta
 const DOT = { healthy: 'healthy', degraded: 'degraded', down: 'down', unknown: 'unknown' };
 const DISPLAY = {
   smartsearch: t('web.name.smart_search'), academicsearch: t('web.name.academic_search'), cleanfetch: t('web.name.content_fetch'), pdf_parser: t('web.name.pdf_parsing'), file_search: t('web.name.local_file_search'),
-  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), tavily: 'Tavily', exa: 'Exa', doubao: t('web.name.doubao_search'),
+  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), tavily: 'Tavily', tinyfish: 'TinyFish', exa: 'Exa', doubao: t('web.name.doubao_search'),
   baidu_web: t('web.name.baidu_web'), bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo',
   arxiv: 'arXiv', crossref: 'Crossref', openalex: 'OpenAlex', pubmed: 'PubMed', europepmc: 'Europe PMC',
   dblp: 'DBLP', doaj: 'DOAJ', semantic_scholar: 'Semantic Scholar', google_scholar: 'Google Scholar',
@@ -80,7 +80,7 @@ const DISPLAY = {
 };
 const SECRETS = {
   BAIDU_SK: t('web.name.baidu_qianfan'), TAVILY_SK: 'Tavily', EXA_API_KEY: 'Exa', ANYSEARCH_API_KEY: 'AnySearch',
-  DOUBAO_SEARCH_API_KEY: t('web.name.doubao'), TENCENTCLOUD_WSA_APIKEY: t('web.name.yuanbao'), JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU',
+  DOUBAO_SEARCH_API_KEY: t('web.name.doubao'), TENCENTCLOUD_WSA_APIKEY: t('web.name.yuanbao'), JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU', GITHUB_TOKEN: 'GitHub',
 };
 // 各供应商的官方「获取 Key」入口，配置页一键直达
 const SECRET_LINKS = {
@@ -92,6 +92,7 @@ const SECRET_LINKS = {
   TENCENTCLOUD_WSA_APIKEY: 'https://console.cloud.tencent.com/wsapi/index',
   JINA_API_KEY: 'https://jina.ai/api-keys',
   MINERU_TOKEN: 'https://mineru.net/apiManage/token',
+  GITHUB_TOKEN: 'https://github.com/settings/tokens',
 };
 
 const state = {
@@ -101,7 +102,7 @@ const state = {
   settings: null, settingsError: null, settingsDirty: false, settingsLoaded: false,
   draft: {}, draftBefore: {}, draftRevision: '', saving: false, applying: false, applyResult: null, adminPass: '', adminUser: '',
   events: { rows: null, error: null, loading: false, exporting: false, expanded: new Set(), details: new Map() },
-  filters: { status: '', errorKind: '', tool: '', provider: '' },
+  filters: { status: '', errorKind: '', tool: '', provider: '', application: '', project: '', cacheHit: '' },
   lastLoad: 0,
 };
 
@@ -147,7 +148,7 @@ function errorKindChip(kind) {
 }
 function formatErrorKinds(list) {
   if (!Array.isArray(list) || !list.length) return '<span class="dim">—</span>';
-  return list.slice(0, 3).map(item =>
+  return list.map(item =>
     `<span class="kind-chip bad">${esc(errorKindLabel(item.kind))} ×${fmtInt(item.count)}</span>`
   ).join(' ');
 }
@@ -217,6 +218,8 @@ async function loadOverview() {
   }
   renderSystem();
   renderToolKpis();
+  renderRuntime();
+  renderCallTrend();
   renderMCPTools();
   renderWebSources();
   renderSourcePages();
@@ -251,7 +254,6 @@ async function loadQuotas() {
   } catch (e) {
     state.quotaError = e.message;
   }
-  renderTavily();
   renderWebSources();
   renderSourcePages();
   renderQuotaManage();
@@ -290,6 +292,9 @@ async function loadEvents() {
   if (f.errorKind) params.set('error_kind', f.errorKind);
   if (f.tool) params.set('tool', f.tool);
   if (f.provider) params.set('provider', f.provider);
+  if (f.application) params.set('application', f.application);
+  if (f.project) params.set('project', f.project);
+  if (f.cacheHit) params.set('cache_hit', f.cacheHit);
   state.events.loading = true;
   state.events.error = null;
   renderUsage();
@@ -381,6 +386,103 @@ function renderToolKpis() {
   ).join('');
 }
 
+function uptimeLabel(seconds) {
+  const value = num(seconds);
+  if (value === null || value < 0) return '—';
+  const days = Math.floor(value / 86400);
+  const hours = Math.floor(value % 86400 / 3600);
+  const minutes = Math.floor(value % 3600 / 60);
+  if (days) return t('web.runtime.uptime_days', { days, hours });
+  if (hours) return t('web.runtime.uptime_hours', { hours, minutes });
+  if (minutes) return t('web.runtime.uptime_minutes', { minutes, seconds: value % 60 });
+  return value + ' ' + t('web.label.seconds');
+}
+
+function renderRuntime() {
+  const list = $('#runtime-list');
+  if (!list) return;
+  const runtime = state.overview && state.overview.runtime;
+  if (!runtime) {
+    list.innerHTML = '<div><dd>—</dd></div>';
+    return;
+  }
+  const onOff = value => value ? t('web.label.on') : t('web.label.off_2');
+  const proxy = runtime.proxy;
+  const mode = {
+    auto: t('web.runtime.proxy_auto'),
+    explicit: t('web.runtime.proxy_explicit'),
+    disabled: t('web.runtime.proxy_disabled'),
+  }[proxy.mode];
+  const route = proxy.mode === 'disabled' ? mode : [mode, proxy.resolved ? t('web.runtime.proxy_resolved') : t('web.runtime.proxy_unresolved')].join(' · ');
+  const llm = runtime.llm;
+  const hub = runtime.mcp_hub;
+  const servers = hub.servers.length ? hub.servers.map(server => server.enabled ? server.name :
+    t('web.runtime.server_disabled', { name: server.name })).join(' → ') : '—';
+  const fetchMode = {
+    off: t('web.label.off_2'),
+    prefer: t('web.runtime.hub_fetch_prefer'),
+    fallback: t('web.runtime.hub_fetch_fallback'),
+  }[hub.fetch_mode] || hub.fetch_mode;
+  const rows = [
+    [t('web.runtime.version'), runtime.version],
+    [t('web.runtime.uptime'), uptimeLabel(runtime.uptime_seconds)],
+    [t('web.runtime.mcp_stateless'), onOff(runtime.mcp_stateless)],
+    [t('web.runtime.mcp_resources'), onOff(runtime.mcp_resources)],
+    [t('web.runtime.searxng'), runtime.searxng_enabled ? t('web.label.on') : t('web.runtime.removed')],
+    [t('web.runtime.proxy'), route],
+    [t('web.runtime.proxy_api_providers'), onOff(proxy.api_providers)],
+    [t('web.runtime.llm_summary'), [onOff(llm.enabled), llm.model_id, llm.timeout_seconds + ' ' + t('web.label.seconds')].filter(Boolean).join(' · ')],
+    ['MCPHub', onOff(hub.enabled)],
+    [t('web.runtime.hub_fetch'), fetchMode],
+    [t('web.runtime.hub_servers'), servers],
+  ];
+  list.innerHTML = rows.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value || '—')}</dd></div>`).join('');
+}
+
+function renderCallTrend() {
+  const chart = $('#call-trend');
+  if (!chart) return;
+  const days = state.overview && state.overview.trend;
+  if (!Array.isArray(days) || !days.length) {
+    chart.innerHTML = `<p class="panel-note">${esc(t('web.note.no_tool_layer_events_yet'))}</p>`;
+    return;
+  }
+  const series = [
+    ['successes', 'success', t('web.status.success')],
+    ['failures', 'failure', t('web.status.failure')],
+    ['cache_hits', 'cache', t('web.trend.cache_hits')],
+  ];
+  const daily = new Map(days.map(day => [day.day, day]));
+  const startDay = Date.parse(days[0].day);
+  const endDay = Date.parse(days[days.length - 1].day);
+  const dayMS = 86400000;
+  const count = Math.min(14, Math.round((endDay - startDay) / dayMS) + 1);
+  const max = Math.max(2, Math.ceil(Math.max(...days.flatMap(day => series.map(([key]) => day[key] || 0))) / 2) * 2);
+  const left = 47;
+  const top = 14;
+  const height = 144;
+  const bottom = top + height;
+  const width = 612;
+  const step = width / count;
+  const bar = Math.min(16, step / 4);
+  const grid = [0, max / 2, max].map(value => {
+    const y = bottom - value / max * height;
+    return `<line x1="${left}" y1="${y}" x2="${left + width}" y2="${y}"/><text x="${left - 6}" y="${y + 4}" text-anchor="end">${fmtInt(value)}</text>`;
+  }).join('');
+  const groups = Array.from({ length: count }, (_, index) => {
+    const day = new Date(endDay - (count - 1 - index) * dayMS).toISOString().slice(0, 10);
+    const row = daily.get(day) || {};
+    const x = left + step * (index + 0.5);
+    const title = [day, ...series.map(([key, , label]) => label + ' ' + fmtInt(row[key] || 0))].join(' · ');
+    return `<g><title>${esc(title)}</title>${series.map(([key, style], position) => {
+      const size = (row[key] || 0) / max * height;
+      return `<rect class="trend-${style}" x="${x + (position - 1.5) * bar}" y="${bottom - size}" width="${bar - 2}" height="${size}" rx="1"/>`;
+    }).join('')}<rect class="trend-target" x="${x - step / 2}" y="${top}" width="${step}" height="${height}"/>${(count <= 7 || index % 3 === 0 || index === count - 1) ? `<text x="${x}" y="${bottom + 18}" text-anchor="middle">${day.slice(5)}</text>` : ''}</g>`;
+  }).join('');
+  chart.innerHTML = `<svg class="call-trend" viewBox="0 0 675 184" role="img" aria-label="${esc(t('web.page.call_trend'))}">${grid}${groups}</svg>` +
+    `<ul class="trend-legend">${series.map(([, style, label]) => `<li><i class="trend-${style}" aria-hidden="true"></i>${esc(label)}</li>`).join('')}</ul>`;
+}
+
 // renderMCPTools 展示公开 MCP 工具的固定清单（不依赖是否已经产生调用），
 // 并用遥测健康数据补充“已观测 / 尚无调用”的观测状态。
 function renderMCPTools() {
@@ -403,32 +505,28 @@ function renderMCPTools() {
   if (help) setNote(help, t('web.note.switches_come_from_the_running_config_health_comes_from_real'), '');
   list.innerHTML = configured.map(tool => {
     const health = observed.get(tool.name);
-    let stateLabel;
-    let dotClass;
-    if (!tool.enabled) {
-      stateLabel = t('web.status.disabled_in_config');
-      if (tool.name === 'file_search' && (tool.registration_state || tool.state) === 'unprobed') stateLabel += ` ${t('web.note.not_probed_yet')}`;
-      dotClass = 'unknown';
-    } else if (['unprobed', 'pending', 'unavailable', 'disabled'].includes(tool.registration_state || tool.state)) {
-      stateLabel = ({ unprobed: t('web.status.not_probed'), pending: t('web.status.awaiting_registration'), unavailable: t('web.status.unavailable'), disabled: t('web.status.not_registered') })[tool.registration_state || tool.state];
-      dotClass = 'unknown';
-    } else if (health && health.last_seen_at) {
-      stateLabel = HEALTH[health.status] || t('web.status.unknown');
-      dotClass = DOT[health.status] || 'unknown';
-    } else {
-      stateLabel = t('web.status.callable_no_observations_yet');
-      dotClass = 'unknown';
-    }
+    const registration = tool.registration_state || tool.state;
+    const registrationLabel = tool.registered ? t('web.status.registered') : ({
+      unprobed: t('web.status.not_probed'),
+      pending: t('web.status.awaiting_registration'),
+      unavailable: t('web.status.unavailable'),
+    })[registration] || t('web.status.not_registered');
+    const stateLabel = tool.enabled ? registrationLabel :
+      t('web.status.disabled_in_config') + (registration === 'unprobed' ? ` ${t('web.note.not_probed_yet')}` : ` · ${registrationLabel}`);
+    const hasObservation = health && health.last_seen_at;
+    const observationLabel = hasObservation ? (HEALTH[health.status] || t('web.status.unknown')) : t('web.status.no_observations');
+    const dotClass = hasObservation ? (DOT[health.status] || 'unknown') : 'unknown';
     const stats = health && health.today
       ? `<small>${fmtInt(health.today.requests)} ${t('web.note.text')} ${fmtInt(health.today.successes)} ${t('web.note.success')} ${fmtInt(health.today.failures)} ${t('web.status.failure')}</small>`
       : `<small>${t('web.note.no_tool_layer_events_yet')}</small>`;
     const pdf = tool.pdf ? `<small class="pdf-params">${t('web.label.default_pages')} ${esc(tool.pdf.max_pages)} ${t('web.note.page_limit_per_task')} ${esc(tool.pdf.mineru_page_limit)} ${t('web.note.batch_size')} ${esc(tool.pdf.mineru_page_batch_size)} ${t('web.note.call_budget')} ${esc(tool.pdf.mineru_page_budget)} · OCR ${tool.pdf.ocr_enabled ? t('web.label.on') : t('web.label.off_2')}${tool.pdf.page_progress === 'not_collected' ? t('web.note.page_progress_not_collected') : ''}</small>` : '';
     const file = tool.file ? `<small class="pdf-params">${t('web.label.allowlisted_roots')} ${esc(tool.file.allowed_root_count)} · ${tool.file.whitelist_enforced ? t('web.status.allowlist_enforced') : t('web.status.directories_unrestricted')}${tool.file.path_metadata_only ? t('web.note.path_metadata_only') : ''}</small>` : '';
     const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small>${t('web.note.saved_content_reads_available_url_fetching')}${tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')}</small>` : '';
+    const history = tool.history ? `<small>${esc(t('web.note.history_retention', { days: fmtInt(tool.history.retention_days) }))}</small>` : '';
     return `<div class="tool-row"><span class="tool-head">${dot(dotClass)}` +
       `<b>${esc(tool.label || displayName(tool.name))}</b><small class="mono">${esc(tool.name)}</small></span>` +
-      `<span class="tool-state">${esc(stateLabel)}</span>` +
-      `<p class="tool-stats">${stats}${pdf}${file}${fetch}</p></div>`;
+      `<span class="tool-state">${esc(stateLabel)}<small class="tool-observation">${esc(observationLabel)}</small></span>` +
+      `<p class="tool-stats">${stats}${pdf}${file}${fetch}${history}</p></div>`;
   }).join('');
 }
 
@@ -450,11 +548,6 @@ function academicSources() {
   return Array.isArray(o.academic_sources) ? o.academic_sources : null;
 }
 
-function tavilyItem() {
-  if (!Array.isArray(state.quotas)) return null;
-  return state.quotas.find(q => q && q.provider === 'tavily') || null;
-}
-
 function healthStrip(s) {
   const outcomes = Array.isArray(s.recent_outcomes) ? s.recent_outcomes.slice(-20) : [];
   const cells = Array(Math.max(0, 20 - outcomes.length)).fill(null).concat(outcomes);
@@ -471,17 +564,47 @@ function sourceRowHtml(s, detailed) {
   const successRate = today && num(today.requests) > 0 ? today.successes / today.requests : null;
   const avg = today && num(today.requests) > 0 ? fmtMS(Math.round(today.duration_ms / today.requests)) : '<span class="dim">—</span>';
   const cells = [
-    `<td class="src-name"><b>${esc(name)}</b>${detailed && id === 'doubao' ? doubaoVersionControl() : ''}</td>`,
+    `<td class="src-name"><b>${esc(name)}</b>${detailed && id === 'doubao' ? doubaoVersionControl() : ''}${s.participation ? `<small class="source-participation">${esc(s.participation)}</small>` : ''}${s.condition ? `<small class="source-condition">${esc(s.condition)}</small>` : ''}</td>`,
     `<td>${sourceControl(s)}</td>`,
-    `<td><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}</td>`,
+    `<td><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}${cooldownBadge(s.actual_cooldown)}</td>`,
     `<td>${healthStrip(s)}</td>`,
     `<td class="num">${today ? fmtInt(today.requests) : '<span class="dim">—</span>'}</td>`,
     `<td class="num">${successRate === null ? '<span class="dim">—</span>' : esc(Math.round(successRate * 100) + '%')}</td>`,
-    `<td class="num">${avg}</td>`,
-    `<td class="wrap-any">${s.last_error ? '<span class="bad-text">' + esc(s.last_error) + '</span>' : '<span class="dim">—</span>'}</td>`,
+    `<td class="num">${avg}${num(s.p95_ms) > 0 ? `<small>P95 ${esc(fmtMS(s.p95_ms))}</small>` : ''}</td>`,
+    `<td class="wrap-any">${s.last_error ? '<span class="bad-text">' + esc(s.last_error) + '</span>' : '<span class="dim">—</span>'}${s.error_kinds && s.error_kinds.length ? `<div class="source-errors" aria-label="${t('web.label.failure_breakdown')}">${formatErrorKinds(s.error_kinds)}</div>` : ''}</td>`,
   ];
+  if (detailed && s.category === 'api') {
+    const quota = state.quotas?.find(q => q.provider === id);
+    cells.push(`<td class="quota-cell">${quota ? quotaUsageHtml(quota, true) : '—'}</td>`);
+  }
   const rowClass = s.active === true && s.suspended === true ? 'row-suspended' : (s.active === true && s.status === 'down' ? 'row-down' : '');
   return `<tr class="${rowClass}">${cells.join('')}</tr>`;
+}
+
+function cooldownSeconds(until) {
+  return Math.ceil((Date.parse(until) - Date.now()) / 1000);
+}
+
+function cooldownLabel(seconds) {
+  return t('web.label.cooldown_countdown', { count: fmtInt(seconds) });
+}
+
+function cooldownBadge(cooldown) {
+  if (!cooldown) return '';
+  const seconds = cooldownSeconds(cooldown.until);
+  if (!(seconds > 0)) return '';
+  const title = [errorKindLabel(cooldown.kind), fmtAt(cooldown.until)].filter(Boolean).join(' · ');
+  return `<span class="kind-chip route-cooldown" data-route-cooldown-until="${esc(cooldown.until)}" title="${esc(title)}">${esc(cooldownLabel(seconds))}</span>`;
+}
+
+function updateRoutingCooldowns() {
+  const page = $('#page-sources');
+  if (document.hidden || !page.classList.contains('active')) return;
+  $$('[data-route-cooldown-until]', page).forEach(badge => {
+    const seconds = cooldownSeconds(badge.dataset.routeCooldownUntil);
+    if (seconds > 0) badge.textContent = cooldownLabel(seconds);
+    else badge.remove();
+  });
 }
 
 function suspendBadge(s) {
@@ -552,66 +675,15 @@ function renderSourcePages() {
   groups.forEach(([id, list]) => {
     const body = $('#sources-' + id + '-body');
     if (!body) return;
-    body.innerHTML = list === null ? emptyRow(8, t('web.note.loading_2')) : list.length ? list.map(s => sourceRowHtml(s, true)).join('') : emptyRow(8, t('web.note.no_sources_yet'));
+    const cols = id === 'api' ? 9 : 8;
+    body.innerHTML = list === null ? emptyRow(cols, t('web.note.loading_2')) : list.length ? list.map(s => sourceRowHtml(s, true)).join('') : emptyRow(cols, t('web.note.no_sources_yet'));
     setText('#sources-' + id + '-counts', list ? countsLabel(list) : '—');
-    setNote($('#sources-' + id + '-note'), state.overviewError ? t('web.note.data_may_be_stale_2') + state.overviewError : '', state.overviewError ? 'warn' : '');
+    const overviewNote = state.overviewError ? t('web.note.data_may_be_stale_2') + state.overviewError : '';
+    const quotaNote = id === 'api' ? quotaLoadNote() : '';
+    const stale = state.overviewError || (id === 'api' && state.quotaError);
+    setNote($('#sources-' + id + '-note'), [overviewNote, quotaNote].filter(Boolean).join(' · '), stale ? 'warn' : '');
   });
   renderDraftState();
-}
-
-/* ---------- Tavily quota card ---------- */
-
-function renderTavily() {
-  const value = $('#tavily-value');
-  const note = $('#tavily-note');
-  const dotEl = $('#tavily-dot');
-  const details = $('#tavily-details');
-  // 总览已移除额度面板；额度仍通过搜索源页的额度列展示。
-  if (!value || !details) return;
-  const q = tavilyItem();
-  const kv = (pairs) => pairs.filter(p => p[1]).map(p => `<div><dt>${esc(p[0])}</dt><dd>${esc(p[1])}</dd></div>`).join('');
-  if (state.quotaError && !q) {
-    value.textContent = t('web.status.query_failed');
-    dotEl.className = 'dot down';
-    setNote(note, t('web.note.data_may_be_stale_2') + state.quotaError, 'warn');
-    details.innerHTML = '';
-    return;
-  }
-  if (!q) {
-    value.textContent = '—';
-    dotEl.className = 'dot unknown';
-    setNote(note, state.quotas ? t('web.note.the_official_quota_endpoint_returned_no_tavily_entry') : t('web.note.loading_2'), state.quotas ? 'bad' : '');
-    details.innerHTML = '';
-    return;
-  }
-  details.innerHTML = kv([
-    [t('web.label.used'), num(q.used) === null ? '' : fmtInt(q.used) + ' ' + (q.unit || '')],
-    [t('web.label.limit'), num(q.limit) === null ? '' : fmtInt(q.limit) + ' ' + (q.unit || '')],
-    [t('web.label.plan'), q.plan || ''],
-    [t('web.label.updated'), q.updated_at ? fmtAt(q.updated_at) : ''],
-    [t('web.label.official_api'), q.source || ''],
-  ]);
-  switch (q.status) {
-    case 'available':
-      value.textContent = `${fmtInt(q.remaining)} / ${fmtInt(q.limit)} ${q.unit || ''}`.trim();
-      dotEl.className = 'dot healthy';
-      setNote(note, state.quotaError ? t('web.note.data_may_be_stale_2') + state.quotaError : t('web.note.from_the_official_quota_endpoint_not_a_local_estimate'), state.quotaError ? 'warn' : '');
-      break;
-    case 'not_configured':
-      value.textContent = t('web.status.not_configured');
-      dotEl.className = 'dot unknown';
-      setNote(note, t('web.note.tavily_key_not_configured_cannot_query_the_official_quota'), '');
-      break;
-    case 'query_failed':
-      value.textContent = t('web.status.query_failed');
-      dotEl.className = 'dot down';
-      setNote(note, q.error || t('web.note.the_official_quota_endpoint_returned_no_usable_data'), 'bad');
-      break;
-    default:
-      value.textContent = t('web.status.unknown');
-      dotEl.className = 'dot unknown';
-      setNote(note, q.error || t('web.note.the_official_quota_endpoint_returned_an_unrecognized_status'), 'warn');
-  }
 }
 
 /* ---------- effective config summary ---------- */
@@ -858,6 +930,7 @@ function knownErrorKinds() {
 
 function renderUsageSourceOptions() {
   const entries = knownFilterEntries();
+  renderFilterSelect('#filter-application', Object.entries(APPLICATION_LABELS), state.filters.application);
   renderFilterSelect('#filter-tool', entries.tools, state.filters.tool);
   renderFilterSelect('#filter-provider', entries.providers, state.filters.provider);
   renderFilterSelect('#filter-error-kind', knownErrorKinds(), state.filters.errorKind);
@@ -992,7 +1065,7 @@ function writeReason() {
 function renderWriteAccess() {
   ['#source-write-note', '#settings-write-note'].forEach(sel => setNote($(sel), writeAllowed() ? '' : writeReason(), writeAllowed() ? '' : 'warn'));
   ['#restart-service', '#clear-cache', '#retry-apply', '#restore-backup'].forEach(sel => { const el = $(sel); if (el) el.disabled = !writeAllowed() || state.applying || state.saving; });
-  $$('[data-quota-reset], [data-quota-adjust]').forEach(el => { el.disabled = !writeAllowed() || state.applying || state.saving; });
+  $$('[data-quota-reset], [data-quota-adjust]').forEach(el => { el.disabled = !writeAllowed() || state.applying || state.saving || Boolean(state.quotaError); });
   $$('[data-key]').forEach(el => {
     const reason = settingsFieldReason(el.dataset.key);
     el.disabled = Boolean(reason);
@@ -1327,30 +1400,78 @@ function markActiveTheme() {
 
 /* ---------- 额度管理（重置 / 修正，需管理员口令） ---------- */
 
+function quotaLoadNote() {
+  if (state.quotaError) {
+    const prefix = state.quotas ? t('web.note.data_may_be_stale_2') : t('web.note.read_failed');
+    return prefix + state.quotaError;
+  }
+  return state.quotas ? '' : t('web.quota.loading');
+}
+
+function quotaResetHtml(q) {
+  if (q.reset_at) return `<time datetime="${esc(q.reset_at)}">${esc(fmtAt(q.reset_at))}</time>`;
+  if (q.source === 'local') return esc(t('web.label.manual_only'));
+  if (q.provider === 'tavily' && q.status === 'available') return esc(t('web.quota.tavily_reset'));
+  return '—';
+}
+
+function quotaMetric(label, used, limit, remaining, unit) {
+  const amount = t('web.quota.amount', { Used: fmtInt(used), Limit: fmtInt(limit), Unit: unit });
+  const left = remaining == null ? '' : ' · ' + t('web.quota.remaining', { Count: fmtInt(remaining) });
+  const labelHtml = label ? `<b>${esc(label)}</b> ` : '';
+  if (num(used) === null || !(limit > 0)) return `<div class="quota-metric">${labelHtml}${esc(amount + left)}</div>`;
+  const percent = 100 * used / limit;
+  const level = percent >= 100 ? 'bad' : percent >= 80 ? 'warn' : '';
+  const warning = level === 'bad' ? t('web.quota.limit_reached') : level ? t('web.quota.near_limit') : '';
+  return `<div class="quota-metric ${level}">${labelHtml}${esc(amount + left)}` +
+    (warning ? ` <b>${esc(warning)}</b>` : '') +
+    `<progress max="100" value="${Math.max(0, Math.min(100, percent))}" aria-label="${esc((label ? label + ' · ' : '') + amount)}"></progress></div>`;
+}
+
+function quotaUsageHtml(q, showReset) {
+  const local = q.source === 'local';
+  if (q.status === 'not_configured') return `<span class="muted">${esc(t('web.status.not_configured'))}</span>`;
+  const failed = `<span class="quota-warning">${esc(t('web.quota.official_failed'))}</span>`;
+  if (q.status === 'query_failed') return failed;
+  const source = `<span class="muted" title="${esc(local ? '' : q.source)}">${esc(local ? t('web.quota.local') : t('web.quota.official'))}</span>`;
+  const unit = q.unit === 'credits' ? t('web.quota.credits') : t('web.quota.calls');
+  const details = q.details || {};
+  const amount = quotaMetric(!local && q.provider === 'tinyfish' ? t('web.quota.search') : '', q.used, q.limit, q.remaining, unit);
+  let breakdown = '';
+  if (!local && q.provider === 'tinyfish') {
+    breakdown = num(details.fetch_used) !== null && details.fetch_limit > 0
+      ? quotaMetric(t('web.quota.fetch'), details.fetch_used, details.fetch_limit, Math.max(0, details.fetch_limit - details.fetch_used), unit)
+      : `<div class="quota-warning">${esc(t('web.quota.fetch_failed'))}</div>`;
+  } else if (!local && q.provider === 'tavily') {
+    const counters = [
+      [t('web.quota.plan_usage'), details.account_plan_usage, details.account_plan_limit],
+      [t('web.quota.key_usage'), details.key_usage, details.key_limit],
+      [t('web.quota.paygo_usage'), details.paygo_usage, details.paygo_limit],
+    ];
+    const pairs = counters.filter(([, used, limit]) => num(used) !== null || num(limit) !== null)
+      .map(([label, used, limit]) => `${label} ${fmtInt(used)} / ${fmtInt(limit > 0 ? limit : null)}`);
+    const search = num(details.search_usage);
+    const extract = num(details.extract_usage);
+    if (search !== null) pairs.push(`${t('web.quota.search')} ${fmtInt(search)}`);
+    if (extract !== null) pairs.push(`${t('web.quota.extract')} ${fmtInt(extract)}`);
+    const summary = [q.plan, ...pairs].filter(Boolean).join(' · ');
+    if (summary) breakdown = `<div class="muted">${esc(summary)}</div>`;
+  }
+  const reset = showReset ? `<div class="muted">${esc(t('web.label.next_automatic_reset'))} · ${quotaResetHtml(q)}</div>` : '';
+  return `${q.official_query_failed ? failed + ' · ' : ''}${source}${amount}${breakdown}${reset}`;
+}
+
 function renderQuotaManage() {
   const body = $('#quota-manage-body');
   const note = $('#quota-manage-note');
   if (!body || !note) return;
-  if (state.quotaError) {
-    body.innerHTML = '';
-    setNote(note, t('web.note.read_failed') + state.quotaError, 'bad');
-    return;
-  }
-  const rows = (state.quotas || []).filter(q => q.source === 'local');
-  if (!rows.length) {
-    body.innerHTML = '';
-    setNote(note, t('web.note.no_local_usage_data_yet_real_calls_accumulate_automatically_'), '');
-    return;
-  }
-  setNote(note, t('web.note.usage_comes_from_local_real_calls_successful_ones_the_limit_'), '');
+  const rows = state.quotas || [];
+  setNote(note, quotaLoadNote() || (rows.length ? t('web.quota.local_policy') : t('web.quota.no_data')), state.quotaError ? 'warn' : '');
   body.innerHTML = rows.map(q => {
-    const used = q.used == null ? '—' : fmtInt(q.used);
-    const limit = q.limit == null ? '—' : fmtInt(q.limit);
-    const reset = q.reset_at ? fmtAt(q.reset_at) : t('web.label.manual_only');
-    const name = esc(DISPLAY[q.provider] || q.provider);
-    return `<tr><td>${name}</td><td class="num">${used} / ${limit}</td><td>${esc(reset)}</td>` +
-      `<td><div class="row-actions"><button type="button" class="icon-btn" title="${t('web.action.reset')}${esc(displayName(q.provider))}${t('web.label.usage')}" aria-label="${t('web.action.reset')}${esc(displayName(q.provider))}${t('web.label.usage')}" data-quota-reset="${esc(q.provider)}">${icon('rotate-ccw')}</button> ` +
-      `<button type="button" class="icon-btn" title="${t('web.action.adjust')}${esc(displayName(q.provider))}${t('web.label.usage')}" aria-label="${t('web.action.adjust')}${esc(displayName(q.provider))}${t('web.label.usage')}" data-quota-adjust="${esc(q.provider)}" data-used="${q.used || 0}">${icon('pencil')}</button></div></td></tr>`;
+    const name = esc(displayName(q.provider));
+    const actions = q.source === 'local' ? `<div class="row-actions"><button type="button" class="icon-btn" title="${t('web.action.reset')}${name}${t('web.label.usage')}" aria-label="${t('web.action.reset')}${name}${t('web.label.usage')}" data-quota-reset="${esc(q.provider)}">${icon('rotate-ccw')}</button> ` +
+      `<button type="button" class="icon-btn" title="${t('web.action.adjust')}${name}${t('web.label.usage')}" aria-label="${t('web.action.adjust')}${name}${t('web.label.usage')}" data-quota-adjust="${esc(q.provider)}" data-used="${num(q.used) || 0}">${icon('pencil')}</button></div>` : '—';
+    return `<tr><td>${name}</td><td class="quota-cell">${quotaUsageHtml(q, false)}</td><td>${quotaResetHtml(q)}</td><td>${actions}</td></tr>`;
   }).join('');
   renderWriteAccess();
 }
@@ -1662,9 +1783,12 @@ function wire() {
     state.filters.errorKind = $('#filter-error-kind').value;
     state.filters.tool = $('#filter-tool').value;
     state.filters.provider = $('#filter-provider').value;
+    state.filters.application = $('#filter-application').value.trim();
+    state.filters.project = $('#filter-project').value.trim();
+    state.filters.cacheHit = $('#filter-cache').value;
     loadEvents();
   };
-  ['#filter-status', '#filter-error-kind', '#filter-tool', '#filter-provider'].forEach(sel => {
+  ['#filter-status', '#filter-error-kind', '#filter-tool', '#filter-provider', '#filter-application', '#filter-project', '#filter-cache'].forEach(sel => {
     $(sel).addEventListener('change', applyFilter);
   });
   $('#filter-status').value = state.filters.status;
@@ -1694,3 +1818,4 @@ $('#accent-input').value = localStorage.getItem('accent') || '';
 nav(location.hash.slice(1) || 'overview', false);
 loadAll();
 setInterval(() => { if (!document.hidden) loadAll(); }, REFRESH_MS);
+setInterval(updateRoutingCooldowns, 1000);

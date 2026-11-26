@@ -46,6 +46,9 @@ assert.equal(run('csvCell(-12)'), '"-12"');
   element('#filter-provider').value = 'arxiv';
   element('#filter-status').value = 'success';
   element('#filter-error-kind').value = 'timeout';
+  element('#filter-application').value = 'codex';
+  element('#filter-project').value = 'My Project';
+  element('#filter-cache').value = 'false';
   run('applyFilters()');
   assert.equal(run('state.filters.tool'), 'academicsearch');
   assert.equal(run('state.filters.provider'), 'arxiv');
@@ -56,7 +59,7 @@ assert.equal(run('csvCell(-12)'), '"-12"');
   await run('loadEvents()');
   const params = new URLSearchParams(requested.split('?')[1]);
   assert.equal(requested.split('?')[0], '/__admin/api/calls');
-  for (const [key, value] of Object.entries({limit:'100', tool:'academicsearch',provider:'arxiv',status:'success',error_kind:'timeout'}))
+  for (const [key, value] of Object.entries({limit:'100', tool:'academicsearch',provider:'arxiv',status:'success',error_kind:'timeout', application:'codex', project:'My Project', cache_hit:'false'}))
     assert.equal(params.get(key), value);
   run(`state.events.rows = [{id:7,kind:'tool',tool:'academicsearch',request_id:'req-test',success:true,client:'websearch',application:'workbuddy',project:'Paper <demo>'}];
     fetchJSON = async url => { record(url); return [{kind:'provider',provider:'arxiv',success:false,error_summary:'<private>',error_kind:'timeout'}]; };`);

@@ -170,6 +170,8 @@ func registerTools(server *mcp.Server, conf config.Config) {
 		}, SearchHistoryHandler)
 		log.InfoT("log.mcp.available_tool_search_history")
 		setState("search_history", "registered")
+	} else if conf.SearchHistoryEnabled() {
+		setState("search_history", "unavailable")
 	}
 
 	publishTools(states)

@@ -42,6 +42,7 @@ dashboard:
 
   # 额度管理：本地真实调用计数（成功次数），自动按周期重置；
   # 注意上限仅展示与剩余量计算，超限不阻断调用（超限熔断为计划中 TODO）
+  # Tavily / TinyFish 优先展示官方用量；本块设置本地计数和官方查询失败时的回退口径。
   quotas:
     reset: monthly        # monthly / weekly / daily / none（仅手动重置）
     reset_day: 1          # monthly 的每月重置日（1-28）

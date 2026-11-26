@@ -50,5 +50,14 @@
   "dashboard.config_error.unreadable": "cannot read the effective config file",
   "dashboard.config_error.parse": "failed to parse the config file",
   "dashboard.validate.need_web_source": "the current mode must keep at least one participating web source",
-  "dashboard.validate.need_academic_source": "academic search must keep at least one participating source"
+  "dashboard.validate.need_academic_source": "academic search must keep at least one participating source",
+  "dashboard.tool.search_history.label": "Search history",
+  "dashboard.tool.search_history.desc": "Search locally retained search history",
+  "dashboard.participation.active": "Included in routing",
+  "dashboard.participation.disabled": "Source disabled",
+  "dashboard.participation.credential_missing": "API key missing",
+  "dashboard.participation.proxy_disabled": "Proxy disabled",
+  "dashboard.participation.mode": "Excluded from {{.Mode}} routing",
+  "dashboard.participation.academic_disabled": "Academic search disabled",
+  "dashboard.participation.network_requirements": "Network or proxy requirements unmet"
 }

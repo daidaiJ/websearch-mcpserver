@@ -3,9 +3,11 @@
 package telemetry
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -136,11 +138,15 @@ type EventFilter struct {
 
 // CallFilter selects tool outcomes and matches source/error evidence within the request.
 type CallFilter struct {
-	Tool      string
-	Provider  string
-	Status    string
-	ErrorKind string
-	Limit     int
+	CacheHit         *bool
+	Application      string
+	Project          string
+	ProjectForClient func(string) string
+	Tool             string
+	Provider         string
+	Status           string
+	ErrorKind        string
+	Limit            int
 }
 
 type Overview struct {
@@ -245,7 +251,8 @@ func OpenWithMaxOpenConns(path string, retentionDays, maxOpenConns int) (*Store,
 		db.Close()
 		return nil, fmt.Errorf("add project attribution: %w", err)
 	}
-	if _, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_usage_events_request ON usage_events(request_id)`); err != nil {
+	if _, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_usage_events_request ON usage_events(request_id);
+ CREATE INDEX IF NOT EXISTS idx_usage_tool_clients ON usage_events(client) WHERE kind='tool'`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("index request events: %w", err)
 	}
@@ -402,6 +409,10 @@ const storedEventColumns = `id,occurred_at,kind,tool,provider,success,duration_m
 
 // RecentCalls limits tool records after matching the entire retained request, not a recent event sample.
 func (s *Store) RecentCalls(filter CallFilter) ([]StoredEvent, error) {
+	return s.RecentCallsContext(context.Background(), filter)
+}
+
+func (s *Store) RecentCallsContext(ctx context.Context, filter CallFilter) ([]StoredEvent, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
@@ -427,9 +438,49 @@ func (s *Store) RecentCalls(filter CallFilter) ([]StoredEvent, error) {
 			WHERE p.request_id=e.request_id AND p.kind='provider' AND p.error_kind=?)))`)
 		args = append(args, filter.ErrorKind, filter.ErrorKind)
 	}
-	args = append(args, limit)
-	return s.queryEvents(`SELECT `+storedEventColumns+` FROM usage_events e WHERE `+
-		strings.Join(where, " AND ")+` ORDER BY e.occurred_at DESC,e.id DESC LIMIT ?`, args...)
+	if filter.CacheHit != nil {
+		where = append(where, "e.cache_hit=?")
+		args = append(args, boolInt(*filter.CacheHit))
+	}
+	// Historical client tags may end in a truncated UTF-8 rune. Encode their original
+	// bytes across the JSON parameter so the SQL comparison remains exact.
+	if filter.Application != "" || filter.Project != "" {
+		rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT client FROM usage_events WHERE kind='tool'")
+		if err != nil {
+			return nil, err
+		}
+		var appClients, projectClients []string
+		for rows.Next() {
+			var client string
+			if err := rows.Scan(&client); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if filter.Application != "" && strings.EqualFold(Application(client), filter.Application) {
+				appClients = append(appClients, hex.EncodeToString([]byte(client)))
+			}
+			if filter.Project != "" && filter.ProjectForClient != nil && filter.ProjectForClient(client) == filter.Project {
+				projectClients = append(projectClients, hex.EncodeToString([]byte(client)))
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if filter.Application != "" {
+			names, _ := json.Marshal(appClients)
+			where = append(where, "e.client IN (SELECT CAST(unhex(value) AS TEXT) FROM json_each(?))")
+			args = append(args, string(names))
+		}
+		if filter.Project != "" {
+			names, _ := json.Marshal(projectClients)
+			where = append(where, "(e.project=? OR (e.project='' AND e.client IN (SELECT CAST(unhex(value) AS TEXT) FROM json_each(?))))")
+			args = append(args, filter.Project, string(names))
+		}
+	}
+	query := `SELECT ` + storedEventColumns + ` FROM usage_events e WHERE ` +
+		strings.Join(where, " AND ") + ` ORDER BY e.occurred_at DESC,e.id DESC LIMIT ?`
+	return s.queryEventsContext(ctx, query, append(args, limit)...)
 }
 
 // RequestEvents returns all retained evidence for one exact request, without list limits.
@@ -442,7 +493,11 @@ func (s *Store) RequestEvents(requestID string) ([]StoredEvent, error) {
 }
 
 func (s *Store) queryEvents(query string, args ...any) ([]StoredEvent, error) {
-	rows, err := s.db.Query(query, args...)
+	return s.queryEventsContext(context.Background(), query, args...)
+}
+
+func (s *Store) queryEventsContext(ctx context.Context, query string, args ...any) ([]StoredEvent, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

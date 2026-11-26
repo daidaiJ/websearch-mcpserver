@@ -50,5 +50,14 @@
   "dashboard.config_error.unreadable": "无法读取生效配置文件",
   "dashboard.config_error.parse": "配置文件解析失败",
   "dashboard.validate.need_web_source": "当前模式至少保留一个可参与的网页搜索源",
-  "dashboard.validate.need_academic_source": "学术检索至少保留一个可参与的搜索源"
+  "dashboard.validate.need_academic_source": "学术检索至少保留一个可参与的搜索源",
+  "dashboard.tool.search_history.label": "搜索历史",
+  "dashboard.tool.search_history.desc": "在本机保存的搜索历史中检索",
+  "dashboard.participation.active": "已纳入路由",
+  "dashboard.participation.disabled": "来源开关已关闭",
+  "dashboard.participation.credential_missing": "缺少 API Key",
+  "dashboard.participation.proxy_disabled": "代理已禁用",
+  "dashboard.participation.mode": "未纳入 {{.Mode}} 模式路由",
+  "dashboard.participation.academic_disabled": "学术搜索已关闭",
+  "dashboard.participation.network_requirements": "当前网络或代理条件未满足"
 }

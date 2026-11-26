@@ -30,6 +30,7 @@ type SourceView struct {
 	ControlPath         string                     `json:"control_path"`
 	Inverted            bool                       `json:"inverted"`
 	Condition           string                     `json:"condition"`
+	Participation       string                     `json:"participation"`
 	Configured          bool                       `json:"configured"`
 	Active              bool                       `json:"active"`
 	Status              string                     `json:"status"`
@@ -71,6 +72,7 @@ type ActualCooldownView struct {
 type dashboardOverview struct {
 	telemetry.Overview
 	System          SystemSummary `json:"system"`
+	Runtime         runtimeView   `json:"runtime"`
 	Sources         []SourceView  `json:"sources"`
 	AcademicSources []SourceView  `json:"academic_sources"`
 	// ConfiguredTools 是公开 MCP 工具的固定清单，不依赖是否已经产生调用。
@@ -94,6 +96,7 @@ func buildDashboardOverview(conf config.Config, observed telemetry.Overview, loc
 	return dashboardOverview{
 		Overview:        observed,
 		System:          summary,
+		Runtime:         buildRuntimeView(conf),
 		Sources:         web,
 		AcademicSources: academic,
 		ConfiguredTools: mcpToolCatalog(conf, loc),
@@ -124,7 +127,7 @@ func joinSources(defs []SourceView, observed []telemetry.Health) []SourceView {
 					remaining = 1
 				}
 				s.ActualCooldown = &ActualCooldownView{Engine: entry.Engine, Kind: entry.Kind,
-					Reason: entry.Reason, Until: until.Format(time.RFC3339),
+					Reason: entry.Reason, Until: until.Format(time.RFC3339Nano),
 					RemainingSeconds: remaining, CooldownSeconds: int64(entry.Cooldown), PersistEnabled: persistEnabled}
 				break
 			}
@@ -147,9 +150,6 @@ func joinSources(defs []SourceView, observed []telemetry.Health) []SourceView {
 			}
 			if today.Day == "" {
 				today.Day, today.Kind, today.Provider = candidate.Today.Day, "provider", s.ID
-			}
-			if candidate.P95MS > h.P95MS {
-				h.P95MS = candidate.P95MS
 			}
 			// Failure composition is additive across aliases: the newest alias
 			// may have no failures while an older one did.
@@ -466,6 +466,18 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 				}
 			}
 		}
+		switch {
+		case s.Active:
+			s.Participation = loc.T("dashboard.participation.active")
+		case !s.Enabled:
+			s.Participation = loc.T("dashboard.participation.disabled")
+		case !s.Configured:
+			s.Participation = loc.T("dashboard.participation.credential_missing")
+		case s.Category == "engine" && !engineReady[s.ID]:
+			s.Participation = loc.T("dashboard.participation.proxy_disabled")
+		default:
+			s.Participation = loc.T("dashboard.participation.mode", "Mode", mode)
+		}
 	}
 	return out
 }
@@ -500,9 +512,20 @@ func academicSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView
 				condition += loc.T("dashboard.suffix.proxy_unresolved")
 			}
 		}
+		var participation string
+		switch {
+		case active:
+			participation = loc.T("dashboard.participation.active")
+		case d.disabled:
+			participation = loc.T("dashboard.participation.disabled")
+		case !enabled:
+			participation = loc.T("dashboard.participation.academic_disabled")
+		default:
+			participation = loc.T("dashboard.participation.network_requirements")
+		}
 		out = append(out, SourceView{ID: d.id, Name: d.name, Group: "academic", Category: "academic",
 			Configured: true, Enabled: !d.disabled, Active: active, ControlPath: "academic.disable_" + d.id,
-			Inverted: true, Condition: condition, SuspensionScope: "observation", aliases: []string{d.id}})
+			Inverted: true, Condition: condition, Participation: participation, SuspensionScope: "observation", aliases: []string{d.id}})
 	}
 	return out
 }

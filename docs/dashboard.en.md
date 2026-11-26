@@ -46,14 +46,14 @@ cp dashboard.example.yaml dashboard.yaml   # next to config.yaml, edit as needed
 
 | Page | What it shows |
 |------|---------------|
-| **Overview** | KPIs (successful calls with total and cache hits / failures / avg latency), system status (including suspended count), running configuration, tool observation status, client usage grouping |
-| **Sources** | Per-source health, last 20 results, failure composition (e.g. `parse ×4`), success rate, avg / P95 latency, quotas, latest error and suspension countdown |
-| **Usage** | Tool and source dimensions side by side; filter by level / status / tool / source / error kind; click a request id on a tool row to expand the source chain of that call (the former standalone "Events" page was merged here) |
+| **Overview** | Tool-call KPIs, daily success / failure / cache-hit trend, service runtime, six public MCP tools and client usage |
+| **Sources** | Enable switches, routing conditions, observed health, last 20 results, failure breakdown, success rate, average / P95 latency, API quotas and routing cooldowns |
+| **Usage** | Filter by status, tool, provider, error kind, application, project and cache state. Expand a call to see its provider attempts or export the current list to CSV. |
 | **Settings** | Writes whitelisted config (mode, timeouts, thresholds, suspension durations, etc.) after backing up the current YAML; secrets are never echoed; theme and advanced actions live in the "Appearance & maintenance" card |
 
 Behavior boundaries:
 
-- **Passive observation only**: records metadata produced by real MCP calls; no active probing, no fabricated data. Tools never called still show "callable · not observed yet".
+- **Passive observation**: records redacted metadata from real MCP calls. Tool configuration, registration and observation states are shown independently.
 - **Failure classes + confidence**: failures are classified as rate limit / captcha / access denied / timeout / network / parse / no result; fewer than 5 samples is flagged "insufficient samples", and only 3 consecutive failures show suspension — **reporting only, calls are never skipped**.
 - **Request-level correlation**: one tool call and the source events it triggered share a request id, answering "who supplied this result, who failed".
 
@@ -153,11 +153,11 @@ dashboard:
 
 Current behavior:
 
-- **Local real-call counting**: usage = actual successful provider calls in the current period from telemetry (no local estimation, no active probing); the Settings → "Quota" panel shows used / limit / remaining per provider
+- **Local counting**: counts successful provider calls from telemetry for the current period. Search Sources → API Providers and Settings → Quota Management both show used, limit and remaining values with progress bars. Usage is marked near the limit at 80% and at the limit from 100%.
 - **User-set caps, auto-scaled by key count**: `quotas.limits` configures the **per-key** per-period cap (calls) per provider; unset providers default to 1000. The shown cap = per-key cap × configured key count (aligned with how apipool's real consumption scales with available keys — no manual math). Caps affect display and remaining math only, never call blocking
 - **Automatic period reset**: `monthly` / `weekly` / `daily` / `none` (`reset_day` picks the day of month); entering a new period zeroes usage automatically
-- **Admin manual ops** (write-gate protected): "Reset" pushes a provider's (or all) counting window to now; "Adjust" rewrites the displayed usage to a value (converted to an adjustment; raw call records untouched)
-- **Official Tavily / TinyFish usage first + startup sync**: Tavily and TinyFish expose public usage endpoints — TinyFish's official `/usage` endpoints (api.search / api.fetch, X-API-Key) return paginated call records; usage is derived from the record count since 00:00 UTC, with free-tier caps taken from the official docs (12,000 searches/day, 1,000 fetch URLs/day). The server prefetches official usage in the background at startup (read-only, never a billed call) so the console has data on first open — failures stay silent and are retried on demand when the panel loads. Official numbers are shown first (Tavily in credits, TinyFish in calls-for-today), falling back to local counts on failure
+- **Admin operations**: Reset and Adjust appear for local rows in Settings and require write authorization. Reset starts a new counting window and Adjust changes the displayed count while retaining the original call records.
+- **Official Tavily / TinyFish usage**: both pages show the provider source and reset information. Tavily displays plan, key and related counters in credits. The reset time is displayed when the provider supplies it. TinyFish reports separate daily Search (12,000/day) and Fetch (1,000/day) counts starting at 00:00 UTC. A failed Fetch lookup leaves the Search count visible with a warning. A failed official lookup is labeled and falls back to local counting when available. Official usage is prefetched at startup and cached for five minutes. It consumes no search credits.
 
 **Why other providers only have local counts (surveyed 2026-09)**: Exa / AnySearch / Bocha (Doubao search) / Baidu Qianfan / Yuanbao / Keenable offer no official endpoint that queries quota with the search API key — Exa's usage API needs a Service Key and only returns spend in USD; Bocha, Qianfan and Yuanbao usage APIs live behind their cloud-account signature schemes (not the search key). Check those providers' consoles for real quota; this project relies on user-set `quotas.limits` plus local real-call counting for comparison. Yuanbao additionally enforces `yuanbao.monthly_limit` before every request; the dashboard number is informational.
 
@@ -169,9 +169,9 @@ Current behavior:
 
 The sidebar has one call-history page, showing the latest 100 tool calls by default. Each call occupies one row; its disclosure button shows the request ID, redacted metadata and all retained provider attempts. Legacy records without a request ID are not linked by inference. Old #events links open call history.
 
-Tool, provider, status and error type can be combined. Status describes the tool outcome; provider and error filters match evidence within the same request. A local provider failure never rewrites a successful tool outcome. CSV includes the current tool rows and their complete retained provider details; a detail-read failure aborts export rather than producing an incomplete file.
+Combine tool, provider, status, error-kind, application, project and cache filters. Status and cache are attributes of the tool call. Provider and error filters also match provider evidence within the request. Project matches the displayed label exactly, using the dashboard client-project mapping when the call did not record a label. CSV includes the same filtered tool calls and their complete retained provider details. Export stops if request details cannot be read.
 
-GET /__admin/api/calls defaults to at most 100 tool rows and accepts tool, provider, status, error_kind and limit; the existing /events contract remains compatible. GET /__admin/api/request-events?request_id= returns all retained events for an exact nonempty request ID, independent of list limits or filters. Actual retention still applies. Both APIs retain the existing read guard and redacted field contract, without query text or credentials.
+`GET /__admin/api/calls` returns the latest 100 matching tool rows by default and accepts `tool`, `provider`, `status`, `error_kind`, `application`, `project`, `cache_hit=true|false` and `limit`. Use the canonical application ID, such as `codex`. The `/events` contract remains compatible. `GET /__admin/api/request-events?request_id=` returns retained events for the exact request ID. Both endpoints use the existing read guard and redacted field contract.
 
 Recognized DBLP Anubis challenge pages are recorded as human-verification failures for both tool and provider, not ordinary empty searches. When no usable results remain and engines have failed, their individual reasons are retained. Historical parse-failure events are unchanged. Detection does not bypass upstream verification or automatically change source switches or actual cooldowns.
 
@@ -185,7 +185,7 @@ Settings offer `hybrid`, `engine`, `apipool` and a single-provider entry. The la
 
 The Doubao row under Search Sources / API Providers controls `doubao.version` (Global / Custom), independently of search mode. It reuses shared drafts, preview, save/restart and backup restore, remains locked under environment overrides, invalidates search caches and leaves keys unchanged. The UI offers no ICP filter editor and does not reset existing `doubao.icp_host_only` configuration.
 
-Source lists separate web/API and academic sources, showing enable switches and passive health observations. Switches use a locally embedded [Bootstrap 5.3.8 Switch](https://getbootstrap.com/docs/5.3/forms/checks-radios/#switches) HTML/CSS subset without a CDN, script or full-library dependency, sized for desktop mouse use. The runtime/conditions column is omitted. An enabled source without a key, outside the selected mode, or missing runtime requirements is not necessarily participating. No calls does not mean failure. Disabling a source keeps its history and keys. Independent API switches, anonymous AnySearch, the separate Baidu web switch and exact-lookup rules are described under [Search Sources and Mode Routing](configuration.en.md#search-sources-and-mode-routing).
+The Sources page groups web engines, API providers and academic sources. Each source name is followed by its current participation state or the reason for exclusion, and its routing requirements. The switches use a locally embedded [Bootstrap 5.3.8 Switch](https://getbootstrap.com/docs/5.3/forms/checks-radios/#switches) HTML/CSS subset. Disabling a source retains its history and keys. See [Search Sources and Mode Routing](configuration.en.md#search-sources-and-mode-routing) for switches and fallback rules.
 
 1. Source switches and common settings create a shared browser-memory draft only. Polling and tab changes do not immediately write configuration. Undo discards unsaved edits, not existing runtime configuration.
 2. "Save and restart" previews and validates the change server-side, then shows before/after field differences for confirmation. The selected mode must retain at least one participating web source; enabled academic search must also retain an academic source. Validation does not count a source whose required proxy cannot be resolved as the last usable source, but does not probe proxy or upstream health. Invalid configuration, read-only access and locked fields cannot be written through confirmation.
@@ -194,9 +194,17 @@ Source lists separate web/API and academic sources, showing enable switches and 
 
 Save and restore requests carry the configuration-content `revision`. Another session or external edit changing the file after preview produces **HTTP 409**, without overwriting the new content. Refresh, compare and rebuild the draft before saving. Environment-overridden fields are locked; dashboard fields managed by the separate dashboard.yaml are likewise not writable through the main-config path. Edit the actual environment/overlay source and restart instead of bypassing the lock.
 
+Use Settings → API Key Status to save a GitHub PAT. The console saves it to the private `dashboard-secrets.json` overlay and GitHub search uses it after restart. Existing `github.token_list` entries remain available for rotation. Saving an empty value removes the override, so any environment or main-config credentials apply again after restart. APIs expose only whether a credential is configured.
+
+## Service runtime
+
+Overview shows the binary version, uptime, stateless MCP mode and the MCP Resources switch. Proxy status shows the configuration mode, whether the endpoint resolves and whether API providers are configured to use it. LLM summary status includes the model and timeout. MCPHub shows its enable switch, remote-fetch policy and configured server order. The `/searxng/search` compatibility endpoint is shown as removed.
+
+The trend chart uses daily tool-call aggregates from `/overview` for successes, failures and cache hits. The query covers the last 14 days, with gaps between observed dates plotted as zero. Cache hits are a separate series and can overlap with successful calls.
+
 ## Tools and observation boundaries
 
-The catalog displays five public tools. Registration comes from the current MCP runtime snapshot; call counts and health come from actual tool events. Configured, registered and not yet observed are separate states. Missing telemetry or no calls is not a successful call record.
+The catalog displays six public MCP tools. Configuration comes from the running process, registration from its MCP tool snapshot, and usage and health from observed tool events.
 
 | Tool | Boundary |
 |---|---|
@@ -205,12 +213,13 @@ The catalog displays five public tools. Registration comes from the current MCP 
 | `cleanfetch` | Always registered; saved-body reads remain available, URL fetching has a separate `fetch_enabled` status. The switch does not gate smartsearch's `fetch_top_n`. Telemetry detail is `url_fetch` or `saved_result`, never references or body text |
 | `pdf_parser` | PDF parsing; displays `max_pages` (default 20 pages when `pages` is omitted), `mineru_page_limit` (`GetMinerUPageLimit()` defaults to 600 pages), batch size, per-call page budget and OCR configuration, not proof that OCR ran |
 | `file_search` | Read-only Everything filename/path indexing, not file-content reading; the existing lazy probe runs at MCP connection time, never because the dashboard is read |
+| `search_history` | Shows the enable switch, registration, retention and observed calls. The tool registers when explicitly enabled and the local history store is available. |
 
 `file_search` follows the configured `everything.roots` directory allowlist, `max_results` per page (default 10, hard cap 20), and `timeout_sec` (default 5 seconds). `everything.roots: []` means no directory allowlist restriction, shown as "目录未限制" (directories unrestricted); a nonempty list enforces the search scope. The control center does not edit roots. Use pagination rather than widening directory permissions. A configured URL does not prove the tool is callable: distinguish unprobed, pending registration, unavailable and registered states. Authentication material is never echoed.
 
 PDF page progress is currently `not_collected`; the control center cannot derive real per-page progress, processed-page counts or budget consumption from it. Missing page-level information and upstream coverage must not be treated as complete telemetry. Parameters describe runtime configuration, not the outcome of a particular call.
 
-Passive warnings (`suspension.*` / `suspension_scope: observation`) reflect real events and **never skip calls or change routing**. Actual rate-limit/cooldown state comes independently from the `antirobot` runtime snapshot in `actual_cooldown`, including reason, expiry, remaining time and persistence state. A warning countdown must not be presented as routing cooldown; an absent snapshot does not prove upstream health.
+The Sources page uses distinct badges for passive observation warnings and `actual_cooldown` routing cooldowns. A warning summarizes telemetry. A routing cooldown counts down to the registry expiry, with the expiration and error category in its tooltip. P95 uses the current health observation sample. Failure tags sum counts across observed aliases of the same source.
 
 ## Shortcut placement (`shortcut`)
 

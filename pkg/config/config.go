@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -1983,6 +1984,12 @@ func applyDashboardSecrets(conf *Config) {
 	}
 	if v := values["JINA_API_KEY"]; v != "" {
 		conf.Jina.APIKey = v
+	}
+	if v := values["GITHUB_TOKEN"]; v != "" {
+		conf.GitHub.APIKey = v
+		if len(conf.GitHub.TokenList) > 0 && !slices.Contains(conf.GitHub.TokenList, v) {
+			conf.GitHub.TokenList = append([]string{v}, conf.GitHub.TokenList...)
+		}
 	}
 	if v := values["MINERU_TOKEN"]; v != "" {
 		conf.PDFParser.MinerUToken = v

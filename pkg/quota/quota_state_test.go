@@ -2,6 +2,8 @@ package quota
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -142,6 +144,32 @@ func TestTavilyOfficialPriority(t *testing.T) {
 			t.Fatalf("官方未配置时应回退本地, got %+v", it)
 		}
 	}
+}
+
+func TestOfficialQueryFailurePreservesLocalQuotaAndReportsFallback(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer upstream.Close()
+	conf := tavilyConf("test-key")
+	conf.Dashboard.Quotas.Limits = map[string]int{"tavily": 100}
+	svc, store := newLocalService(t, conf)
+	svc.endpoint = upstream.URL
+	recordN(t, store, "tavily", 3)
+
+	for _, item := range svc.Get(tContext()) {
+		if item.Provider != "tavily" {
+			continue
+		}
+		if item.Source != "local" || item.Used == nil || *item.Used != 3 {
+			t.Fatalf("expected observed local fallback, got %+v", item)
+		}
+		if !item.OfficialQueryFailed {
+			t.Fatalf("the dashboard must know official usage failed: %+v", item)
+		}
+		return
+	}
+	t.Fatal("missing Tavily quota")
 }
 
 // tContext / rangeItems 是小工具，让断言写得更短。

@@ -11,6 +11,8 @@ import (
 
 func TestOverviewListsAllMCPToolsWithoutObservedCall(t *testing.T) {
 	conf := config.Config{}
+	enabled := true
+	conf.SearchHistory = config.SearchHistoryConfig{Enabled: &enabled, RetentionDays: 43}
 	conf.Bing.Enabled = true
 	conf.Academic.Enabled = true
 	conf.CleanFetch.Enabled = true
@@ -20,8 +22,8 @@ func TestOverviewListsAllMCPToolsWithoutObservedCall(t *testing.T) {
 	conf.Everything.Roots = []string{`D:\private-project`, `E:\private-documents`}
 
 	out := buildDashboardOverview(conf, telemetry.Overview{}, testLoc())
-	if len(out.ConfiguredTools) != 5 {
-		t.Fatalf("configured tools = %d, want 5", len(out.ConfiguredTools))
+	if len(out.ConfiguredTools) != 6 {
+		t.Fatalf("configured tools = %d, want 6", len(out.ConfiguredTools))
 	}
 	names := make([]string, 0, len(out.ConfiguredTools))
 	for _, tool := range out.ConfiguredTools {
@@ -39,7 +41,13 @@ func TestOverviewListsAllMCPToolsWithoutObservedCall(t *testing.T) {
 			t.Fatalf("file access boundary missing: %+v", tool)
 		}
 	}
-	want := []string{"smartsearch", "academicsearch", "cleanfetch", "pdf_parser", "file_search"}
+	if tool := out.ConfiguredTools[5]; tool.Name != "search_history" || tool.History == nil || tool.History.RetentionDays != 43 {
+		t.Fatalf("history configuration missing from overview: %+v", tool)
+	}
+	if len(out.Tools) != 0 {
+		t.Fatalf("configuration claimed observed calls: %+v", out.Tools)
+	}
+	want := []string{"smartsearch", "academicsearch", "cleanfetch", "pdf_parser", "file_search", "search_history"}
 	for i, name := range want {
 		if names[i] != name {
 			t.Fatalf("tool[%d] = %s, want %s", i, names[i], name)

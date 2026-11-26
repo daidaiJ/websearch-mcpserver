@@ -69,9 +69,20 @@
           </article>
 
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">MCP TOOLS</p><h2 data-i18n="web.page.tool_modules">工具模块</h2></div><span class="muted" id="mcp-tools-note" data-i18n="web.note.5_tools">5 个工具</span></div>
+            <div class="panel-head"><div><p class="eyebrow">MCP TOOLS</p><h2 data-i18n="web.page.tool_modules">工具模块</h2></div><span class="muted" id="mcp-tools-note">—</span></div>
             <p class="panel-note" id="mcp-tools-help"></p>
             <div class="tool-list" id="mcp-tools-list"></div>
+          </article>
+        </div>
+
+        <div class="overview-detail-grid">
+          <article class="panel">
+            <div class="panel-head"><h2 data-i18n="web.page.service_runtime">服务运行状态</h2></div>
+            <dl class="kv runtime-list" id="runtime-list"></dl>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h2 data-i18n="web.page.call_trend">多日调用趋势</h2></div>
+            <div id="call-trend"></div>
           </article>
         </div>
 
@@ -113,8 +124,8 @@
           <div class="panel-head"><div><p class="eyebrow">API PROVIDERS</p><h2 data-i18n="web.page.api_providers">API 供应商</h2></div><span class="muted" id="sources-api-counts">—</span></div>
           <p class="panel-note" id="sources-api-note"></p>
           <div class="table-scroll">
-            <table class="data-table">
-              <thead><tr><th data-i18n="web.label.source">来源</th><th data-i18n="web.label.enabled">启用</th><th data-i18n="web.label.historical_health">历史健康</th><th data-i18n="web.label.last_20">最近 20 次</th><th class="num" data-i18n="web.label.attempts_today">今日尝试</th><th class="num" data-i18n="web.label.success_rate">成功率</th><th class="num" data-i18n="web.label.average_latency">平均耗时</th><th data-i18n="web.label.last_error">最近错误</th></tr></thead>
+            <table class="data-table source-quota-table">
+              <thead><tr><th data-i18n="web.label.source">来源</th><th data-i18n="web.label.enabled">启用</th><th data-i18n="web.label.historical_health">历史健康</th><th data-i18n="web.label.last_20">最近 20 次</th><th class="num" data-i18n="web.label.attempts_today">今日尝试</th><th class="num" data-i18n="web.label.success_rate">成功率</th><th class="num" data-i18n="web.label.average_latency">平均耗时</th><th data-i18n="web.label.last_error">最近错误</th><th data-i18n="web.quota.heading">额度</th></tr></thead>
               <tbody id="sources-api-body"></tbody>
             </table>
           </div>
@@ -151,6 +162,19 @@
             </label>
             <label class="field"><span data-i18n="web.label.source">来源</span>
               <select id="filter-provider"><option value="" data-i18n="web.label.all">全部</option></select>
+            </label>
+            <label class="field"><span data-i18n="web.label.application">应用</span>
+              <select id="filter-application"><option value="" data-i18n="web.label.all">全部</option></select>
+            </label>
+            <label class="field"><span data-i18n="web.label.project">项目</span>
+              <input id="filter-project" type="search">
+            </label>
+            <label class="field"><span data-i18n="web.label.cache">缓存</span>
+              <select id="filter-cache">
+                <option value="" data-i18n="web.label.all">全部</option>
+                <option value="true" data-i18n="web.status.hit">命中</option>
+                <option value="false" data-i18n="web.status.miss">未命中</option>
+              </select>
             </label>
             <div class="toolbar-actions">
               <button id="reload-events" type="button" class="icon-btn" title="刷新调用记录" aria-label="刷新调用记录" data-icon="refresh-cw" data-i18n-title="web.action.refresh_call_log" data-i18n-aria-label="web.action.refresh_call_log"></button>
@@ -252,11 +276,11 @@
             <div id="secret-list" class="secret-list"></div>
           </article>
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">QUOTAS</p><h2 data-i18n="web.page.quota_management">额度管理</h2></div><span class="muted" data-i18n="web.note.local_real_call_counts_resettable_adjustable">本地真实调用统计 · 可重置 / 修正</span></div>
+            <div class="panel-head"><div><p class="eyebrow">QUOTAS</p><h2 data-i18n="web.page.quota_management">额度管理</h2></div></div>
             <p class="panel-note" id="quota-manage-note"></p>
             <div class="table-scroll">
-              <table class="data-table">
-                <thead><tr><th data-i18n="web.label.provider_2">供应商</th><th class="num" data-i18n="web.label.used_limit">已用 / 上限</th><th data-i18n="web.label.next_automatic_reset">下次自动重置</th><th data-i18n="web.label.actions">操作</th></tr></thead>
+              <table class="data-table quota-manage-table">
+                <thead><tr><th data-i18n="web.label.provider_2">供应商</th><th data-i18n="web.quota.heading">额度</th><th data-i18n="web.label.next_automatic_reset">下次自动重置</th><th data-i18n="web.label.actions">操作</th></tr></thead>
                 <tbody id="quota-manage-body"></tbody>
               </table>
             </div>

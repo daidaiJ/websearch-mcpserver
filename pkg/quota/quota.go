@@ -56,6 +56,8 @@ type Item struct {
 	Details    map[string]any `json:"details,omitempty"`
 	Error      string         `json:"error,omitempty"`
 	Source     string         `json:"source,omitempty"`
+	// OfficialQueryFailed distinguishes observed fallback counts from ordinary local quota.
+	OfficialQueryFailed bool `json:"official_query_failed,omitempty"`
 	// ResetAt 是下一次自动重置时间（RFC3339）；策略为 none 时不返回。
 	ResetAt string `json:"reset_at,omitempty"`
 	// AutoReset 是生效的重置策略：monthly / weekly / daily / none / official。
@@ -178,9 +180,13 @@ func (s *Service) collect(ctx context.Context) []Item {
 	}
 	for _, provider := range []string{providerTavily, providerTinyfish} {
 		item := official[provider]
-		if item.Status == "available" || byName[provider].Status == "" {
+		local, hasLocal := byName[provider]
+		if item.Status == "available" || !hasLocal {
 			item.AutoReset = "official"
 			byName[provider] = item
+		} else if item.Status == "query_failed" {
+			local.OfficialQueryFailed = true
+			byName[provider] = local
 		}
 	}
 	out := make([]Item, 0, len(byName))

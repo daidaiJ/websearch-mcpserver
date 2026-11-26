@@ -263,11 +263,20 @@ func (h *Handler) calls(w http.ResponseWriter, r *http.Request) {
 	if limit == "" {
 		limit = "100"
 	}
-	out, err := h.store.RecentCalls(telemetry.CallFilter{
+	filter := telemetry.CallFilter{
 		Tool: strings.TrimSpace(query.Get("tool")), Provider: strings.TrimSpace(query.Get("provider")),
 		Status: eventStatus(query.Get("status")), ErrorKind: eventErrorKind(query.Get("error_kind")),
 		Limit: eventLimit(limit),
-	})
+	}
+	switch query.Get("cache_hit") {
+	case "true", "false":
+		hit := query.Get("cache_hit") == "true"
+		filter.CacheHit = &hit
+	}
+	filter.Application = strings.TrimSpace(query.Get("application"))
+	filter.Project = strings.TrimSpace(query.Get("project"))
+	filter.ProjectForClient = func(client string) string { return h.projectForClient(client, "") }
+	out, err := h.store.RecentCallsContext(r.Context(), filter)
 	if err != nil {
 		writeError(w, err)
 		return

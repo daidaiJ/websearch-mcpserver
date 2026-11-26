@@ -173,7 +173,7 @@ func setYAMLPath(doc *yaml.Node, path []string, value any) error {
 	return nil
 }
 
-var allowedSecrets = []string{"BAIDU_SK", "TAVILY_SK", "EXA_API_KEY", "ANYSEARCH_API_KEY", "DOUBAO_SEARCH_API_KEY", "TENCENTCLOUD_WSA_APIKEY", "JINA_API_KEY", "MINERU_TOKEN"}
+var allowedSecrets = []string{"BAIDU_SK", "TAVILY_SK", "EXA_API_KEY", "ANYSEARCH_API_KEY", "DOUBAO_SEARCH_API_KEY", "TENCENTCLOUD_WSA_APIKEY", "JINA_API_KEY", "MINERU_TOKEN", "GITHUB_TOKEN"}
 
 func saveSecret(c config.Config, req SecretRequest) error {
 	if !req.Confirm {

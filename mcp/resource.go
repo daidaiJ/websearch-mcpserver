@@ -37,6 +37,11 @@ func SetServerVersion(v string) {
 	versionOnce.Do(func() { serverVersion = v })
 }
 
+// ProcessInfo returns the binary version and elapsed time since process initialization.
+func ProcessInfo() (version string, uptime time.Duration) {
+	return serverVersion, time.Since(processStarted)
+}
+
 // registerResources 注册只读观测 Resource（须在 NewMCPServer 中调用）。
 func registerResources(server *mcp.Server, conf config.Config) {
 	server.AddResource(&mcp.Resource{
@@ -155,9 +160,10 @@ type healthPayload struct {
 // renderHealth 渲染 health 资源 JSON：引擎冷却/熔断状态 + 进程运行时长。
 // 冷却快照来自 antirobot 注册表（跨进程落盘共享的活跃条目）。
 func renderHealth() string {
+	version, uptime := ProcessInfo()
 	payload := healthPayload{
-		Version:         serverVersion,
-		UptimeSeconds:   int64(time.Since(processStarted).Seconds()),
+		Version:         version,
+		UptimeSeconds:   int64(uptime.Seconds()),
 		EngineCooldowns: []cooldownView{},
 		CooldownPersist: antirobot.HealthPersistEnabled(),
 	}
