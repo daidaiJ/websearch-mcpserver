@@ -179,6 +179,24 @@ func fetchViaGithubAPI(ctx context.Context, rawURL string) (text string, matched
 	return text, true, err
 }
 
+// fetchViaSpecialist 覆盖 StackExchange / Wikipedia / arXiv 的正文入口：
+// 命中则走专用 API，失败与 GitHub 一样回落常规抓取链（Jina 仍可能拿到正文）。
+func fetchViaSpecialist(ctx context.Context, rawURL string) (text string, matched bool, err error) {
+	started := time.Now()
+	text, provider, matched, err := sitefetch.FetchSpecialist(ctx, rawURL)
+	if !matched {
+		return "", false, nil
+	}
+	telemetry.RecordEventContext(ctx, telemetry.Event{
+		Kind: "provider", Provider: provider, Query: rawURL,
+		Success: err == nil, Duration: time.Since(started), ResultCount: 1, Error: err,
+	})
+	if err != nil {
+		log.InfoT("log.mcp.site_specific_api_fetch_failed", "provider", provider, "err", err)
+	}
+	return text, true, err
+}
+
 // fetchCleanPage 抓取单个 URL：SSRF 预检后按 mcp_hub.fetch_mode
 // 选择远端抓取链（供应商 fetch API → MCP 托管抓取）与本地 webfetch/Jina 的
 // 顺序，任一层失败自动降级。
@@ -201,6 +219,9 @@ func fetchCleanPage(ctx context.Context, rawURL string) (string, error) {
 	// 不做 headCheck、不进远端/本地降级链；API 失败（限流/403/路径不接管）时
 	// 回落常规抓取链。
 	if text, matched, apiErr := fetchViaGithubAPI(ctx, rawURL); matched && apiErr == nil {
+		return text, nil
+	}
+	if text, matched, apiErr := fetchViaSpecialist(ctx, rawURL); matched && apiErr == nil {
 		return text, nil
 	}
 	if err := headCheck(ctx, rawURL); err != nil {

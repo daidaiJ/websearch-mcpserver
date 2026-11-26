@@ -67,6 +67,7 @@
   "log.mcp.fetch_top_n_fetch_returned_no": "fetch_top_n 抓取结果为空: {{.u}}",
   "log.mcp.fetch_top_n_low_quality": "fetch_top_n 正文质量不合格，保留摘要: {{.u}}（{{.kind}}，{{.visible_chars}} 个可见字符）",
   "log.mcp.github_site_specific_api_fetch_failed": "github 站点特判 API 抓取失败({{.err}})，回落常规抓取链",
+  "log.mcp.site_specific_api_fetch_failed": "{{.provider}} 站点特判 API 抓取失败({{.err}})，回落常规抓取链",
   "log.mcp.jina_reader_enabled": "Jina Reader 已启用",
   "log.mcp.llm_streaming_summary_failed_falling_back": "LLM 流式摘要失败，回退到非流式摘要: {{.sumErr}}",
   "log.mcp.llm_summary_enabled": "LLM 摘要功能已启用",

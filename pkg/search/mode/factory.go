@@ -789,6 +789,8 @@ func applySmartSearchFilters(hs *hybrid.HybridSearchImpl, conf config.Config) {
 	// Wigolo 本地评分增强（默认启用）
 	enhance := sc.Enhance == nil || *sc.Enhance
 	hs.SetEnhance(enhance, sc.RelevanceThreshold)
+	// 数据/统计意图的官方一手源加分（默认启用）
+	hs.SetPrimarySourceBoost(sc.PrimarySourceBoostEnabled())
 	if enhance {
 		log.InfoT("log.search.mode.wigolo_score_enhancement_enabled_threshold", "relevanceThreshold", sc.RelevanceThreshold)
 	}

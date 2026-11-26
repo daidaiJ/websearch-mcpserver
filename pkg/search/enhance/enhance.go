@@ -31,6 +31,7 @@ type Options struct {
 	LexicalWeight      float64 // 词汇对齐权重 [0,1]；0 = 关闭，默认 0.5
 	ConsensusScale     float64 // 多引擎共识加分倍率，0 = 关闭，默认 1
 	AuthorityScale     float64 // 权威性加分倍率，0 = 关闭，默认 1
+	PrimarySourceBoost bool    // 数据/统计意图下的官方一手源加分，默认 true
 	RecencyScale       float64 // 新鲜度乘数强度：0 = 关闭，1 = 当前行为
 	DomainQualityScale float64 // 域名品质因子的指数：0 = 关闭，1 = 当前行为
 	RareTermsScale     float64 // 稀有词因子的指数：0 = 关闭，1 = 当前行为
@@ -46,6 +47,7 @@ func DefaultOptions() Options {
 		LexicalWeight:      0.5,
 		ConsensusScale:     1,
 		AuthorityScale:     1,
+		PrimarySourceBoost: true,
 		RecencyScale:       1,
 		DomainQualityScale: 1,
 		RareTermsScale:     1,
@@ -233,7 +235,7 @@ func EnhanceResultsWithOptions(query string, buckets []core.ScoreBucket, opts Op
 		lexical := (1 - opts.LexicalWeight) + opts.LexicalWeight*la
 		score := a.rrf * dq * lexical * rare
 		score += ConsensusBoost(len(a.families)) * opts.ConsensusScale
-		score += AuthorityBoost(query, a.res.Url, rareRaw) * opts.AuthorityScale
+		score += AuthorityBoostWithPrimarySources(query, a.res.Url, rareRaw, opts.PrimarySourceBoost) * opts.AuthorityScale
 		recency := RecencyFactor(temporal, a.res.PublishDate)
 		score *= 1 + opts.RecencyScale*(recency-1)
 

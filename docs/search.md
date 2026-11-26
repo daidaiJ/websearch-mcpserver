@@ -110,10 +110,10 @@
 2. **词汇对齐** — 查询词与结果标题/内容的词级匹配
 3. **稀有词 / 短语连续匹配** — 稀有词和连续短语命中加权
 4. **域名品质惩罚** — 品牌 / 电商 / 词典站误匹配降权
-5. **共识 / 权威 / 时效加分** — 多引擎共识、权威站点、时效性
+5. **共识 / 权威 / 时效加分** — 多引擎共识、权威站点（数据/统计意图下额外偏向官方一手源，可用 `smartsearch.primary_source_boost: false` 关闭）、时效性
 6. **全局低分阈值过滤** — `final_score < relevance_threshold`（默认 0.05）的结果被丢弃，仅保留 Top-1（并保证最少 2 条）
 
-配置项：`smartsearch.enhance`（默认 true）、`smartsearch.relevance_threshold`（默认 0.05）。
+配置项：`smartsearch.enhance`（默认 true）、`smartsearch.primary_source_boost`（默认 true）、`smartsearch.relevance_threshold`（默认 0.05）。
 
 **调参与基准**：`bench/tuning` 受开源项目 [`dsh-web-search`](https://github.com/fangchenghao/dsh-web-search) 的公开基准启发，用其 MIT 回放集（20 条中英 query + 真实引擎快照）重放评分管线，逐项扫描 RRF K、Boost 倍率、阈值、MMR 与引擎权重，输出 P@8 / R@8 / MRR@8、配对 bootstrap 95% CI 与逐 query 胜负。实测默认配置最稳，唯一显著效果是关闭权威性加分会明显变差；完整结论、局限与用户自有历史数据调优设计见 [search-quality.md](search-quality.md)。
 
@@ -156,7 +156,7 @@ smartsearch:
 
 **结果来源注记**：结果日期带 `date_source` 三态——`structured`（引擎 API 给出）/ `snippet`（摘要文本解析，弱）/ `undated`；学术结果同口径。响应头带 `retrieved_at`（检索时间，缓存命中时为原检索时间）与 `cache_age_seconds`（缓存年龄），并附固定 `usage_note`：snippet 日期仅用于定位来源，引用日期、金额、版本前请打开原页核对。
 
-**响应超限落盘**：渲染结果超 `smartsearch.inline_max_chars`（默认 32768，负数 = 禁用）时整体写入 `fetchdata/search-*.md`（惰性清理 7 天旧文件），响应保留溯源头、统计、每条候选的标题/URL/来源/最多 160 字符摘录、文件路径和 `result_ref`；完整正文用 `cleanfetch` 分段读取，失败清单保留在初始响应。实时与普通缓存命中路径共用，缓存命中生成新引用。已落盘的补抓结果通过结构化状态识别，不进入持久缓存；普通正文包含文件路径文案不影响缓存。网页键采用 `web:v3:`，旧网页缓存不复用、按原 TTL 清理；首次查询可能冷缓存，学术缓存不变。
+**响应超限落盘**：渲染结果超 `smartsearch.inline_max_chars`（默认 32768，负数 = 禁用）时，完整渲染写入 `fetchdata/search-*.md`（零丢失，惰性清理 7 天旧文件），响应内按排名保留正文——排名靠前的结果优先保留完整正文，尾部条目只留标题/URL/来源/摘录并标注“正文已省略”。响应同时给出统计、文件路径和 `result_ref`，完整正文可用 `cleanfetch` 分段读取，失败清单保留在初始响应。若固定骨架本身已超上限（例如结果没有正文），回退为整单预览。实时与普通缓存命中路径共用，缓存命中生成新引用。已落盘的补抓结果通过结构化状态识别，不进入持久缓存；普通正文包含文件路径文案不影响缓存。网页键采用 `web:v3:`，旧网页缓存不复用、按原 TTL 清理；首次查询可能冷缓存，学术缓存不变。
 
 **freshness 感知缓存 TTL**：smartsearch `time_range` ≤1 月 → 24h，其余默认 6h；学术 `time_range` 分桶 day → 1h / week → 6h（默认）/ month → 24h。时效敏感查询不再命中陈旧缓存。
 
@@ -335,7 +335,7 @@ mcp_hub:
 | `time_range` | int | ❌ | 搜索时间范围（月），默认 3。`1`=近 1 个月，`6`=近半年，`12`=近一年，`0`=不限。豆包 Custom 会映射为 `OneDay`/`OneWeek`/`OneMonth`/`OneYear`；元宝映射为 `dN`/`mN`/`yN`；豆包 Global 无时间过滤接口，忽略 |
 | `depth` | string | ❌ | 检索深度预设：`fast`（不抓正文）/ `balanced`（默认，沿用 `fetch_top_n`）/ `deep`（默认抓前 3 条正文并启用 24000 字符预算）；显式 `fetch_top_n` / `max_chars` 优先。仅作用于 web 来源正文 |
 | `sources` | string[] | ❌ | 来源类型：`web`（默认）/ `academic`；可同时指定，`academic` 需 `academic.enabled=true` |
-| `max_chars` | int | ❌ | 本次调用的网页正文总字符预算，所有 web 结果共享、按条均分；不传或 `0` 表示不额外裁剪。超出时每条正文截断并提示用 `cleanfetch` 读取全文。仅作用于 web 来源 |
+| `max_chars` | int | ❌ | 本次调用的网页正文总字符预算，所有 web 结果共享；不传或 `0` 表示不额外裁剪。超出时按结果顺序分配：排名靠前的结果优先保留正文，每条至少保留 200 字符（预算极小时从首条开始分配），尾部截断并提示用 `cleanfetch` 读取全文。仅作用于 web 来源 |
 | `fetch_top_n` | int | ❌ | 正文抓取模式：不传时与旧版一致，只返回引擎/供应商自带内容（服务端 `smartsearch.fetch_top_n` 可改默认，默认 `0` 不抓）；传 `0` 表示只要标题摘要和 URL；传 `1-5` 表示为前 N 条获取页面原文——支持原文传参的 API 引擎（Tavily/Exa/豆包）直接走快速路径，网页引擎内部抓取（无需 `cleanfetch.enabled`，webfetch 惰性初始化）；已有足量正文的条目自动跳过；抓取被反爬防护（JS 挑战/WAF）拦截时在该条结果上显式标注 |
 | `include_domains` | string[] | ❌ | 只保留这些域名（含子域）的 web 结果，最多 20 条；`example.com`、`www.example.com`、`*.example.com` 与完整 URL 都按 host 归一化。为空表示不设白名单；与 `exclude_domains` 冲突时排除优先。过滤在正文抓取与结果截断前执行 |
 | `exclude_domains` | string[] | ❌ | 排除这些域名（含子域）的 web 结果，最多 20 条；写法同 `include_domains`。优先级高于白名单，被排除的结果不参与 `fetch_top_n` 抓取。仅作用于 web 来源 |
@@ -402,6 +402,8 @@ mcp_hub:
 URL 抓取需配置 `cleanfetch.enabled: true`；引用读取不受此开关限制。基于 go-webfetch，无需代理；内置 DNS rebinding 防护和 HEAD 预检防大文件（`max_fetch_size_mb` 控制阈值，默认 10MB；重定向逐跳复跑私网/metadata 校验，最多 5 跳）；失败时自动回退 Jina Reader（需配置 `jina.api_key`，代理自动检测）。
 
 **站点特判**：`github.com` 页面 HTML 是 JS 渲染、常规抓取拿不到正文，命中即改走 GitHub REST API（不做 HEAD 预检）——仓库根输出元数据（描述/★/语言/许可证/最近推送）+ README 原文；`blob` 页走 contents API 取源文件（`Accept: application/vnd.github.raw`，不走国内不可达的 raw.githubusercontent CDN）；`issues`/`pull` 等动态页不在接管范围。API 失败（限流/403/未接管路径）自动回落常规 webfetch → Jina Reader 抓取链。API 匿名档 60 次/小时，配置 `github.api_key`（或 `token_list`）后提额 5000 次/小时，与 GitHub 搜索引擎共用同一批 token。
+
+StackExchange / Wikipedia / arXiv 同样走站点特判：StackExchange 问题页走 API v2.3（Markdown 正文、已采纳回答优先、最多 5 个回答和 30 条评论）；Wikipedia `/wiki/` 条目走 MediaWiki extract API（纯文本正文）；arXiv `/abs/` 与 `/html/` 走 export API（标题、作者、摘要、分类、DOI）。任一专用 API 失败自动回落常规 webfetch → Jina Reader 链，`/pdf/` 仍走 PDF 解析分支。
 
 批量模式（`urls`）下每条 URL 独立预检与抓取，单条失败不影响其它，结果按 URL 分节返回；只传 `url` 时输出与旧版一致。
 

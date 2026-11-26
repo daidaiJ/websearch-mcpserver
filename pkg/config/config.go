@@ -1118,16 +1118,17 @@ type LogConfig struct {
 
 // SmartSearchConfig smartsearch 工具高级配置。
 type SmartSearchConfig struct {
-	MaxSize            int                          `mapstructure:"max_size"`            // 全局最大结果数（按 score 排序后截断），0 = 不限
-	FetchTopN          int                          `mapstructure:"fetch_top_n"`         // 服务端默认抓取正文条数（agent 未传 fetch_top_n 参数时生效），默认 0 = 与旧版一致不抓取；1-5 = 一次搜索即含正文
-	ShowMeta           bool                         `mapstructure:"show_meta"`           // 输出中是否显示引擎来源和 score（默认 true）
-	Enhance            *bool                        `mapstructure:"enhance"`             // 是否启用 Wigolo 本地评分增强（RRF+词汇对齐+域名品质+多层 Boost），默认 true
-	RelevanceThreshold float64                      `mapstructure:"relevance_threshold"` // 增强评分后的相关性阀值，低于此值丢弃（Top-1/每引擎保底），默认 0.05
-	InlineMaxChars     int                          `mapstructure:"inline_max_chars"`    // 渲染响应内联字符上限，超限整体落盘临时文件（0 = 默认 32768，负数 = 禁用落盘）
-	OffTopicGuard      string                       `mapstructure:"off_topic_guard"`     // off-topic 整桶守卫模式：shadow（默认，只记录不丢弃）/ enforce（拦截）/ off
-	EngineTimeoutSec   int                          `mapstructure:"engine_timeout_sec"`  // 单引擎软超时（秒），默认 10；负数 = 只依赖请求 ctx 死线
-	MMR                MMRConfig                    `mapstructure:"mmr"`                 // MMR 多样性重排配置
-	Engines            map[string]SmartSearchEngine `mapstructure:"engines"`             // 按引擎名配置
+	MaxSize            int                          `mapstructure:"max_size"`             // 全局最大结果数（按 score 排序后截断），0 = 不限
+	FetchTopN          int                          `mapstructure:"fetch_top_n"`          // 服务端默认抓取正文条数（agent 未传 fetch_top_n 参数时生效），默认 0 = 与旧版一致不抓取；1-5 = 一次搜索即含正文
+	ShowMeta           bool                         `mapstructure:"show_meta"`            // 输出中是否显示引擎来源和 score（默认 true）
+	Enhance            *bool                        `mapstructure:"enhance"`              // 是否启用 Wigolo 本地评分增强（RRF+词汇对齐+域名品质+多层 Boost），默认 true
+	PrimarySourceBoost *bool                        `mapstructure:"primary_source_boost"` // 数据/统计意图下的官方一手源加分（FirstData 式权威层级），默认 true
+	RelevanceThreshold float64                      `mapstructure:"relevance_threshold"`  // 增强评分后的相关性阀值，低于此值丢弃（Top-1/每引擎保底），默认 0.05
+	InlineMaxChars     int                          `mapstructure:"inline_max_chars"`     // 渲染响应内联字符上限，超限整体落盘临时文件（0 = 默认 32768，负数 = 禁用落盘）
+	OffTopicGuard      string                       `mapstructure:"off_topic_guard"`      // off-topic 整桶守卫模式：shadow（默认，只记录不丢弃）/ enforce（拦截）/ off
+	EngineTimeoutSec   int                          `mapstructure:"engine_timeout_sec"`   // 单引擎软超时（秒），默认 10；负数 = 只依赖请求 ctx 死线
+	MMR                MMRConfig                    `mapstructure:"mmr"`                  // MMR 多样性重排配置
+	Engines            map[string]SmartSearchEngine `mapstructure:"engines"`              // 按引擎名配置
 }
 
 // off-topic 整桶守卫三态（P1-7 回查处置，2026-10-06 用户拍板：默认 shadow）。
@@ -1180,6 +1181,11 @@ func (c SmartSearchConfig) InlineMaxCharsOrDefault() (limit int, enabled bool) {
 		return defaultInlineMaxChars, true
 	}
 	return c.InlineMaxChars, true
+}
+
+// PrimarySourceBoostEnabled 数据/统计意图下的官方一手源加分开关，未配置时默认开启。
+func (c SmartSearchConfig) PrimarySourceBoostEnabled() bool {
+	return c.PrimarySourceBoost == nil || *c.PrimarySourceBoost
 }
 
 // MMRConfig MMR（Maximal Marginal Relevance）多样性重排配置。
@@ -1580,6 +1586,10 @@ func Load(configPath string) (*Config, error) {
 		enhance := true // 默认启用 Wigolo 本地评分增强
 		conf.SmartSearch.Enhance = &enhance
 	}
+	if conf.SmartSearch.PrimarySourceBoost == nil {
+		primarySourceBoost := true // 默认启用数据/统计意图的官方一手源加分
+		conf.SmartSearch.PrimarySourceBoost = &primarySourceBoost
+	}
 	if conf.SmartSearch.RelevanceThreshold <= 0 {
 		conf.SmartSearch.RelevanceThreshold = 0.05 // 默认相关性阀值
 	}
@@ -1610,6 +1620,7 @@ func Load(configPath string) (*Config, error) {
 // Default 返回零配置可用的内存默认值（mode=engine，Bing/学术默认开启）。
 func Default() *Config {
 	enhance := true
+	primarySourceBoost := true
 	conf := &Config{
 		Port:               8338,
 		Host:               "127.0.0.1",
@@ -1640,6 +1651,7 @@ func Default() *Config {
 			FetchTopN:          0,
 			ShowMeta:           true,
 			Enhance:            &enhance,
+			PrimarySourceBoost: &primarySourceBoost,
 			RelevanceThreshold: 0.05,
 			MMR: MMRConfig{
 				Enabled: true,

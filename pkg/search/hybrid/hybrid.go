@@ -44,6 +44,7 @@ type HybridSearchImpl struct {
 	maxSize            int                     // 全局最大结果数（按 score 排序后截断），0 = 不限
 	engineNames        []string                // 与 engines 一一对应的引擎名
 	enhance            bool                    // 是否启用 Wigolo 本地评分增强
+	primarySourceBoost bool                    // 数据/统计意图下的官方一手源加分（默认启用）
 	relevanceThreshold float64                 // 增强后的相关性阀值
 	mmr                config.MMRConfig        // MMR 多样性重排配置（Enabled=false 时不重排）
 	offTopicGuardMode  string                  // off-topic 守卫模式（config.OffTopicGuard*；零值 = enforce 保持直构行为，配置层缺省 shadow 经 mode/factory 注入）
@@ -72,7 +73,7 @@ func NewHybridSearch(engines ...core.SearchInf) *HybridSearchImpl {
 	for i, e := range engines {
 		names[i] = e.Name()
 	}
-	return &HybridSearchImpl{engines: engines, engineNames: names, engineMap: make(map[string]EngineFilter)}
+	return &HybridSearchImpl{engines: engines, engineNames: names, engineMap: make(map[string]EngineFilter), primarySourceBoost: true}
 }
 
 // SetFilters 设置 per-engine 过滤配置。
@@ -89,6 +90,11 @@ func (h *HybridSearchImpl) SetMaxSize(n int) {
 func (h *HybridSearchImpl) SetEnhance(enabled bool, threshold float64) {
 	h.enhance = enabled
 	h.relevanceThreshold = threshold
+}
+
+// SetPrimarySourceBoost 设置数据/统计意图下的官方一手源加分（默认启用）。
+func (h *HybridSearchImpl) SetPrimarySourceBoost(enabled bool) {
+	h.primarySourceBoost = enabled
 }
 
 // SetMMR 设置 MMR 多样性重排配置（仅在评分增强启用时生效）。
@@ -400,7 +406,12 @@ func (h *HybridSearchImpl) mergeResults(query string, filter core.DomainFilter, 
 		for _, b := range ebuckets {
 			totalIn += len(b.results)
 		}
-		enhanced := enhance.EnhanceResultsMMR(query, buckets, h.relevanceThreshold, h.maxSize, h.mmr)
+		opts := enhance.DefaultOptions()
+		opts.Threshold = h.relevanceThreshold
+		opts.MaxSize = h.maxSize
+		opts.MMR = h.mmr
+		opts.PrimarySourceBoost = h.primarySourceBoost
+		enhanced := enhance.EnhanceResultsWithOptions(query, buckets, opts)
 		diag.AddFilterDrop(core.FilterDropEnhance, totalIn-len(enhanced))
 		if len(enhanced) == 0 {
 			// 域名过滤清空结果属于可解释的空搜索：返回空结果 + 诊断，

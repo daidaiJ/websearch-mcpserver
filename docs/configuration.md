@@ -410,6 +410,7 @@ pdf_parser:
 #   max_size: 10          # 全局最大结果数（按 score 排序后截断），0 = 不限
 #   show_meta: true       # 输出中显示引擎来源和相关性分数（默认 true）
 #   enhance: true         # 本地评分增强（RRF 融合 + 词汇对齐 + 域名品质 + 多层 Boost + 阀值过滤），默认 true
+#   primary_source_boost: true # 数据/统计意图下的官方一手源加分（FirstData 式权威层级），默认 true
 #   relevance_threshold: 0.05  # 增强后相关性阀值，低于此值过滤（Top-1 保护），默认 0.05
 #   inline_max_chars: 32768    # 渲染响应内联字符上限，超限整体落盘临时文件（cleanfetch.file_output_dir 目录下
 #                              # search-*.md，保留 7 天）；响应内保留溯源头/统计/路径/读取提示/失败清单。
@@ -714,6 +715,7 @@ dashboard:
 | `smartsearch.show_meta` | true | 输出中显示引擎来源和相关性分数 |
 | `smartsearch.fetch_top_n` | 0 | 服务端默认抓取正文条数（agent 未传 `fetch_top_n` 参数时生效）；默认 0 = 与旧版一致不抓取，1-5 = 一次搜索即含正文（API 引擎走原文传参快速路径，网页引擎内部抓取） |
 | `smartsearch.enhance` | true | 本地评分增强 |
+| `smartsearch.primary_source_boost` | true | 数据/统计意图下的官方一手源加分（FirstData 式权威层级，`.gov`/`.gov.cn`、世界银行、IMF 等）；false = 关闭该分支 |
 | `smartsearch.relevance_threshold` | 0.05 | 增强后相关性阀值 |
 | `smartsearch.inline_max_chars` | 32768 | 渲染响应内联字符上限；超限整体落盘临时文件（fetchdata/ 下 search-*.md，保留 7 天，响应内留路径与失败清单）。0 = 默认值，负数 = 禁用落盘 |
 | `smartsearch.off_topic_guard` | shadow | off-topic 整桶守卫模式：shadow 只记录不丢弃 / enforce 整桶丢弃并透出 / off 关闭 |

@@ -480,6 +480,7 @@ log:
 #                         # 设 1-5 = agent 未传参时也默认获取正文（API 引擎走原文传参快速路径，网页引擎内部抓取）
 #   show_meta: true       # 输出中是否显示引擎来源和相关性分数（默认 true）
 #   enhance: true         # 是否启用本地评分增强（RRF 融合 + 词汇对齐 + 域名品质 + 多层 Boost + 阀值过滤），默认 true
+#   primary_source_boost: true # 数据/统计意图下的官方一手源加分（FirstData 式权威层级：.gov/.gov.cn、世界银行、IMF 等），默认 true
 #   relevance_threshold: 0.05  # 增强后相关性阀值，final_score < 该值的结果被过滤（Top-1/每引擎保底不受影响），默认 0.05
 #   inline_max_chars: 32768    # 渲染响应内联字符上限，超限整体落盘临时文件（fetchdata/ 下 search-*.md，保留 7 天），
 #                              # 响应内保留溯源头/统计/路径/读取提示/失败清单；0 = 默认 32768，负数 = 禁用落盘恒内联

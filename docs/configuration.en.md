@@ -399,6 +399,7 @@ pdf_parser:
 #   max_size: 10          # Global max results (truncated by score), 0 = unlimited
 #   show_meta: true       # Show engine source and relevance score in output (default true)
 #   enhance: true         # Local scoring enhancement (RRF fusion + lexical alignment + domain quality + boosts + threshold), default true
+#   primary_source_boost: true # Official primary-source boost for data/statistics intents (FirstData-style authority tiers), default true
 #   relevance_threshold: 0.05  # Relevance threshold after enhancement; below this is filtered (Top-1 protected), default 0.05
 #   inline_max_chars: 32768    # Inline char limit for the rendered response; over the limit the whole result is dumped to a
 #                              # temp file (search-*.md under cleanfetch.file_output_dir, kept 7 days). The response keeps
@@ -721,6 +722,7 @@ dashboard:
 | `smartsearch.show_meta` | true | Show engine source and relevance score in output |
 | `smartsearch.fetch_top_n` | 0 | Server-side default body-fetch count (applies when the agent omits `fetch_top_n`); default 0 = no fetch (same as before), 1-5 = one search returns full text (API engines use the fast path, web engines fetch internally) |
 | `smartsearch.enhance` | true | Local scoring enhancement |
+| `smartsearch.primary_source_boost` | true | Official primary-source boost for data/statistics intents (FirstData-style authority tiers: `.gov`/`.gov.cn`, World Bank, IMF, etc.); false disables this branch |
 | `smartsearch.relevance_threshold` | 0.05 | Relevance threshold after enhancement |
 | `smartsearch.inline_max_chars` | 32768 | Inline char limit for the rendered response; over the limit the whole result is dumped to a temp file (search-*.md under fetchdata/, kept 7 days; the response keeps path and failure list). 0 = default, negative = disable dumping |
 | `smartsearch.off_topic_guard` | shadow | Off-topic bucket guard mode: shadow logs without dropping / enforce drops the whole bucket and reports / off disables |

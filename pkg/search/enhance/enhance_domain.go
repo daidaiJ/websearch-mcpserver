@@ -124,15 +124,25 @@ var midQualityDocsHosts = map[string]struct{}{
 	"runoob.com": {}, "w3school.com.cn": {}, "csdn.net": {}, "cnblogs.com": {},
 }
 
-// AuthorityBoost 权威性加分（加性）。
-// rareFactor < 0.8（稀有词全缺失）时大幅削弱权威权重，避免误加分。
+// AuthorityBoost 权威性加分（加性），包含数据/统计意图的官方一手源加分。
 func AuthorityBoost(query, rawURL string, rareFactor float64) float64 {
+	return AuthorityBoostWithPrimarySources(query, rawURL, rareFactor, true)
+}
+
+// AuthorityBoostWithPrimarySources 权威性加分（加性）。
+// primarySources=false 时跳过数据/统计意图的官方一手源加分，保留其他权威信号。
+// rareFactor < 0.8（稀有词全缺失）时大幅削弱权威权重，避免误加分。
+func AuthorityBoostWithPrimarySources(query, rawURL string, rareFactor float64, primarySources bool) float64 {
 	host := hostOf(rawURL)
 	if host == "" {
 		return 0
 	}
 	lowerQuery := strings.ToLower(query)
 	boost := 0.0
+	primary := 0.0
+	if primarySources {
+		primary = PrimarySourceBoost(query, rawURL)
+	}
 
 	// 1. 已知主题 → 域名精确/子域匹配
 	for subject, domains := range knownSubjectDomains {
@@ -168,9 +178,16 @@ func AuthorityBoost(query, rawURL string, rareFactor float64) float64 {
 		boost = max(boost, 0.04)
 	}
 
-	// 6. 稀有词 miss 时削弱权威权重
+	// 6. 数据/统计意图下的官方一手源（FirstData 式权威层级）
+	boost = max(boost, primary)
+
+	// 7. 稀有词 miss 时削弱权威权重；官方一手源保留一半，域名本身仍是强信号
 	if rareFactor < 0.8 {
-		boost *= 0.25
+		if primary > 0 {
+			boost *= 0.5
+		} else {
+			boost *= 0.25
+		}
 	}
 
 	return boost

@@ -36,10 +36,21 @@ var searchDumpDir string
 // 用户放在输出目录里的其它文件一律不动。
 var searchDumpFileRe = regexp.MustCompile(`^search-\d{8}_\d{6}-[0-9a-f]{8}\.md$`)
 
-// dumpSearchResultsIfOversize 渲染结果超过内联上限时整体落盘，返回替代响应文本
-// （统计 + 文件路径 + 读取提示）。未超限 / 落盘禁用时返回 ("", false)；
-// 写入失败按原样内联返回（fail-open：落盘只是体积保护，不应让搜索整体失败）。
-func dumpSearchResultsIfOversize(results []search.SearchResult, rendered string) (string, bool) {
+// dumpSearchResultsIfOversize keeps the highest-ranked bodies inline when the
+// rendered response exceeds smartsearch.inline_max_chars. The complete render is
+// still written to a temp file and registered as a result_ref, so nothing is
+// lost; tail entries carry a marker that points at the saved copy. When the
+// fixed overhead alone exceeds the limit, it falls back to the previous
+// whole-response preview.
+func dumpSearchResultsIfOversize(query string, results []search.SearchResult, rendered string) (string, bool) {
+	var format func(string, []search.SearchResult) (string, error)
+	if searchapi != nil {
+		format = formatRawResults
+	}
+	return dumpSearchResultsIfOversizeWithFormatter(query, results, rendered, format)
+}
+
+func dumpSearchResultsIfOversizeWithFormatter(query string, results []search.SearchResult, rendered string, format func(string, []search.SearchResult) (string, error)) (string, bool) {
 	limit, enabled := smartSearchConf.InlineMaxCharsOrDefault()
 	if !enabled || rendered == "" {
 		return "", false
@@ -59,8 +70,97 @@ func dumpSearchResultsIfOversize(results []search.SearchResult, rendered string)
 		return "", false
 	}
 	log.InfoT("log.mcp.smartsearch_rendered_result_of_chars_exceeds", "charCount", charCount, "limit", limit, "path", path)
+	if inline, kept, truncated := buildRankedInline(query, results, charCount, limit, format); inline != "" {
+		return formatRankedDumpNotice(len(results), charCount, limit, kept, truncated, path, hint) + "\n\n---\n\n" + inline, true
+	}
+	return formatDumpPreview(results, charCount, limit, path, hint), true
+}
+
+// buildRankedInline rebuilds the response with a rank-aware content budget.
+// It returns an empty string when a smaller render cannot be produced or when
+// the formatter ignores result bodies (the mock-based delivery tests rely on
+// this path to keep their whole-response preview assertions).
+func buildRankedInline(query string, results []search.SearchResult, renderedChars, limit int, format func(string, []search.SearchResult) (string, error)) (string, int, int) {
+	if format == nil || renderedChars <= limit || !hasInlineContent(results) {
+		return "", 0, 0
+	}
+
+	skeleton := make([]search.SearchResult, len(results))
+	copy(skeleton, results)
+	for i := range skeleton {
+		if !skeleton[i].ContentSaved {
+			skeleton[i].Content = ""
+		}
+	}
+	skeletonText, err := format(query, skeleton)
+	if err != nil {
+		return "", 0, 0
+	}
+	skeletonChars := utf8.RuneCountInString(skeletonText)
+	if skeletonChars >= limit {
+		return "", 0, 0
+	}
+
+	marker := i18n.T("tool.dump.ranked_entry_omitted")
+	// Reserve space for the notice, path and result_ref hint plus one marker per
+	// entry. The reserve is deliberately conservative: a ranked render that still
+	// exceeds the limit falls back to the preview below.
+	const noticeReserve = 768
+	markerReserve := utf8.RuneCountInString(marker) * len(results)
+	contentBudget := limit - skeletonChars - noticeReserve - markerReserve
+	if contentBudget < minSearchContentChars {
+		return "", 0, 0
+	}
+
+	budgeted := applyContentBudgetWithMarker(results, contentBudget, marker)
+	inline, err := format(query, budgeted)
+	if err != nil {
+		return "", 0, 0
+	}
+	inlineChars := utf8.RuneCountInString(inline)
+	if inlineChars >= renderedChars || inlineChars > limit {
+		return "", 0, 0
+	}
+
+	kept, truncated := 0, 0
+	for i := range results {
+		if results[i].ContentSaved || strings.TrimSpace(results[i].Content) == "" {
+			continue
+		}
+		if budgeted[i].Content == results[i].Content {
+			kept++
+		} else {
+			truncated++
+		}
+	}
+	if kept == 0 && truncated == 0 {
+		return "", 0, 0
+	}
+	return inline, kept, truncated
+}
+
+func hasInlineContent(results []search.SearchResult) bool {
+	for _, result := range results {
+		if !result.ContentSaved && strings.TrimSpace(result.Content) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func formatRankedDumpNotice(results, chars, limit, kept, truncated int, path, hint string) string {
 	var sb strings.Builder
-	sb.WriteString(i18n.T("tool.dump.overflow_notice", "Results", len(results), "Chars", charCount, "Limit", limit))
+	sb.WriteString(i18n.T("tool.dump.ranked_notice", "Results", results, "Chars", chars, "Limit", limit, "Kept", kept, "Truncated", truncated))
+	sb.WriteString("\n\n")
+	sb.WriteString(i18n.T("tool.dump.file_path", "Path", path))
+	sb.WriteString("\n\n")
+	sb.WriteString(hint)
+	return sb.String()
+}
+
+func formatDumpPreview(results []search.SearchResult, chars, limit int, path, hint string) string {
+	var sb strings.Builder
+	sb.WriteString(i18n.T("tool.dump.overflow_notice", "Results", len(results), "Chars", chars, "Limit", limit))
 	sb.WriteString("\n\n")
 	for i, candidate := range results {
 		snippet := []rune(strings.TrimSpace(candidate.Content))
@@ -78,7 +178,7 @@ func dumpSearchResultsIfOversize(results []search.SearchResult, rendered string)
 	sb.WriteString(i18n.T("tool.dump.file_path", "Path", path))
 	sb.WriteString("\n\n")
 	sb.WriteString(hint)
-	return sb.String(), true
+	return sb.String()
 }
 
 // writeSearchDump 写入落盘文件并触发惰性清理，返回文件绝对路径。

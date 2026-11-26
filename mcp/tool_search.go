@@ -364,7 +364,7 @@ func finishCachedWebSearch(req *mcp.CallToolRequest, _ context.Context, rec *cac
 			return nil, false
 		}
 		// 超限落盘与实时路径共用：缓存命中的大体量渲染结果同样转存临时文件
-		if notice, dumped := dumpSearchResultsIfOversize(results, ret); dumped {
+		if notice, dumped := dumpSearchResultsIfOversize(query, results, ret); dumped {
 			ret = notice
 		}
 		if intent != "" && summarizerInst != nil && rec.Summary == "" {
@@ -433,7 +433,7 @@ func finishWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, inten
 	recordSearchHistory(query, results)
 	// 超限时保留候选预览，完整结果转存临时文件供 MCP 分段读取；
 	// 缓存仍存原始结果，缓存命中路径按同一规则再落盘
-	if notice, dumped := dumpSearchResultsIfOversize(results, ret); dumped {
+	if notice, dumped := dumpSearchResultsIfOversize(query, results, ret); dumped {
 		ret = notice
 	}
 	if requestCache != nil {
