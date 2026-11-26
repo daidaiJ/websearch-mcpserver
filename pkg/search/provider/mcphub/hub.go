@@ -107,6 +107,12 @@ var presets = map[string]preset{
 	},
 }
 
+// KnownServer reports whether name is an installed hosted MCP preset.
+func KnownServer(name string) bool {
+	_, ok := presets[name]
+	return ok
+}
+
 // backend 轮转池中的搜索/抓取后端。engineBackend 只支持搜索。
 type backend interface {
 	Name() string

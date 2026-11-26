@@ -18,6 +18,9 @@
         <button class="nav" type="button" data-page="sources" data-i18n="web.page.search_sources">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M1.6 8h12.8M8 1.6c-4.8 4-4.8 8.8 0 12.8M8 1.6c4.8 4 4.8 8.8 0 12.8"/></svg>
           搜索源</button>
+        <button class="nav" type="button" data-page="tools" data-i18n="web.page.tools_capabilities">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="6" cy="4" r="1.5" fill="var(--surface)"/><circle cx="10" cy="8" r="1.5" fill="var(--surface)"/><circle cx="5" cy="12" r="1.5" fill="var(--surface)"/></svg>
+          工具与能力</button>
         <button class="nav" type="button" data-page="usage" data-i18n="web.page.call_log">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 3.5h12M2 8h9M2 12.5h12"/></svg>
           调用记录</button>
@@ -37,7 +40,7 @@
 
     <main>
       <header>
-        <div><p class="eyebrow">LOCAL OBSERVABILITY</p><h1 id="page-title" data-i18n="web.page.overview">运行总览</h1></div>
+        <div><h1 id="page-title" data-i18n="web.page.overview">运行总览</h1></div>
         <div class="header-actions">
           <span id="updated" class="updated" data-i18n="web.note.not_refreshed_yet">尚未刷新</span>
           <button id="refresh" class="icon-btn" type="button" title="立即刷新全部数据" aria-label="立即刷新全部数据" data-icon="refresh-cw" data-i18n-title="web.action.refresh_all_data_now" data-i18n-aria-label="web.action.refresh_all_data_now"></button>
@@ -49,7 +52,7 @@
 
         <div class="overview-grid">
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">SYSTEM</p><h2 data-i18n="web.page.system_status">系统状态</h2></div><span id="system-dot" class="dot unknown"></span></div>
+            <div class="panel-head"><div><h2 data-i18n="web.page.system_status">系统状态</h2></div><span id="system-dot" class="dot unknown"></span></div>
             <p class="sys-value" id="system-status">—</p>
             <p class="panel-note" id="system-note"></p>
             <dl class="kv">
@@ -62,14 +65,14 @@
           </article>
 
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">EFFECTIVE CONFIG</p><h2 data-i18n="web.page.effective_config">运行配置</h2></div></div>
+            <div class="panel-head"><div><h2 data-i18n="web.page.effective_config">运行配置</h2></div></div>
             <p class="panel-note" id="config-note"></p>
             <dl class="kv" id="config-list"></dl>
             <p class="secret-line" id="config-secrets"></p>
           </article>
 
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">MCP TOOLS</p><h2 data-i18n="web.page.tool_modules">工具模块</h2></div><span class="muted" id="mcp-tools-note">—</span></div>
+            <div class="panel-head"><div><h2 data-i18n="web.page.tool_modules">工具模块</h2></div><span class="muted" id="mcp-tools-note">—</span></div>
             <p class="panel-note" id="mcp-tools-help"></p>
             <div class="tool-list" id="mcp-tools-list"></div>
           </article>
@@ -87,7 +90,7 @@
         </div>
 
         <article class="panel" id="clients-panel">
-          <div class="panel-head"><div><p class="eyebrow">MCP USAGE</p><h2 data-i18n="web.page.search_call_usage">搜索调用用量</h2></div><span class="muted" id="client-scope" data-i18n="web.note.search_calls_last_7_days">搜索调用 · 最近 7 天</span></div>
+          <div class="panel-head"><div><h2 data-i18n="web.page.search_call_usage">搜索调用用量</h2></div><span class="muted" id="client-scope" data-i18n="web.note.search_calls_last_7_days">搜索调用 · 最近 7 天</span></div>
           <div class="client-tabs" id="client-tabs"></div>
           <p class="panel-note" id="client-note"></p>
           <div id="client-stats"></div>
@@ -102,6 +105,7 @@
           <button type="button" id="save-sources" class="primary-btn" disabled data-i18n="web.action.save_and_restart"><span data-icon="save" aria-hidden="true"></span>保存并重启</button>
         </div>
         <p id="source-write-note" class="panel-note"></p>
+        <p id="source-apply-note" class="panel-note apply-inline" role="status"></p>
         <div class="status-key">
           <span data-i18n="web.status.healthy"><i class="dot healthy"></i>正常</span>
           <span data-i18n="web.status.degraded"><i class="dot degraded"></i>不稳定</span>
@@ -110,7 +114,7 @@
         </div>
 
         <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">WEB ENGINES</p><h2 data-i18n="web.page.web_engines">网页引擎</h2></div><span class="muted" id="sources-web-counts">—</span></div>
+          <div class="panel-head"><div><h2 data-i18n="web.page.web_engines">网页引擎</h2></div><span class="muted" id="sources-web-counts">—</span></div>
           <p class="panel-note" id="sources-web-note"></p>
           <div class="table-scroll">
             <table class="data-table">
@@ -121,7 +125,7 @@
         </article>
 
         <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">API PROVIDERS</p><h2 data-i18n="web.page.api_providers">API 供应商</h2></div><span class="muted" id="sources-api-counts">—</span></div>
+          <div class="panel-head"><div><h2 data-i18n="web.page.api_providers">API 供应商</h2></div><span class="muted" id="sources-api-counts">—</span></div>
           <p class="panel-note" id="sources-api-note"></p>
           <div class="table-scroll">
             <table class="data-table source-quota-table">
@@ -132,7 +136,7 @@
         </article>
 
         <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">ACADEMIC GROUP</p><h2 data-i18n="web.page.academic_sources">学术来源</h2></div><span class="muted" id="sources-academic-counts">—</span></div>
+          <div class="panel-head"><div><h2 data-i18n="web.page.academic_sources">学术来源</h2></div><span class="muted" id="sources-academic-counts">—</span></div>
           <p class="panel-note" id="sources-academic-note"></p>
           <div class="table-scroll">
             <table class="data-table">
@@ -141,11 +145,41 @@
             </table>
           </div>
         </article>
+        <article class="panel">
+          <div class="panel-head"><div><h2 data-i18n="web.page.mcphub_sources">MCPHub 托管源</h2></div><span class="muted" id="sources-mcphub-counts">—</span></div>
+          <p class="panel-note" id="sources-mcphub-note"></p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th data-i18n="web.label.source">来源</th><th data-i18n="web.label.enabled">启用</th><th data-i18n="web.label.historical_health">历史健康</th><th data-i18n="web.label.last_20">最近 20 次</th><th class="num" data-i18n="web.label.attempts_today">今日尝试</th><th class="num" data-i18n="web.label.success_rate">成功率</th><th class="num" data-i18n="web.label.average_latency">平均耗时</th><th data-i18n="web.label.last_error">最近错误</th></tr></thead>
+              <tbody id="sources-mcphub-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-tools" class="page">
+        <div class="draft-actions source-actions">
+          <span id="tools-draft-count" class="muted"></span>
+          <button type="button" id="undo-tools" class="icon-btn" title="撤销全部未保存更改" aria-label="撤销全部未保存更改" data-icon="undo-2" disabled data-i18n-title="web.action.discard_all_unsaved_changes" data-i18n-aria-label="web.action.discard_all_unsaved_changes"></button>
+          <button type="button" id="save-tools" class="primary-btn" disabled data-i18n="web.action.save_and_restart"><span data-icon="save" aria-hidden="true"></span>保存并重启</button>
+        </div>
+        <p id="tools-write-note" class="panel-note"></p>
+        <p id="tools-apply-note" class="panel-note apply-inline" role="status"></p>
+        <div id="tools-directory" class="section-directory"></div>
+        <div id="tool-controls" class="capability-grid"></div>
+        <template id="academic-network-template">
+              <details class="settings-advanced settings-wide">
+                <summary data-i18n="web.page.advanced_connection_and_academic_settings">高级连接与学术设置</summary>
+                <div class="form-grid">
+                  <label class="settings-wide" data-i18n="web.label.academic_search_network">学术搜索网络环境<select name="network" data-key="network"><option value="china" data-i18n="web.label.china_network">国内网络</option><option value="international" data-i18n="web.label.international_network">国际网络</option></select></label>
+                </div>
+              </details>
+        </template>
       </section>
 
       <section id="page-usage" class="page">
         <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">REDACTED METADATA</p><h2 data-i18n="web.page.call_log">调用记录</h2></div><span class="muted" data-i18n="web.note.last_100">最近 100 条</span></div>
+          <div class="panel-head"><div><h2 data-i18n="web.page.call_log">调用记录</h2></div><span class="muted" data-i18n="web.note.last_100">最近 100 条</span></div>
           <div class="toolbar">
             <label class="field"><span data-i18n="web.label.status">状态</span>
               <select id="filter-status">
@@ -193,10 +227,19 @@
       </section>
 
       <section id="page-settings" class="page">
+        <div class="draft-actions source-actions"><span id="settings-draft-count" class="muted"></span><button type="button" id="undo-settings" class="icon-btn" title="撤销全部未保存更改" aria-label="撤销全部未保存更改" data-icon="undo-2" disabled data-i18n-title="web.action.discard_all_unsaved_changes" data-i18n-aria-label="web.action.discard_all_unsaved_changes"></button><button type="button" id="save-settings" class="primary-btn" disabled data-i18n="web.action.save_and_restart"><span data-icon="save" aria-hidden="true"></span>保存并重启</button></div>
+        <p id="settings-apply-note" class="panel-note apply-inline" role="status"></p>
+        <div class="section-directory">
+          <button type="button" data-jump-section="settings-routing" data-i18n="web.page.search_routing">搜索路由</button>
+          <button type="button" data-jump-section="settings-operations" data-i18n="web.page.service_operations">服务与运维</button>
+          <button type="button" data-jump-section="settings-appearance" data-i18n="web.page.appearance_and_maintenance">外观与维护</button>
+          <button type="button" data-jump-section="settings-credentials" data-i18n="web.page.api_key_status">API Key 状态</button>
+          <button type="button" data-jump-section="settings-quotas" data-i18n="web.page.quota_management">额度管理</button>
+        </div>
         <div class="settings-grid">
           <div class="settings-column">
-          <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">SAFE SETTINGS</p><h2 data-i18n="web.page.common_settings">常用设置</h2></div><span id="settings-dirty" class="pill hidden" data-i18n="web.note.unsaved_changes">有未保存更改</span></div>
+          <article class="panel" id="settings-routing">
+            <div class="panel-head"><div><h2 data-i18n="web.page.search_routing">搜索路由</h2></div></div>
             <p id="settings-write-note" class="panel-note"></p>
             <form id="settings-form" class="form-grid">
               <fieldset class="mode-settings settings-wide">
@@ -205,6 +248,7 @@
                   <div class="mode-choice"><label><input type="radio" name="mode" value="hybrid" data-key="mode"><span>hybrid</span></label><div class="mode-help"><button type="button" class="mode-info" aria-label="hybrid 模式说明" aria-describedby="mode-note-hybrid" aria-expanded="false" data-i18n-aria-label="web.mode.hybrid_mode_help">i</button><span class="mode-tip" id="mode-note-hybrid" role="tooltip" data-i18n="web.mode.enabled_api_and_web_engines_run_concurrently_when_their_cond">已启用且条件满足的 API 与网页引擎混合并发。</span></div></div>
                   <div class="mode-choice"><label><input type="radio" name="mode" value="engine" data-key="mode"><span>engine</span></label><div class="mode-help"><button type="button" class="mode-info" aria-label="engine 模式说明" aria-describedby="mode-note-engine" aria-expanded="false" data-i18n-aria-label="web.mode.engine_mode_help">i</button><span class="mode-tip" id="mode-note-engine" role="tooltip" data-i18n="web.mode.enabled_web_engines_run_concurrently_with_no_key_required_pr">已启用的网页引擎并发，无需 Key；代理依赖引擎仅在条件满足时参与。</span></div></div>
                   <div class="mode-choice"><label><input type="radio" name="mode" value="apipool" data-key="mode"><span>apipool</span></label><div class="mode-help"><button type="button" class="mode-info" aria-label="apipool 模式说明" aria-describedby="mode-note-apipool" aria-expanded="false" data-i18n-aria-label="web.mode.apipool_mode_help">i</button><span class="mode-tip" id="mode-note-apipool" role="tooltip" data-i18n="web.mode.one_provider_per_call_with_failover_supports_round_robin_pri">每次调用一个供应商，失败切换；支持 round-robin、priority、weighted 策略，百度网页启用时兜底。</span></div></div>
+                  <div class="mode-choice"><label><input type="radio" name="mode" value="mcphub" data-key="mode"><span>mcphub</span></label><div class="mode-help"><button type="button" class="mode-info" aria-label="mcphub 模式说明" aria-describedby="mode-note-mcphub" aria-expanded="false" data-i18n-aria-label="web.mode.mcphub_mode_help">i</button><span class="mode-tip" id="mode-note-mcphub" role="tooltip" data-i18n="web.mode.mcphub_description">使用 MCPHub 托管来源，按轮转与回退策略调度。</span></div></div>
                   <div class="mode-choice"><label><input type="radio" name="mode" value="provider" id="mode-single"><span data-i18n="web.status.single_provider">单供应商</span></label><div class="mode-help"><button type="button" class="mode-info" aria-label="单供应商模式说明" aria-describedby="mode-note-provider" aria-expanded="false" data-i18n-aria-label="web.mode.single_provider_mode_help">i</button><span class="mode-tip" id="mode-note-provider" role="tooltip" data-i18n="web.mode.prefers_the_selected_provider_while_keeping_its_original_fal">优先使用所选供应商，保留其原有回退路径；所有来源仍受启用开关约束。</span></div></div>
                 </div>
                 <div id="mode-provider-options" class="provider-mode-row hidden">
@@ -219,21 +263,15 @@
                   </div></div>
                 </div>
               </fieldset>
-              <label data-i18n="web.label.upstream_timeout_seconds">上游超时（秒）<input type="number" min="0" max="120" name="upstream_timeout_sec" data-key="upstream_timeout_sec"></label>
-              <label data-i18n="web.label.max_results">最大结果数<input type="number" min="1" max="50" name="smartsearch.max_size" data-key="smartsearch.max_size"></label>
-              <label data-i18n="web.label.relevance_threshold">相关性阈值<input type="number" min="0" max="1" step="0.01" name="smartsearch.relevance_threshold" data-key="smartsearch.relevance_threshold"></label>
-              <label>MMR λ<input type="number" min="0" max="1" step="0.05" name="smartsearch.mmr.lambda" data-key="smartsearch.mmr.lambda"></label>
+              <div id="routing-controls" class="settings-wide"></div>
+              <label data-i18n="web.label.upstream_timeout_seconds">上游超时（秒）<input type="number" min="0" max="360" name="upstream_timeout_sec" data-key="upstream_timeout_sec"></label>
               <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="cache.enabled" data-key="cache.enabled"><span class="form-check-label" data-i18n="web.label.enable_cache">启用缓存</span></label>
-              <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="academic.enabled" data-key="academic.enabled"><span class="form-check-label" data-i18n="web.name.academic_search">学术检索</span></label>
-              <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="cleanfetch.enabled" data-key="cleanfetch.enabled"><span class="form-check-label" data-i18n="web.label.url_fetching">URL 抓取</span></label>
-              <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="cleanfetch.auto_proxy" data-key="cleanfetch.auto_proxy"><span class="form-check-label" data-i18n="web.label.fetch_through_the_system_proxy">抓取自动走代理</span></label>
-              <label class="settings-toggle form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="pdf_parser.enabled" data-key="pdf_parser.enabled"><span class="form-check-label" data-i18n="web.name.pdf_parsing">PDF 解析</span></label>
-              <details class="settings-advanced settings-wide">
-                <summary data-i18n="web.page.advanced_connection_and_academic_settings">高级连接与学术设置</summary>
-                <div class="form-grid">
-                  <label class="settings-wide" data-i18n="web.label.academic_search_network">学术搜索网络环境<select name="network" data-key="network"><option value="china" data-i18n="web.label.china_network">国内网络</option><option value="international" data-i18n="web.label.international_network">国际网络</option></select></label>
-                </div>
-              </details>
+
+            </form>
+          </article>
+          <article class="panel" id="settings-operations">
+            <div class="panel-head"><h2 data-i18n="web.page.service_operations">服务与运维</h2></div>
+            <div id="operational-controls"></div>
               <details class="settings-advanced settings-wide">
                 <summary data-i18n="web.label.observation_warning_pause_window">观测告警暂停窗口</summary>
                 <div class="form-grid">
@@ -241,12 +279,11 @@
                   <label data-i18n="web.label.pause_ceiling">暂停上限<input type="text" placeholder="24h" name="dashboard.suspension.max_ban_time_on_fail" data-key="dashboard.suspension.max_ban_time_on_fail"></label>
                 </div>
               </details>
-              <div class="form-actions draft-actions"><button type="button" id="undo-settings" class="icon-btn" title="撤销全部未保存更改" aria-label="撤销全部未保存更改" data-icon="undo-2" disabled data-i18n-title="web.action.discard_all_unsaved_changes" data-i18n-aria-label="web.action.discard_all_unsaved_changes"></button><button type="button" id="save-settings" class="primary-btn" disabled data-i18n="web.action.save_and_restart"><span data-icon="save" aria-hidden="true"></span>保存并重启</button></div>
-            </form>
           </article>
-          <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">APPEARANCE &amp; MAINTENANCE</p><h2 data-i18n="web.page.appearance_and_maintenance">外观与维护</h2></div></div>
-            <h3 class="sub-head" data-i18n="web.page.theme">外观主题</h3>
+          <article class="panel" id="settings-appearance">
+            <div class="panel-head"><div><h2 data-i18n="web.page.appearance_and_maintenance">外观与维护</h2></div></div>
+            <div id="brand-controls"></div>
+            <h3 class="sub-head" data-i18n="web.page.browser_appearance">本浏览器外观</h3>
             <div class="theme-picker" id="theme-picker">
               <button type="button" data-theme-pick="green" class="theme-chip" data-i18n="web.theme.green_office"><i class="swatch green"></i>绿色办公</button>
               <button type="button" data-theme-pick="blue" class="theme-chip" data-i18n="web.theme.blue_tech"><i class="swatch blue"></i>蓝白科技</button>
@@ -271,12 +308,13 @@
           </article>
           </div>
           <div class="settings-column">
-          <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">CREDENTIALS</p><h2 data-i18n="web.page.api_key_status">API Key 状态</h2></div><span class="muted" data-i18n="web.note.original_values_are_never_echoed">永不回显原值</span></div>
+          <article class="panel" id="settings-credentials">
+            <div class="panel-head"><div><h2 data-i18n="web.page.api_key_status">API Key 状态</h2></div><span class="muted" data-i18n="web.note.original_values_are_never_echoed">永不回显原值</span></div>
             <div id="secret-list" class="secret-list"></div>
           </article>
-          <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">QUOTAS</p><h2 data-i18n="web.page.quota_management">额度管理</h2></div></div>
+          <article class="panel" id="settings-quotas">
+            <div class="panel-head"><div><h2 data-i18n="web.page.quota_management">额度管理</h2></div></div>
+            <div id="quota-controls"></div>
             <p class="panel-note" id="quota-manage-note"></p>
             <div class="table-scroll">
               <table class="data-table quota-manage-table">

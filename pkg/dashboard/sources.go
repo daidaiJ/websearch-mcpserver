@@ -9,6 +9,7 @@ import (
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
+	"websearch/pkg/search/provider/mcphub"
 	"websearch/pkg/telemetry"
 )
 
@@ -27,7 +28,8 @@ type SourceView struct {
 	Group               string                     `json:"group"`
 	Category            string                     `json:"category"`
 	Enabled             bool                       `json:"enabled"`
-	ControlPath         string                     `json:"control_path"`
+	ControlPath         string                     `json:"control_path,omitempty"`
+	ScoreKey            string                     `json:"score_key,omitempty"`
 	Inverted            bool                       `json:"inverted"`
 	Condition           string                     `json:"condition"`
 	Participation       string                     `json:"participation"`
@@ -364,6 +366,14 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 		if engineReady["baidu_web"] {
 			active["baidu_web"] = true
 		}
+	case config.ModeMCPHub:
+		if conf.MCPHub.IsEnabled() && validMCPHubServers(conf.MCPHub.GetServers(), nil) {
+			for _, name := range append(conf.MCPHub.GetRotationEngines(), conf.MCPHub.GetFallbackEngines()...) {
+				if engineReady[name] {
+					active[name] = true
+				}
+			}
+		}
 	case config.ModeBaidu:
 		if apiConfigured["baidu"] && conf.APISourceEnabled("baidu") {
 			active["baidu"] = true
@@ -415,6 +425,18 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 	for i := range out {
 		s := &out[i]
 		s.SuspensionScope = "observation"
+		s.ScoreKey = s.ID
+		switch s.ID {
+		case "baidu_web":
+			s.ScoreKey = "baidu"
+		case "baidu":
+			s.ScoreKey = "baidu_api"
+			if conf.Baidu.EnableAISearch {
+				s.ScoreKey = "baidu_ai"
+			}
+		case "tavily", "tinyfish", "keenable":
+			s.ScoreKey = s.ID + "_api"
+		}
 		if _, engine := engineEnabled[s.ID]; engine {
 			s.Category, s.Enabled = "engine", engineEnabled[s.ID]
 			s.ControlPath = s.ID + ".enabled"
@@ -479,7 +501,76 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 			s.Participation = loc.T("dashboard.participation.mode", "Mode", mode)
 		}
 	}
+	return append(out, mcpHubSourceCatalog(conf, active, proxyResolved, loc)...)
+}
+
+func mcpHubSourceCatalog(conf config.Config, active map[string]bool, proxyResolved bool, loc *i18n.Localizer) []SourceView {
+	mode := conf.GetMode()
+	inPool := mode == config.ModeApipool && (conf.Apipool.MCPHubFallback || slices.Contains(conf.Apipool.GetEngines(), "mcphub"))
+	hubActive := conf.MCPHub.IsEnabled() && (mode == config.ModeMCPHub || inPool)
+	configured := conf.MCPHub.GetServers()
+	var excluded map[string]bool
+	if inPool && conf.Apipool.DedupeMCPHubSources() {
+		excluded = make(map[string]bool)
+		for _, source := range apiPoolOptions {
+			excluded[source] = active[source]
+		}
+	}
+	hubActive = hubActive && validMCPHubServers(configured, excluded)
+	out := make([]SourceView, 0, len(configured))
+	index := map[string]int{}
+	for _, server := range configured {
+		if !mcphub.KnownServer(server.Name) {
+			continue
+		}
+		pos, exists := index[server.Name]
+		if exists && (out[pos].Enabled || !server.IsEnabled()) {
+			continue
+		}
+		id := "mcp_hub_" + server.Name
+		requiresProxy := server.RequiresProxy != nil && *server.RequiresProxy
+		condition := loc.T("dashboard.condition.mcphub")
+		if requiresProxy && !proxyResolved {
+			condition += loc.T("dashboard.suffix.proxy_unresolved")
+		}
+		enabled := server.IsEnabled() && conf.MCPHub.IsEnabled()
+		participating := hubActive && enabled && (!requiresProxy || proxyResolved) && !excluded[server.Name]
+		participation := loc.T("dashboard.participation.mode", "Mode", mode)
+		switch {
+		case participating:
+			participation = loc.T("dashboard.participation.active")
+		case !enabled:
+			participation = loc.T("dashboard.participation.disabled")
+		case requiresProxy && !proxyResolved:
+			participation = loc.T("dashboard.participation.network_requirements")
+		}
+		source := SourceView{ID: id, Name: server.Name, Group: "web", Category: "mcphub",
+			Configured: true, Enabled: enabled, Active: participating, Condition: condition,
+			Participation: participation, SuspensionScope: "observation", aliases: []string{id}}
+		if exists {
+			out[pos] = source
+		} else {
+			index[server.Name] = len(out)
+			out = append(out, source)
+		}
+	}
 	return out
+}
+
+// Each enabled, non-deduplicated preset must be buildable before the hub can accept traffic.
+func validMCPHubServers(servers []config.MCPHubServerConfig, excluded map[string]bool) bool {
+	for _, server := range servers {
+		if !server.IsEnabled() || excluded[server.Name] {
+			continue
+		}
+		keys := server.EffectiveKeys()
+		if !mcphub.KnownServer(server.Name) || (len(keys) > 0 && !slices.ContainsFunc(keys, func(key string) bool {
+			return strings.TrimSpace(key) != ""
+		})) {
+			return false
+		}
+	}
+	return true
 }
 
 func academicSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {

@@ -18,10 +18,12 @@ var cacheNamespace string
 func searchCacheNamespace(conf config.Config) (string, error) {
 	sources := config.Config{
 		Mode: conf.GetMode(), Network: conf.Network, BlackListHost: conf.BlackListHost,
+		RateLimit: conf.RateLimit, UpstreamTimeoutSec: conf.UpstreamTimeoutSec,
 		Baidu: conf.Baidu, Tavily: conf.Tavily, Exa: conf.Exa, Anysearch: conf.Anysearch, Doubao: conf.Doubao,
-		Bing: conf.Bing, So360: conf.So360, Wikipedia: conf.Wikipedia, GoogleNews: conf.GoogleNews,
+		Yuanbao: conf.Yuanbao, TinyFish: conf.TinyFish, Keenable: conf.Keenable, GitHub: conf.GitHub,
+		Bing: conf.Bing, So360: conf.So360, Sogou: conf.Sogou, Mojeek: conf.Mojeek, Wikipedia: conf.Wikipedia, GoogleNews: conf.GoogleNews,
 		DuckDuckGo: conf.DuckDuckGo, Google: conf.Google, Academic: conf.Academic,
-		Proxy: conf.Proxy, SmartSearch: conf.SmartSearch, Apipool: conf.Apipool,
+		Proxy: conf.Proxy, SmartSearch: conf.SmartSearch, Apipool: conf.Apipool, MCPHub: conf.MCPHub,
 		LLM: conf.LLM, Jina: conf.Jina, CleanFetch: conf.CleanFetch, PDFParser: conf.PDFParser,
 	}
 	data, err := json.Marshal(struct {

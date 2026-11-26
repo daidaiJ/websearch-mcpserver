@@ -1,19 +1,12 @@
 package dashboard
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
-	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -23,112 +16,21 @@ import (
 
 var settingsMu sync.Mutex
 var errSettingsConflict = errors.New("configuration changed; refresh before saving")
+var errSettingsUnreadable = errors.New("configuration file unavailable")
+var errSettingsParse = errors.New("invalid settings configuration")
 
-func configRevision(b []byte) string {
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
-}
-
-func backupDirectory(c config.Config) string {
-	return filepath.Join(filepath.Dir(c.GetDashboardStoragePath()), "dashboard-backups")
-}
-
-func lockedSettings(c config.Config, loc *i18n.Localizer) map[string]string {
-	out := map[string]string{}
-	for path := range settingsView(c)["values"].(map[string]any) {
-		if _, exists := os.LookupEnv("APP_" + strings.ToUpper(path)); exists {
-			out[path] = loc.T("dashboard.locked.env")
-		}
-		if strings.HasPrefix(path, "dashboard.") && config.GetDashboardOverlayFile() != "" {
-			out[path] = loc.T("dashboard.locked.overlay")
-		}
-	}
-	return out
-}
-
-func yamlPath(doc *yaml.Node, path string) *yaml.Node {
-	if len(doc.Content) == 0 {
-		return nil
-	}
-	n := doc.Content[0]
-	for _, key := range strings.Split(path, ".") {
-		if n.Kind != yaml.MappingNode {
-			return nil
-		}
-		var child *yaml.Node
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == key {
-				child = n.Content[i+1]
-				break
-			}
-		}
-		if child == nil {
-			return nil
-		}
-		n = child
-	}
-	return n
-}
-
-func settingsFromDocument(c config.Config, b []byte) (map[string]any, error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return nil, fmt.Errorf("parse active config: %w", err)
-	}
-	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("config must be a YAML mapping")
-	}
-	values := settingsView(c)["values"].(map[string]any)
-	for path, value := range values {
-		values[path] = canonicalValue(value)
-	}
-	// 这里只要来源的 ID 与开关事实，不消费名称/条件文案，故用进程默认语言即可。
-	for _, source := range SourceCatalog(c, i18n.Default()) {
-		// Missing source switches retain loader defaults, not a pending runtime value.
-		values[source.ControlPath] = source.Category == "api" || source.ID == "bing" || source.ID == "duckduckgo"
-		if source.ID == "keenable" && len(c.Keenable.EffectiveSKList()) == 0 {
-			// public 免 Key 档需显式 enabled: true 才参与路由，缺省不能当 true 处理，
-			// 否则保存任意设置都会把 public 档静默写进候选配置。
-			values[source.ControlPath] = false
-		}
-		if source.Inverted {
-			values[source.ControlPath] = false
-		}
-	}
-	values["academic.enabled"] = true
-	values["doubao.version"] = "global"
-	values["doubao.icp_host_only"] = false
-	for path := range values {
-		if node := yamlPath(&doc, path); node != nil {
-			var value any
-			if err := node.Decode(&value); err != nil {
-				return nil, fmt.Errorf("invalid setting %s", path)
-			}
-			// Canonical JSON values match the API and avoid YAML integer/array type drift.
-			values[path] = canonicalValue(value)
-		}
-	}
-	// 只要锁定字段的路径集合，不消费原因文案，故用进程默认语言即可。
-	for path := range lockedSettings(c, i18n.Default()) {
-		values[path] = settingsView(c)["values"].(map[string]any)[path]
-	}
-	return values, nil
-}
-
-func canonicalValue(value any) any {
-	switch v := value.(type) {
-	case int:
-		return float64(v)
-	case int64:
-		return float64(v)
-	case []string:
-		out := make([]any, len(v))
-		for i := range v {
-			out[i] = v[i]
-		}
-		return out
+func settingsErrorMessage(loc *i18n.Localizer, err error) string {
+	switch err {
+	case errSettingsConflict:
+		return loc.T("dashboard.settings.conflict")
+	case errSettingsUnreadable:
+		return loc.T("dashboard.config_error.unreadable")
+	case config.ErrSettingsPathsChanged:
+		return loc.T("dashboard.settings.paths_changed")
+	case errSettingsParse:
+		return loc.T("dashboard.config_error.parse")
 	default:
-		return value
+		return err.Error()
 	}
 }
 
@@ -142,101 +44,54 @@ func settingsDifference(before, after map[string]any) map[string]any {
 	return out
 }
 
-func settingsFileView(c config.Config, path string, loc *i18n.Localizer) map[string]any {
+func settingsFromDocument(c config.Config, b []byte) (map[string]any, error) {
+	return projectSettingsDocuments(c, b, nil)
+}
+
+func mergeSettingLocks(dst, src map[string]string) {
+	for key, reason := range src {
+		dst[key] = reason
+	}
+}
+
+func settingsFileView(c config.Config, path, overlayPath string, loc *i18n.Localizer) map[string]any {
 	settingsMu.Lock()
 	defer settingsMu.Unlock()
 	out := settingsView(c)
-	out["locked_fields"] = lockedSettings(c, loc)
+	locked := lockedSettings(c, loc)
+	out["locked_fields"] = locked
 	out["pending_changes"] = map[string]any{}
 	out["saved_values"] = out["values"]
 	out["revision"] = ""
-	backups := []map[string]string{}
-	entries, _ := os.ReadDir(backupDirectory(c))
-	for _, entry := range entries {
-		if entry.IsDir() || !validBackupName(entry.Name()) {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil || !info.Mode().IsRegular() {
-			continue
-		}
-		backups = append(backups, map[string]string{"name": entry.Name(), "created_at": info.ModTime().Format(time.RFC3339)})
-	}
-	sort.Slice(backups, func(i, j int) bool { return backups[i]["name"] > backups[j]["name"] })
-	out["backups"] = backups
-	b, err := os.ReadFile(path)
+	out["backups"] = settingsBackups(c)
+	docs, err := readSettingsDocuments(path, overlayPath)
 	if err != nil {
 		out["config_error"] = loc.T("dashboard.config_error.unreadable")
 		return out
 	}
-	values, err := settingsFromDocument(c, b)
+	saved, err := decodeSettingsAtPaths(docs.main.data, docs.overlay.data, c.SettingsFilePaths())
 	if err != nil {
-		out["config_error"] = loc.T("dashboard.config_error.parse")
+		out["config_error"] = settingsErrorMessage(loc, err)
 		return out
 	}
-	out["revision"] = configRevision(b)
+	mergeSettingLocks(locked, lockedSettings(saved, loc))
+	for path := range locked {
+		if saved.Dashboard.OverlayOverridesSetting(path) {
+			delete(locked, path)
+		}
+	}
+	values := settingsView(saved)["values"].(map[string]any)
+	fieldFiles := map[string]string{}
+	for path := range values {
+		if isEditableSetting(path) {
+			fieldFiles[path] = docs.fieldFile(path)
+		}
+	}
+	out["field_files"] = fieldFiles
+	out["revision"] = docs.revision()
 	out["saved_values"] = values
 	out["pending_changes"] = settingsDifference(out["values"].(map[string]any), values)
 	return out
-}
-
-// Apply only allowlisted leaves using the same identifiers as Viper, without mutating its globals.
-func configWithSettings(c config.Config, values map[string]any) (config.Config, error) {
-	for path, value := range values {
-		// Dashboard defaults are not part of source eligibility; changed leaves were validated above.
-		if strings.HasPrefix(path, "dashboard.") {
-			continue
-		}
-		if err := validateSetting(path, value); err != nil {
-			return c, err
-		}
-		n := reflect.ValueOf(&c).Elem()
-		for _, key := range strings.Split(path, ".") {
-			if n.Kind() != reflect.Struct {
-				return c, fmt.Errorf("invalid config path %s", path)
-			}
-			var field reflect.Value
-			for i := 0; i < n.NumField(); i++ {
-				if n.Type().Field(i).Tag.Get("mapstructure") == key {
-					field = n.Field(i)
-					break
-				}
-			}
-			if !field.IsValid() {
-				return c, fmt.Errorf("unknown config field %s", path)
-			}
-			n = field
-		}
-		if n.Kind() == reflect.Pointer {
-			replacement := reflect.New(n.Type().Elem())
-			n.Set(replacement)
-			n = replacement.Elem()
-		}
-		switch n.Kind() {
-		case reflect.Bool:
-			n.SetBool(value.(bool))
-		case reflect.String:
-			n.SetString(value.(string))
-		case reflect.Int, reflect.Int64:
-			v, ok := asFloat(value)
-			if !ok || math.Trunc(v) != v {
-				return c, fmt.Errorf("%s must be an integer", path)
-			}
-			n.SetInt(int64(v))
-		case reflect.Float64:
-			n.SetFloat(value.(float64))
-		case reflect.Slice:
-			items := value.([]any)
-			next := reflect.MakeSlice(n.Type(), len(items), len(items))
-			for i := range items {
-				next.Index(i).SetString(items[i].(string))
-			}
-			n.Set(next)
-		default:
-			return c, fmt.Errorf("unsupported setting %s", path)
-		}
-	}
-	return c, nil
 }
 
 func validateSourceCombination(c config.Config, loc *i18n.Localizer) error {
@@ -263,141 +118,239 @@ func validateSourceCombination(c config.Config, loc *i18n.Localizer) error {
 	return nil
 }
 
-func validBackupName(name string) bool {
-	return filepath.Base(name) == name && !strings.ContainsAny(name, `/\\`) && strings.HasPrefix(name, "config-") && strings.HasSuffix(name, ".yaml")
+type settingsPatch struct {
+	main, overlay map[string]any
 }
 
-// applySettingsFile 写入配置；loc 决定校验错误等响应文案的语言。
-func applySettingsFile(c config.Config, req SettingsRequest, path string, clearCache func() error, loc *i18n.Localizer) (SettingsResult, error) {
+func (patch settingsPatch) apply(docs settingsDocuments) (settingsDocuments, error) {
+	next := docs
+	for _, op := range []struct {
+		file    *settingsFile
+		changes map[string]any
+	}{{&next.main, patch.main}, {&next.overlay, patch.overlay}} {
+		if len(op.changes) == 0 {
+			continue
+		}
+		doc, err := settingsYAMLDocument(op.file.data)
+		if err != nil {
+			return docs, err
+		}
+		keys := make([]string, 0, len(op.changes))
+		for key := range op.changes {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			if err := editYAMLSetting(doc, key, op.changes[key]); err != nil {
+				return docs, err
+			}
+		}
+		op.file.data, err = yaml.Marshal(doc)
+		if err != nil {
+			return docs, errSettingsParse
+		}
+	}
+	return next, nil
+}
+
+func settingsRestore(c, currentConfig config.Config, docs settingsDocuments, before map[string]any, name string, loc *i18n.Localizer) (settingsPatch, map[string]any, map[string]string, error) {
+	var patch settingsPatch
+	newValues := map[string]any{}
+	files := map[string]string{}
+	hasMain, hasOverlay := backupFiles(name)
+	if !hasMain && !hasOverlay {
+		return patch, nil, nil, errors.New(loc.T("dashboard.settings.backup_invalid"))
+	}
+	saved := docs
+	var err error
+	if hasMain {
+		saved.main.data, err = readBackup(backupDirectory(c), name, loc)
+		if err != nil {
+			return patch, nil, nil, err
+		}
+	}
+	if hasOverlay {
+		if docs.overlay.info == nil {
+			return patch, nil, nil, errors.New(loc.T("dashboard.settings.overlay_unavailable"))
+		}
+		saved.overlay.data, err = readBackup(overlayBackupDirectory(c), name, loc)
+		if err != nil {
+			return patch, nil, nil, err
+		}
+	}
+	old, err := decodeSettingsDocuments(c, saved.main.data, saved.overlay.data)
+	if err != nil {
+		return patch, nil, nil, errSettingsParse
+	}
+	difference := settingsDifference(before, settingsView(old)["values"].(map[string]any))
+	locked := lockedSettings(old, loc)
+	for _, file := range []struct {
+		restore        bool
+		before, backup []byte
+		label          string
+		dest           *map[string]any
+	}{
+		{hasMain, docs.main.data, saved.main.data, "config.yaml", &patch.main},
+		{hasOverlay, docs.overlay.data, saved.overlay.data, "dashboard.yaml", &patch.overlay},
+	} {
+		if !file.restore {
+			continue
+		}
+		activeDoc, err := settingsYAMLDocument(file.before)
+		if err != nil {
+			return patch, nil, nil, err
+		}
+		backupDoc, err := settingsYAMLDocument(file.backup)
+		if err != nil {
+			return patch, nil, nil, err
+		}
+		changes := map[string]any{}
+		for key, desired := range difference {
+			if !isEditableSetting(key) || (file.label == "dashboard.yaml" && !strings.HasPrefix(key, "dashboard.")) {
+				continue
+			}
+			current, prior := yamlPath(activeDoc, key), yamlPath(backupDoc, key)
+			if current == nil && prior == nil {
+				continue
+			}
+			var value any
+			if prior != nil {
+				if anchoredSetting(prior) || prior.Decode(&value) != nil {
+					return patch, nil, nil, errSettingsParse
+				}
+				value = canonicalValue(value)
+			}
+			if current != nil && prior != nil {
+				var active any
+				if current.Decode(&active) == nil && reflect.DeepEqual(canonicalValue(active), value) {
+					continue
+				}
+			}
+			if reason := locked[key]; reason != "" &&
+				(file.label == "config.yaml" || !currentConfig.Dashboard.OverlayOverridesSetting(key)) {
+				return patch, nil, nil, fmt.Errorf("%s: %s", key, reason)
+			}
+			// Backups can contain legacy zero or null values accepted by the loader.
+			// Keep the original node and verify its effective value after patching.
+			changes[key] = nil
+			if prior != nil {
+				changes[key] = prior
+			}
+			newValues[key] = desired
+			files[key] = file.label
+		}
+		*file.dest = changes
+	}
+	return patch, newValues, files, nil
+}
+
+func applySettingsFile(c config.Config, req SettingsRequest, path, overlayPath string, clearCache func() error, loc *i18n.Localizer) (SettingsResult, error) {
 	settingsMu.Lock()
 	defer settingsMu.Unlock()
-	out := SettingsResult{Changes: req.Changes, RestartRequired: true}
+	var out SettingsResult
 	if len(req.Changes) == 0 && req.RestoreBackup == "" {
-		return out, fmt.Errorf("no changes supplied")
+		return out, errors.New(loc.T("dashboard.settings.changes_required"))
 	}
 	if len(req.Changes) > 0 && req.RestoreBackup != "" {
-		return out, fmt.Errorf("restore and changes are mutually exclusive")
+		return out, errors.New(loc.T("dashboard.settings.restore_with_changes"))
 	}
-	b, err := os.ReadFile(path)
+	docs, err := readSettingsDocuments(path, overlayPath)
 	if err != nil {
-		return out, fmt.Errorf("read active config: %w", err)
+		return out, err
 	}
-	out.Revision = configRevision(b)
+	saved, err := decodeSettingsAtPaths(docs.main.data, docs.overlay.data, c.SettingsFilePaths())
+	if err == config.ErrSettingsPathsChanged {
+		return out, err
+	}
+	out.Revision = docs.revision()
 	if req.Revision != "" && req.Revision != out.Revision {
 		return out, errSettingsConflict
 	}
 	if req.Confirm && req.Revision == "" {
-		return out, fmt.Errorf("revision required; refresh settings")
+		return out, errors.New(loc.T("dashboard.settings.revision_required"))
 	}
-	values, err := settingsFromDocument(c, b)
 	if err != nil {
 		return out, err
 	}
+	before := settingsView(saved)["values"].(map[string]any)
+	locked := lockedSettings(c, loc)
+	mergeSettingLocks(locked, lockedSettings(saved, loc))
+	files := map[string]string{}
+	patch := settingsPatch{main: map[string]any{}, overlay: map[string]any{}}
+	var wantRestored map[string]any
 	if req.RestoreBackup != "" {
-		if !validBackupName(req.RestoreBackup) {
-			return out, fmt.Errorf("invalid backup name")
-		}
-		backupPath := filepath.Join(backupDirectory(c), req.RestoreBackup)
-		info, err := os.Lstat(backupPath)
-		if err != nil || !info.Mode().IsRegular() {
-			return out, fmt.Errorf("backup unavailable")
-		}
-		old, err := os.ReadFile(backupPath)
-		if err != nil {
-			return out, fmt.Errorf("read backup failed")
-		}
-		oldValues, err := settingsFromDocument(c, old)
+		patch, wantRestored, files, err = settingsRestore(c, saved, docs, before, req.RestoreBackup, loc)
 		if err != nil {
 			return out, err
 		}
-		out.Changes = settingsDifference(values, oldValues)
+	} else {
+		for key, value := range req.Changes {
+			if !isEditableSetting(key) {
+				return out, errors.New(loc.T("dashboard.settings.field_not_editable"))
+			}
+			if err := validateSetting(key, value, loc); err != nil {
+				return out, err
+			}
+			files[key] = docs.fieldFile(key)
+			if files[key] == "dashboard.yaml" {
+				patch.overlay[key] = value
+			} else {
+				patch.main[key] = value
+			}
+		}
 	}
-	locked := lockedSettings(c, loc)
-	for key, value := range out.Changes {
-		if reason := locked[key]; reason != "" {
+	for key := range files {
+		_, mainEdit := patch.main[key]
+		if reason := locked[key]; reason != "" && (mainEdit || !saved.Dashboard.OverlayOverridesSetting(key)) {
 			return out, fmt.Errorf("%s: %s", key, reason)
 		}
-		if err := validateSetting(key, value); err != nil {
-			return out, err
-		}
-		values[key] = value
 	}
-	candidate, err := configWithSettings(c, values)
+	next, err := patch.apply(docs)
 	if err != nil {
+		return out, err
+	}
+	candidate, err := decodeSettingsAtPaths(next.main.data, next.overlay.data, c.SettingsFilePaths())
+	if err != nil {
+		return out, err
+	}
+	after := settingsView(candidate)["values"].(map[string]any)
+	for key, value := range wantRestored {
+		if !reflect.DeepEqual(canonicalValue(after[key]), canonicalValue(value)) {
+			return out, errSettingsParse
+		}
+	}
+	// Reject effects outside the requested changes (for example YAML alias side effects).
+	for key := range settingsDifference(before, after) {
+		if _, changed := files[key]; !changed {
+			return out, errSettingsParse
+		}
+	}
+	validationChanges := req.Changes
+	if req.RestoreBackup != "" {
+		validationChanges = wantRestored
+	}
+	if err := validateSettingsCombination(candidate, validationChanges, loc); err != nil {
 		return out, err
 	}
 	if err := validateSourceCombination(candidate, loc); err != nil {
 		return out, err
 	}
+	out.Changes = map[string]any{}
+	out.FieldFiles = files
+	for key := range files {
+		out.Changes[key] = after[key]
+	}
+	out.RestartRequired = next.revision() != out.Revision
 	if !req.Confirm {
 		return out, nil
 	}
-	var doc yaml.Node
-	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return out, err
+	if !settingsInvalidateSearchCache(settingsDifference(before, after)) {
+		clearCache = nil
 	}
-	for key, value := range out.Changes {
-		if err := setYAMLPath(&doc, strings.Split(key, "."), value); err != nil {
-			return out, err
-		}
-	}
-	next, err := yaml.Marshal(&doc)
+	name, err := updateSettingsFiles(c, docs, next, clearCache, loc)
 	if err != nil {
 		return out, err
 	}
-	if err := os.MkdirAll(backupDirectory(c), 0o700); err != nil {
-		return out, err
-	}
-	name := "config-" + time.Now().UTC().Format("20060102-150405.000000000") + ".yaml"
-	if err := os.WriteFile(filepath.Join(backupDirectory(c), name), b, 0o600); err != nil {
-		return out, fmt.Errorf("write backup: %w", err)
-	}
-	// A bind-mounted file cannot be replaced with rename; retain its mode and verify the actual readback.
-	info, err := os.Stat(path)
-	if err != nil {
-		return out, err
-	}
-	rollback := func(cause error) (SettingsResult, error) {
-		if err := os.WriteFile(path, b, info.Mode().Perm()); err != nil {
-			return out, fmt.Errorf("%v; rollback failed, restore backup %s", cause, name)
-		}
-		check, err := os.ReadFile(path)
-		if err != nil || !bytes.Equal(check, b) {
-			return out, fmt.Errorf("%v; rollback readback failed, restore backup %s", cause, name)
-		}
-		return out, cause
-	}
-	latest, err := os.ReadFile(path)
-	if err != nil || !bytes.Equal(latest, b) {
-		return out, errSettingsConflict
-	}
-	if err := os.WriteFile(path, next, info.Mode().Perm()); err != nil {
-		return rollback(fmt.Errorf("write active config: %w", err))
-	}
-	check, err := os.ReadFile(path)
-	if err != nil || !bytes.Equal(check, next) {
-		return rollback(fmt.Errorf("written config readback mismatch"))
-	}
-	if _, err := settingsFromDocument(c, check); err != nil {
-		return rollback(err)
-	}
-	sourceChange := false
-	// 这里只要来源的 ID 与开关事实，不消费名称/条件文案，故用进程默认语言即可。
-	for _, source := range SourceCatalog(c, i18n.Default()) {
-		if _, exists := out.Changes[source.ControlPath]; exists {
-			sourceChange = true
-		}
-	}
-	for _, key := range []string{"mode", "network", "apipool.engines", "academic.enabled", "doubao.version", "doubao.icp_host_only"} {
-		if _, exists := out.Changes[key]; exists {
-			sourceChange = true
-		}
-	}
-	if sourceChange && clearCache != nil {
-		if err := clearCache(); err != nil {
-			return rollback(fmt.Errorf("clear search cache: %w", err))
-		}
-	}
-	out.Applied, out.Backup, out.Revision = true, name, configRevision(check)
+	out.Applied, out.Backup, out.Revision = true, name, next.revision()
 	return out, nil
 }

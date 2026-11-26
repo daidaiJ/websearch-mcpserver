@@ -337,7 +337,8 @@ func TestBuildDashboardOverviewSortsSourcesByState(t *testing.T) {
 		got = append(got, s.ID)
 	}
 	// 已启用在前（保持目录顺序），已配置未启用居中，未配置最后。
-	want := []string{"baidu_web", "bing", "google", "duckduckgo", "github", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable", "so360", "sogou", "mojeek", "wikipedia", "googlenews"}
+	want := []string{"baidu_web", "bing", "google", "duckduckgo", "github", "anysearch", "baidu", "tavily", "exa", "doubao", "yuanbao", "tinyfish", "keenable", "so360", "sogou", "mojeek", "wikipedia", "googlenews",
+		"mcp_hub_parallel", "mcp_hub_anysearch", "mcp_hub_exa", "mcp_hub_firecrawl"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("sources 顺序 = %v, want %v", got, want)
 	}
@@ -415,8 +416,8 @@ func TestSourceCatalogSeparatesSwitchConfigurationAndRouting(t *testing.T) {
 	conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://127.0.0.1:1"}
 	conf.Academic = config.AcademicConfig{Enabled: true, DisableArxiv: true}
 	catalog := SourceCatalog(conf, testLoc())
-	if len(catalog) != 27 {
-		t.Fatalf("catalog must include 18 web and 9 academic sources: %d", len(catalog))
+	if len(catalog) != 31 {
+		t.Fatalf("catalog must include 18 web, 4 hosted MCP and 9 academic sources: %d", len(catalog))
 	}
 	if s := sourceByID(t, catalog, "tavily"); s.Enabled || !s.Configured || s.Active || s.Category != "api" || s.ControlPath != "tavily.enabled" {
 		t.Fatalf("stored key must not override disabled source: %+v", s)

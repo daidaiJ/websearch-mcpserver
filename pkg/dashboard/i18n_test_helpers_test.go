@@ -11,12 +11,12 @@ func testLoc() *i18n.Localizer { return i18n.For(i18n.Zh) }
 
 // applySettingsForTest 是 applySettingsFile 的测试包装，固定中文 Localizer。
 func applySettingsForTest(c config.Config, req SettingsRequest, path string, clearCache func() error) (SettingsResult, error) {
-	return applySettingsFile(c, req, path, clearCache, testLoc())
+	return applySettingsFile(c, req, path, "", clearCache, testLoc())
 }
 
 // settingsFileViewForTest 是 settingsFileView 的测试包装，固定中文 Localizer。
 func settingsFileViewForTest(c config.Config, path string) map[string]any {
-	return settingsFileView(c, path, testLoc())
+	return settingsFileView(c, path, "", testLoc())
 }
 
 // validateSourceCombinationForTest 是 validateSourceCombination 的测试包装。

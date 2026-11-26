@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -117,6 +118,7 @@ func (h *Handler) Register(mux *http.ServeMux, guard func(http.HandlerFunc) http
 	mux.HandleFunc("/__admin/api/clients", guard(i18n.HTTP(h.clients)))
 	mux.HandleFunc("/__admin/api/providers", guard(i18n.HTTP(h.providers)))
 	mux.HandleFunc("/__admin/api/metrics", guard(i18n.HTTP(h.metricsHandler)))
+	mux.HandleFunc("/__admin/api/everything/scope", guard(i18n.HTTP(h.everythingScope)))
 	mux.HandleFunc("/__admin/api/settings", guard(i18n.HTTP(h.settings)))
 	mux.HandleFunc("/__admin/api/secrets", guard(i18n.HTTP(h.secrets)))
 	mux.HandleFunc("/__admin/api/restart", guard(i18n.HTTP(h.restartService)))
@@ -357,13 +359,34 @@ func (h *Handler) quotas(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.quota.Get(ctx))
 }
 
+// everythingScope discloses local paths only to an authorized administrator.
+func (h *Handler) everythingScope(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	if !h.authorizeWrite(w, r) {
+		return
+	}
+	endpoint := ""
+	if u, err := url.Parse(h.conf.Everything.URL); err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") {
+		endpoint = u.Scheme + "://" + u.Host
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"url": endpoint, "roots": append([]string{}, h.conf.Everything.Roots...)})
+}
+
 func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
+	overlay := h.conf.SettingsFilePaths().Overlay
+	if overlay == "" {
+		overlay = config.DashboardOverlayPath(&h.conf)
+	}
+	loc := i18n.FromContext(r.Context())
 	switch r.Method {
 	case http.MethodGet:
-		out := settingsFileView(h.conf, config.GetConfigFile(), i18n.FromContext(r.Context()))
+		out := settingsFileView(h.conf, config.GetConfigFile(), overlay, loc)
 		allowed, reason := h.writeAccess(r)
-		if out["config_error"] != nil {
-			allowed, reason = false, i18n.TCtx(r.Context(), "dashboard.settings.unreadable")
+		if failure, failed := out["config_error"].(string); failed {
+			allowed, reason = false, failure
 		}
 		out["write_access"] = map[string]any{"allowed": allowed, "reason": reason}
 		writeJSON(w, http.StatusOK, out)
@@ -376,19 +399,19 @@ func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
-		out, err := applySettingsFile(h.conf, req, config.GetConfigFile(), func() error {
+		out, err := applySettingsFile(h.conf, req, config.GetConfigFile(), overlay, func() error {
 			if h.cache == nil {
 				return nil
 			}
 			_, err := h.cache.Clear()
 			return err
-		}, i18n.FromContext(r.Context()))
+		}, loc)
 		if err != nil {
 			status := http.StatusBadRequest
-			if errors.Is(err, errSettingsConflict) {
+			if errors.Is(err, errSettingsConflict) || errors.Is(err, config.ErrSettingsPathsChanged) {
 				status = http.StatusConflict
 			}
-			writeJSON(w, status, map[string]any{"error": err.Error()})
+			writeJSON(w, status, map[string]any{"error": settingsErrorMessage(loc, err)})
 			return
 		}
 		writeJSON(w, http.StatusOK, out)

@@ -116,11 +116,15 @@ func TestDoubaoStartupSettingsSaveAndRestoreOmittedDefaults(t *testing.T) {
 	if err != nil || !out.Applied || cleared != 1 {
 		t.Fatalf("save: %#v %v; cache clears %d", out, err, cleared)
 	}
-	saved, err := configWithSettings(c, map[string]any{"doubao.icp_host_only": true, "doubao.version": "custom"})
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := decodeSettingsDocuments(c, written, nil)
 	if err != nil || !saved.Doubao.ICPHostOnly || saved.Doubao.GetVersion() != "custom" {
 		t.Fatalf("candidate: %#v %v", saved.Doubao, err)
 	}
-	if _, err := applySettingsForTest(saved, SettingsRequest{RestoreBackup: out.Backup, Revision: out.Revision, Confirm: true}, path, func() error { cleared++; return nil }); err != nil {
+	if _, err := applySettingsForTest(c, SettingsRequest{RestoreBackup: out.Backup, Revision: out.Revision, Confirm: true}, path, func() error { cleared++; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	check, _ := os.ReadFile(path)
