@@ -263,9 +263,9 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		req.Filter = &doubaoGlobalFilter{ICPHostOnly: true}
 	}
 
-	key, ok := d.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(d.name)
+	ctx, key, finish, err := d.keys.searchKey(ctx, d.name, query)
+	if err != nil {
+		return nil, err
 	}
 	var resp doubaoGlobalSearchResponse
 	res, err := client.DefaultClient.R().
@@ -276,6 +276,7 @@ func (d *DoubaoSearchImpl) searchGlobal(ctx context.Context, query string) ([]co
 		SetBody(req).
 		SetResult(&resp).
 		Post(d.globalEndpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err))
@@ -332,9 +333,9 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		req.QueryControl = &doubaoQueryControl{QueryRewrite: true}
 	}
 
-	key, ok := d.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(d.name)
+	ctx, key, finish, err := d.keys.searchKey(ctx, d.name, query)
+	if err != nil {
+		return nil, err
 	}
 	var resp doubaoCustomSearchResponse
 	res, err := client.DefaultClient.R().
@@ -345,6 +346,7 @@ func (d *DoubaoSearchImpl) searchCustom(ctx context.Context, query string) ([]co
 		SetBody(req).
 		SetResult(&resp).
 		Post(d.customEndpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.doubao.call_failed"), err))

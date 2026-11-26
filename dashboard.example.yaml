@@ -43,9 +43,10 @@ dashboard:
   # suspension 是被动观测警示；实际 DDG/arXiv 等冷却独立来自路由层，不由此配置修改。
 
   # 额度管理：本地真实调用计数（成功次数），自动按周期重置；
-  # 注意上限仅展示与剩余量计算，超限不阻断调用（超限熔断为计划中 TODO）
+  # 默认仅展示。可把指定的有 Key 搜索供应商加入 enforce_providers，达到上限后切换来源。
   # Tavily / TinyFish 优先展示官方用量；本块设置本地计数和官方查询失败时的回退口径。
   quotas:
+    enforce_providers: [] # 可选 anysearch/baidu/doubao/exa/keenable/tavily/tinyfish/yuanbao
     reset: monthly        # monthly / weekly / daily / none（仅手动重置）
     reset_day: 1          # monthly 的每月重置日（1-28）
     limits:               # 每供应商单 Key 上限（次/周期），未配置的用默认 1000；多把 Key 时展示上限自动乘以 Key 数
@@ -53,7 +54,7 @@ dashboard:
       exa: 1000
       anysearch: 1000
       doubao: 1000
-      yuanbao: 2000       # 对齐元宝每月免费额度；实际拦截以 yuanbao.monthly_limit 为准
+      yuanbao: 2000       # 启用时与 yuanbao.monthly_limit 同时执行，择严
 
   # 品牌呈现（更开放：自托管可打自己的牌子）
   brand:

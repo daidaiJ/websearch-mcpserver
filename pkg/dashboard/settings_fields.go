@@ -222,6 +222,12 @@ func settingFields(c config.Config) map[string]settingField {
 	enum("dashboard.quotas.reset", dash.Quotas.GetReset(), false, "monthly", "weekly", "daily", "none")
 	integer("dashboard.quotas.reset_day", dash.Quotas.GetResetDay(), 1, 28, false)
 	add("dashboard.quotas.limits", dash.Quotas.Limits, settingsMap(namePattern.MatchString, number(1, 1000000000, true)), false)
+	quotaProviders := config.QuotaSearchProviders()
+	const quotaEnforcePath = "dashboard.quotas.enforce_providers"
+	add(quotaEnforcePath, dash.Quotas.EnforceProviders, stringsList(true, func(s string) bool { return slices.Contains(quotaProviders, s) }), false)
+	field := fields[quotaEnforcePath]
+	field.options = quotaProviders
+	fields[quotaEnforcePath] = field
 	add("dashboard.suspension.ban_time_on_fail", defaultString(dash.Suspension.BanTimeOnFail, "5s"), stringValue(validSettingDuration), false)
 	add("dashboard.suspension.max_ban_time_on_fail", defaultString(dash.Suspension.MaxBanTimeOnFail, "24h"), stringValue(validSettingDuration), false)
 	add("dashboard.suspension.suspended_times", dash.Suspension.SuspendedTimes, nil, false)

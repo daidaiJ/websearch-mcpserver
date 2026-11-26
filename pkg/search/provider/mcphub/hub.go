@@ -539,7 +539,7 @@ func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, 
 		results, err := st.backend.Search(ctx, query, h.maxResults)
 		if err == nil && len(results) > 0 {
 			st.clearCooldown(false)
-			telemetry.Record(telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
+			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
 				Query: query, Success: true, Duration: time.Since(started), ResultCount: len(results)})
 			return results, true
 		}
@@ -550,7 +550,7 @@ func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, 
 			return nil, false
 		}
 		h.handleFailure(st, false, err)
-		telemetry.Record(telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
+		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
 			Query: query, Success: false, Duration: time.Since(started), Error: err})
 		*errs = append(*errs, fmt.Sprintf("%s: %v", st.backend.Name(), err))
 	}

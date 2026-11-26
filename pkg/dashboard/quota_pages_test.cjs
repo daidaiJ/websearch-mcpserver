@@ -63,3 +63,28 @@ test('API sources and quota settings share official usage, warnings and local fa
   }
   assert.match(element('#quota-manage-body').innerHTML, /data-quota-adjust="tavily"/);
 });
+
+test('quota skips appear as skips in sources and call details', () => {
+  const context = vm.createContext({
+    document: { documentElement: { lang: 'en' } },
+    window: { __I18N__: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'i18n', 'locales', 'web.en.json'), 'utf8')) },
+  });
+  const source = fs.readFileSync(path.join(__dirname, 'web', 'app.js'), 'utf8');
+  vm.runInContext(source.slice(0, source.indexOf('// Remove credentials retained')), context);
+  const control = vm.runInContext(`configFieldHtml('dashboard.quotas.enforce_providers')`, context);
+  assert.match(control, /Search providers paused at the quota limit/);
+  const checklist = vm.runInContext(`orderedConfigHtml('dashboard.quotas.enforce_providers', ['exa','tavily'], ['tavily'], false)`, context);
+  assert.match(checklist, /value="exa">/);
+  assert.match(checklist, /value="tavily" checked/);
+  assert.doesNotMatch(checklist, /data-order-shift/);
+  const row = vm.runInContext(`sourceRowHtml({id:'tavily',category:'api',quota_skip_reason:'Search quota exhausted'}, true)`, context);
+  assert.match(row, /tavily|Tavily/);
+  assert.match(row, /Search quota exhausted/);
+  const details = vm.runInContext(`
+    state.events.details.set('call', {rows:[
+      {kind:'quota_skip',provider:'tavily',outcome:'skipped',skip_reason:'Search quota exhausted'},
+      {kind:'provider',provider:'bing',success:true}
+    ]}); callDetails({request_id:'call'});`, context);
+  assert.match(details, /Tavily[\s\S]*?Skipped[\s\S]*?Search quota exhausted[\s\S]*?Bing[\s\S]*?Success/);
+  assert.doesNotMatch(details, /Failure/);
+});

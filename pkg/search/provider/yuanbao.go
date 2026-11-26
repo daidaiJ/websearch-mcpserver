@@ -15,6 +15,7 @@ import (
 	"websearch/pkg/client"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/search/core"
 )
 
@@ -150,9 +151,6 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 	if query == "" {
 		return nil, errors.New(i18n.T("provider.yuanbao.query_empty"))
 	}
-	if ok, used := y.budget.Allow(time.Now()); !ok {
-		return nil, errors.New(i18n.T("provider.yuanbao.monthly_limit_reached", "Used", used, "Limit", y.budget.limit))
-	}
 
 	req := yuanbaoSearchRequest{
 		Query:     query,
@@ -163,9 +161,18 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		Freshness: freshness,
 	}
 
-	key, ok := y.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(y.name)
+	ctx, key, finish, err := y.keys.searchKey(ctx, y.name, query)
+	if err != nil {
+		return nil, err
+	}
+	if ok, used := y.budget.Allow(time.Now()); !ok {
+		finish(false)
+		if guard := y.keys.searchQuota; guard != nil {
+			guard.service.NoteYuanbaoLimit()
+			y.keys.recordQuotaSkip(ctx, query, quota.SkipYuanbaoLimit)
+			return nil, &quota.SkipError{Reason: quota.SkipYuanbaoLimit}
+		}
+		return nil, errors.New(i18n.T("provider.yuanbao.monthly_limit_reached", "Used", used, "Limit", y.budget.limit))
 	}
 	var resp yuanbaoSearchResponse
 	res, err := client.DefaultClient.R().
@@ -175,6 +182,7 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		SetBody(req).
 		SetResult(&resp).
 		Post(y.endpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.yuanbao.call_failed"), err))

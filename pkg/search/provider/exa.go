@@ -162,9 +162,9 @@ func (e *ExaSearchImpl) search(ctx context.Context, query string) ([]core.Search
 	}
 
 	var resp exaSearchResp
-	key, ok := e.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(e.name)
+	ctx, key, finish, err := e.keys.searchKey(ctx, e.name, query)
+	if err != nil {
+		return nil, err
 	}
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
@@ -173,6 +173,7 @@ func (e *ExaSearchImpl) search(ctx context.Context, query string) ([]core.Search
 		SetBody(req).
 		SetResult(&resp).
 		Post(exaAPIEndpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.exa.call_failed"), err))

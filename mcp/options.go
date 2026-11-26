@@ -18,6 +18,7 @@ import (
 	"websearch/pkg/i18n"
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/search"
 	"websearch/pkg/search/provider"
 	"websearch/pkg/search/provider/mcphub"
@@ -28,7 +29,12 @@ type ServerOption func() error
 
 // WithSearchEngine 初始化搜索引擎（Bing 引擎 + 按模式选择主引擎）。
 func WithSearchEngine(conf config.Config) ServerOption {
-	return func() error { return applySearchEngine(conf) }
+	return WithSearchEngineQuota(conf, nil)
+}
+
+// WithSearchEngineQuota initializes search with the runtime's shared quota budget.
+func WithSearchEngineQuota(conf config.Config, service *quota.Service) ServerOption {
+	return func() error { return applySearchEngine(conf, service) }
 }
 
 // WithSummarizer 在 LLM 配置就绪时初始化摘要器。
@@ -92,11 +98,11 @@ func WithEverything(conf config.Config) ServerOption {
 
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
 
-func applySearchEngine(conf config.Config) error {
+func applySearchEngine(conf config.Config, service *quota.Service) error {
 	// 引擎冷却落盘（P1-5）：与缓存数据库同目录的 engine_health.json，
 	// 跨进程复用冷却状态；须在引擎构造（收养落盘状态）之前设置
 	antirobot.SetHealthStore(filepath.Join(filepath.Dir(conf.GetCacheStoragePath()), "engine_health.json"))
-	g, err := search.NewFromConfig(conf)
+	g, err := search.NewFromConfigWithQuota(conf, service)
 	if err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("tool.init.search_engine_failed"), err)
 	}

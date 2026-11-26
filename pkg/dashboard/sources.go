@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"slices"
 	"sort"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
+	"websearch/pkg/quota"
 	"websearch/pkg/search/provider/mcphub"
 	"websearch/pkg/telemetry"
 )
@@ -57,6 +59,7 @@ type SourceView struct {
 	P95MS               int64                      `json:"p95_ms"`
 	ErrorKinds          []telemetry.ErrorKindCount `json:"error_kinds,omitempty"`
 	QuotaQueryable      bool                       `json:"quota_queryable"`
+	QuotaSkipReason     string                     `json:"quota_skip_reason,omitempty"`
 	aliases             []string
 }
 
@@ -105,6 +108,18 @@ func buildDashboardOverview(conf config.Config, observed telemetry.Overview, loc
 		Brand:           brandView(conf),
 		Language:        loc.Code(),
 	}
+}
+
+func (h *Handler) dashboardOverview(ctx context.Context, observed telemetry.Overview) dashboardOverview {
+	loc := i18n.FromContext(ctx)
+	view := buildDashboardOverview(h.conf, observed, loc)
+	for i := range view.Sources {
+		source := &view.Sources[i]
+		if source.Active {
+			source.QuotaSkipReason = quota.SearchSkipMessage(loc, h.quota.SearchBlockReason(source.ID))
+		}
+	}
+	return view
 }
 
 func joinSources(defs []SourceView, observed []telemetry.Health) []SourceView {

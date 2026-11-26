@@ -15,6 +15,7 @@ type FailureKind string
 
 const (
 	FailureTimeout   FailureKind = "timeout"    // 请求超时 / 上下文取消
+	FailureQuotaSkip FailureKind = "quota_skip" // local policy skipped the upstream
 	FailureRateLimit FailureKind = "rate_limit" // 429/202/限流冷却
 	FailureChallenge FailureKind = "challenge"  // 验证码 / JS 挑战 / WAF
 	FailureOffTopic  FailureKind = "off_topic"  // 整桶与查询不匹配（诱饵页），被整桶丢弃
@@ -107,6 +108,8 @@ func ClassifyFailure(err error) FailureKind {
 		return FailureTimeout
 	case errcode.RateLimit:
 		return FailureRateLimit
+	case errcode.QuotaSkip:
+		return FailureQuotaSkip
 	case errcode.Challenge:
 		return FailureChallenge
 	case errcode.OffTopic:

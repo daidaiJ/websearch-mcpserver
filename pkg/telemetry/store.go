@@ -26,6 +26,9 @@ import (
 
 const defaultRetentionDays = 30
 
+// QuotaSkipEvent is request-trace evidence, excluded from attempt and health counts.
+const QuotaSkipEvent = "quota_skip"
+
 var (
 	defaultMu    sync.RWMutex
 	defaultStore *Store
@@ -64,6 +67,8 @@ type StoredEvent struct {
 	Tool          string `json:"tool"`
 	Provider      string `json:"provider"`
 	Success       bool   `json:"success"`
+	Outcome       string `json:"outcome,omitempty"`
+	SkipReason    string `json:"skip_reason,omitempty"`
 	DurationMS    int64  `json:"duration_ms"`
 	CacheHit      bool   `json:"cache_hit"`
 	ResultCount   int    `json:"result_count"`
@@ -231,6 +236,12 @@ func OpenWithMaxOpenConns(path string, retentionDays, maxOpenConns int) (*Store,
 			result_count INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY(day, kind, tool, provider)
 		);
+		CREATE TABLE IF NOT EXISTS search_quota (
+			provider TEXT PRIMARY KEY,
+			period_start INTEGER NOT NULL,
+			used INTEGER NOT NULL,
+			revision INTEGER NOT NULL
+		);
 		CREATE TABLE IF NOT EXISTS quota_state (
 			provider TEXT PRIMARY KEY,
 			period_start INTEGER NOT NULL,
@@ -317,6 +328,9 @@ func (s *Store) Record(e Event) error {
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, now.Unix(), day, e.Kind, e.Tool, e.Provider, success,
 		e.Duration.Milliseconds(), cacheHit, e.ResultCount, errSummary, hash, chars, lang, topic, keywords, e.Detail, errorKind, e.RequestID, e.AttemptChain, e.Client, NormalizeProject(e.Project)); err != nil {
 		return err
+	}
+	if e.Kind == QuotaSkipEvent {
+		return tx.Commit()
 	}
 	if _, err = tx.Exec(`INSERT INTO daily_usage(day,kind,tool,provider,requests,successes,failures,cache_hits,duration_ms,result_count)
 		VALUES(?,?,?,?,1,?,?,?,?,?)
@@ -513,6 +527,9 @@ func (s *Store) queryEventsContext(ctx context.Context, query string, args ...an
 		}
 		e.Success, e.CacheHit = ok == 1, hit == 1
 		e.OccurredAt = time.Unix(ts, 0).In(s.location).Format(time.RFC3339)
+		if e.Kind == QuotaSkipEvent {
+			e.Outcome = "skipped"
+		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -863,7 +880,7 @@ func IsUnavailable(err error) bool { return errors.Is(err, sql.ErrConnDone) }
 
 // QuotaProviders 返回遥测中出现过的 provider 名（去重、按名称排序）。
 func (s *Store) QuotaProviders() ([]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT provider FROM usage_events WHERE kind='provider' AND provider<>'' ORDER BY provider`)
+	rows, err := s.db.Query(`SELECT provider FROM search_quota UNION SELECT provider FROM usage_events WHERE kind='provider' AND provider<>'' ORDER BY provider`)
 	if err != nil {
 		return nil, err
 	}

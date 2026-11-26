@@ -98,18 +98,22 @@ func (k *KeenableSearchImpl) search(ctx context.Context, query string) ([]core.S
 		SetHeader("Content-Type", "application/json").
 		SetBody(keenableSearchReq{Query: query, Mode: "pro", MaxResults: k.limit})
 	var key string
+	finish := func(bool) {}
 	if k.usePublic() {
 		endpoint += "/public"
 		req.SetHeader("X-Keenable-Title", keenableAppTitle)
 	} else {
-		var ok bool
-		if key, ok = k.keys.NextUsable(); !ok {
-			return nil, NoKeyError(k.name)
+		requestCtx, selectedKey, release, err := k.keys.searchKey(ctx, k.name, query)
+		if err != nil {
+			return nil, err
 		}
+		key, finish = selectedKey, release
+		req.SetContext(requestCtx)
 		req.SetHeader("X-API-Key", key)
 	}
 	var resp keenableSearchResp
 	res, err := req.SetResult(&resp).Post(endpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		if k.usePublic() {
 			return nil, fmt.Errorf("%s: %w", i18n.T("provider.keenable.call_failed"), err)

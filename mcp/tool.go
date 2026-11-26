@@ -174,6 +174,45 @@ func recentAttemptChain(started time.Time, limit int) string {
 	return i18n.T("tool.chain.result_from", "Chain", strings.Join(attempted, "→"), "Winner", winner)
 }
 
+// webAttemptChain presents only evidence carrying the current search request ID.
+func webAttemptChain(ctx context.Context, limit int) string {
+	store, requestID := telemetry.Default(), telemetry.RequestID(ctx)
+	if store == nil || requestID == "" {
+		return ""
+	}
+	events, err := store.RequestEvents(requestID)
+	if err != nil {
+		return ""
+	}
+	var chain []string
+	winner := ""
+	seen := map[string]bool{}
+	for _, event := range events {
+		name := event.Provider
+		if name == "" {
+			continue
+		}
+		switch event.Kind {
+		case telemetry.QuotaSkipEvent:
+			name = i18n.T("tool.chain.skipped", "Provider", name)
+		case "provider":
+			if event.Success {
+				winner = name
+			}
+		default:
+			continue
+		}
+		if !seen[name] && len(chain) < limit {
+			seen[name] = true
+			chain = append(chain, name)
+		}
+	}
+	if len(chain) == 0 || winner == "" {
+		return strings.Join(chain, "→")
+	}
+	return i18n.T("tool.chain.result_from", "Chain", strings.Join(chain, "→"), "Winner", winner)
+}
+
 func withinCall(occurredAt string, started time.Time) bool {
 	if occurredAt == "" {
 		return true

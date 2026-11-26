@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search/core"
@@ -292,7 +293,9 @@ func (a *ApipoolSearchImpl) callSingle(ctx context.Context, p ApipoolProvider, q
 	if name == "" {
 		name = p.engine.Name()
 	}
-	telemetry.Record(telemetry.Event{Kind: "provider", Provider: name, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
+	if errcode.CodeOf(err) != errcode.QuotaSkip {
+		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: name, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
+	}
 	if err != nil {
 		return nil, err
 	}

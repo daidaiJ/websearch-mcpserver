@@ -134,9 +134,9 @@ func (t *TavilySearchImpl) search(ctx context.Context, query string) ([]core.Sea
 		IncludeRawContent: t.includeRawContent,
 	}
 	var resp tavilySearchResp
-	key, ok := t.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(t.name)
+	ctx, key, finish, err := t.keys.searchKey(ctx, t.name, query)
+	if err != nil {
+		return nil, err
 	}
 	res, err := client.DefaultClient.R().
 		SetContext(ctx).
@@ -145,6 +145,7 @@ func (t *TavilySearchImpl) search(ctx context.Context, query string) ([]core.Sea
 		SetBody(req).
 		SetResult(&resp).
 		Post("https://api.tavily.com/search")
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s, %w", i18n.T("provider.tavily.call_failed"), err))

@@ -310,6 +310,7 @@
           <div class="settings-column">
           <article class="panel" id="settings-credentials">
             <div class="panel-head"><div><h2 data-i18n="web.page.api_key_status">API Key 状态</h2></div><span class="muted" data-i18n="web.note.original_values_are_never_echoed">永不回显原值</span></div>
+            <p id="secret-note" class="panel-note" role="status"></p>
             <div id="secret-list" class="secret-list"></div>
           </article>
           <article class="panel" id="settings-quotas">
@@ -329,7 +330,7 @@
     </main>
   </div>
 
-  <dialog id="confirm-dialog">
+  <dialog id="confirm-dialog" aria-labelledby="dialog-title">
     <form method="dialog">
       <h3 id="dialog-title" data-i18n="web.dialog.confirm_action">确认操作</h3>
       <p id="dialog-copy"></p>
@@ -337,15 +338,18 @@
       <div><button value="cancel" data-i18n="web.action.cancel">取消</button><button value="confirm" class="primary-btn" data-i18n="web.action.confirm">确认</button></div>
     </form>
   </dialog>
-  <dialog id="secret-dialog">
+  <dialog id="secret-dialog" aria-labelledby="secret-dialog-title">
     <form method="dialog">
-      <h3 id="secret-dialog-title" data-i18n="web.action.update_key">更新密钥</h3>
-      <p class="secret-link-row" data-i18n="web.note.no_key_yet">还没有 Key？<a id="secret-dialog-link" href="#" target="_blank" rel="noopener noreferrer" data-i18n="web.action.get_one_from_the_provider_console">前往供应商控制台获取 →</a></p>
-      <label class="secret-input-row" data-i18n="web.label.new_value">新值<input id="secret-dialog-input" name="secret-value" type="password" autocomplete="off" placeholder="粘贴 Key（留空 = 删除）" data-i18n-placeholder="web.label.paste_the_key_empty_delete"></label>
+      <h3 id="secret-dialog-title"></h3>
+      <p id="secret-dialog-help" class="panel-note"></p>
+      <label class="secret-input-row" data-i18n="web.credential.operation">操作<select id="secret-dialog-action"></select></label>
+      <label class="secret-input-row hidden" id="secret-dialog-slot-row" data-i18n="web.credential.slot">槽位<select id="secret-dialog-slot" required></select></label>
+      <label class="secret-input-row" id="secret-dialog-value-row" data-i18n="web.label.new_value">新值<input id="secret-dialog-input" type="password" autocomplete="off" spellcheck="false"></label>
+      <label class="secret-input-row hidden" id="secret-dialog-label-row" data-i18n="web.credential.label">备注（可选）<input id="secret-dialog-label" type="text" maxlength="64" autocomplete="off" aria-describedby="secret-label-help"><small id="secret-label-help" data-i18n="web.credential.label_help">仅填写非敏感备注，例如「备用」。</small></label>
       <label class="secret-input-row hidden" id="secret-dialog-user-row" data-i18n="web.label.admin_username">管理员用户名<input id="secret-dialog-user" name="admin-username" type="text" autocomplete="off" placeholder="dashboard.admin_username"></label>
-      <label class="secret-input-row" data-i18n="web.label.admin_password">管理员口令<input id="secret-dialog-pass" name="admin-password" type="password" autocomplete="off" placeholder="dashboard.admin_password"></label>
+      <label class="secret-input-row" data-i18n="web.label.admin_password">管理员口令<input id="secret-dialog-pass" name="admin-password" type="password" autocomplete="off" required placeholder="dashboard.admin_password"></label>
       <p class="panel-note" data-i18n="web.dialog.the_new_value_is_written_only_to_the_server_side_private_ove">新值只写入服务端私密覆盖文件，页面与接口永不回显。</p>
-      <div><button value="cancel" data-i18n="web.action.cancel">取消</button><button value="confirm" class="primary-btn" data-i18n="web.action.save">保存</button></div>
+      <div><button value="cancel" formnovalidate data-i18n="web.action.cancel">取消</button><button value="confirm" class="primary-btn" data-i18n="web.credential.preview">预览更改</button></div>
     </form>
   </dialog>
   <div id="toast" role="status"></div>

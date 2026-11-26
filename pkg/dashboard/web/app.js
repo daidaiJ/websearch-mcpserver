@@ -79,21 +79,28 @@ const DISPLAY = {
   webfetch: t('web.name.web_fetcher'), jina: 'Jina Reader', pdf_pipeline: t('web.name.pdf_pipeline'),
 };
 const SECRETS = {
-  BAIDU_SK: t('web.name.baidu_qianfan'), TAVILY_SK: 'Tavily', EXA_API_KEY: 'Exa', ANYSEARCH_API_KEY: 'AnySearch',
-  DOUBAO_SEARCH_API_KEY: t('web.name.doubao'), TENCENTCLOUD_WSA_APIKEY: t('web.name.yuanbao'), JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU', GITHUB_TOKEN: 'GitHub',
+  BAIDU_SK: [t('web.name.baidu_qianfan'), 'https://console.bce.baidu.com/iam/#/iam/apikey/list'],
+  TAVILY_SK: ['Tavily', 'https://app.tavily.com/home'],
+  EXA_API_KEY: ['Exa', 'https://dashboard.exa.ai/api-keys'],
+  ANYSEARCH_API_KEY: ['AnySearch', 'https://www.anysearch.com/console/api-keys'],
+  DOUBAO_SEARCH_API_KEY: [t('web.name.doubao'), 'https://console.volcengine.com/search-infinity/api-key'],
+  TENCENTCLOUD_WSA_APIKEY: [t('web.name.yuanbao'), 'https://console.cloud.tencent.com/wsapi/index'],
+  TINYFISH_API_KEY: ['TinyFish', 'https://agent.tinyfish.ai/sign-up'],
+  KEENABLE_API_KEY: ['Keenable', 'https://app.keenable.ai/console'],
+  GITHUB_TOKEN: ['GitHub', 'https://github.com/settings/tokens'],
+  JINA_API_KEY: ['Jina Reader', 'https://jina.ai/api-keys'],
+  MINERU_TOKEN: ['MinerU', 'https://mineru.net/apiManage/token'],
+  LLM_API_KEY: ['LLM', 'https://platform.openai.com/api-keys', t('web.credential.openai_example')],
+  SEMANTIC_SCHOLAR_API_KEY: ['Semantic Scholar', 'https://webflow.semanticscholar.org/product/api'],
+  OPENALEX_API_KEY: ['OpenAlex', 'https://help.openalex.org/api/authentication/'],
+  UNPAYWALL_EMAIL: ['Unpaywall', 'https://data.unpaywall.org/products/api', t('web.credential.email_documentation')],
+  WEBSEARCH_TOKEN: [t('web.credential.business_auth')],
 };
-// 各供应商的官方「获取 Key」入口，配置页一键直达
-const SECRET_LINKS = {
-  BAIDU_SK: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
-  TAVILY_SK: 'https://app.tavily.com/home',
-  EXA_API_KEY: 'https://dashboard.exa.ai/api-keys',
-  ANYSEARCH_API_KEY: 'https://www.anysearch.com/console/api-keys',
-  DOUBAO_SEARCH_API_KEY: 'https://console.volcengine.com/search-infinity/api-key',
-  TENCENTCLOUD_WSA_APIKEY: 'https://console.cloud.tencent.com/wsapi/index',
-  JINA_API_KEY: 'https://jina.ai/api-keys',
-  MINERU_TOKEN: 'https://mineru.net/apiManage/token',
-  GITHUB_TOKEN: 'https://github.com/settings/tokens',
+const SECRET_ACTIONS = {
+  append: t('web.credential.append'), set: t('web.credential.set'), delete: t('web.credential.delete'),
+  label: t('web.credential.edit_label'), clear: t('web.credential.clear'), reset: t('web.credential.reset'),
 };
+const SECRET_API = '/__admin/api/secrets';
 
 const state = {
   overview: null, overviewError: null, overviewStale: false,
@@ -269,7 +276,7 @@ async function loadSettings() {
     state.settings = data;
     state.settingsError = null;
     const pending = data.pending_changes || {};
-    if (Object.keys(pending).length && !state.applying && !state.saving && (!state.applyResult || !state.applyResult.failed)) {
+    if ((Object.keys(pending).length || data.credential_status?.pending_restart) && !state.applying && !state.saving && (!state.applyResult || !state.applyResult.failed)) {
       state.applyResult = {
         targets: { ...pending }, backup: (data.backups || [])[0]?.name,
         failed: true, status: t('web.msg.config_saved_not_yet_confirmed'),
@@ -606,6 +613,7 @@ const FIELD_TYPES = {
   'dashboard.quotas.reset': ['web.config.quota_reset', 'select', ['monthly','weekly','daily','none']],
   'dashboard.quotas.reset_day': ['web.config.quota_reset_day', 'number', 1, 28],
   'dashboard.quotas.limits': ['web.config.quota_limits', 'numbers-map'],
+  'dashboard.quotas.enforce_providers': ['web.config.quota_enforced_providers', 'checklist'],
   'yuanbao.monthly_limit': ['web.config.yuanbao_limit', 'number', 0, 10000000],
   'yuanbao.mode': ['web.label.search_mode', 'numeric-select', [0,1,2]],
   'yuanbao.industry': ['web.config.industry', 'select', ['', 'gov','news','acad','finance']],
@@ -678,8 +686,9 @@ function configFieldHtml(key) {
   if (type === 'checkbox') {
     return '<label class="settings-toggle form-check form-switch"><input type="checkbox" class="form-check-input" role="switch"' + attrs + '>' + title + '</label>';
   }
-  if (type === 'ordered') {
-    return '<fieldset class="ordered-field settings-wide"><legend>' + esc(label) + '</legend><div data-ordered-field="' + esc(key) + '"></div></fieldset>';
+  if (type === 'ordered' || type === 'checklist') {
+    const help = type === 'checklist' ? '<p class="panel-note">' + esc(t('web.config.quota_enforced_help')) + '</p>' : '';
+    return '<fieldset class="ordered-field settings-wide"><legend>' + esc(label) + '</legend>' + help + '<div data-ordered-field="' + esc(key) + '"></div></fieldset>';
   }
   if (['select', 'tri-state', 'numeric-select'].includes(type)) {
     const optionLabels = type === 'tri-state'
@@ -726,12 +735,14 @@ function mountConfigControls() {
   $('#operational-controls').innerHTML = configFields(['language','log_level','proxy.enabled','proxy.endpoint','proxy.api_providers']) +
     advancedFields(['rate_limit.per_sec','rate_limit.per_min','dashboard.retention_days','dashboard.client_projects']);
   $('#brand-controls').innerHTML = configFields(['dashboard.brand.title','dashboard.brand.theme','dashboard.brand.accent','dashboard.brand.footer']);
-  $('#quota-controls').innerHTML = advancedFields(['dashboard.quotas.reset','dashboard.quotas.reset_day','dashboard.quotas.limits']);
+  $('#quota-controls').innerHTML = configFields(['dashboard.quotas.enforce_providers']) +
+    advancedFields(['dashboard.quotas.reset','dashboard.quotas.reset_day','dashboard.quotas.limits']);
 }
 
 function orderedConfigHtml(key, options, chosen, disabled) {
-  const values = [...new Set([...(Array.isArray(chosen) ? chosen : []), ...options])];
   const active = new Set(Array.isArray(chosen) ? chosen : []);
+  const ordered = configField(key)?.[1] !== 'checklist';
+  const values = [...new Set(ordered ? [...active, ...options] : [...options, ...active])];
   const moveUp = t('web.config.move_up');
   const moveDown = t('web.config.move_down');
   const disable = ' disabled';
@@ -741,7 +752,7 @@ function orderedConfigHtml(key, options, chosen, disabled) {
     const attrs = ' type="button" data-order-key="' + esc(key) + '" data-order-name="' + esc(name) + '"';
     return '<li><label><input type="checkbox" data-order-key="' + esc(key) + '" value="' + esc(name) + '"' + (checked ? ' checked' : '') +
       (disabled ? disable : '') + '>' + label + '</label>' +
-      (checked ? '<span><button' + attrs + ' data-order-shift="-1" aria-label="' + esc(moveUp) + ' ' + label + '"' +
+      (checked && ordered ? '<span><button' + attrs + ' data-order-shift="-1" aria-label="' + esc(moveUp) + ' ' + label + '"' +
         (disabled || index === 0 ? disable : '') + '>' + esc(moveUp) + '</button><button' + attrs + ' data-order-shift="1" aria-label="' + esc(moveDown) + ' ' + label + '"' +
         (disabled || index === active.size - 1 ? disable : '') + '>' + esc(moveDown) + '</button></span>' : '') + '</li>';
   }).join('') + '</ul>';
@@ -939,7 +950,8 @@ function sourceRowHtml(s, detailed) {
   ];
   if (detailed && s.category === 'api') {
     const quota = state.quotas?.find(q => q.provider === id);
-    cells.push(`<td class="quota-cell"${heading('web.quota.heading')}>${quota ? quotaUsageHtml(quota, true) : '—'}</td>`);
+    const skipped = s.quota_skip_reason ? `<small class="quota-skipped">${esc(s.quota_skip_reason)}</small>` : '';
+    cells.push(`<td class="quota-cell"${heading('web.quota.heading')}>${quota ? quotaUsageHtml(quota, true) : skipped ? '' : '—'}${skipped}</td>`);
   }
   const rowClass = s.active === true && s.suspended === true ? 'row-suspended' : (s.active === true && s.status === 'down' ? 'row-down' : '');
   return `<tr class="source-entry ${rowClass}">${cells.join('')}</tr>` + (detailed ? sourceDrawer(s, cells.length) : '');
@@ -1137,10 +1149,16 @@ function callDetails(e) {
   const detail = state.events.details.get(e.request_id);
   if (!detail || detail.loading) return html + `<p class="panel-note" role="status">${t('web.note.loading_source_details')}</p>`;
   if (detail.error) return html + `<p class="panel-note bad">${t('web.note.read_failed')}${esc(detail.error)} <button type="button" class="icon-btn" data-retry-request="${esc(e.request_id)}" aria-label="${t('web.action.retry_loading_source_details')}" title="${t('web.action.retry_loading_source_details')}">${icon('refresh-cw')}</button></p>`;
-  const providers = (detail.rows || []).filter(row => row.kind === 'provider');
+  const providers = (detail.rows || []).filter(row => row.kind === 'provider' || row.kind === 'quota_skip');
   if (!providers.length) return html + `<p class="panel-note">${t('web.note.no_source_details_were_retained')}</p>`;
   html += `<table class="data-table call-detail-table"><colgroup><col style="width:24%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:40%"></colgroup><thead><tr><th>${t('web.label.source')}</th><th>${t('web.label.status')}</th><th>${t('web.label.latency')}</th><th>${t('web.label.results')}</th><th>${t('web.label.error_summary')}</th></tr></thead><tbody>`;
-  html += providers.map(row => `<tr><td title="${esc(row.detail || '')}">${esc(displayName(row.provider))}</td><td class="${row.success ? 'ok-text' : 'bad-text'}">${row.success ? t('web.status.success') : t('web.status.failure')}</td><td>${esc(fmtMS(row.duration_ms))}</td><td>${fmtInt(row.result_count)}</td><td class="wrap-any">${esc([errorKindLabel(row.error_kind), row.error_summary].filter(Boolean).join(' · ') || '—')}</td></tr>`).join('');
+  html += providers.map(row => {
+    const skipped = row.kind === 'quota_skip' || row.outcome === 'skipped';
+    const status = skipped ? t('web.status.skipped') : row.success ? t('web.status.success') : t('web.status.failure');
+    const style = skipped ? 'quota-skipped' : row.success ? 'ok-text' : 'bad-text';
+    const summary = skipped ? row.skip_reason : [errorKindLabel(row.error_kind), row.error_summary].filter(Boolean).join(' · ');
+    return `<tr><td title="${esc(row.detail || '')}">${esc(displayName(row.provider))}</td><td class="${style}">${esc(status)}</td><td>${skipped ? '—' : esc(fmtMS(row.duration_ms))}</td><td>${skipped ? '—' : fmtInt(row.result_count)}</td><td class="wrap-any">${esc(summary || '—')}</td></tr>`;
+  }).join('');
   return html + '</tbody></table>';
 }
 
@@ -1209,7 +1227,7 @@ async function exportCSV() {
       if (!call.request_id || requests.has(call.request_id)) continue;
       requests.add(call.request_id);
       const details = await loadRequestEvents(call.request_id, true);
-      rows.push(...details.filter(e => e.kind === 'provider'));
+      rows.push(...details.filter(e => e.kind === 'provider' || e.kind === 'quota_skip'));
     }
   } catch (e) {
     toast(t('web.msg.export_incomplete_reading_source_details_failed') + e.message, true);
@@ -1227,11 +1245,11 @@ async function exportCSV() {
   rows.forEach(e => {
     lines.push([
       fmtAt(e.occurred_at),
-      e.kind === 'provider' ? t('web.label.source') : t('web.label.tool'),
+      e.kind === 'provider' || e.kind === 'quota_skip' ? t('web.label.source') : t('web.label.tool'),
       e.kind === 'tool' ? displayName(e.tool) : '',
       e.provider ? displayName(e.provider) : '',
       e.detail || '',
-      e.success ? t('web.status.success') : t('web.status.failure'),
+      e.kind === 'quota_skip' ? t('web.status.skipped') : e.success ? t('web.status.success') : t('web.status.failure'),
       errorKindLabel(e.error_kind),
       num(e.duration_ms) === null ? '' : e.duration_ms,
       num(e.result_count) === null ? '' : e.result_count,
@@ -1241,7 +1259,7 @@ async function exportCSV() {
       e.query_keywords || '',
       e.query_hash || '',
       num(e.query_chars) === null ? '' : e.query_chars,
-      e.error_summary || '',
+      e.skip_reason || e.error_summary || '',
       e.request_id || '',
       e.attempt_chain || '',
       applicationLabel(e),
@@ -1377,16 +1395,39 @@ function renderSettingsForm() {
   renderConfigInputs();
   renderOrderedFields();
   renderModeControls();
-  const flags = s.secrets || {};
-  $('#secret-list').innerHTML = Object.keys(flags).map(key => {
-    const on = flags[key] === true;
-    return `<div class="secret-row">${dot(on ? 'healthy' : 'unknown')}` +
-      `<div><b>${esc(SECRETS[key] || key)}</b><small>${on ? t('web.status.configured') : t('web.status.not_configured')}</small></div>` +
-      `<button type="button" class="icon-btn" data-secret="${esc(key)}" title="${on ? t('web.action.replace') : t('web.page.settings')}${esc(SECRETS[key] || key)}${t('web.label.key')}" aria-label="${on ? t('web.action.replace') : t('web.page.settings')}${esc(SECRETS[key] || key)}${t('web.label.key')}" ${!writeAllowed() || state.applying || state.saving ? 'disabled' : ''}>${icon('key-round')}</button></div>`;
-  }).join('');
-  $$('[data-secret]').forEach(b => { b.onclick = () => editSecret(b.dataset.secret); });
+  renderCredentials();
   state.settingsLoaded = true;
   renderDraftState();
+}
+
+function credentialCount(s) {
+  return t('web.credential.count', {count: fmtInt(s.count)});
+}
+
+function renderCredentials() {
+  const status = state.settings?.credential_status;
+  const error = state.settings?.credential_error;
+  const note = $('#secret-note');
+  setNote(note, error || (status?.pending_restart ? t('web.credential.pending_restart') : ''), 'warn');
+  const list = $('#secret-list');
+  const credentials = status?.credentials || {};
+  const markup = Object.entries(SECRETS).flatMap(([key, [name, url, linkLabel]]) => {
+    const row = credentials[key];
+    if (!row) return [];
+    const readOnly = key === 'WEBSEARCH_TOKEN' || row.read_only;
+    const on = row.configured;
+    const meta = [readOnly && t('web.credential.read_only'), on ? t('web.status.configured') : t('web.status.not_configured'),
+      credentialCount(row), ...(row.sources || [])].filter(Boolean).join(' · ');
+    const link = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(linkLabel || t('web.credential.get_key'))}</a>` : '';
+    const title = t('web.credential.manage', {name});
+    const edit = readOnly ? '' : `<button type="button" class="icon-btn" data-secret="${esc(key)}" title="${esc(title)}" aria-label="${esc(title)}"${error || !writeAllowed() || state.applying || state.saving ? ' disabled' : ''}>${icon('key-round')}</button>`;
+    return `<div class="secret-row">${dot(on ? 'healthy' : 'unknown')}<div><b>${esc(name)}</b><small>${esc(key)} · ${esc(meta)}</small>${link}</div>${edit}</div>`;
+  }).join('');
+  if (list.dataset?.markup !== markup) {
+    list.innerHTML = markup;
+    if (list.dataset) list.dataset.markup = markup;
+    $$('[data-secret]', list).forEach(b => { b.onclick = () => editSecret(b.dataset.secret); });
+  }
 }
 
 const PROVIDER_MODES = ['baidu', 'tavily', 'exa', 'anysearch', 'doubao', 'yuanbao'];
@@ -1672,13 +1713,14 @@ function runtimeMatches(settings, targets) {
 
 function renderApplyResult() {
   const result = state.applyResult;
+  const credentialPending = Boolean(state.settings?.credential_status?.pending_restart);
   ['#apply-note', '#source-apply-note', '#tools-apply-note', '#settings-apply-note'].forEach(selector => {
     const el = $(selector);
     setNote(el, result?.status || '', result?.failed ? 'warn' : '');
     if (el && selector !== '#apply-note') el.classList.add('apply-inline');
   });
   const pending = Object.keys(state.settings && state.settings.pending_changes || {}).length > 0;
-  const retry = Boolean(result && result.failed) || pending;
+  const retry = Boolean(result && result.failed) || pending || credentialPending;
   const backups = Boolean(state.settings && state.settings.backups && state.settings.backups.length);
   $('#apply-recovery').classList.toggle('hidden', !retry && !backups);
   $('#retry-apply').classList.toggle('hidden', !retry);
@@ -1711,7 +1753,9 @@ async function restartAndVerify() {
       try {
         const settings = await fetchJSON('/__admin/api/settings', { signal: AbortSignal.timeout(Math.max(1, Math.min(3000, deadline - Date.now()))) });
         const overview = await fetchJSON('/__admin/api/overview', { signal: AbortSignal.timeout(Math.max(1, Math.min(3000, deadline - Date.now()))) });
-        if (settings.values && overview.system && runtimeMatches(settings, state.applyResult.targets)) {
+        const credentialsApplied = !state.applyResult.credentials && !state.settings?.credential_status?.pending_restart ||
+          settings.credential_status?.pending_restart === false;
+        if (settings.values && overview.system && credentialsApplied && runtimeMatches(settings, state.applyResult.targets)) {
           state.settings = settings;
           state.overview = overview;
           state.settingsError = null;
@@ -1722,7 +1766,7 @@ async function restartAndVerify() {
       } catch (e) { /* Restart temporarily disconnects the API. */ }
     }
     if (!confirmed) throw new Error(t('web.msg.saved_not_confirmed_within_60_seconds'));
-    state.applyResult.status = t('web.msg.effective_config_confirmed');
+    state.applyResult.status = state.applyResult.backupCreated ? t('web.credential.applied_with_backup') : t('web.msg.effective_config_confirmed');
     toast(state.applyResult.status);
   } catch (e) {
     state.applyResult.failed = true;
@@ -1760,62 +1804,95 @@ async function restoreBackup() {
 }
 
 function editSecret(name) {
-  if (!writeAllowed()) return;
-  const label = SECRETS[name] || name;
-  const d = $('#secret-dialog');
-  $('#secret-dialog-title').textContent = `${t('web.action.update')} ` + label + ' Key';
-  const link = $('#secret-dialog-link');
-  const linkRow = link.closest('.secret-link-row');
-  if (SECRET_LINKS[name]) {
-    link.href = SECRET_LINKS[name];
-    linkRow.style.display = '';
-  } else {
-    linkRow.style.display = 'none';
+  const status = state.settings?.credential_status;
+  const current = status?.pending?.[name] || status?.credentials?.[name];
+  if (!current || current.read_only || name === 'WEBSEARCH_TOKEN' || state.settings?.credential_error || !writeAllowed() || state.saving || state.applying) return;
+  if (!adminConfigured()) {
+    toast(t('web.msg.admin_password_not_configured_set_dashboard_admin_password_i'), true);
+    return;
   }
-  $('#secret-dialog-input').value = '';
-  $('#secret-dialog-pass').value = cachedAdminPass();
+  const d = $('#secret-dialog');
+  const action = $('#secret-dialog-action');
+  const slot = $('#secret-dialog-slot');
+  const value = $('#secret-dialog-input');
+  const label = $('#secret-dialog-label');
+  const pass = $('#secret-dialog-pass');
+  const user = $('#secret-dialog-user');
+  const slots = current.slots || [];
+  const provider = SECRETS[name][0];
+  $('#secret-dialog-title').textContent = t('web.credential.manage', {name: provider});
+  $('#secret-dialog-help').textContent = name === 'UNPAYWALL_EMAIL' ? t('web.credential.email_help') :
+    name === 'LLM_API_KEY' ? t('web.credential.llm_help') : '';
+  const actions = [current.multi ? 'append' : 'set'];
+  if (slots.length) {
+    actions.push('delete');
+    if (current.multi) actions.push('label', 'clear');
+  }
+  actions.push('reset');
+  action.innerHTML = actions.map(op => `<option value="${op}">${esc(SECRET_ACTIONS[op])}</option>`).join('');
+  action.value = actions[0];
+  slot.innerHTML = slots.map((s, index) => `<option value="${esc(s.id)}">${esc([t('web.credential.slot_number', {number: index + 1}), s.source, s.label].filter(Boolean).join(' · '))}</option>`).join('');
+  slot.value = slots[0]?.id || '';
+  value.value = '';
+  pass.value = cachedAdminPass();
   $('#secret-dialog-user-row').classList.toggle('hidden', !usernameConfigured());
-  $('#secret-dialog-user').value = cachedAdminUser();
+  user.required = usernameConfigured();
+  user.value = cachedAdminUser();
+  const updateFields = () => {
+    const usesValue = action.value === 'append' || action.value === 'set';
+    const usesLabel = action.value === 'append' || action.value === 'label';
+    const usesSlot = action.value === 'delete' || action.value === 'label';
+    for (const [id, input, show] of [['value', value, usesValue], ['label', label, usesLabel], ['slot', slot, usesSlot]]) {
+      $('#secret-dialog-' + id + '-row').classList.toggle('hidden', !show);
+      input.disabled = !show;
+    }
+    value.required = usesValue;
+    label.value = action.value === 'label' ? slots.find(s => s.id === slot.value)?.label || '' : '';
+    if (!usesValue) value.value = '';
+  };
+  action.onchange = slot.onchange = updateFields;
+  updateFields();
+  d.returnValue = '';
   d.showModal();
   d.addEventListener('close', async () => {
-    if (d.returnValue !== 'confirm') {
-      $('#secret-dialog-input').value = '';
-      $('#secret-dialog-pass').value = '';
+    const op = action.value;
+    const payload = {name, action: op, revision: status.revision};
+    if (!value.disabled) payload.value = value.value;
+    if (!label.disabled) payload.label = label.value;
+    if (!slot.disabled) payload.slot_id = slot.value;
+    const credentials = {pass: pass.value, user: user.value.trim()};
+    value.value = label.value = pass.value = user.value = '';
+    if (d.returnValue !== 'confirm' || !writeAllowed() || state.saving || state.applying) return;
+    if (!credentials.pass || (usernameConfigured() && !credentials.user)) {
+      toast(t(credentials.pass ? 'web.msg.admin_username_required' : 'web.msg.admin_password_required'), true);
       return;
     }
-    const value = $('#secret-dialog-input').value;
-    const pass = $('#secret-dialog-pass').value.trim();
-    if (!adminConfigured()) {
-      toast(t('web.msg.admin_password_not_configured_set_dashboard_admin_password_i'), true);
-      return;
-    }
-    if (!pass) {
-      toast(t('web.msg.admin_password_required'), true);
-      return;
-    }
-    state.adminPass = pass;
-    const headers = { 'X-Admin-Password': pass };
-    if (usernameConfigured()) {
-      const user = $('#secret-dialog-user').value.trim();
-      if (!user) {
-        toast(t('web.msg.admin_username_required'), true);
-        return;
-      }
-      state.adminUser = user;
-      headers['X-Admin-User'] = user;
-    }
+    state.adminPass = credentials.pass;
+    state.adminUser = credentials.user;
+    state.saving = true;
+    renderSettingsForm();
+    renderWriteAccess();
     try {
-      await postJSON('/__admin/api/secrets', { name: name, value: value, confirm: true }, headers);
-      toast(label + ` ${t('web.msg.saved_the_service_must_be_restarted')}`);
+      const preview = await securePost(SECRET_API, {...payload, confirm: false});
+      const diff = SECRET_ACTIONS[op] + '\n' + t('web.credential.count_diff', {before: fmtInt(preview.before_count), after: fmtInt(preview.after_count)});
+      const title = preview.restart_required ? t('web.action.save_and_restart') : t('web.action.save');
+      if (!(await confirmDialog(title, t('web.credential.backup_help'), diff))) return;
+      const saved = await securePost(SECRET_API, {...payload, revision: preview.revision, confirm: true});
+      if (saved.restart_required) {
+        state.applyResult = {
+          targets: {...state.settings.pending_changes}, credentials: true, backupCreated: saved.backup,
+          status: saved.backup ? t('web.credential.backup_created') : t('web.msg.saved_restarting'),
+        };
+      }
       await loadSettings();
+      if (saved.restart_required) await restartAndVerify();
+      else toast(saved.backup ? t('web.credential.backup_created') : t('web.credential.saved'));
     } catch (e) {
-      if (String(e.message).includes(t('web.label.password'))) state.adminPass = '';
-      if (String(e.message).includes(t('web.label.username'))) state.adminUser = '';
       toast(e.message, true);
     } finally {
-      $('#secret-dialog-input').value = '';
-      $('#secret-dialog-pass').value = '';
-      $('#secret-dialog-user').value = '';
+      state.saving = false;
+      renderSettingsForm();
+      renderWriteAccess();
     }
   }, { once: true });
 }

@@ -5,6 +5,7 @@ package search
 import (
 	"websearch/pkg/config"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/search/adapter"
 	"websearch/pkg/search/core"
 	"websearch/pkg/search/mode"
@@ -21,7 +22,15 @@ type SearchGroup struct {
 
 // NewFromConfig 根据配置初始化搜索引擎组（组合根：只做装配，模式构建在子包 mode）。
 func NewFromConfig(conf config.Config) (*SearchGroup, error) {
+	return NewFromConfigWithQuota(conf, quota.New(conf, nil))
+}
+
+// NewFromConfigWithQuota shares the hard-limit service with the owning runtime.
+func NewFromConfigWithQuota(conf config.Config, quotaService *quota.Service) (*SearchGroup, error) {
 	g := &SearchGroup{conf: conf}
+	if quotaService == nil {
+		quotaService = quota.New(conf, nil)
+	}
 
 	core.SetShowMeta(conf.SmartSearch.ShowMeta)
 
@@ -67,14 +76,14 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 	}
 
 	// ── 构建 provider.KeyPool ──
-	baiduPool := newKeyPoolFromList(conf.Baidu.EffectiveSKList(), "baidu")
-	tavilyPool := newKeyPoolFromList(conf.Tavily.EffectiveSKList(), "tavily")
-	exaPool := newKeyPoolFromList(conf.Exa.EffectiveSKList(), "exa")
-	anysearchPool := newKeyPoolFromList(conf.Anysearch.EffectiveSKList(), "anysearch")
-	doubaoPool := newKeyPoolFromList(conf.Doubao.EffectiveSKList(), "doubao")
-	yuanbaoPool := newKeyPoolFromList(conf.Yuanbao.EffectiveSKList(), "yuanbao")
-	tinyfishPool := newKeyPoolFromList(conf.TinyFish.EffectiveSKList(), "tinyfish")
-	keenablePool := newKeyPoolFromList(conf.Keenable.EffectiveSKList(), "keenable")
+	baiduPool := newKeyPoolFromList(conf.Baidu.EffectiveSKList(), "baidu", quotaService)
+	tavilyPool := newKeyPoolFromList(conf.Tavily.EffectiveSKList(), "tavily", quotaService)
+	exaPool := newKeyPoolFromList(conf.Exa.EffectiveSKList(), "exa", quotaService)
+	anysearchPool := newKeyPoolFromList(conf.Anysearch.EffectiveSKList(), "anysearch", quotaService)
+	doubaoPool := newKeyPoolFromList(conf.Doubao.EffectiveSKList(), "doubao", quotaService)
+	yuanbaoPool := newKeyPoolFromList(conf.Yuanbao.EffectiveSKList(), "yuanbao", quotaService)
+	tinyfishPool := newKeyPoolFromList(conf.TinyFish.EffectiveSKList(), "tinyfish", quotaService)
+	keenablePool := newKeyPoolFromList(conf.Keenable.EffectiveSKList(), "keenable", quotaService)
 	pools := mode.ProviderPools{
 		Anysearch: anysearchPool,
 		Baidu:     baiduPool,
@@ -136,7 +145,7 @@ func NewFromConfig(conf config.Config) (*SearchGroup, error) {
 }
 
 // newKeyPoolFromList 从 key 列表创建 provider.KeyPool，列表为空时返回 nil。
-func newKeyPoolFromList(keys []string, name string) *provider.KeyPool {
+func newKeyPoolFromList(keys []string, name string, quotaService *quota.Service) *provider.KeyPool {
 	if len(keys) == 0 {
 		return nil
 	}
@@ -145,6 +154,7 @@ func newKeyPoolFromList(keys []string, name string) *provider.KeyPool {
 		log.ErrorT("log.search.failed_to_create_provider_keypool", "name", name, "err", err)
 		return nil
 	}
+	pool.SetSearchQuota(name, quotaService)
 	if pool.Len() > 1 {
 		log.InfoT("log.search.provider_keypool_keys_rotating", "name", name, "len", pool.Len())
 	}

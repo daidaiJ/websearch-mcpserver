@@ -1,4 +1,5 @@
 {
+  "tool.chain.skipped": "{{.Provider}}（已跳过）",
   "tool.result.unavailable": "引用不存在、已过期、服务已重启或文件已清理/变更；请重新调用原工具",
   "tool.result.read_failed": "**MCP 读取失败**: {{.Err}}",
   "tool.result.ref_create_failed": "生成结果引用失败",

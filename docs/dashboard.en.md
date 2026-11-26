@@ -103,6 +103,7 @@ dashboard:
 
   # —— quota management ——
   quotas:
+    enforce_providers: []        # disabled for all providers by default
     reset: monthly              # monthly / weekly / daily / none (manual only)
     reset_day: 1                # day of month for monthly resets (1-28)
     limits:                     # per-provider PER-KEY caps (calls/period); shown cap auto-multiplies by key count
@@ -142,7 +143,8 @@ dashboard:
 | `suspension.*` | see left | `5s` / `24h` | Suspension display thresholds; unrelated to search behavior |
 | `quotas.reset` | enum | `monthly` | Auto-reset period; `none` = manual only |
 | `quotas.reset_day` | int | `1` | Day of month for monthly resets (1-28) |
-| `quotas.limits` | map | per-key 1000 | provider → per-key cap (calls/period), auto-multiplied by key count; **display/remaining math only, never blocks calls** |
+| `quotas.limits` | map | per-key 1000 | provider → per-key cap (calls/period), auto-multiplied by key count; display-only by default, enforced for listed providers |
+| `quotas.enforce_providers` | []string | `[]` | Enforce limits on selected direct keyed search providers |
 | `brand.title` | string | built-in | Console title (also the browser tab) |
 | `brand.logo` | string | built-in | URLs used as-is; local paths served via `/__admin/api/brand/logo` (same boundary) |
 | `brand.theme` | enum | `green` | `green` / `blue` / `mono`; also picks the shortcut icon color |
@@ -155,16 +157,16 @@ dashboard:
 Current behavior:
 
 - **Local counting**: counts successful provider calls from telemetry for the current period. Search Sources → API Providers and Settings → Quota Management both show used, limit and remaining values with progress bars. Usage is marked near the limit at 80% and at the limit from 100%.
-- **User-set caps, auto-scaled by key count**: `quotas.limits` configures the **per-key** per-period cap (calls) per provider; unset providers default to 1000. The shown cap = per-key cap × configured key count (aligned with how apipool's real consumption scales with available keys — no manual math). Caps affect display and remaining math only, never call blocking
+- **User-set caps, auto-scaled by key count**: `quotas.limits` configures the **per-key** per-period cap (calls) per provider; unset providers default to 1000. The shown cap = per-key cap × configured key count (aligned with how apipool's real consumption scales with available keys — no manual math). Only opted-in providers use this cap to block a search
 - **Automatic period reset**: `monthly` / `weekly` / `daily` / `none` (`reset_day` picks the day of month); entering a new period zeroes usage automatically
 - **Admin operations**: Reset and Adjust appear for local rows in Settings and require write authorization. Reset starts a new counting window and Adjust changes the displayed count while retaining the original call records.
 - **Official Tavily / TinyFish usage**: both pages show the provider source and reset information. Tavily displays plan, key and related counters in credits. The reset time is displayed when the provider supplies it. TinyFish reports separate daily Search (12,000/day) and Fetch (1,000/day) counts starting at 00:00 UTC. A failed Fetch lookup leaves the Search count visible with a warning. A failed official lookup is labeled and falls back to local counting when available. Official usage is prefetched at startup and cached for five minutes. It consumes no search credits.
 
-**Why other providers only have local counts (surveyed 2026-09)**: Exa / AnySearch / Bocha (Doubao search) / Baidu Qianfan / Yuanbao / Keenable offer no official endpoint that queries quota with the search API key — Exa's usage API needs a Service Key and only returns spend in USD; Bocha, Qianfan and Yuanbao usage APIs live behind their cloud-account signature schemes (not the search key). Check those providers' consoles for real quota; this project relies on user-set `quotas.limits` plus local real-call counting for comparison. Yuanbao additionally enforces `yuanbao.monthly_limit` before every request; the dashboard number is informational.
+**Why other providers only have local counts (surveyed 2026-09)**: Exa / AnySearch / Bocha (Doubao search) / Baidu Qianfan / Yuanbao / Keenable offer no official endpoint that queries quota with the search API key — Exa's usage API needs a Service Key and only returns spend in USD; Bocha, Qianfan and Yuanbao usage APIs live behind their cloud-account signature schemes (not the search key). Check those providers' consoles for real quota; this project relies on user-set `quotas.limits` plus local real-call counting for comparison. Yuanbao additionally enforces `yuanbao.monthly_limit` before every request; a configured Dashboard hard limit also applies when opted in.
 
-**Planned (TODO, not in this version — don't misread)**:
-
-- **Limit enforcement/degrade**: `quotas.limits` is **display and remaining math only**; reaching the cap does not stop or switch calls. For hard caps use the provider console or an external mechanism until a future version.
+- **Optional routing hard limits**. Save and restart from Settings or add `enforce_providers: [exa, tavily]` in `dashboard.yaml`. Supported direct keyed web search providers are `anysearch`, `baidu`, `doubao`, `exa`, `keenable`, `tavily`, `tinyfish`, and `yuanbao`. The current search mode continues to any configured alternate source. The source table and request trace show the reason, independently of upstream attempt and failure counts.
+- **What is counted**. The local cap scales by distinct key count and atomically reserves an allowance before a request. Failure before sending releases the allowance. Tavily uses the chosen key's official account and key limits alongside the local cap. When account identity across keys is ambiguous, recent or in-flight searches from this process are reserved conservatively. A single TinyFish key can use official search usage for the configured accounting window. Multiple TinyFish keys and failed official lookups use local accounting. Hosted MCP, anonymous requests, fetching, academic search, and other tools have separate accounting.
+- **History and recovery**. Enabling an enforced provider for the first time imports same-period legacy successful observations and administrator adjustments. Legacy events for different routes may share the same name and overstate prior direct usage. Administrators can correct the local count. Subsequent direct sends use a dedicated durable counter. A reset, higher configured limit, or new period reopens an eligible route. Local reset leaves Tavily's official limits and Yuanbao's independent monthly cap in force. Other processes' usage remains subject to provider reporting latency.
 
 ## Request tracing
 
@@ -195,7 +197,7 @@ Save and restore requests carry the configuration-content `revision`. Another se
 
 An empty brand title, accent or quota-limits map in the standalone file inherits the main configuration. The preview shows the inherited values. An explicit override in the standalone file takes precedence over the main configuration environment variable and remains editable. If you change the overlay or credentials file path manually, restart the service before editing settings.
 
-Use Settings → API Key Status to save a GitHub PAT. The console saves it to the private `dashboard-secrets.json` overlay and GitHub search uses it after restart. Existing `github.token_list` entries remain available for rotation. Saving an empty value removes the override, so any environment or main-config credentials apply again after restart. APIs expose only whether a credential is configured.
+The Credentials panel shows how many keys are effective and whether each comes from the environment, configuration or private overlay. For providers that support a pool, select a slot to update its label or remove it. Adding a slot preserves the rest of the pool. Review the operation and restart to apply pending changes. The panel reports the status of business endpoint authentication separately. WebUI administrators cannot edit the service authentication token.
 
 ## Service runtime
 

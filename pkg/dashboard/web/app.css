@@ -437,11 +437,13 @@ html[data-theme="mono"] aside{box-shadow:2px 0 10px rgba(15,18,20,.07)}
 .accent-field input{width:88px}
 
 /* ---------- 密钥弹窗（含供应商获取 Key 链接） ---------- */
-.secret-link-row{font-size:13px;color:var(--ink-2);margin:0 0 10px}
-.secret-link-row a{color:var(--accent);font-weight:600;text-decoration:none}
-.secret-link-row a:hover{text-decoration:underline}
+.secret-row a{color:var(--accent);font-size:12px;text-decoration:none}
+.secret-row a:hover,.secret-row a:focus-visible{text-decoration:underline}
 .secret-input-row{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink-2);margin-bottom:10px}
-.secret-input-row input{width:100%}
+.secret-input-row :is(input,select){width:100%;min-width:0}
+#secret-dialog-help:empty{display:none}
+.quota-skipped{color:var(--degraded)}
+small.quota-skipped{display:block;margin-top:4px}
 
 /* 搜索源和设置共用额度样式 */
 #page-sources .source-quota-table th:nth-child(1){width:13%}

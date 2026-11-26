@@ -21,6 +21,7 @@ import (
 	"websearch/pkg/daemon"
 	"websearch/pkg/dashboard"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/telemetry"
 )
 
@@ -135,6 +136,10 @@ func dashboardAccessMiddleware(conf config.Config) (func(http.HandlerFunc) http.
 }
 
 func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, metrics *telemetry.Store) {
+	s.registerAdminHandlersWithQuota(mux, conf, metrics, quota.New(conf, metrics))
+}
+
+func (s *Server) registerAdminHandlersWithQuota(mux *http.ServeMux, conf config.Config, metrics *telemetry.Store, service *quota.Service) {
 	mux.HandleFunc("/__admin/refcount", localOnlyMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -193,12 +198,12 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 			log.ErrorT("log.server.invalid_dashboard_allowed_networks_dashboard_falls", "err", err)
 			guard = localOnlyMiddleware
 		}
-		h := dashboard.New(conf, metrics, mcpserver.GetCache(), func() {
+		h := dashboard.NewWithQuota(conf, metrics, mcpserver.GetCache(), func() {
 			select {
 			case s.shutdownCh <- struct{}{}:
 			default:
 			}
-		})
+		}, service)
 		h.Register(mux, guard)
 		h.WarmQuota()
 	}
@@ -210,12 +215,15 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 // 外部项目可直接调用此方法将 MCP 服务嵌入到自己的 HTTP Server 中。
 func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	var metrics *telemetry.Store
-	if conf.Dashboard.Enabled {
+	if conf.Dashboard.Enabled || conf.Dashboard.Quotas.HasSearchEnforcement() {
 		var err error
 		metrics, err = telemetry.OpenWithMaxOpenConns(conf.GetDashboardStoragePath(), conf.Dashboard.RetentionDays, conf.Dashboard.GetMaxOpenConns())
 		if err != nil {
 			return fmt.Errorf("initialize dashboard telemetry: %w", err)
 		}
+		defer metrics.Close()
+	}
+	if conf.Dashboard.Enabled {
 		if p := config.GetDashboardOverlayFile(); p != "" {
 			log.InfoT("log.server.dashboard_standalone_config", "p", p)
 		}
@@ -228,11 +236,12 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 		}
 		// 明细按 retention_days 滚动过期：启动清一次，此后每 6 小时滚一次
 		stopCleanup := metrics.StartCleanupLoop(6 * time.Hour)
-		defer func() { stopCleanup(); _ = metrics.Close() }()
+		defer stopCleanup()
 		_ = metrics.Cleanup()
 	}
+	service := quota.New(conf, metrics)
 	if err := mcpserver.Init(conf,
-		mcpserver.WithSearchEngine(conf),
+		mcpserver.WithSearchEngineQuota(conf, service),
 		mcpserver.WithSummarizer(conf),
 		mcpserver.WithCache(conf),
 		mcpserver.WithWebFetch(conf),
@@ -245,8 +254,12 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	}
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux, conf)
-	s.registerAdminHandlers(mux, conf, metrics)
-	s.registerMetricsHandler(mux, metrics)
+	s.registerAdminHandlersWithQuota(mux, conf, metrics, service)
+	if conf.Dashboard.Enabled {
+		s.registerMetricsHandler(mux, metrics)
+	} else {
+		s.registerMetricsHandler(mux, nil)
+	}
 
 	// 启动缓存清理协程
 	var cleanup *cache.CleanupScheduler

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -13,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"time"
 
@@ -42,6 +40,7 @@ const (
 // ── 顶层配置 ──
 
 type Config struct {
+	credentials        *credentialSnapshot
 	Port               int                 `mapstructure:"port"`
 	Host               string              `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
 	AuthToken          string              `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
@@ -1013,6 +1012,31 @@ type QuotasConfig struct {
 	ResetDay int `mapstructure:"reset_day"`
 	// Limits 每供应商调用次数上限；未配置的供应商使用 DefaultQuotaLimit。
 	Limits map[string]int `mapstructure:"limits"`
+	// EnforceProviders opts named, keyed web search providers into routing hard limits.
+	EnforceProviders []string `mapstructure:"enforce_providers"`
+}
+
+// QuotaSearchProviders lists the keyed search routes whose usage this process can account for.
+func QuotaSearchProviders() []string {
+	return []string{"anysearch", "baidu", "doubao", "exa", "keenable", "tavily", "tinyfish", "yuanbao"}
+}
+
+func (q QuotasConfig) Enforces(provider string) bool {
+	for _, name := range q.EnforceProviders {
+		if strings.EqualFold(strings.TrimSpace(name), provider) {
+			return true
+		}
+	}
+	return false
+}
+
+func (q QuotasConfig) HasSearchEnforcement() bool {
+	for _, provider := range QuotaSearchProviders() {
+		if q.Enforces(provider) {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultQuotaLimit 是未显式配置 limits 的供应商的默认上限（次/周期）。
@@ -1477,7 +1501,7 @@ func Load(configPath string) (*Config, error) {
 	dashboardOverlayFile = ""
 	conf.Dashboard.overlayPath = DashboardOverlayPath(conf)
 	applyDashboardOverlay(conf, conf.Dashboard.overlayPath)
-	applyDashboardSecrets(conf)
+	applyDashboardSecretsAt(conf, conf.GetDashboardSecretsPath())
 	return conf, nil
 }
 
@@ -1701,7 +1725,7 @@ func decodeMainConfig(v *viper.Viper) (*Config, error) {
 
 	// 环境变量回填：精简 yaml 缺字段时（如未写 tavily.api_key），
 	// viper 的 BindEnv 不会为不存在的 key 生效，这里显式覆盖。
-	applyKnownEnv(&conf)
+	applyKnownEnv(&conf, v)
 	conf.MCPHub.NormalizeMCPHub()
 
 	return &conf, nil
@@ -1749,7 +1773,7 @@ func Default() *Config {
 			},
 		},
 	}
-	applyKnownEnv(conf)
+	applyKnownEnv(conf, nil)
 	conf.MCPHub.NormalizeMCPHub()
 	return conf
 }
@@ -1766,7 +1790,9 @@ func LoadOrDefault(configPath string) (*Config, error) {
 	}
 	var notFound viper.ConfigFileNotFoundError
 	if errors.As(err, &notFound) {
-		return Default(), nil
+		conf := Default()
+		applyDashboardSecretsAt(conf, conf.GetDashboardSecretsPath())
+		return conf, nil
 	}
 	return nil, err
 }
@@ -1778,51 +1804,10 @@ func explicitConfigPath(configPath string) string {
 	return configPath
 }
 
-func applyKnownEnv(conf *Config) {
-	if v := os.Getenv("BAIDU_SK"); v != "" {
-		conf.Baidu.APIKey = v
-	}
-	if v := os.Getenv("TAVILY_SK"); v != "" {
-		conf.Tavily.APIKey = v
-	}
-	if v := os.Getenv("EXA_API_KEY"); v != "" {
-		conf.Exa.APIKey = v
-	}
-	if v := os.Getenv("ANYSEARCH_API_KEY"); v != "" {
-		conf.Anysearch.APIKey = v
-	}
-	if v := os.Getenv("TENCENTCLOUD_WSA_APIKEY"); v != "" {
-		conf.Yuanbao.APIKey = v
-	}
-	for _, envName := range []string{"DOUBAO_SEARCH_API_KEY", "ASK_ECHO_SEARCH_INFINITY_API_KEY"} {
-		if v := os.Getenv(envName); v != "" {
-			conf.Doubao.APIKey = v
-			break
-		}
-	}
-	if v := os.Getenv("GITHUB_TOKEN"); v != "" {
-		conf.GitHub.APIKey = v
-	}
+func applyKnownEnv(conf *Config, v *viper.Viper) {
+	applyCredentialEnv(conf, v)
 	if v := os.Getenv("LLM_BASE_URL"); v != "" {
 		conf.LLM.BaseURL = v
-	}
-	if v := os.Getenv("LLM_API_KEY"); v != "" {
-		conf.LLM.APIKey = v
-	}
-	if v := os.Getenv("MINERU_TOKEN"); v != "" {
-		conf.PDFParser.MinerUToken = v
-	}
-	if v := os.Getenv("SEMANTIC_SCHOLAR_API_KEY"); v != "" {
-		conf.Academic.SemanticScholarAPIKey = v
-	}
-	if v := os.Getenv("OPENALEX_API_KEY"); v != "" {
-		conf.Academic.OpenAlexAPIKey = v
-	}
-	if v := os.Getenv("UNPAYWALL_EMAIL"); v != "" {
-		conf.Academic.UnpaywallEmail = v
-	}
-	if v := os.Getenv("WEBSEARCH_TOKEN"); v != "" {
-		conf.AuthToken = v
 	}
 }
 
@@ -1905,8 +1890,6 @@ func parseAllowedNetworks(entries []string) ([]*net.IPNet, error) {
 	return out, nil
 }
 
-// applyDashboardSecrets loads an optional private overlay from the persistent
-// data volume. Values are intentionally kept out of config.yaml and logs.
 var dashboardOverlayFile string
 
 // GetDashboardOverlayFile 返回本次加载实际使用的控制中心独立配置文件路径；
@@ -2027,6 +2010,9 @@ func mergeDashboardOverlay(conf *Config, v *viper.Viper) error {
 	if overrides("dashboard.quotas.limits", len(dash.Quotas.Limits) > 0) {
 		conf.Dashboard.Quotas.Limits = dash.Quotas.Limits
 	}
+	if overrides("dashboard.quotas.enforce_providers", v.IsSet("dashboard.quotas.enforce_providers")) {
+		conf.Dashboard.Quotas.EnforceProviders = dash.Quotas.EnforceProviders
+	}
 	if overrides("dashboard.brand.title", dash.Brand.Title != "") {
 		conf.Dashboard.Brand.Title = dash.Brand.Title
 	}
@@ -2047,57 +2033,6 @@ func mergeDashboardOverlay(conf *Config, v *viper.Viper) error {
 		conf.Dashboard.Brand.Footer = dash.Brand.Footer
 	}
 	return nil
-}
-
-func applyDashboardSecrets(conf *Config) {
-	applyDashboardSecretsAt(conf, conf.GetDashboardSecretsPath())
-}
-
-func applyDashboardSecretsAt(conf *Config, path string) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	var values map[string]string
-	if json.Unmarshal(b, &values) != nil {
-		return
-	}
-	if v := values["BAIDU_SK"]; v != "" {
-		conf.Baidu.APIKey = v
-		conf.Baidu.SKList = nil
-	}
-	if v := values["TAVILY_SK"]; v != "" {
-		conf.Tavily.APIKey = v
-		conf.Tavily.SKList = nil
-	}
-	if v := values["EXA_API_KEY"]; v != "" {
-		conf.Exa.APIKey = v
-		conf.Exa.SKList = nil
-	}
-	if v := values["ANYSEARCH_API_KEY"]; v != "" {
-		conf.Anysearch.APIKey = v
-		conf.Anysearch.SKList = nil
-	}
-	if v := values["DOUBAO_SEARCH_API_KEY"]; v != "" {
-		conf.Doubao.APIKey = v
-		conf.Doubao.SKList = nil
-	}
-	if v := values["TENCENTCLOUD_WSA_APIKEY"]; v != "" {
-		conf.Yuanbao.APIKey = v
-		conf.Yuanbao.SKList = nil
-	}
-	if v := values["JINA_API_KEY"]; v != "" {
-		conf.Jina.APIKey = v
-	}
-	if v := values["GITHUB_TOKEN"]; v != "" {
-		conf.GitHub.APIKey = v
-		if len(conf.GitHub.TokenList) > 0 && !slices.Contains(conf.GitHub.TokenList, v) {
-			conf.GitHub.TokenList = append([]string{v}, conf.GitHub.TokenList...)
-		}
-	}
-	if v := values["MINERU_TOKEN"]; v != "" {
-		conf.PDFParser.MinerUToken = v
-	}
 }
 
 // ExeBaseDir 返回可执行文件所在目录，获取失败时回退配置目录。

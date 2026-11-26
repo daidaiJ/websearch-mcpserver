@@ -35,15 +35,20 @@ var webFiles embed.FS
 const defaultEventLimit = 50
 
 type Handler struct {
-	conf    config.Config
-	store   *telemetry.Store
-	quota   *quota.Service
-	cache   *cache.Cache
-	restart func()
+	conf             config.Config
+	credentialEditor *config.CredentialEditor // protected by credentialsMu
+	store            *telemetry.Store
+	quota            *quota.Service
+	cache            *cache.Cache
+	restart          func()
 }
 
 func New(conf config.Config, store *telemetry.Store, searchCache *cache.Cache, restart func()) *Handler {
-	return &Handler{conf: conf, store: store, quota: quota.New(conf, store), cache: searchCache, restart: restart}
+	return NewWithQuota(conf, store, searchCache, restart, quota.New(conf, store))
+}
+
+func NewWithQuota(conf config.Config, store *telemetry.Store, searchCache *cache.Cache, restart func(), service *quota.Service) *Handler {
+	return &Handler{conf: conf, store: store, quota: service, cache: searchCache, restart: restart}
 }
 
 // IsLoopbackRemote 判定请求是否来自本机 loopback。
@@ -170,7 +175,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, buildDashboardOverview(h.conf, observed, i18n.FromContext(r.Context())))
+	writeJSON(w, http.StatusOK, h.dashboardOverview(r.Context(), observed))
 }
 
 // eventLimit accepts the dashboard page sizes 20/50/100; any other value
@@ -306,6 +311,12 @@ func (h *Handler) requestEvents(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	loc := i18n.FromContext(r.Context())
+	for i := range out {
+		if out[i].Kind == telemetry.QuotaSkipEvent {
+			out[i].SkipReason = quota.SearchSkipMessage(loc, out[i].Detail)
+		}
+	}
 	h.attributeEvents(out)
 	writeJSON(w, http.StatusOK, out)
 }
@@ -341,7 +352,7 @@ func (h *Handler) providers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	view := buildDashboardOverview(h.conf, observed, i18n.FromContext(r.Context()))
+	view := h.dashboardOverview(r.Context(), observed)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"generated_at": view.GeneratedAt,
 		"summary":      view.System,
@@ -384,6 +395,11 @@ func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		out := settingsFileView(h.conf, config.GetConfigFile(), overlay, loc)
+		credentialStatus, err := h.credentialView()
+		out["credential_status"] = credentialStatus
+		if err != nil {
+			out["credential_error"] = loc.T("dashboard.credentials.file_unavailable")
+		}
 		allowed, reason := h.writeAccess(r)
 		if failure, failed := out["config_error"].(string); failed {
 			allowed, reason = false, failure
@@ -444,26 +460,6 @@ func (h *Handler) writeAccess(r *http.Request) (bool, string) {
 		}
 	}
 	return false, i18n.TCtx(r.Context(), "dashboard.write.readonly")
-}
-
-func (h *Handler) secrets(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		methodNotAllowed(w)
-		return
-	}
-	if !h.authorizeWrite(w, r) {
-		return
-	}
-	var req SecretRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
-		return
-	}
-	if err := saveSecret(h.conf, req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"saved": true, "restart_required": true})
 }
 
 func (h *Handler) restartService(w http.ResponseWriter, r *http.Request) {

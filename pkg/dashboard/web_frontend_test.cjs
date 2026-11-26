@@ -10,6 +10,7 @@ function element(selector) {
   const classes = new Set();
   if (!elements.has(selector)) elements.set(selector, {
     textContent: '', innerHTML: '', value: '', disabled: false, style: {},
+    querySelectorAll: () => [],
     classList: {
       toggle(name, force) { if (force === undefined ? !classes.has(name) : force) classes.add(name); else classes.delete(name); },
       add(name) { classes.add(name); }, remove(name) { classes.delete(name); }, contains(name) { return classes.has(name); },
@@ -96,25 +97,78 @@ function settings() {
 (async () => {
   settings();
   const secretDialog = element('#secret-dialog');
-  const secretLink = element('#secret-dialog-link');
-  secretLink.closest = () => element('.secret-link-row');
   secretDialog.showModal = () => {};
   secretDialog.addEventListener = (type, callback) => { secretDialog[type] = callback; };
+  run(`state.settings.credential_status = {
+    credentials: {
+      GITHUB_TOKEN: { configured: true, count: 2, sources: ['config', 'env'], multi: true,
+        slots: [{id:'opaque-1',source:'config',label:'<primary>'},{id:'opaque-2',source:'env'}] },
+      WEBSEARCH_TOKEN: { configured: true, count: 1, sources: ['env'], read_only: true }
+    },
+    pending_restart: false, revision: 'cred-r1'
+  }; renderSettingsForm();`);
+  const credentials = element('#secret-list').innerHTML;
+  assert.match(credentials, /GITHUB_TOKEN[\s\S]*?2[\s\S]*?config[\s\S]*?env/);
+  assert.match(credentials, /href="https:\/\/github\.com\/settings\/tokens"/);
+  assert.match(credentials, /WEBSEARCH_TOKEN[\s\S]*?只读/);
+  assert.doesNotMatch(credentials, /data-secret="WEBSEARCH_TOKEN"/);
+  run(`state.settings.credential_error = 'Private file unavailable'; renderSettingsForm();`);
+  assert.equal(element('#secret-note').textContent, 'Private file unavailable');
+  assert.match(element('#secret-list').innerHTML, /data-secret="GITHUB_TOKEN"[^>]* disabled/);
+  run(`delete state.settings.credential_error; renderSettingsForm();`);
   run(`globalThis.secretPosts = []; globalThis.savedPost = postJSON; globalThis.savedLoad = loadSettings;
-    postJSON = async (url, payload) => { secretPosts.push({url, payload}); }; loadSettings = async () => {};`);
-  for (const secretValue of ['ghp_fixture', '']) {
+    globalThis.savedConfirm = confirmDialog; globalThis.savedRestart = restartAndVerify;
+    postJSON = async (url, payload, headers) => {
+      secretPosts.push({url, payload: {...payload}, headers});
+      return {before_count:2, after_count:3, applied:payload.confirm, backup:payload.confirm, restart_required:true, revision:'cred-r1'};
+    };
+    confirmDialog = async (title, copy, diff) => { globalThis.credentialDiff = diff; return true; };
+    restartAndVerify = async () => { globalThis.credentialRestarted = true; };
+    loadSettings = async () => {};`);
+  run("editSecret('GITHUB_TOKEN')");
+  assert.match(element('#secret-dialog-slot').innerHTML, /opaque-1[^>]*>[^<]*&lt;primary&gt;/);
+  assert.doesNotMatch(element('#secret-dialog-slot').innerHTML, />[^<]*opaque-1/);
+  element('#secret-dialog-input').value = 'fixture-value';
+  element('#secret-dialog-pass').value = 'fixture-admin';
+  secretDialog.returnValue = 'confirm';
+  await secretDialog.close();
+  assert.equal(run("secretPosts[0].url"), '/__admin/api/secrets');
+  assert.equal(run("secretPosts[0].headers['X-Admin-Password']"), 'fixture-admin');
+  assert.equal(run("secretPosts[0].payload.confirm"), false);
+  assert.equal(run("secretPosts[1].payload.confirm"), true);
+  assert.equal(run("secretPosts[1].payload.revision"), 'cred-r1');
+  assert.equal(run("secretPosts[1].payload.name"), 'GITHUB_TOKEN');
+  assert.equal(run("secretPosts[1].payload.action"), 'append');
+  assert.equal(run("secretPosts[1].payload.value"), 'fixture-value');
+  assert.equal(element('#secret-dialog-input').value, '');
+  assert.match(run('credentialDiff'), /追加[\s\S]*2 → 3/);
+  assert.doesNotMatch(run('credentialDiff'), /fixture-value|fixture-admin|opaque-1/);
+  assert.equal(run('credentialRestarted'), true);
+  for (const [action, slotID] of [['delete', 'opaque-2'], ['label', 'opaque-1'], ['clear', ''], ['reset', '']]) {
     run("editSecret('GITHUB_TOKEN')");
-    assert.match(secretLink.href, /^https:\/\/github\.com\/settings\/tokens$/);
-    element('#secret-dialog-input').value = secretValue;
+    const control = element('#secret-dialog-action');
+    assert.match(control.innerHTML, new RegExp('value="' + action + '"'));
+    control.value = action;
+    element('#secret-dialog-slot').value = slotID;
+    control.onchange();
+    if (action === 'label') element('#secret-dialog-label').value = 'Spare';
     element('#secret-dialog-pass').value = 'fixture-admin';
     secretDialog.returnValue = 'confirm';
     await secretDialog.close();
-    assert.equal(run("secretPosts.at(-1).url"), '/__admin/api/secrets');
-    assert.equal(run("secretPosts.at(-1).payload.name"), 'GITHUB_TOKEN');
-    assert.equal(run("secretPosts.at(-1).payload.value"), secretValue);
-    assert.equal(element('#secret-dialog-input').value, '');
+    assert.equal(run('secretPosts.at(-1).payload.action'), action);
+    assert.equal(run('secretPosts.at(-1).payload.slot_id'), slotID || undefined);
+    assert.equal(run('secretPosts.at(-1).payload.value'), undefined);
+    assert.equal(run('secretPosts.at(-1).payload.label'), action === 'label' ? 'Spare' : undefined);
   }
-  run("postJSON = savedPost; loadSettings = savedLoad; state.adminPass = '';");
+  run(`confirmDialog = async () => false; editSecret('GITHUB_TOKEN');`);
+  element('#secret-dialog-input').value = 'unsaved-fixture-value';
+  element('#secret-dialog-pass').value = 'fixture-admin';
+  secretDialog.returnValue = 'confirm';
+  await secretDialog.close();
+  assert.equal(run('secretPosts.at(-1).payload.confirm'), false);
+  assert.equal(element('#secret-dialog-input').value, '');
+  assert.equal(element('#secret-dialog-pass').value, '');
+  run("postJSON = savedPost; loadSettings = savedLoad; confirmDialog = savedConfirm; restartAndVerify = savedRestart; state.adminPass = '';");
   const standardSwitch = run(`sourceControl({id:'bing', name:'Bing', enabled:false, control_path:'bing.enabled'})`);
   assert.match(standardSwitch, /class="form-check form-switch source-toggle"/);
   assert.match(standardSwitch, /class="form-check-input" type="checkbox" role="switch"/);
@@ -375,6 +429,17 @@ function settings() {
   await run('restartAndVerify()');
   assert.equal(run('state.applyResult.failed'), false);
   assert.equal(run('state.applyResult.status'), '运行配置已确认生效');
+  settings();
+  now = 0;
+  run(`globalThis.credentialReads = 0;
+    state.applyResult = {targets:{},credentials:true};
+    state.settings.credential_status = {pending_restart:true};
+    fetchJSON = async url => url.endsWith('settings')
+      ? {values:{},credential_status:{pending_restart:++credentialReads === 1}}
+      : {system:{status:'waiting'}};`);
+  await run('restartAndVerify()');
+  assert.equal(run('credentialReads'), 2, 'credential-only restart must wait for the new credentials to be active');
+  assert.equal(run('state.settings.credential_status.pending_restart'), false);
   settings();
   now = 0;
   run(`state.applyResult = {targets:{'bing.enabled':true},backup:'backup.yaml'};

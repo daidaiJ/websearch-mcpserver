@@ -118,11 +118,11 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		if err != nil {
 			log.ErrorT("log.mcp.smartsearch_failed", "query", query, "engine", engineName, "err", err)
 		}
-		if opts.recordEvent {
-			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "smartsearch", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 12)})
-		}
-		if !cacheHit && engineName != "" && engineName != "hybrid" && engineName != "apipool" {
+		if !cacheHit && errcode.CodeOf(err) != errcode.QuotaSkip && engineName != "" && engineName != "hybrid" && engineName != "apipool" {
 			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: resultCount, Error: err, RequestID: requestID})
+		}
+		if opts.recordEvent {
+			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "smartsearch", Provider: engineName, Query: query, Success: err == nil, Duration: time.Since(started), CacheHit: cacheHit, ResultCount: resultCount, Error: err, RequestID: requestID, AttemptChain: webAttemptChain(ctx, 12)})
 		}
 	}()
 	if searchapi == nil {
@@ -219,6 +219,10 @@ func doWebSearch(ctx context.Context, req *mcp.CallToolRequest, query, intent st
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if engineName == "baidu_api" && len(results) > 0 && results[0].Engine == "baidu_web" {
+		engineName = "baidu_web"
 	}
 
 	// 域名过滤先于单引擎过滤/截断与 fetch_top_n：被排除的域名不浪费抓取预算，
