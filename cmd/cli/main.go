@@ -73,7 +73,7 @@ func runStdio(conf *config.Config) {
 			fmt.Fprintln(os.Stderr, i18n.T("dashboard.quota.search_usage_unavailable"))
 			os.Exit(1)
 		}
-		defer store.Close()
+		defer func() { _ = store.Close() }()
 	}
 	if err := mcpserver.Init(*conf,
 		mcpserver.WithSearchEngineQuota(*conf, quota.New(*conf, store)),

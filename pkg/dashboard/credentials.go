@@ -70,14 +70,14 @@ func (h *Handler) secrets(w http.ResponseWriter, r *http.Request) {
 func writeCredentialError(ctx context.Context, w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	var message string
-	switch err {
-	case config.ErrCredentialConflict:
+	switch {
+	case errors.Is(err, config.ErrCredentialConflict):
 		status, message = http.StatusConflict, i18n.TCtx(ctx, "dashboard.credentials.conflict")
-	case config.ErrSettingsPathsChanged:
+	case errors.Is(err, config.ErrSettingsPathsChanged):
 		status, message = http.StatusConflict, i18n.TCtx(ctx, "dashboard.settings.paths_changed")
-	case config.ErrCredentialRequest:
+	case errors.Is(err, config.ErrCredentialRequest):
 		status, message = http.StatusBadRequest, i18n.TCtx(ctx, "dashboard.credentials.invalid_request")
-	case config.ErrCredentialLabel:
+	case errors.Is(err, config.ErrCredentialLabel):
 		status, message = http.StatusBadRequest, i18n.TCtx(ctx, "dashboard.credentials.invalid_label")
 	default:
 		message = i18n.TCtx(ctx, "dashboard.credentials.file_unavailable")
@@ -163,7 +163,7 @@ func replaceCredentialFile(path string, old, next []byte) (bool, error) {
 	if err := writePrivateCredentialFile(temp, next); err != nil {
 		return false, err
 	}
-	defer os.Remove(temp)
+	defer func() { _ = os.Remove(temp) }()
 	if old != nil {
 		backupDir := filepath.Join(dir, "dashboard-secrets-backups")
 		if err := os.MkdirAll(backupDir, 0o700); err != nil {

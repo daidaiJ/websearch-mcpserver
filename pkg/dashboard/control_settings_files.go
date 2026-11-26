@@ -251,7 +251,7 @@ func updateSettingsFiles(c config.Config, original, next settingsDocuments, clea
 		edit := &edits[i]
 		err := edit.prepare()
 		if edit.handle != nil {
-			defer edit.handle.Close()
+			defer func() { _ = edit.handle.Close() }()
 		}
 		if err != nil {
 			return "", err

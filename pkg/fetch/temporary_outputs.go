@@ -49,12 +49,12 @@ func ManageTemporaryOutputs(ctx context.Context, dir string, webTTL time.Duratio
 	if err != nil {
 		return stats, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	list, err := root.Open(".")
 	if err != nil {
 		return stats, err
 	}
-	defer list.Close()
+	defer func() { _ = list.Close() }()
 
 	now := time.Now()
 	var firstErr error
@@ -155,7 +155,7 @@ func openTemporaryOutputRoot(dir string) (*os.Root, error) {
 	if err == nil && os.SameFile(expected, actual) {
 		return root, nil
 	}
-	root.Close()
+	_ = root.Close()
 	if err != nil {
 		return nil, err
 	}

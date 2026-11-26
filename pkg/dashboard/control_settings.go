@@ -20,14 +20,14 @@ var errSettingsUnreadable = errors.New("configuration file unavailable")
 var errSettingsParse = errors.New("invalid settings configuration")
 
 func settingsErrorMessage(loc *i18n.Localizer, err error) string {
-	switch err {
-	case errSettingsConflict:
+	switch {
+	case errors.Is(err, errSettingsConflict):
 		return loc.T("dashboard.settings.conflict")
-	case errSettingsUnreadable:
+	case errors.Is(err, errSettingsUnreadable):
 		return loc.T("dashboard.config_error.unreadable")
-	case config.ErrSettingsPathsChanged:
+	case errors.Is(err, config.ErrSettingsPathsChanged):
 		return loc.T("dashboard.settings.paths_changed")
-	case errSettingsParse:
+	case errors.Is(err, errSettingsParse):
 		return loc.T("dashboard.config_error.parse")
 	default:
 		return err.Error()
@@ -259,7 +259,7 @@ func applySettingsFile(c config.Config, req SettingsRequest, path, overlayPath s
 		return out, err
 	}
 	saved, err := decodeSettingsAtPaths(docs.main.data, docs.overlay.data, c.SettingsFilePaths())
-	if err == config.ErrSettingsPathsChanged {
+	if errors.Is(err, config.ErrSettingsPathsChanged) {
 		return out, err
 	}
 	out.Revision = docs.revision()

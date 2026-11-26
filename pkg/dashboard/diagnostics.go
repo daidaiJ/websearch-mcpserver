@@ -111,7 +111,7 @@ func (h *Handler) probeProxy(w http.ResponseWriter, r *http.Request) {
 	default:
 		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", host)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			result.OK = true
 		} else {
 			result.ErrorKind = diagnosticFailure(ctx, errcode.Wrap(errcode.Network, err))
