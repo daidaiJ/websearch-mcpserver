@@ -172,6 +172,58 @@ func TestOfficialQueryFailurePreservesLocalQuotaAndReportsFallback(t *testing.T)
 	t.Fatal("missing Tavily quota")
 }
 
+func TestQuotaCanonicalizesTelemetryAliases(t *testing.T) {
+	upstreamOK := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"key":{"usage":10,"limit":100},"account":{"plan_usage":10,"plan_limit":100}}`))
+	}))
+	defer upstreamOK.Close()
+
+	conf := config.Config{
+		Tavily: config.TavilyConfig{APIKey: "tv-key"},
+		Baidu:  config.BaiduConfig{APIKey: "bd-key"},
+	}
+	svc, store := newLocalService(t, conf)
+	svc.endpoint = upstreamOK.URL
+	recordN(t, store, "tavily_api", 4)
+	recordN(t, store, "tavily", 2)
+	recordN(t, store, "baidu_ai", 5)
+	recordN(t, store, "baidu_api", 3)
+
+	items := svc.Get(tContext())
+	for _, it := range items {
+		if it.Provider == "tavily_api" || it.Provider == "baidu_ai" || it.Provider == "baidu_api" {
+			t.Fatalf("unexpected non-canonical quota provider %q in %+v", it.Provider, items)
+		}
+	}
+	tav := itemOf(items, "tavily")
+	if tav.Source != upstreamOK.URL || tav.Used == nil || *tav.Used != 10 {
+		t.Fatalf("tavily should prefer official usage without duplicate alias, got %+v", tav)
+	}
+	bd := itemOf(items, "baidu")
+	if !bd.Configured || bd.Source != "local" || bd.Used == nil || *bd.Used != 8 {
+		t.Fatalf("baidu should aggregate baidu_ai+baidu_api as configured local quota 8, got %+v", bd)
+	}
+	if err := svc.SetProviderUsed("baidu", 12); err != nil {
+		t.Fatal(err)
+	}
+	if bd = itemOf(svc.Get(tContext()), "baidu"); bd.Used == nil || *bd.Used != 12 {
+		t.Fatalf("adjusted baidu usage = %+v, want 12", bd)
+	}
+
+	// Official failure falls back to merged tavily + tavily_api local count (6).
+	upstreamFail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer upstreamFail.Close()
+	svc.endpoint = upstreamFail.URL
+	_ = svc.invalidate()
+	tavFallback := itemOf(svc.Get(tContext()), "tavily")
+	if !tavFallback.Configured || tavFallback.Source != "local" || !tavFallback.OfficialQueryFailed || tavFallback.Used == nil || *tavFallback.Used != 6 {
+		t.Fatalf("tavily fallback should aggregate tavily+tavily_api (6), got %+v", tavFallback)
+	}
+}
+
 // tContext / rangeItems 是小工具，让断言写得更短。
 func rangeItems(t *testing.T, svc *Service) []Item {
 	t.Helper()

@@ -343,7 +343,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,t
 /* 与相邻高面板 stretch 对齐时均匀分行，避免底部死区 */
 .secret-list{flex:1;display:flex;flex-direction:column;justify-content:space-evenly}
 .pill{padding:3px 9px;border-radius:999px;background:#fdeedc;color:var(--degraded);font-size:12px}
-.hidden{display:none!important}
+[hidden],.hidden{display:none!important}
 
 /* ---------- dialog & toast ---------- */
 dialog{

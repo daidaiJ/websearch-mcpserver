@@ -197,21 +197,27 @@ func (s *Service) collect(ctx context.Context, updateLedger bool) []Item {
 	byName := make(map[string]Item)
 	if s.store != nil {
 		if names, err := s.store.QuotaProviders(); err == nil {
-			for _, name := range names {
+			for _, rawName := range names {
+				name := canonicalQuotaProvider(rawName)
+				if _, ok := byName[name]; ok {
+					continue
+				}
 				if item, ok := s.localItem(name, now, updateLedger); ok {
 					byName[name] = item
 				}
 			}
 		}
 		// 配置里显式给过上限、但遥测还没见过的供应商也要出现（显示 0 用量）。
-		for name := range s.routes {
+		for rawName := range s.routes {
+			name := canonicalQuotaProvider(rawName)
 			if _, ok := byName[name]; !ok {
 				if item, ok := s.localItem(name, now, updateLedger); ok {
 					byName[name] = item
 				}
 			}
 		}
-		for name := range s.conf.Dashboard.Quotas.Limits {
+		for rawName := range s.conf.Dashboard.Quotas.Limits {
+			name := canonicalQuotaProvider(rawName)
 			if _, ok := byName[name]; !ok {
 				if item, ok := s.localItem(name, now, updateLedger); ok {
 					byName[name] = item
@@ -249,12 +255,14 @@ func (s *Service) collect(ctx context.Context, updateLedger bool) []Item {
 // 上限口径为「单 Key 积分」：配置了多把 Key 时自动乘以 Key 数，与 apipool
 // 的实际消耗容量（Key 数累加）对齐，用户无需手工换算。
 func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item, bool) {
+	name = canonicalQuotaProvider(name)
 	if name == "" {
 		return Item{}, false
 	}
 	limits := s.conf.Dashboard.Quotas.Limits
 	_, explicitLimit := limits[name]
-	if !explicitLimit && !providerKeyConfigured(s.conf, name) {
+	configured := providerKeyConfigured(s.conf, name)
+	if !explicitLimit && !configured {
 		return Item{}, false
 	}
 	limit := float64(s.conf.Dashboard.Quotas.GetLimit(name))
@@ -262,7 +270,7 @@ func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item
 		limit *= float64(n)
 	}
 	item := Item{
-		Provider: name, Status: "no_data", Unit: "calls",
+		Provider: name, Configured: configured, Status: "no_data", Unit: "calls",
 		Source: "local", AutoReset: s.conf.Dashboard.Quotas.GetReset(),
 	}
 	if s.store == nil {
@@ -296,7 +304,7 @@ func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item
 		if window == 0 {
 			window = s.conf.Dashboard.Quotas.PeriodStart(now).Unix()
 		}
-		if n, err := s.store.CountProviderCalls(name, window); err == nil {
+		if n, err := s.countLocalCalls(name, window); err == nil {
 			used = n + adjust
 		}
 	}
@@ -347,11 +355,58 @@ func usableProviderKeys(conf config.Config, name string) []string {
 	return keys
 }
 
-func providerKeys(conf config.Config, name string) []string {
-	switch strings.ToLower(name) {
-	case "baidu", "baidu_api":
-		return conf.Baidu.EffectiveSKList()
+func canonicalQuotaProvider(name string) string {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "baidu", "baidu_api", "baidu_ai":
+		return "baidu"
 	case "tavily", "tavily_api":
+		return "tavily"
+	case "tinyfish", "tinyfish_api":
+		return "tinyfish"
+	case "keenable", "keenable_api":
+		return "keenable"
+	case "yuanbao", "tencent_yuanbao":
+		return "yuanbao"
+	default:
+		return strings.ToLower(strings.TrimSpace(name))
+	}
+}
+
+func quotaProviderAliases(name string) []string {
+	canonical := canonicalQuotaProvider(name)
+	switch canonical {
+	case "baidu":
+		return []string{"baidu", "baidu_api", "baidu_ai"}
+	case "tavily":
+		return []string{"tavily", "tavily_api"}
+	case "tinyfish":
+		return []string{"tinyfish", "tinyfish_api"}
+	case "keenable":
+		return []string{"keenable", "keenable_api"}
+	case "yuanbao":
+		return []string{"yuanbao", "tencent_yuanbao"}
+	default:
+		return []string{canonical}
+	}
+}
+
+func (s *Service) countLocalCalls(provider string, since int64) (int64, error) {
+	var total int64
+	for _, alias := range quotaProviderAliases(provider) {
+		n, err := s.store.CountProviderCalls(alias, since)
+		if err != nil {
+			return 0, err
+		}
+		total += n
+	}
+	return total, nil
+}
+
+func providerKeys(conf config.Config, name string) []string {
+	switch canonicalQuotaProvider(name) {
+	case "baidu":
+		return conf.Baidu.EffectiveSKList()
+	case "tavily":
 		return conf.Tavily.EffectiveSKList()
 	case "exa":
 		return conf.Exa.EffectiveSKList()
@@ -377,6 +432,7 @@ func (s *Service) ResetProvider(provider string) error {
 	if s.store == nil {
 		return fmt.Errorf("遥测未启用，无法重置本地用量")
 	}
+	provider = canonicalQuotaProvider(provider)
 	if s.TracksSearch(provider) {
 		route := s.routes[provider]
 		route.mu.Lock()
@@ -404,6 +460,7 @@ func (s *Service) SetProviderUsed(provider string, used int64) error {
 	if s.store == nil {
 		return fmt.Errorf("遥测未启用，无法修正本地用量")
 	}
+	provider = canonicalQuotaProvider(provider)
 	now := s.clock()
 	if s.TracksSearch(provider) {
 		route := s.routes[provider]
@@ -429,7 +486,7 @@ func (s *Service) SetProviderUsed(provider string, used int64) error {
 			periodStart = start.Unix()
 		}
 	}
-	n, err := s.store.CountProviderCalls(provider, periodStart)
+	n, err := s.countLocalCalls(provider, periodStart)
 	if err != nil {
 		return err
 	}

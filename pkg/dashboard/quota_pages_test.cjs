@@ -73,10 +73,14 @@ test('quota skips appear as skips in sources and call details', () => {
   vm.runInContext(source.slice(0, source.indexOf('// Remove credentials retained')), context);
   const control = vm.runInContext(`configFieldHtml('dashboard.quotas.enforce_providers')`, context);
   assert.match(control, /Search providers paused at the quota limit/);
-  const checklist = vm.runInContext(`orderedConfigHtml('dashboard.quotas.enforce_providers', ['exa','tavily'], ['tavily'], false)`, context);
+  const checklist = vm.runInContext(`orderedConfigHtml('dashboard.quotas.enforce_providers', ['exa','tavily','keenable','yuanbao'], ['tavily'], false)`, context);
   assert.match(checklist, /value="exa">/);
   assert.match(checklist, /value="tavily" checked/);
+  assert.match(checklist, /value="keenable">Keenable</);
+  assert.match(checklist, /value="yuanbao">Yuanbao</);
   assert.doesNotMatch(checklist, /data-order-shift/);
+  const css = fs.readFileSync(path.join(__dirname, 'web', 'app.css'), 'utf8');
+  assert.match(css, /\[hidden\],\.hidden\{display:none!important\}/);
   const row = vm.runInContext(`sourceRowHtml({id:'tavily',category:'api',quota_skip_reason:'Search quota exhausted'}, true)`, context);
   assert.match(row, /tavily|Tavily/);
   assert.match(row, /Search quota exhausted/);

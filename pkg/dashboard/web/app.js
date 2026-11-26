@@ -71,9 +71,9 @@ const ERROR_KINDS = {
 const SYSTEM = { healthy: t('web.status.running_normally'), degraded: t('web.status.partially_degraded'), down: t('web.status.partially_failing'), waiting: t('web.status.awaiting_real_calls') };
 const DOT = { healthy: 'healthy', degraded: 'degraded', down: 'down', unknown: 'unknown' };
 const DISPLAY = {
-  smartsearch: t('web.name.smart_search'), academicsearch: t('web.name.academic_search'), cleanfetch: t('web.name.content_fetch'), pdf_parser: t('web.name.pdf_parsing'), file_search: t('web.name.local_file_search'),
-  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), tavily: 'Tavily', tinyfish: 'TinyFish', exa: 'Exa', doubao: t('web.name.doubao_search'),
-  baidu_web: t('web.name.baidu_web'), bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo',
+  smartsearch: t('web.name.smart_search'), academicsearch: t('web.name.academic_search'), cleanfetch: t('web.name.content_fetch'), pdf_parser: t('web.name.pdf_parsing'), file_search: t('web.name.local_file_search'), search_history: t('web.storage.history'),
+  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), baidu_api: t('web.name.baidu_qianfan'), baidu_ai: t('web.name.baidu_qianfan'), tavily: 'Tavily', tavily_api: 'Tavily', tinyfish: 'TinyFish', tinyfish_api: 'TinyFish', exa: 'Exa', doubao: t('web.name.doubao_search'), keenable: 'Keenable', keenable_api: 'Keenable', yuanbao: t('web.name.yuanbao'), tencent_yuanbao: t('web.name.yuanbao'), mcphub: 'MCPHub',
+  baidu_web: t('web.name.baidu_web'), bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo', wikipedia: 'Wikipedia', googlenews: 'Google News', github: 'GitHub', mojeek: 'Mojeek',
   arxiv: 'arXiv', crossref: 'Crossref', openalex: 'OpenAlex', pubmed: 'PubMed', europepmc: 'Europe PMC',
   dblp: 'DBLP', doaj: 'DOAJ', semantic_scholar: 'Semantic Scholar', google_scholar: 'Google Scholar',
   webfetch: t('web.name.web_fetcher'), jina: 'Jina Reader', pdf_pipeline: t('web.name.pdf_pipeline'),
@@ -544,8 +544,8 @@ function renderMCPTools() {
       : `<small>${t('web.note.no_tool_layer_events_yet')}</small>`;
     const pdf = tool.pdf ? `<small class="pdf-params">${t('web.label.default_pages')} ${esc(tool.pdf.max_pages)} ${t('web.note.page_limit_per_task')} ${esc(tool.pdf.mineru_page_limit)} ${t('web.note.batch_size')} ${esc(tool.pdf.mineru_page_batch_size)} ${t('web.note.call_budget')} ${esc(tool.pdf.mineru_page_budget)} · OCR ${tool.pdf.ocr_enabled ? t('web.label.on') : t('web.label.off_2')}${tool.pdf.page_progress === 'not_collected' ? t('web.note.page_progress_not_collected') : ''}</small>` : '';
     const file = tool.file ? `<small class="pdf-params">${t('web.label.allowlisted_roots')} ${esc(tool.file.allowed_root_count)} · ${tool.file.whitelist_enforced ? t('web.status.allowlist_enforced') : t('web.status.directories_unrestricted')}${tool.file.path_metadata_only ? t('web.note.path_metadata_only') : ''}</small>` : '';
-    const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small>${t('web.note.saved_content_reads_available_url_fetching')}${tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')}</small>` : '';
-    const history = tool.history ? `<small>${esc(t('web.note.history_retention', { days: fmtInt(tool.history.retention_days) }))}</small>` : '';
+    const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small class="pdf-params">${t('web.note.saved_content_reads_available_url_fetching')}${tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')}</small>` : '';
+    const history = tool.history ? `<small class="pdf-params">${esc(t('web.note.history_retention', { days: fmtInt(tool.history.retention_days) }))}</small>` : '';
     return `<div class="tool-row"><span class="tool-head">${dot(dotClass)}` +
       `<b>${esc(tool.label || displayName(tool.name))}</b><small class="mono">${esc(tool.name)}</small></span>` +
       `<span class="tool-state">${esc(stateLabel)}<small class="tool-observation">${esc(observationLabel)}</small></span>` +
