@@ -67,6 +67,7 @@
   "log.mcp.fetch_top_n_fetch_returned_no": "fetch_top_n fetch returned no content: {{.u}}",
   "log.mcp.fetch_top_n_low_quality": "fetch_top_n body failed the quality gate, keeping the snippet: {{.u}} ({{.kind}}, {{.visible_chars}} visible characters)",
   "log.mcp.github_site_specific_api_fetch_failed": "github site-specific API fetch failed ({{.err}}), falling back to the regular fetch chain",
+  "log.mcp.site_specific_api_fetch_failed": "{{.provider}} site-specific API fetch failed ({{.err}}), falling back to the regular fetch chain",
   "log.mcp.jina_reader_enabled": "Jina Reader enabled",
   "log.mcp.llm_streaming_summary_failed_falling_back": "LLM streaming summary failed, falling back to non-streaming summary: {{.sumErr}}",
   "log.mcp.llm_summary_enabled": "LLM summary enabled",
