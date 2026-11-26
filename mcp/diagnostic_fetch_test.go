@@ -25,19 +25,19 @@ func TestManualFetchUsesConfiguredRemoteFirstAndFallsBackOnce(t *testing.T) {
 	origin := &http.Client{Transport: diagnosticTransport(func(r *http.Request) (*http.Response, error) {
 		timeline = append(timeline, r.Method)
 		return diagnosticResponse(r, http.StatusOK, "text/plain",
-			"The library remains open all week. Visitors can check the catalog to find books and research material. Borrowing is available at the main desk."),
+				"The library remains open all week. Visitors can check the catalog to find books and research material. Borrowing is available at the main desk."),
 			nil
 	})}
 	prev := client.DefaultClient
 	client.DefaultClient = resty.NewWithClient(&http.Client{Transport: diagnosticTransport(func(r *http.Request) (*http.Response, error) {
 		timeline = append(timeline, "tinyfish")
-		var request struct { URLs []string }
+		var request struct{ URLs []string }
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.URLs) != 1 {
 			t.Error("provider did not receive exactly one target")
 		}
 		return diagnosticResponse(r, http.StatusTooManyRequests, "application/json", `{"error":"fixture"}`), nil
 	})})
-	t.Cleanup(func(){ client.DefaultClient = prev })
+	t.Cleanup(func() { client.DefaultClient = prev })
 	conf := config.Config{}
 	conf.MCPHub.Enabled = new(false)
 	conf.MCPHub.FetchMode = config.MCPHubFetchPrefer
@@ -56,7 +56,7 @@ func TestManualFetchUsesConfiguredRemoteFirstAndFallsBackOnce(t *testing.T) {
 func diagnosticResponse(r *http.Request, status int, mediaType, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
-		Header: http.Header{"Content-Type": {mediaType}}, Body: io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": {mediaType}}, Body: io.NopCloser(strings.NewReader(body)),
 		Request: r,
 	}
 }

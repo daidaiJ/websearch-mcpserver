@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -403,7 +404,9 @@ func validSettingHost(raw string) bool {
 			return false
 		}
 		for _, c := range strings.ToLower(label) {
-			if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
+			isLetter := c >= 'a' && c <= 'z'
+			isDigit := c >= '0' && c <= '9'
+			if !isLetter && !isDigit && c != '-' {
 				return false
 			}
 		}
@@ -538,7 +541,7 @@ func decodeSettingsDocuments(c config.Config, main, overlay []byte) (config.Conf
 
 func decodeSettingsAtPaths(main, overlay []byte, paths config.SettingsFilePaths) (config.Config, error) {
 	candidate, err := config.DecodeSettingsCandidate(main, overlay, paths)
-	if err == config.ErrSettingsPathsChanged {
+	if errors.Is(err, config.ErrSettingsPathsChanged) {
 		return config.Config{}, err
 	}
 	if err != nil {

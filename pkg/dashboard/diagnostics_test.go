@@ -11,11 +11,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"resty.dev/v3"
 	"websearch/pkg/client"
 	"websearch/pkg/config"
 	"websearch/pkg/search"
 	"websearch/pkg/telemetry"
+
+	"resty.dev/v3"
 )
 
 func TestManualEndpointProbes(t *testing.T) {
