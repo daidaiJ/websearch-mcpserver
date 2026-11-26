@@ -7,6 +7,8 @@
   "tool.result.offset_beyond_end": "offset 超过结果字符数",
   "tool.chain.result_from": "{{.Chain}} · 结果来自 {{.Winner}}",
   "tool.dump.overflow_notice": "搜索结果渲染后共 {{.Results}} 条 / {{.Chars}} 字符，超过内联上限（{{.Limit}} 字符），已整体保存到文件",
+  "tool.dump.ranked_notice": "搜索结果渲染后共 {{.Results}} 条 / {{.Chars}} 字符，超过内联上限（{{.Limit}} 字符）；内联保留 {{.Kept}} 条完整正文、截断 {{.Truncated}} 条，完整结果已保存到文件",
+  "tool.dump.ranked_entry_omitted": "\n\n…（正文已省略以控制内联体积；完整内容见上方 result_ref 与文件路径）",
   "tool.dump.engine_line": "   来源: {{.Engine}}",
   "tool.dump.snippet_line": "   摘录: {{.Snippet}}",
   "tool.dump.file_path": "**文件路径**: `{{.Path}}`",

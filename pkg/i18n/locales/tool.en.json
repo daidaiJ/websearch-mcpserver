@@ -7,6 +7,8 @@
   "tool.result.offset_beyond_end": "offset is past the end of the result",
   "tool.chain.result_from": "{{.Chain}} · result from {{.Winner}}",
   "tool.dump.overflow_notice": "the rendered search results span {{.Results}} items / {{.Chars}} characters and exceed the inline limit ({{.Limit}} characters), so the whole set was saved to a file",
+  "tool.dump.ranked_notice": "the rendered search results span {{.Results}} items / {{.Chars}} characters and exceed the inline limit ({{.Limit}} characters); {{.Kept}} bodies stay inline, {{.Truncated}} are truncated, and the complete set was saved to a file",
+  "tool.dump.ranked_entry_omitted": "\n\n… (body omitted to keep the response within the inline limit; see the result_ref and file path above for the full text)",
   "tool.dump.engine_line": "   source: {{.Engine}}",
   "tool.dump.snippet_line": "   excerpt: {{.Snippet}}",
   "tool.dump.file_path": "**file path**: `{{.Path}}`",
