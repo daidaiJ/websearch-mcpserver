@@ -771,7 +771,8 @@ func TestApipool_Weighted_FreeEngineWeightOne(t *testing.T) {
 		ApipoolProvider{name: "anysearch", engine: ea, pool: poolA},
 		ApipoolProvider{name: "baidu_web", engine: free, pool: nil},
 	)
-	ap.SetWeights(map[string]int{"anysearch": 30000})
+	// 加权选择是随机的，比例需远大于循环次数才能避免偶发命中；1<<30:1 下 500 次误报概率约 5e-7。
+	ap.SetWeights(map[string]int{"anysearch": 1 << 30})
 
 	const total = 500
 	for range total {
@@ -780,7 +781,7 @@ func TestApipool_Weighted_FreeEngineWeightOne(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if results[0].Engine != "anysearch" {
-			t.Fatalf("免费兜底引擎权重 1（30000:1）不应被起始选中，got %s", results[0].Engine)
+			t.Fatalf("免费兜底引擎权重 1（1<<30:1）不应被起始选中，got %s", results[0].Engine)
 		}
 	}
 }
