@@ -38,6 +38,9 @@ func TestDefault(t *testing.T) {
 	if conf.SmartSearch.Enhance == nil || !*conf.SmartSearch.Enhance {
 		t.Error("Default smartsearch.enhance should be true")
 	}
+	if conf.SmartSearch.PrimarySourceBoost == nil || !*conf.SmartSearch.PrimarySourceBoost {
+		t.Error("Default smartsearch.primary_source_boost should be true")
+	}
 	// 失效引擎（被反爬识别）默认禁用
 	if conf.Google.Enabled {
 		t.Error("Default Google should be disabled (anti-bot)")
@@ -90,6 +93,35 @@ func TestLoad_PDFium(t *testing.T) {
 	}
 	if conf.PDFParser.PDFium.Enabled == nil || !*conf.PDFParser.PDFium.Enabled || conf.PDFParser.PDFium.Path != "lib/pdfium.dll" || conf.PDFParser.PDFium.GetMode() != "primary" {
 		t.Fatalf("PDFium config = %+v", conf.PDFParser.PDFium)
+	}
+}
+
+func TestLoad_SmartSearchPrimarySourceBoost(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{"omitted defaults on", "mode: engine\n", true},
+		{"explicit off", "smartsearch:\n  primary_source_boost: false\n", false},
+		{"explicit on", "smartsearch:\n  primary_source_boost: true\n", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			viper.Reset()
+			t.Setenv("WEBSEARCH_CONFIG", "")
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, []byte(tc.yaml), 0644); err != nil {
+				t.Fatal(err)
+			}
+			conf, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := conf.SmartSearch.PrimarySourceBoostEnabled(); got != tc.want {
+				t.Fatalf("PrimarySourceBoostEnabled() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

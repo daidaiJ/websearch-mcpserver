@@ -23,3 +23,23 @@ func TestSmartSearchEngineTimeout(t *testing.T) {
 		}
 	}
 }
+
+// TestSmartSearchPrimarySourceBoostEnabled 一手源加分未配置时默认开启，显式 false 才关闭。
+func TestSmartSearchPrimarySourceBoostEnabled(t *testing.T) {
+	off := false
+	on := true
+	cases := []struct {
+		name string
+		cfg  SmartSearchConfig
+		want bool
+	}{
+		{"unset defaults on", SmartSearchConfig{}, true},
+		{"explicit off", SmartSearchConfig{PrimarySourceBoost: &off}, false},
+		{"explicit on", SmartSearchConfig{PrimarySourceBoost: &on}, true},
+	}
+	for _, tc := range cases {
+		if got := tc.cfg.PrimarySourceBoostEnabled(); got != tc.want {
+			t.Errorf("%s: PrimarySourceBoostEnabled() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

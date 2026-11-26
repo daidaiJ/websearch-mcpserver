@@ -35,6 +35,38 @@ func (m *mockEngine) MergeContent(query string, results []core.SearchResult) (st
 	return "", nil
 }
 
+// TestHybridPrimarySourceBoostToggle 验证配置开关经 HybridSearchImpl 传入评分流水线：
+// 开启时数据/统计意图的官方一手源得分高于关闭时。
+func TestHybridPrimarySourceBoostToggle(t *testing.T) {
+	const (
+		query    = "2024 中国 GDP 数据"
+		statsURL = "https://www.stats.gov.cn/sj/zxfb/"
+	)
+	engine := &mockEngine{name: "bing", results: []core.SearchResult{
+		{Title: "2024 年中国 GDP 数据", Url: statsURL, Content: "2024 年中国 GDP 数据 统计公报"},
+		{Title: "2024 GDP data overview", Url: "https://example.com/gdp", Content: "2024 GDP data overview"},
+	}}
+	statsScore := func(primarySourceBoost bool) float64 {
+		h := NewHybridSearch(engine)
+		h.SetEnhance(true, 0.0001)
+		h.SetPrimarySourceBoost(primarySourceBoost)
+		results, err := h.SearchRaw(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range results {
+			if r.Url == statsURL {
+				return r.Score
+			}
+		}
+		t.Fatalf("stats result missing from %v", results)
+		return 0
+	}
+	if on, off := statsScore(true), statsScore(false); on <= off {
+		t.Fatalf("primary-source boost should raise the official source score: enabled=%v disabled=%v", on, off)
+	}
+}
+
 // ── SortByScore ─────────────────────────────────────────────────────────────
 
 func TestSortByScore(t *testing.T) {
