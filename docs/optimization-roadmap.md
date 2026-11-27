@@ -12,6 +12,12 @@
   `pkg/llm/llm.go` 的 `ChatRequest` 只有 Model/Messages/Stream，无 `max_tokens`、温度透传；摘要 prompt 拼入结果的长度控制未见配置项。
   方向：配置项 + prompt 截断预算，减少快速供应商下的无谓 token 开销。配置变更须同步两份 `config.example.yaml` 与 docs。
 
+### 存储层性能验证
+
+- [ ] **S1. 评估 `liustack/sqlite` 替代 `modernc.org/sqlite`（待定，未实施）**
+  当前搜索缓存、遥测与守卫回放均使用 `modernc.org/sqlite v1.48.1`（纯 Go）。候选 `github.com/liustack/sqlite` v0.1.8 为 CGO-free 的 SQLite Go 汇编实现，上游基准声称点查、批量读和并发写明显快于 modernc；本项目需在真实 schema 与查询上验证是否有可感知收益，并核对 v0.1 API 稳定性、跨平台构建、DSN/错误语义与供应链风险。
+  评估方案、验收阈值与回退条件见 [sqlite-driver-evaluation.md](sqlite-driver-evaluation.md)。
+
 ### MCP 生态跟进
 
 - [ ] **E1. go-sdk v1.7.0 → v1.8.0（2026-07-28 新 spec：stateless core / extensions / elicitation / sampling / tasks）**
