@@ -97,7 +97,7 @@
 ### Performance
 
 - **Quota admission hot path**: providers outside `enforce_providers` no longer write a SQLite reservation before every search; stale official snapshots refresh in the background and search reads an in-memory cache. Microbenchmarks: with a stale official snapshot and a 200ms upstream, `AdmitSearch` dropped from 201.3 ms/op to 0.179 ms/op; with enforcement off but historical `search_quota` rows present, it dropped from 174.5 µs/op to 20.3 ns/op.
-- **`no_ui` binary size**: removing embedded frontend assets took the release binary from 29,316,096 bytes to 28,513,280 bytes (-802,816 bytes, about 2.7%); process startup stayed within measurement noise (34.1ms vs 34.7ms).
+- **`no_ui` binary size**: removing embedded frontend assets took the v3.11.0 release binary from 29,387,264 bytes to 28,584,960 bytes (-802,304 bytes, about 2.7%); process startup stayed within measurement noise (34.1ms vs 34.7ms).
 - **Dashboard i18n first render**: `web.*` no longer enters the backend bundle; first translation load dropped from 7.1ms/4.07MB to 4.2ms/2.37MB.
 
 ### Removed
