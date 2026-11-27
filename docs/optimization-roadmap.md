@@ -43,3 +43,4 @@
 
 - 竞品对比（braintrust.dev 2026-09）：Parallel / You.com / Exa / TinyFish / Firecrawl / Brave Search API / Tavily——均为 API Key 商业服务；本项目的零 Key + 反检测 + 本地文件检索（Everything）是差异位，不建议追功能广度。
 - MCP 2026-07-28 spec 已由 Cloudflare MCP v2、GitHub MCP Server 跟进落地；go-sdk v1.8.0 对应就绪。
+- nogon 设计借鉴（2026-11）：MCP 不可信内容边界、能力 schema、抽取器链、分页游标、契约测试/doctor/端点注册表，详见 [nogon-improvement-proposals.md](nogon-improvement-proposals.md)。
