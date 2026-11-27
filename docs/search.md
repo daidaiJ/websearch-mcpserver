@@ -340,6 +340,8 @@ mcp_hub:
 | `include_domains` | string[] | ❌ | 只保留这些域名（含子域）的 web 结果，最多 20 条；`example.com`、`www.example.com`、`*.example.com` 与完整 URL 都按 host 归一化。为空表示不设白名单；与 `exclude_domains` 冲突时排除优先。过滤在正文抓取与结果截断前执行 |
 | `exclude_domains` | string[] | ❌ | 排除这些域名（含子域）的 web 结果，最多 20 条；写法同 `include_domains`。优先级高于白名单，被排除的结果不参与 `fetch_top_n` 抓取。仅作用于 web 来源 |
 
+同时选择网页和学术来源时，两路并行检索，按网页、学术的顺序展示结果。一方失败时返回另一方的结果，并附上失败原因。两方都失败时，该查询返回错误。学术引擎部分失败时仍返回已找到的论文，下次相同查询会重新检索，以便补回恢复的来源。
+
 `depth`、`max_chars` 与 `fetch_top_n` 只塑造 web 分节的正文。只请求 `sources: ["academic"]` 时，显式传这三个参数会返回错误，避免参数被静默忽略；混合请求时学术分节按自身默认返回。`include_domains` / `exclude_domains` 同样只作用于 web 来源，只请求 academic 时传它们会返回错误。
 
 **域名过滤语义**：按结果 URL 的 host 做后缀匹配，`example.com` 覆盖其全部子域，`www.` 前缀与大小写不敏感；`exclude_domains` 与白名单冲突时排除优先。过滤在引擎结果合并后、单引擎 `max_size` 截断与 `fetch_top_n` 抓取之前执行——hybrid 编排层在 per-engine maxsize 前按请求级 context 过滤，白名单命中但排名靠后的结果不会被提前截掉，被排除的 URL 也不会浪费抓取预算。缓存键包含两组归一化名单，不同过滤条件互不复用；名单顺序不影响缓存键与匹配结果。
