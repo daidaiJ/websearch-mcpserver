@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
 	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
@@ -78,6 +79,9 @@ func (a *BingSearchAdapter) doSearch(ctx context.Context, query string) ([]core.
 	var all []antirobot.Result
 	for _, resp := range responses {
 		if resp.Error != "" {
+			if admission.IsDiagnostic(ctx) {
+				return nil, errors.New(resp.Error)
+			}
 			continue
 		}
 		all = append(all, resp.Results...)

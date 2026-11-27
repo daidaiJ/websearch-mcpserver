@@ -7,10 +7,14 @@
 #
 # 安全模型：
 #   - 访问：默认仅本机 loopback；allowed_networks 只授予读取，不授权写入。
-#   - 写操作（设置/密钥/重启/清缓存/额度管理）：默认仅本机；
-#     write_allowed_networks 可独立放行指定来源，所有写入仍需管理员口令。
-#   - admin_password 只能在这里手改，WebUI 无法读取或修改它；
-#     未配置口令 = 所有写端点禁用（安全的默认）。
+#   - 操作来源默认仅本机，write_allowed_networks 可独立放行指定来源。
+#   - 免密范围：路由冷却解除、官方额度强刷、清搜索缓存/历史/临时抓取文件、
+#     Everything 重探、代理检查、单源试搜和单 URL 试抓。直接调用只需操作来源许可，
+#     浏览器跨站请求会被拒绝。
+#     可能消耗供应商额度的诊断仍须确认。
+#   - 设置保存/备份恢复、密钥、重启、额度重置/修正、查看 Everything 完整索引范围
+#     须通过读取和操作来源校验，并提供管理员口令。
+#     admin_password 只能在这里手改，WebUI 无法读取或修改。未配置时禁用验密操作。
 
 dashboard:
   enabled: true
@@ -32,17 +36,21 @@ dashboard:
   allowed_networks: []
   write_allowed_networks: []
   # Docker 固定发布 -p 127.0.0.1:8338:8338，按服务端实测请求来源放行网关单地址 /32。
-  # 以下仅示意，不能照抄或扩大至整个 bridge 子网；写入仍须配置管理员口令。
+  # 以下仅示意，不能照抄或扩大至整个 bridge 子网；验密操作还须配置管理员口令。
   # allowed_networks: ["172.17.0.1/32"]
   # write_allowed_networks: ["172.17.0.1/32"]
   # 独立 overlay 显式 [] 可清空主配置中的写白名单。
 
   # 源开关、模式和工具参数住主 config.yaml；WebUI 源管理生成草稿，保存并重启后核对生效。
+  # 有独立 dashboard.yaml 时，控制台将额度、告警、项目映射、保留天数与品牌默认值写回本文件。
+  # 保存前可查看与主配置共用的草稿，写入前自动备份涉及的每个文件。
   # suspension 是被动观测警示；实际 DDG/arXiv 等冷却独立来自路由层，不由此配置修改。
 
   # 额度管理：本地真实调用计数（成功次数），自动按周期重置；
-  # 注意上限仅展示与剩余量计算，超限不阻断调用（超限熔断为计划中 TODO）
+  # 默认仅展示。可把指定的有 Key 搜索供应商加入 enforce_providers，达到上限后切换来源。
+  # Tavily / TinyFish 优先展示官方用量；本块设置本地计数和官方查询失败时的回退口径。
   quotas:
+    enforce_providers: [] # 可选 anysearch/baidu/doubao/exa/keenable/tavily/tinyfish/yuanbao
     reset: monthly        # monthly / weekly / daily / none（仅手动重置）
     reset_day: 1          # monthly 的每月重置日（1-28）
     limits:               # 每供应商单 Key 上限（次/周期），未配置的用默认 1000；多把 Key 时展示上限自动乘以 Key 数
@@ -50,7 +58,7 @@ dashboard:
       exa: 1000
       anysearch: 1000
       doubao: 1000
-      yuanbao: 2000       # 对齐元宝每月免费额度；实际拦截以 yuanbao.monthly_limit 为准
+      yuanbao: 2000       # 启用时与 yuanbao.monthly_limit 同时执行，择严
 
   # 品牌呈现（更开放：自托管可打自己的牌子）
   brand:

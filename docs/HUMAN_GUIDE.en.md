@@ -109,7 +109,7 @@ All parameters and defaults: [configuration.en.md](configuration.en.md); scoring
 | No results or frequent rate limiting | Config: `rate_limit` or upstream limits | Defaults 3/s, 60/min; DDG / arXiv have built-in clamps — do not loosen; 429s trigger automatic cooldown |
 | Port already in use | Environment | `./websearch-mcpserver status` to check if already running; `kill` then restart |
 | Stale results | Cache: SQLite cache expires after 6h | Delete the `cache.storage_path` file and restart if urgent |
-| Docker container exits immediately / dashboard settings 403 | Deployment | Make sure `config.yaml` is mounted; over bridge networking the dashboard is read-only (writes require a loopback origin) |
+| Docker container exits immediately / dashboard settings 403 | Deployment | Make sure `config.yaml` is mounted; verify the connection source against `write_allowed_networks` and check the admin password |
 | Process still alive after `stop` | Normal: graceful exit waits up to 10s | Use `kill` if it persists |
 
 **General principle**: check the dashboard "Search Sources" page or `curl /__admin/api/providers` first to identify which source and failure class (rate limit / captcha / timeout / parse), then match the table above — separate environment problems (blocking / ports / corrupted transfers) from usage errors (config / parameters), consult the table before reinstalling anything.
@@ -119,6 +119,6 @@ All parameters and defaults: [configuration.en.md](configuration.en.md); scoring
 - **Listens on `127.0.0.1` only by default**; when binding a public interface (`host: 0.0.0.0`) set `auth_token` to protect business endpoints.
 - **Search, scoring, and caching all happen locally**: queries go only to the search engines themselves, never through any third-party aggregation service.
 - **Keys are never echoed**: dashboard pages and APIs never return raw key values; telemetry stores only sanitized metadata (query hash / topic / keywords), full queries and URLs never hit the database.
-- **Writes are gated by a password**: dashboard writes (settings / restart / cache clear) require localhost + the admin password (configurable only in `dashboard.yaml`, which the WebUI itself cannot read or modify).
+- **Runtime and administrative operations have separate access rules.** The source defaults to loopback, and `write_allowed_networks` can allow explicit peers. Listed operations such as cache clear, routing cooldown release, official quota refresh, and manual diagnostics are password-free. Cross-site browser requests are rejected, and diagnostics that may consume quota require confirmation. Settings, keys, restarts, backup restores, and quota resets or adjustments still require admin credentials.
 
 All dashboard settings and boundaries: [dashboard.en.md](dashboard.en.md).

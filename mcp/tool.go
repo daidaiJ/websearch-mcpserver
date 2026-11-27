@@ -174,6 +174,45 @@ func recentAttemptChain(started time.Time, limit int) string {
 	return i18n.T("tool.chain.result_from", "Chain", strings.Join(attempted, "→"), "Winner", winner)
 }
 
+// webAttemptChain presents only evidence carrying the current search request ID.
+func webAttemptChain(ctx context.Context, limit int) string {
+	store, requestID := telemetry.Default(), telemetry.RequestID(ctx)
+	if store == nil || requestID == "" {
+		return ""
+	}
+	events, err := store.RequestEvents(requestID)
+	if err != nil {
+		return ""
+	}
+	var chain []string
+	winner := ""
+	seen := map[string]bool{}
+	for _, event := range events {
+		name := event.Provider
+		if name == "" {
+			continue
+		}
+		switch event.Kind {
+		case telemetry.QuotaSkipEvent:
+			name = i18n.T("tool.chain.skipped", "Provider", name)
+		case "provider":
+			if event.Success {
+				winner = name
+			}
+		default:
+			continue
+		}
+		if !seen[name] && len(chain) < limit {
+			seen[name] = true
+			chain = append(chain, name)
+		}
+	}
+	if len(chain) == 0 || winner == "" {
+		return strings.Join(chain, "→")
+	}
+	return i18n.T("tool.chain.result_from", "Chain", strings.Join(chain, "→"), "Winner", winner)
+}
+
 func withinCall(occurredAt string, started time.Time) bool {
 	if occurredAt == "" {
 		return true
@@ -183,6 +222,29 @@ func withinCall(occurredAt string, started time.Time) bool {
 		return true
 	}
 	return !parsed.Before(started.Add(-2 * time.Second))
+}
+
+// CloseRuntimeResources releases the MCP components after HTTP requests have drained.
+func CloseRuntimeResources() error {
+	webfetchMu.Lock()
+	fetcher := webfetchInst
+	webfetchInst, webfetchLazyCfg = nil, nil
+	webfetchMu.Unlock()
+
+	var err error
+	if fetcher != nil {
+		err = fetcher.Close()
+	}
+	if cacheInst != nil {
+		err = errors.Join(err, cacheInst.Close())
+		cacheInst = nil
+		cacheNamespace = ""
+	}
+	if historyInst != nil {
+		historyInst.Close()
+		historyInst = nil
+	}
+	return err
 }
 
 func GetCache() *cache.Cache {

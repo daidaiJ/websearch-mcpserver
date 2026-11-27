@@ -15,6 +15,7 @@ import (
 	"websearch/pkg/client"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/search/core"
 )
 
@@ -150,9 +151,6 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 	if query == "" {
 		return nil, errors.New(i18n.T("provider.yuanbao.query_empty"))
 	}
-	if ok, used := y.budget.Allow(time.Now()); !ok {
-		return nil, errors.New(i18n.T("provider.yuanbao.monthly_limit_reached", "Used", used, "Limit", y.budget.limit))
-	}
 
 	req := yuanbaoSearchRequest{
 		Query:     query,
@@ -163,18 +161,27 @@ func (y *YuanbaoSearchImpl) search(ctx context.Context, query, freshness string)
 		Freshness: freshness,
 	}
 
-	key, ok := y.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(y.name)
+	ctx, key, finish, err := y.keys.searchKey(ctx, y.name, query)
+	if err != nil {
+		return nil, err
+	}
+	if ok, used := y.budget.Allow(time.Now()); !ok {
+		finish(false)
+		if guard := y.keys.searchQuota; guard != nil && guard.service.SearchEnforced(guard.provider) {
+			guard.service.NoteYuanbaoLimit()
+			y.keys.recordQuotaSkip(ctx, query, quota.SkipYuanbaoLimit)
+			return nil, &quota.SkipError{Reason: quota.SkipYuanbaoLimit}
+		}
+		return nil, errors.New(i18n.T("provider.yuanbao.monthly_limit_reached", "Used", used, "Limit", y.budget.limit))
 	}
 	var resp yuanbaoSearchResponse
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetHeader("Content-Type", "application/json; charset=utf-8").
 		SetBody(req).
 		SetResult(&resp).
 		Post(y.endpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.yuanbao.call_failed"), err))
@@ -348,9 +355,24 @@ type yuanbaoBudget struct {
 	persistOK bool
 }
 
+// The same runtime state file can serve a production adapter and a manual
+// one-shot adapter simultaneously. Share its budget and lock in-process.
+var yuanbaoBudgets sync.Map
+
 func newYuanbaoBudget(limit int, statePath string) *yuanbaoBudget {
-	b := &yuanbaoBudget{limit: limit, statePath: strings.TrimSpace(statePath), persistOK: true}
+	path := strings.TrimSpace(statePath)
+	if path != "" {
+		path = filepath.Clean(path)
+		if existing, ok := yuanbaoBudgets.Load(path); ok {
+			return existing.(*yuanbaoBudget)
+		}
+	}
+	b := &yuanbaoBudget{limit: limit, statePath: path, persistOK: true}
 	b.load(time.Now())
+	if path != "" {
+		existing, _ := yuanbaoBudgets.LoadOrStore(path, b)
+		return existing.(*yuanbaoBudget)
+	}
 	return b
 }
 

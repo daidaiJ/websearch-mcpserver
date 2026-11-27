@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -41,6 +43,10 @@ func (e *dblpEngine) Name() string                    { return "dblp" }
 func (e *dblpEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *dblpEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *dblpEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	offset := (page - 1) * 10
 	if offset < 0 {
 		offset = 0
@@ -48,7 +54,9 @@ func (e *dblpEngine) Search(query string, page int, timeRange antirobot.TimeRang
 
 	// 限流等待
 	for !e.limiter.Allow() {
-		time.Sleep(500 * time.Millisecond)
+		if err := antirobot.SleepCtx(ctx, 500*time.Millisecond); err != nil {
+			return nil, err
+		}
 	}
 
 	params := url.Values{
@@ -64,13 +72,13 @@ func (e *dblpEngine) Search(query string, page int, timeRange antirobot.TimeRang
 
 	u := dblpPath + "?" + params.Encode()
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "websearch/1.0")
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("dblp request: %w", err)
 	}

@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 	"websearch/pkg/i18n"
 
 	"github.com/PuerkitoBio/goquery"
@@ -32,7 +34,7 @@ type ddgEngine struct {
 	backoff       time.Duration
 	consecFails   int
 	cooldown      time.Duration // 连续 202 自适应冷却（成功后清零，下次从 ddgRateCooldown 重新开始）
-	cooldownUntil time.Time     // 冷却期截止时间，期间不打上游
+	routeCooldown antirobot.RouteCooldown
 
 	// 状态代次：每次进入冷却或记录失败递增。请求开始时取快照，成功路径只在
 	// 「本次请求期间没有并发请求改写该状态」时清理，避免一次成功清空并发建立的冷却。
@@ -138,6 +140,9 @@ func (e *ddgEngine) SearchContext(ctx context.Context, query string, page int, t
 
 	// 202 软限流 / 429：预算内等待重试一次，注定超时才放弃进冷却
 	if status == http.StatusAccepted || status == http.StatusTooManyRequests {
+		if admission.IsDiagnostic(ctx) {
+			return nil, fmt.Errorf("HTTP %d", status)
+		}
 		return e.handleRateLimited(ctx, start, retryAfter, query, page, timeRange, gen)
 	}
 
@@ -174,7 +179,9 @@ func (e *ddgEngine) finishOK(ctx context.Context, body []byte, gen uint64) (*ant
 		return nil, fmt.Errorf("no results container found, possibly blocked")
 	}
 
-	e.recordSuccessIfLive(ctx, gen)
+	if !admission.IsDiagnostic(ctx) {
+		e.recordSuccessIfLive(ctx, gen)
+	}
 	results := e.parseResults(html)
 
 	if len(e.opts.Blocked) > 0 {
@@ -200,7 +207,7 @@ func (e *ddgEngine) post(ctx context.Context, query string, page int, timeRange 
 	sess := e.takeSession()
 	e.setHeaders(req, sess.ua)
 
-	resp, err := sess.client.Do(req)
+	resp, err := webclient.Do(sess.client, req)
 	if err != nil {
 		return 0, 0, nil, err
 	}
@@ -343,14 +350,12 @@ func (e *ddgEngine) recordSuccess(since uint64) {
 	unchanged := e.stateEpoch == since
 	if unchanged {
 		e.cooldown = 0
-		e.cooldownUntil = time.Time{}
+		e.routeCooldown = antirobot.RouteCooldown{}
 		e.backoff = 0
 		e.consecFails = 0
-	}
-	e.mu.Unlock()
-	if unchanged {
 		antirobot.ClearCooldown(e.Name())
 	}
+	e.mu.Unlock()
 }
 
 // enterCooldown 进入冷却：时长由 cooldownDuration 计算，冷却期内不打上游。
@@ -361,25 +366,15 @@ func (e *ddgEngine) enterCooldown(retryAfter time.Duration) {
 	cd := e.nextCooldownLocked(retryAfter)
 	until := time.Now().Add(cd)
 	e.cooldown = cd
-	e.cooldownUntil = until
 	e.stateEpoch++
+	e.routeCooldown = antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_202_429"), until, cd)
 	e.mu.Unlock()
-	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_202_429"), until, cd)
 }
 
 // adoptPersistedCooldown 收养上一次进程落盘的冷却：未过期则继续避让至截止时间，
 // 已过期仅续接翻倍档位（升级记忆跨进程存活），避免重启后从头试探已被限流的引擎。
 func (e *ddgEngine) adoptPersistedCooldown() {
-	until, cd, ok := antirobot.AdoptCooldown(e.Name())
-	if !ok {
-		return
-	}
-	e.mu.Lock()
-	e.cooldown = cd
-	if !until.IsZero() {
-		e.cooldownUntil = until
-	}
-	e.mu.Unlock()
+	e.routeCooldown, e.cooldown = antirobot.AdoptRouteCooldown(e.Name())
 }
 
 // cooldownDuration 计算本次冷却时长：连续限流翻倍（上限 ddgRateCooldownMax）；
@@ -400,10 +395,7 @@ func (e *ddgEngine) nextCooldownLocked(retryAfter time.Duration) time.Duration {
 func (e *ddgEngine) cooldownRemaining() time.Duration {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if d := time.Until(e.cooldownUntil); d > 0 {
-		return d
-	}
-	return 0
+	return e.routeCooldown.Remaining()
 }
 
 // parseRetryAfter 解析 Retry-After 头：共享实现见 antirobot.ParseRetryAfter。

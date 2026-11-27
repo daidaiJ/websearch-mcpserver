@@ -97,8 +97,7 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 		MaxResults: a.numResults,
 	}
 	var resp anysearchSearchResp
-	call := client.DefaultClient.R().
-		SetContext(ctx).
+	call := client.Request(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(req).
 		SetResult(&resp)
@@ -106,11 +105,14 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 	// 认证头按 KeyPool 有无分流：有 Key 走轮转并包装 KeyError（按类处置）；
 	// 匿名档省略 Authorization 头（带空 Bearer 会被上游拒绝），限流钳制前置
 	var key string
+	finish := func(bool) {}
 	if a.keys != nil {
-		var ok bool
-		if key, ok = a.keys.NextUsable(); !ok {
-			return nil, NoKeyError(a.name)
+		requestCtx, selectedKey, release, err := a.keys.searchKey(ctx, a.name, query)
+		if err != nil {
+			return nil, err
 		}
+		key, finish = selectedKey, release
+		call.SetContext(requestCtx)
 		call = call.SetHeader("Authorization", fmt.Sprintf("Bearer %s", key))
 	} else if !a.anonLimiter.Allow() {
 		perSec, perMin := a.anonLimiter.Limits()
@@ -118,6 +120,7 @@ func (a *AnysearchSearchImpl) search(ctx context.Context, query string) ([]core.
 	}
 
 	res, err := call.Post(a.endpoint)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		if a.keys == nil {
 			return nil, fmt.Errorf("%s: %w", i18n.T("provider.anysearch.call_failed"), err)

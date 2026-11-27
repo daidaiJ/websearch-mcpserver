@@ -10,6 +10,7 @@ function element(selector) {
   const classes = new Set();
   if (!elements.has(selector)) elements.set(selector, {
     textContent: '', innerHTML: '', value: '', disabled: false, style: {},
+    querySelectorAll: () => [],
     classList: {
       toggle(name, force) { if (force === undefined ? !classes.has(name) : force) classes.add(name); else classes.delete(name); },
       add(name) { classes.add(name); }, remove(name) { classes.delete(name); }, contains(name) { return classes.has(name); },
@@ -21,7 +22,7 @@ function element(selector) {
 }
 let now = 0;
 const context = vm.createContext({
-  console, AbortSignal,
+  console, AbortSignal, URL,
   // 前端文案词典由服务端内联注入；测试按 zh 目录注入，与真实渲染同口径。
   window: {__I18N__: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'i18n', 'locales', 'web.zh.json'), 'utf8'))},
   document: {
@@ -36,6 +37,8 @@ assert.ok(modeEscapeListener, 'document Escape must dismiss pure hover tooltips 
 assert.doesNotMatch(source, /button\.addEventListener\('keydown'/, 'mode dismissal must not depend on button focus');
 assert.doesNotMatch(modeEscapeListener[0], /preventDefault|stopPropagation/, 'tooltip dismissal must not intercept modal key handling');
 const html = fs.readFileSync(path.join(__dirname, 'web', 'index.html'), 'utf8');
+assert.deepEqual(Array.from(html.matchAll(/data-page="([^"]+)"/g), match => match[1]), ['overview','sources','tools','usage','settings']);
+assert.match(html, /id="page-tools"[\s\S]+id="save-tools"/);
 const settingsPage = html.match(/<section id="page-settings"[\s\S]*?<\/section>/)[0];
 for (const id of ['apply-note', 'apply-recovery', 'retry-apply', 'backup-select', 'restore-backup']) {
   assert.equal((html.match(new RegExp('id="' + id + '"', 'g')) || []).length, 1, id + ' must have one entry');
@@ -43,15 +46,13 @@ for (const id of ['apply-note', 'apply-recovery', 'retry-apply', 'backup-select'
 }
 assert.match(settingsPage, /外观与维护[\s\S]*配置恢复[\s\S]*id="restore-backup"/);
 const sourcesPage = html.match(/<section id="page-sources"[\s\S]*?<\/section>/)[0];
-assert.doesNotMatch(sourcesPage, /运行 \/ 条件|参与运行|未参与/, 'source controls must not duplicate runtime participation');
-assert.equal((sourcesPage.match(/<th data-i18n="web.label.enabled">启用<\/th>/g) || []).length, 3);
-assert.equal((sourcesPage.match(/<th data-i18n="web.label.last_20">最近 20 次<\/th>/g) || []).length, 3);
-assert.equal((sourcesPage.match(/<th(?:\s|>)/g) || []).length, 24);
-assert.doesNotMatch(sourcesPage, /实际冷却|失败构成|成功 \/ 失败|P95|最近观测|<th>额度/);
+assert.equal((sourcesPage.match(/<th data-i18n="web.label.enabled">启用<\/th>/g) || []).length, 4);
+assert.equal((sourcesPage.match(/<th data-i18n="web.label.last_20">最近 20 次<\/th>/g) || []).length, 4);
+assert.equal((sourcesPage.match(/<th(?:\s|>)/g) || []).length, 33);
 assert.doesNotMatch(html, /bootstrap-switch|cdn\.|unpkg|jsdelivr/i);
 const modeInputs = Array.from(html.matchAll(/<input type="radio" name="mode" value="([^"]+)" data-key="mode">/g), match => match[1]);
 assert.deepEqual(modeInputs,
-  ['hybrid', 'engine', 'apipool']);
+  ['hybrid', 'engine', 'apipool', 'mcphub']);
 for (const mode of modeInputs) {
   assert.match(html, new RegExp('value="' + mode + '" data-key="mode"><span>' + mode + '</span>'));
   assert.match(html, new RegExp('aria-label="' + mode + ' 模式说明" aria-describedby="mode-note-' + mode + '"'));
@@ -75,11 +76,10 @@ assert.match(html, /value="provider" id="mode-single"><span data-i18n="web.statu
 const providerOptions = Array.from(html.match(/id="mode-provider">([\s\S]*?)<\/select>/)[1].matchAll(/value="([^"]+)"/g), match => match[1]);
 assert.deepEqual(providerOptions, ['baidu', 'tavily', 'exa', 'anysearch', 'doubao', 'yuanbao']);
 assert.doesNotMatch(html, /data-key="doubao\.(version|icp_host_only)"/, 'Doubao parameters must not remain on Settings');
-assert.match(source, /data-source-setting="\$\{key\}" aria-label="\$\{t\('web.label.doubao_api_version'\)\}"/);
-assert.match(source, /detailed && id === 'doubao' \? doubaoVersionControl\(\)/, 'version control belongs to the Doubao source row only');
+assert.doesNotMatch(html, /data-key=\"everything\.roots\"/);
 const settingsColumns = html.slice(html.indexOf('<section id="page-settings"')).split('<div class="settings-column">').slice(1);
 assert.equal(settingsColumns.length, 2);
-assert.match(settingsColumns[0], /常用设置[\s\S]*外观与维护/);
+assert.match(settingsColumns[0], /搜索路由[\s\S]*外观与维护/);
 assert.doesNotMatch(settingsColumns[0], /CREDENTIALS|QUOTAS/);
 assert.match(settingsColumns[1], /API Key 状态[\s\S]*额度管理/);
 vm.runInContext(source.slice(0, source.indexOf('// Remove credentials retained')), context);
@@ -91,11 +91,84 @@ function settings() {
     saved_values: { 'bing.enabled': false, 'academic.disable_arxiv': false },
     revision: 'r1', write_access: { allowed: true }, admin_password_configured: true,
     secrets: {}, pending_changes: {}, locked_fields: {}, backups: []
-  }; state.settingsError = null; state.draft = {}; state.draftBefore = {}; state.settingsDirty = false; state.saving = false; state.applying = false;`);
+  }; state.settingsError = null; state.invalidDraft = {}; state.draft = {}; state.draftBefore = {}; state.settingsDirty = false; state.saving = false; state.applying = false;`);
 }
 
 (async () => {
   settings();
+  const secretDialog = element('#secret-dialog');
+  secretDialog.showModal = () => {};
+  secretDialog.addEventListener = (type, callback) => { secretDialog[type] = callback; };
+  run(`state.settings.credential_status = {
+    credentials: {
+      GITHUB_TOKEN: { configured: true, count: 2, sources: ['config', 'env'], multi: true,
+        slots: [{id:'opaque-1',source:'config',label:'<primary>'},{id:'opaque-2',source:'env'}] },
+      WEBSEARCH_TOKEN: { configured: true, count: 1, sources: ['env'], read_only: true }
+    },
+    pending_restart: false, revision: 'cred-r1'
+  }; renderSettingsForm();`);
+  const credentials = element('#secret-list').innerHTML;
+  assert.match(credentials, /GITHUB_TOKEN[\s\S]*?2[\s\S]*?config[\s\S]*?env/);
+  assert.match(credentials, /href="https:\/\/github\.com\/settings\/tokens"/);
+  assert.match(credentials, /WEBSEARCH_TOKEN[\s\S]*?只读/);
+  assert.doesNotMatch(credentials, /data-secret="WEBSEARCH_TOKEN"/);
+  run(`state.settings.credential_error = 'Private file unavailable'; renderSettingsForm();`);
+  assert.equal(element('#secret-note').textContent, 'Private file unavailable');
+  assert.match(element('#secret-list').innerHTML, /data-secret="GITHUB_TOKEN"[^>]* disabled/);
+  run(`delete state.settings.credential_error; renderSettingsForm();`);
+  run(`globalThis.secretPosts = []; globalThis.savedPost = postJSON; globalThis.savedLoad = loadSettings;
+    globalThis.savedConfirm = confirmDialog; globalThis.savedRestart = restartAndVerify;
+    postJSON = async (url, payload, headers) => {
+      secretPosts.push({url, payload: {...payload}, headers});
+      return {before_count:2, after_count:3, applied:payload.confirm, backup:payload.confirm, restart_required:true, revision:'cred-r1'};
+    };
+    confirmDialog = async (title, copy, diff) => { globalThis.credentialDiff = diff; return true; };
+    restartAndVerify = async () => { globalThis.credentialRestarted = true; };
+    loadSettings = async () => {};`);
+  run("editSecret('GITHUB_TOKEN')");
+  assert.match(element('#secret-dialog-slot').innerHTML, /opaque-1[^>]*>[^<]*&lt;primary&gt;/);
+  assert.doesNotMatch(element('#secret-dialog-slot').innerHTML, />[^<]*opaque-1/);
+  element('#secret-dialog-input').value = 'fixture-value';
+  element('#secret-dialog-pass').value = 'fixture-admin';
+  secretDialog.returnValue = 'confirm';
+  await secretDialog.close();
+  assert.equal(run("secretPosts[0].url"), '/__admin/api/secrets');
+  assert.equal(run("secretPosts[0].headers['X-Admin-Password']"), 'fixture-admin');
+  assert.equal(run("secretPosts[0].payload.confirm"), false);
+  assert.equal(run("secretPosts[1].payload.confirm"), true);
+  assert.equal(run("secretPosts[1].payload.revision"), 'cred-r1');
+  assert.equal(run("secretPosts[1].payload.name"), 'GITHUB_TOKEN');
+  assert.equal(run("secretPosts[1].payload.action"), 'append');
+  assert.equal(run("secretPosts[1].payload.value"), 'fixture-value');
+  assert.equal(element('#secret-dialog-input').value, '');
+  assert.match(run('credentialDiff'), /追加[\s\S]*2 → 3/);
+  assert.doesNotMatch(run('credentialDiff'), /fixture-value|fixture-admin|opaque-1/);
+  assert.equal(run('credentialRestarted'), true);
+  for (const [action, slotID] of [['delete', 'opaque-2'], ['label', 'opaque-1'], ['clear', ''], ['reset', '']]) {
+    run("editSecret('GITHUB_TOKEN')");
+    const control = element('#secret-dialog-action');
+    assert.match(control.innerHTML, new RegExp('value="' + action + '"'));
+    control.value = action;
+    element('#secret-dialog-slot').value = slotID;
+    control.onchange();
+    if (action === 'label') element('#secret-dialog-label').value = 'Spare';
+    element('#secret-dialog-pass').value = 'fixture-admin';
+    secretDialog.returnValue = 'confirm';
+    await secretDialog.close();
+    assert.equal(run('secretPosts.at(-1).payload.action'), action);
+    assert.equal(run('secretPosts.at(-1).payload.slot_id'), slotID || undefined);
+    assert.equal(run('secretPosts.at(-1).payload.value'), undefined);
+    assert.equal(run('secretPosts.at(-1).payload.label'), action === 'label' ? 'Spare' : undefined);
+  }
+  run(`confirmDialog = async () => false; editSecret('GITHUB_TOKEN');`);
+  element('#secret-dialog-input').value = 'unsaved-fixture-value';
+  element('#secret-dialog-pass').value = 'fixture-admin';
+  secretDialog.returnValue = 'confirm';
+  await secretDialog.close();
+  assert.equal(run('secretPosts.at(-1).payload.confirm'), false);
+  assert.equal(element('#secret-dialog-input').value, '');
+  assert.equal(element('#secret-dialog-pass').value, '');
+  run("postJSON = savedPost; loadSettings = savedLoad; confirmDialog = savedConfirm; restartAndVerify = savedRestart; state.adminPass = '';");
   const standardSwitch = run(`sourceControl({id:'bing', name:'Bing', enabled:false, control_path:'bing.enabled'})`);
   assert.match(standardSwitch, /class="form-check form-switch source-toggle"/);
   assert.match(standardSwitch, /class="form-check-input" type="checkbox" role="switch"/);
@@ -103,9 +176,25 @@ function settings() {
   assert.match(standardSwitch, /aria-label="Bing 配置启用"/);
   assert.doesNotMatch(standardSwitch, /<label|draft-mark/, 'switch has no redundant visible label');
   assert.doesNotMatch(standardSwitch, /class="toggle/);
-  const sourceRow = run(`sourceRowHtml({id:'bing',enabled:false,control_path:'bing.enabled',condition:'private runtime condition'},true)`);
+  run("state.settings.saved_values['keenable.enabled'] = null; state.settings.values['keenable.enabled'] = null;");
+  assert.match(run("sourceControl({id:'keenable', control_path:'keenable.enabled', active:true})"), /checked/);
+  assert.doesNotMatch(run("sourceControl({id:'keenable', control_path:'keenable.enabled', active:false})"), /checked/);
+  run("setDraft('keenable.enabled', false);");
+  assert.doesNotMatch(run("sourceControl({id:'keenable', control_path:'keenable.enabled', active:true})"), /checked/);
+  run("discardDraft(); state.settings.locked_fields['keenable.enabled']='ENV override'; state.settings.values['keenable.enabled']=true;");
+  assert.match(run("sourceControl({id:'keenable', control_path:'keenable.enabled', active:false})"), /checked disabled/);
+
+  now = 0;
+  const sourceRow = run(`sourceRowHtml({id:'bing',enabled:false,control_path:'bing.enabled',condition:'fixture participation', participation:'fixture inactive reason', p95_ms:147, error_kinds:[{kind:'timeout',count:2}], suspended:true, actual_cooldown:{kind:'rate_limit',until:'1970-01-01T00:00:41Z'}},true)`);
   assert.equal((sourceRow.match(/<td(?:\s|>)/g) || []).length, 8, 'cells must match the compact header');
-  assert.doesNotMatch(sourceRow, /source-condition|private runtime condition/);
+  assert.match(sourceRow, /fixture inactive reason[\s\S]*fixture participation/);
+  assert.match(sourceRow, /P95[^<]*147\s*ms/);
+  assert.match(sourceRow, /超时[^<]*2/);
+  assert.match(sourceRow, /观测告警/);
+  assert.match(sourceRow, /路由冷却[^<]*41/);
+  now = 41000;
+  assert.equal(run(`cooldownBadge({kind:'rate_limit',until:'1970-01-01T00:00:41Z'})`), '');
+  now = 0;
   assert.match(sourceRow, /health-strip/);
   assert.equal((run(`healthStrip({recent_outcomes:[true,false]})`).match(/<i /g) || []).length, 20);
   assert.doesNotMatch(sourceRow, /<small class="dim">bing<\/small>/, 'source names must omit ID remarks');
@@ -153,24 +242,41 @@ function settings() {
   settings();
   run(`Object.assign(state.settings.values, {'doubao.version':'global','doubao.icp_host_only':true});
     Object.assign(state.settings.saved_values, {'doubao.version':'global','doubao.icp_host_only':true});`);
-  assert.match(run('doubaoVersionControl()'), /value="global" selected/);
-  run(`setDraft('doubao.version','custom'); renderSettingsForm(); renderSourcePages();`);
-  assert.equal(run(`changes()['doubao.version']`), 'custom');
-  assert.match(run('doubaoVersionControl()'), /value="custom" selected/);
-  assert.doesNotMatch(run('doubaoVersionControl()'), /草稿/);
-  assert.match(element('#source-draft-count').textContent, /1 项草稿/, 'version edits use the shared draft feedback');
-  assert.equal(run(`Object.hasOwn(changes(), 'doubao.icp_host_only')`), false);
-  assert.equal(run(`savedValues()['doubao.icp_host_only']`), true, 'hidden ICP configuration must not be reset');
+  assert.match(run("sourceRowHtml({id:'doubao',category:'api'}, true)"), /aria-controls="source-config-doubao"[\s\S]*data-key="doubao.version"/);
+  assert.match(run("sourceRowHtml({id:'doubao',category:'api'}, true)"), /id="source-config-doubao" hidden/);
+  run("state.openSources.add('doubao'); setDraft('doubao.version','custom'); renderSettingsForm(); renderSourcePages();");
+  assert.doesNotMatch(run("sourceRowHtml({id:'doubao',category:'api'}, true)"), /id="source-config-doubao" hidden/);
+  assert.equal(run("displayedConfigValue('doubao.version')"), 'custom');
+  assert.match(element('#source-draft-count').textContent, /1 项草稿/);
+  assert.equal(element('#tools-draft-count').textContent, element('#source-draft-count').textContent);
+  assert.equal(run("settingsFieldReason('doubao.icp_host_only')").length > 0, true);
+  assert.equal(run("savedValues()['doubao.icp_host_only']"), true, 'inactive ICP configuration is preserved');
   run('discardDraft()');
-  assert.match(run('doubaoVersionControl()'), /value="global" selected/);
-  run(`discardDraft(); state.settings.locked_fields['doubao.version']='环境变量覆盖';
-    state.settings.values['doubao.version']='custom'; renderSettingsForm();`);
-  assert.match(run('doubaoVersionControl()'), /disabled/);
-  assert.match(run('doubaoVersionControl()'), /value="custom" selected/, 'locked version displays effective value');
-  run(`setDraft('doubao.version','global');`);
+  assert.equal(run("displayedConfigValue('doubao.version')"), 'global');
+  run("state.settings.locked_fields['doubao.version']='环境变量覆盖'; state.settings.values['doubao.version']='custom';");
+  assert.equal(run("displayedConfigValue('doubao.version')"), 'custom', 'locked version displays effective value');
+  run("setDraft('doubao.version','global');");
   assert.equal(run('Object.keys(changes()).length'), 0, 'locked values cannot create drafts');
-  run(`state.settings.write_access.allowed=false; state.settings.locked_fields={}; renderWriteAccess();`);
-  assert.match(run('doubaoVersionControl()'), /disabled/);
+
+  settings();
+  run("state.overview = {sources:[{id:'mcp_hub_parallel', name:'Parallel', category:'mcphub', enabled:true}, {id:'bing', name:'Bing', category:'engine', score_key:'bing'}]}; state.settings.saved_values['smartsearch.engines.bing.weight'] = 1; renderSourcePages();");
+  assert.match(element('#sources-mcphub-body').innerHTML, /Parallel/);
+  assert.doesNotMatch(element('#sources-web-body').innerHTML, /Parallel/);
+  assert.match(element('#sources-web-body').innerHTML, /data-key="smartsearch.engines.bing.weight"/);
+
+  settings();
+  run("state.settings.saved_values['apipool.engines'] = ['bing','exa']; changeOrderedConfig('apipool.engines', 'exa', true, -1);");
+  assert.equal(run("changes()['apipool.engines'].join(',')"), 'exa,bing');
+  run("changeOrderedConfig('apipool.engines', 'bing', false, 0);");
+  assert.equal(run("changes()['apipool.engines'].join(',')"), 'exa');
+  assert.equal(run("parseConfigInput({dataset:{configType:'tri-state'}, value:'null'})"), null);
+  assert.equal(run("parseConfigInput({dataset:{configType:'hosts'}, value:'Example.COM.,test.net'}).join(',')"), 'example.com,test.net');
+  assert.equal(run("parseConfigInput({dataset:{configType:'hosts'}, value:'例子.测试,2001:db8::1'}).join(',')"), 'xn--fsqu00a.xn--0zwm56d,2001:db8::1');
+  assert.throws(() => run("parseConfigInput({dataset:{configType:'hosts'}, value:'https://example.com/xyz'})"), /请输入域名/);
+  assert.throws(() => run("parseConfigInput({dataset:{configType:'numbers-map'}, value:'exa=-3'})"), /之间的整数/);
+  assert.equal(run("parseConfigInput({dataset:{configType:'numbers-map'}, value:'exa=3'}).exa"), 3);
+  assert.equal(run("runtimeMatches({values:{x:{a:1,b:2}},saved_values:{x:{b:2,a:1}}}, {x:{a:1,b:2}})"), true);
+  assert.match(run("configDiff({'bing.enabled':true,'dashboard.brand.title':'X'}, {'bing.enabled':false,'dashboard.brand.title':'Y'}, {'dashboard.brand.title':'dashboard.yaml'})"), /config.yaml[\s\S]*bing.enabled: false → true[\s\S]*dashboard.yaml[\s\S]*dashboard.brand.title: "Y" → "X"/);
 
   settings();
   const modeFields = modeInputs.map(value => ({dataset:{key:'mode'},type:'radio',name:'mode',value,checked:false,reportValidity:()=>true}));
@@ -249,6 +355,23 @@ function settings() {
   run(`state.overview.configured_tools[0].file = {allowed_root_count:0,whitelist_enforced:false,path_metadata_only:true}; renderMCPTools();`);
   assert.match(element('#mcp-tools-list').innerHTML, /白名单根目录 0 · 目录未限制/);
   assert.doesNotMatch(element('#mcp-tools-list').innerHTML, /data-key="everything\./, 'root scope must remain read-only');
+  run(`state.overview.configured_tools.push({name:'search_history', enabled:true, registered:true, state:'registered', history:{retention_days:43}});
+    state.overview.tools.push({name:'search_history', status:'healthy', last_seen_at:'2026-10-08', today:{requests:4,successes:3,failures:1}});
+    renderMCPTools();`);
+  assert.match(element('#mcp-tools-note').textContent, /2 \/ 3/);
+  assert.match(element('#mcp-tools-list').innerHTML, /search_history[\s\S]*已注册[\s\S]*正常[\s\S]*4 次[\s\S]*保留 43 天/);
+  run(`Object.assign(state.overview, {
+    runtime:{version:'v9.8.7',uptime_seconds:3661,mcp_stateless:true,mcp_resources:false,searxng_enabled:false,
+      proxy:{mode:'explicit',resolved:true,api_providers:true},llm:{enabled:true,model_id:'fixture-summary',timeout_seconds:37},
+      mcp_hub:{enabled:true,fetch_mode:'prefer',servers:[{name:'parallel',enabled:true},{name:'exa',enabled:false}]}},
+    trend:[{day:'2026-10-07',successes:8,failures:2,cache_hits:4},{day:'2026-10-09',successes:3,failures:1,cache_hits:2}]
+  }); renderRuntime(); renderCallTrend();`);
+  assert.match(element('#runtime-list').innerHTML, /v9\.8\.7[\s\S]*1 小时[\s\S]*SearXNG[\s\S]*已移除/);
+  assert.match(element('#runtime-list').innerHTML, /显式端点[\s\S]*已解析[\s\S]*fixture-summary[\s\S]*37 秒[\s\S]*parallel[\s\S]*exa/);
+  assert.match(element('#call-trend').innerHTML, /<svg[\s\S]*2026-10-07[\s\S]*成功[^<]*8[^<]*失败[^<]*2[^<]*缓存命中[^<]*4/);
+  assert.match(element('#call-trend').innerHTML, /2026-10-08[\s\S]*2026-10-09/);
+  run('state.overview.trend = []; renderCallTrend();');
+  assert.doesNotMatch(element('#call-trend').innerHTML, /<svg/);
   if (html.includes('id="filter-kind"')) {
     assert.equal(run(`knownFilterEntries().tools.some(t => t[0] === 'file_search')`), true);
   }
@@ -306,6 +429,17 @@ function settings() {
   await run('restartAndVerify()');
   assert.equal(run('state.applyResult.failed'), false);
   assert.equal(run('state.applyResult.status'), '运行配置已确认生效');
+  settings();
+  now = 0;
+  run(`globalThis.credentialReads = 0;
+    state.applyResult = {targets:{},credentials:true};
+    state.settings.credential_status = {pending_restart:true};
+    fetchJSON = async url => url.endsWith('settings')
+      ? {values:{},credential_status:{pending_restart:++credentialReads === 1}}
+      : {system:{status:'waiting'}};`);
+  await run('restartAndVerify()');
+  assert.equal(run('credentialReads'), 2, 'credential-only restart must wait for the new credentials to be active');
+  assert.equal(run('state.settings.credential_status.pending_restart'), false);
   settings();
   now = 0;
   run(`state.applyResult = {targets:{'bing.enabled':true},backup:'backup.yaml'};

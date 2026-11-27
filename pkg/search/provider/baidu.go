@@ -74,12 +74,16 @@ func (b *BaiduSearchImpl) Search(query string) (string, error) {
 
 // SearchRawWithTimeRange 实现 core.SearchTimeRanger 接口，支持动态时间范围。
 func (b *BaiduSearchImpl) SearchRawWithTimeRange(query string, lookbackDays int) ([]core.SearchResult, error) {
+	return b.SearchRawWithTimeRangeContext(context.Background(), query, lookbackDays)
+}
+
+func (b *BaiduSearchImpl) SearchRawWithTimeRangeContext(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
 	request := *b
 	request.recency = ""
 	if lookbackDays > 0 {
 		request.recency = lookbackDaysToRecency(lookbackDays)
 	}
-	return request.SearchRaw(query)
+	return request.search(ctx, query)
 }
 
 // lookbackDaysToRecency 将天数转换为百度 API 的 recency 值。
@@ -118,11 +122,12 @@ func (b *BaiduSearchImpl) search(ctx context.Context, query string) ([]core.Sear
 		Recency:      b.recency,
 	}
 	rep := baidSearchReponse{}
-	key, ok := b.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(b.name)
+	ctx, key, finish, err := b.keys.searchKey(ctx, b.name, query)
+	if err != nil {
+		return nil, err
 	}
-	res, err := client.DefaultClient.R().SetContext(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
+	res, err := client.Request(ctx).SetHeader(b.authHeader, fmt.Sprintf("Bearer %s", key)).SetBody(req).SetResult(&rep).Post(b.hostUlr)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s, %w", i18n.T("provider.baidu.call_failed"), err))

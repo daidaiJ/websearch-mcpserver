@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -93,7 +94,7 @@ func (e *so360Engine) SearchContext(ctx context.Context, query string, page int,
 	if client == nil {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
-	resp, err := client.Do(req)
+	resp, err := webclient.Do(client, req)
 	if err != nil {
 		if ctx.Err() == nil {
 			e.recordFail()

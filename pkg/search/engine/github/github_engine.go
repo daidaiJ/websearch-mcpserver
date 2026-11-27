@@ -16,7 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 )
@@ -74,12 +76,14 @@ func NewGitHub(opts GitHubOpts) antirobot.Engine {
 		seen[t] = struct{}{}
 		tokens = append(tokens, t)
 	}
+	routeCooldown, _ := antirobot.AdoptRouteCooldown("github")
 	return &githubEngine{
-		opts:    opts,
-		num:     num,
-		tokens:  tokens,
-		limiter: antirobot.NewRateLimiter(1, perMin),
-		client:  &http.Client{Timeout: 15 * time.Second},
+		opts:          opts,
+		routeCooldown: routeCooldown,
+		num:           num,
+		tokens:        tokens,
+		limiter:       antirobot.NewRateLimiter(1, perMin),
+		client:        &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -91,8 +95,8 @@ type githubEngine struct {
 	limiter *antirobot.RateLimiter
 	client  *http.Client
 
-	cooldownMu sync.Mutex
-	coolUntil  time.Time // 429/403 限流冷却截止（Retry-After 或 x-ratelimit-reset）
+	cooldownMu    sync.Mutex
+	routeCooldown antirobot.RouteCooldown
 }
 
 func (e *githubEngine) Name() string                    { return "github" }
@@ -146,7 +150,7 @@ func (e *githubEngine) SearchContext(ctx context.Context, query string, page int
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +161,7 @@ func (e *githubEngine) SearchContext(ctx context.Context, query string, page int
 	}
 	// GitHub 限流形态：403（配额耗尽，headers 带提示）与 429（二级限流，Retry-After）。
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-		if ctx.Err() == nil {
+		if ctx.Err() == nil && !admission.IsDiagnostic(ctx) {
 			e.enterCooldown(resp)
 		}
 		return nil, fmt.Errorf("github: HTTP %d rate-limited", resp.StatusCode)
@@ -290,15 +294,11 @@ func (e *githubEngine) enterCooldown(resp *http.Response) {
 	if cd > 10*time.Minute {
 		cd = 10 * time.Minute
 	}
-	until := time.Now().Add(cd)
 	e.cooldownMu.Lock()
-	if e.coolUntil.After(until) {
-		until = e.coolUntil
-	} else {
-		e.coolUntil = until
+	defer e.cooldownMu.Unlock()
+	if e.routeCooldown.Remaining() < cd {
+		e.routeCooldown = antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_403_429"), time.Now().Add(cd), cd)
 	}
-	e.cooldownMu.Unlock()
-	antirobot.EnterCooldown(e.Name(), antirobot.HealthKindRateLimit, i18n.T("search.engine.rate_limit_403_429"), until, cd)
 }
 
 var _ antirobot.ContextEngine = (*githubEngine)(nil)
@@ -306,10 +306,7 @@ var _ antirobot.ContextEngine = (*githubEngine)(nil)
 func (e *githubEngine) cooldownRemaining() time.Duration {
 	e.cooldownMu.Lock()
 	defer e.cooldownMu.Unlock()
-	if d := time.Until(e.coolUntil); d > 0 {
-		return d
-	}
-	return 0
+	return e.routeCooldown.Remaining()
 }
 
 // parseResetHeader 解析 x-ratelimit-reset（epoch 秒）。

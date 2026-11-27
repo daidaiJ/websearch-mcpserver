@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"websearch/pkg/log"
@@ -16,8 +17,8 @@ import (
 // 保留 24h 记忆窗，使"连续限流翻倍升级"跨进程续接。文件是 advisory 的——
 // 损坏或缺失只损失一次试探，不影响服务可用性。
 //
-// 分工：翻倍档位计算与冷却期快速失败仍由各引擎自持（本注册表不改变引擎
-// 限流语义）；引擎在 enterCooldown / recordSuccess 时同步登记，构造时收养。
+// 引擎维护退避档位，并使用注册表给出的路由冷却对象。手动解除只放行
+// 当前冷却，不改变各引擎的本地限速器或退避档位。
 // 失败类型口径与 core.FailureKind 对齐（rate_limit / challenge…），antirobot
 // 为底层包不反向依赖 core，故以字符串常量表达。
 
@@ -42,28 +43,59 @@ type HealthEntry struct {
 }
 
 var (
-	healthMu     sync.Mutex
-	healthStates = make(map[string]HealthEntry) // 本进程内的冷却状态（按引擎名）
-	healthPath   string                         // 落盘路径；空 = 仅内存（单测默认，无文件副作用）
+	healthMu      sync.Mutex
+	healthStates  = make(map[string]HealthEntry) // 本进程内的冷却状态（按引擎名）
+	routeReleases = make(map[string]*atomic.Bool)
+	healthPath    string // 落盘路径；空 = 仅内存（单测默认，无文件副作用）
 )
 
+// RouteCooldown is the registered deadline an engine checks before routing.
+type RouteCooldown struct {
+	until    time.Time
+	released *atomic.Bool
+}
+
+func (c RouteCooldown) Remaining() time.Duration {
+	if c.released == nil || c.released.Load() {
+		return 0
+	}
+	return max(0, time.Until(c.until))
+}
+
+func routeCooldownLocked(engine string, until time.Time) RouteCooldown {
+	released := routeReleases[engine]
+	if released == nil {
+		released = &atomic.Bool{}
+		routeReleases[engine] = released
+	}
+	return RouteCooldown{until: until, released: released}
+}
+
 // SetHealthStore 设置冷却落盘路径（进程启动时调用一次）。path 为空时关闭落盘
-// 并清空运行状态（单测隔离用）。落盘文件与缓存数据库同目录，无独立配置键。
+// 并清空运行状态（单测隔离用）。
 func SetHealthStore(path string) {
 	healthMu.Lock()
 	defer healthMu.Unlock()
+	for _, released := range routeReleases {
+		released.Store(true)
+	}
 	healthPath = path
-	if path == "" {
-		healthStates = make(map[string]HealthEntry)
+	healthStates = make(map[string]HealthEntry)
+	routeReleases = make(map[string]*atomic.Bool)
+	if path != "" {
+		if rows, err := readHealthFile(path); err == nil && rows != nil {
+			healthStates = rows
+		}
 	}
 }
 
-// EnterCooldown 登记一次冷却（引擎进入冷却时调用）。登记即落盘，让新进程继承。
-func EnterCooldown(engine, kind, reason string, until time.Time, cooldown time.Duration) {
+// EnterCooldown 登记引擎的路由冷却并落盘，让新进程继承。
+func EnterCooldown(engine, kind, reason string, until time.Time, cooldown time.Duration) RouteCooldown {
 	if engine == "" {
-		return
+		return RouteCooldown{}
 	}
 	healthMu.Lock()
+	defer healthMu.Unlock()
 	healthStates[engine] = HealthEntry{
 		Engine:   engine,
 		Kind:     kind,
@@ -72,58 +104,77 @@ func EnterCooldown(engine, kind, reason string, until time.Time, cooldown time.D
 		Cooldown: cooldown.Seconds(),
 		Updated:  float64(time.Now().UnixMilli()) / 1000,
 	}
-	path := healthPath
-	healthMu.Unlock()
-	persistHealth(path)
+	persistHealthLocked()
+	return routeCooldownLocked(engine, until)
 }
 
-// ClearCooldown 引擎搜索成功后清除冷却（recordSuccess 时调用）。
+// ClearCooldown 引擎搜索成功后清除冷却记录（recordSuccess 时调用）。
 func ClearCooldown(engine string) {
-	if engine == "" {
-		return
-	}
 	healthMu.Lock()
-	_, had := healthStates[engine]
-	delete(healthStates, engine)
-	path := healthPath
-	healthMu.Unlock()
-	if had {
-		persistHealth(path)
+	defer healthMu.Unlock()
+	if _, had := healthStates[engine]; had {
+		delete(healthStates, engine)
+		persistHealthLocked()
 	}
 }
 
-// AdoptCooldown 引擎构造时收养落盘冷却。只读文件、不读进程内状态：
-// 进程内状态由引擎自持，收养仅面向"上一次进程留下的冷却"。
-//   - 冷却未过期：返回（until, 档位），引擎应继续避让至 until；
-//   - 已过期但在记忆窗内：返回（零 until, 档位），引擎不避让但下次失败
-//     从该档位翻倍，升级记忆跨进程存活；
-//   - 无记录 / 超过记忆窗 / 文件不可读：返回 false，一切从零开始。
-func AdoptCooldown(engine string) (until time.Time, cooldown time.Duration, ok bool) {
-	if engine == "" {
-		return time.Time{}, 0, false
-	}
+// ReleaseRouteCooldown releases an active source, or all active sources for
+// an empty name. Holding the registry lock serializes release and entry.
+func ReleaseRouteCooldown(engine string) int {
 	healthMu.Lock()
-	path := healthPath
-	healthMu.Unlock()
-	if path == "" {
+	defer healthMu.Unlock()
+	now := float64(time.Now().UnixMilli()) / 1000
+	count := 0
+	for name, row := range healthStates {
+		if row.Until <= now || (engine != "" && name != engine) {
+			continue
+		}
+		if released := routeReleases[name]; released != nil {
+			released.Store(true)
+			delete(routeReleases, name)
+		}
+		delete(healthStates, name)
+		count++
+	}
+	if count > 0 {
+		persistHealthLocked()
+	}
+	return count
+}
+
+// AdoptCooldown reports the persisted deadline and escalation level. An expired
+// deadline within the memory window still supplies the last escalation level.
+func AdoptCooldown(engine string) (time.Time, time.Duration, bool) {
+	healthMu.Lock()
+	defer healthMu.Unlock()
+	return adoptedCooldownLocked(engine)
+}
+
+// AdoptRouteCooldown restores the persisted route gate so it can be released
+// together with cooldowns entered during the current process.
+func AdoptRouteCooldown(engine string) (RouteCooldown, time.Duration) {
+	healthMu.Lock()
+	defer healthMu.Unlock()
+	until, cooldown, ok := adoptedCooldownLocked(engine)
+	if !ok || until.IsZero() {
+		return RouteCooldown{}, cooldown
+	}
+	return routeCooldownLocked(engine, until), cooldown
+}
+
+func adoptedCooldownLocked(engine string) (time.Time, time.Duration, bool) {
+	row, present := healthStates[engine]
+	if healthPath == "" || !present {
 		return time.Time{}, 0, false
 	}
-	rows, err := readHealthFile(path)
-	if err != nil {
-		return time.Time{}, 0, false // advisory 文件：损坏/缺失只损失一次试探
-	}
-	row, present := rows[engine]
-	if !present {
-		return time.Time{}, 0, false
-	}
-	untilTime := time.UnixMilli(int64(row.Until * 1000))
-	remaining := time.Until(untilTime)
+	until := time.UnixMilli(int64(row.Until * 1000))
+	remaining := time.Until(until)
+	cooldown := time.Duration(row.Cooldown * float64(time.Second))
 	if remaining > 0 {
-		return untilTime, time.Duration(row.Cooldown * float64(time.Second)), true
+		return until, cooldown, true
 	}
 	if remaining > -healthRememberExpired {
-		// 冷却已过期：档位作为翻倍起点续接，但不处于冷却期
-		return time.Time{}, time.Duration(row.Cooldown * float64(time.Second)), true
+		return time.Time{}, cooldown, true
 	}
 	return time.Time{}, 0, false
 }
@@ -169,13 +220,13 @@ func readHealthFile(path string) (map[string]HealthEntry, error) {
 	return rows, nil
 }
 
-// persistHealth 把未过期与记忆窗内的冷却条目落盘（temp + rename，尽量原子）。
+// persistHealthLocked 把未过期与记忆窗内的冷却条目落盘。
 // advisory 文件：失败只打日志，绝不影响搜索主流程。
-func persistHealth(path string) {
+func persistHealthLocked() {
+	path := healthPath
 	if path == "" {
 		return
 	}
-	healthMu.Lock()
 	rows := make(map[string]HealthEntry, len(healthStates))
 	now := float64(time.Now().UnixMilli()) / 1000
 	for name, e := range healthStates {
@@ -185,7 +236,6 @@ func persistHealth(path string) {
 		}
 		rows[name] = e
 	}
-	healthMu.Unlock()
 
 	data, err := json.MarshalIndent(rows, "", " ")
 	if err != nil {
@@ -197,8 +247,6 @@ func persistHealth(path string) {
 		log.WarnT("log.antirobot.engine_health_write_failed", "err", err)
 		return
 	}
-	// Windows 下 rename 不能覆盖已存在文件，先移除旧文件（advisory 文件可接受间隙）
-	_ = os.Remove(path)
 	if err := os.Rename(tmp, path); err != nil {
 		log.WarnT("log.antirobot.engine_health_persist_failed", "err", err)
 		_ = os.Remove(tmp)

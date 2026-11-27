@@ -1,10 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -40,6 +40,7 @@ const (
 // ── 顶层配置 ──
 
 type Config struct {
+	credentials        *credentialSnapshot
 	Port               int                 `mapstructure:"port"`
 	Host               string              `mapstructure:"host"`                 // 监听地址，默认 127.0.0.1；"0.0.0.0" 才对所有网卡开放
 	AuthToken          string              `mapstructure:"auth_token"`           // 业务端点 Bearer token，空 = 不鉴权；环境变量 WEBSEARCH_TOKEN
@@ -581,6 +582,22 @@ type CleanFetchConfig struct {
 	MaxRetries     int    `mapstructure:"max_retries"`       // 最大重试次数（默认 1；上游对 429/502/503 与传输错误重试）
 }
 
+// OutputDir resolves the directory shared by cleanfetch files and smartsearch dumps.
+func (c CleanFetchConfig) OutputDir() string {
+	if c.FileOutputDir != "" {
+		return c.FileOutputDir
+	}
+	return filepath.Join(ExeBaseDir(), "fetchdata")
+}
+
+// OutputTTL resolves the retention time for regular cleanfetch output files.
+func (c CleanFetchConfig) OutputTTL() time.Duration {
+	if ttl := time.Duration(c.FileTTL) * time.Hour; ttl > 0 {
+		return ttl
+	}
+	return 24 * time.Hour
+}
+
 // AutoProxyEnabled 报告原生 cleanfetch 是否自动跟随全局代理，默认开启。
 func (c CleanFetchConfig) AutoProxyEnabled() bool {
 	return c.AutoProxy == nil || *c.AutoProxy
@@ -740,6 +757,24 @@ type ProxyConfig struct {
 	autoDisabled bool // Load() 中设置：用户显式 enabled: false 时为 true，跳过自动检测
 }
 
+// EnabledSetting returns nil for automatic detection, true for explicit proxy
+// activation and false for explicit disabling.
+func (c ProxyConfig) EnabledSetting() *bool {
+	if c.autoDisabled {
+		return new(false)
+	}
+	if c.Enabled {
+		return new(true)
+	}
+	return nil
+}
+
+// SetEnabled applies the startup interpretation of the optional proxy switch.
+func (c *ProxyConfig) SetEnabled(enabled *bool) {
+	c.Enabled = enabled != nil && *enabled
+	c.autoDisabled = enabled != nil && !*enabled
+}
+
 // UpstreamResolver 返回 API 供应商上游请求使用的代理解析器。
 // api_providers 未启用时返回 nil（调用方据此强制直连）；启用时与引擎层
 // 共用同一套 enabled/endpoint/自动检测解析。
@@ -861,9 +896,11 @@ func normalizeMaxOpenConns(n int) int {
 // DashboardConfig controls the local-only observability dashboard. It does not
 // enable active provider probes; all health observations come from real calls.
 type DashboardConfig struct {
-	Enabled       bool   `mapstructure:"enabled"`
-	StoragePath   string `mapstructure:"storage_path"`
-	RetentionDays int    `mapstructure:"retention_days"`
+	overlayPath     string
+	overlaySettings map[string]struct{}
+	Enabled         bool   `mapstructure:"enabled"`
+	StoragePath     string `mapstructure:"storage_path"`
+	RetentionDays   int    `mapstructure:"retention_days"`
 	// MaxOpenConns 遥测库（dashboard storage_path）连接池上限，默认 1；
 	// <=0 取默认，超过 32 按 32 处理。
 	MaxOpenConns int `mapstructure:"max_open_conns"`
@@ -877,7 +914,7 @@ type DashboardConfig struct {
 	// AllowedNetworks 显式放行可「查看」控制台的来源网段（CIDR，如 192.168.1.0/24）。
 	// 空列表 = 仅本机 loopback 可访问；不授予写权限。
 	AllowedNetworks []string `mapstructure:"allowed_networks"`
-	// WriteAllowedNetworks grants password-protected writes from explicit IPs/CIDRs.
+	// WriteAllowedNetworks permits runtime actions and authenticated administrative writes from explicit IPs/CIDRs.
 	// Empty lists or invalid entries fail closed to loopback-only writes.
 	WriteAllowedNetworks []string `mapstructure:"write_allowed_networks"`
 	// Shortcut 控制快捷方式落位行为（Windows）：desktop（默认，桌面）/
@@ -885,8 +922,8 @@ type DashboardConfig struct {
 	// 删除已知位置）。start/open/install 都会按当前配置与 exe 路径校正
 	// .lnk；uninstall 始终清理全部已知位置。
 	Shortcut string `mapstructure:"shortcut"`
-	// AdminPassword 是写操作（设置/密钥/重启/清缓存/额度管理）的口令，必须在
-	// config.yaml 显式配置。出于安全考虑它不在控制台设置页的白名单里，也不能
+	// AdminPassword 是写操作（设置/密钥/重启/备份恢复/额度账本）的口令，必须在
+	// dashboard.yaml 显式配置。出于安全考虑它不在控制台设置页的白名单里，也不能
 	// 写入 secrets 覆盖文件——即 WebUI 永远无法读取或修改它。二选一：明文或
 	// SHA-256 十六进制（admin_password_sha256 = sha256(明文) 的小写十六进制）。
 	// AdminUsername 是可选的管理员用户名：仅当显式配置时，写请求才必须携带
@@ -991,6 +1028,31 @@ type QuotasConfig struct {
 	ResetDay int `mapstructure:"reset_day"`
 	// Limits 每供应商调用次数上限；未配置的供应商使用 DefaultQuotaLimit。
 	Limits map[string]int `mapstructure:"limits"`
+	// EnforceProviders opts named, keyed web search providers into routing hard limits.
+	EnforceProviders []string `mapstructure:"enforce_providers"`
+}
+
+// QuotaSearchProviders lists the keyed search routes whose usage this process can account for.
+func QuotaSearchProviders() []string {
+	return []string{"anysearch", "baidu", "doubao", "exa", "keenable", "tavily", "tinyfish", "yuanbao"}
+}
+
+func (q QuotasConfig) Enforces(provider string) bool {
+	for _, name := range q.EnforceProviders {
+		if strings.EqualFold(strings.TrimSpace(name), provider) {
+			return true
+		}
+	}
+	return false
+}
+
+func (q QuotasConfig) HasSearchEnforcement() bool {
+	for _, provider := range QuotaSearchProviders() {
+		if q.Enforces(provider) {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultQuotaLimit 是未显式配置 limits 的供应商的默认上限（次/周期）。
@@ -1059,8 +1121,15 @@ func (q QuotasConfig) NextReset(now time.Time) time.Time {
 	}
 }
 
+// OverlayOverridesSetting reports whether the standalone dashboard file supplied
+// the effective value of an editable dashboard setting.
+func (d DashboardConfig) OverlayOverridesSetting(path string) bool {
+	_, present := d.overlaySettings[path]
+	return present
+}
+
 // AdminPasswordConfigured 报告管理员口令是否已显式配置。
-// 未配置时所有写端点直接禁用（返回 403），这是安全的默认。
+// 未配置时需管理员身份的端点禁用（返回 403），这是安全的默认。
 func (d DashboardConfig) AdminPasswordConfigured() bool {
 	return d.AdminPassword != "" || d.AdminPasswordSHA256 != ""
 }
@@ -1411,50 +1480,119 @@ func (c Config) GetRateLimitPerMin() int {
 // ── 配置加载 ──
 
 func Load(configPath string) (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
 
 	// 优先使用环境变量指定的配置文件
 	envConfigPath := os.Getenv("WEBSEARCH_CONFIG")
 	if envConfigPath != "" {
-		viper.SetConfigFile(envConfigPath)
+		v.SetConfigFile(envConfigPath)
 	} else if configPath != "" {
-		viper.SetConfigFile(configPath)
+		v.SetConfigFile(configPath)
 	} else {
-		viper.AddConfigPath(".")
+		v.AddConfigPath(".")
 		if exePath, err := os.Executable(); err == nil {
 			if exeDir := filepath.Dir(exePath); exeDir != "" {
-				viper.AddConfigPath(exeDir)
+				v.AddConfigPath(exeDir)
 			}
 		}
 	}
 
-	err := viper.ReadInConfig()
+	err := v.ReadInConfig()
 	if err != nil {
 		return nil, fmt.Errorf("read config file failed: %w", err)
 	}
 
-	if cfgFile := viper.ConfigFileUsed(); cfgFile != "" {
+	if cfgFile := v.ConfigFileUsed(); cfgFile != "" {
 		configDir = filepath.Dir(cfgFile)
 		configFile = cfgFile
 	}
 
-	viper.SetEnvPrefix("APP")
-	viper.AutomaticEnv()
-	_ = viper.BindEnv("baidu.api_key", "BAIDU_SK")
-	_ = viper.BindEnv("tavily.api_key", "TAVILY_SK")
-	_ = viper.BindEnv("exa.api_key", "EXA_API_KEY")
-	_ = viper.BindEnv("anysearch.api_key", "ANYSEARCH_API_KEY")
-	_ = viper.BindEnv("doubao.api_key", "DOUBAO_SEARCH_API_KEY")
-	_ = viper.BindEnv("yuanbao.api_key", "TENCENTCLOUD_WSA_APIKEY")
-	_ = viper.BindEnv("llm.base_url", "LLM_BASE_URL")
-	_ = viper.BindEnv("llm.api_key", "LLM_API_KEY")
-	_ = viper.BindEnv("pdf_parser.mineru_token", "MINERU_TOKEN")
-	_ = viper.BindEnv("academic.unpaywall_email", "UNPAYWALL_EMAIL")
-	_ = viper.BindEnv("academic.openalex_api_key", "OPENALEX_API_KEY")
-	_ = viper.BindEnv("language", "WEBCRAWLER_LANGUAGE")
+	conf, err := decodeMainConfig(v)
+	if err != nil {
+		return nil, err
+	}
+	dashboardExplicit = v.IsSet("dashboard.enabled")
+	dashboardOverlayFile = ""
+	conf.Dashboard.overlayPath = DashboardOverlayPath(conf)
+	applyDashboardOverlay(conf, conf.Dashboard.overlayPath)
+	applyDashboardSecretsAt(conf, conf.GetDashboardSecretsPath())
+	return conf, nil
+}
+
+// SettingsFilePaths identifies the startup overlay and credentials file to keep during settings edits.
+type SettingsFilePaths struct {
+	Overlay string
+	Secrets string
+}
+
+// SettingsFilePaths returns the overlay selected at startup and the credential
+// file resolved by the running configuration.
+func (c Config) SettingsFilePaths() SettingsFilePaths {
+	return SettingsFilePaths{Overlay: c.Dashboard.overlayPath, Secrets: c.GetDashboardSecretsPath()}
+}
+
+// ErrSettingsPathsChanged reports a pending change that requires restarting before editing.
+var ErrSettingsPathsChanged = errors.New("settings file paths changed")
+
+func sameSettingsPath(a, b string) bool {
+	left, leftErr := filepath.Abs(a)
+	right, rightErr := filepath.Abs(b)
+	return leftErr == nil && rightErr == nil && left == right
+}
+
+// DecodeSettingsCandidate evaluates configuration documents with the startup loader without
+// changing the running process configuration, file selection or explicit dashboard flags.
+func DecodeSettingsCandidate(main, overlay []byte, paths SettingsFilePaths) (*Config, error) {
+	v := viper.New()
+	v.SetConfigType("yaml")
+	if err := v.ReadConfig(bytes.NewReader(main)); err != nil {
+		return nil, err
+	}
+	conf, err := decodeMainConfig(v)
+	if err != nil {
+		return nil, err
+	}
+	if paths.Overlay != "" && !sameSettingsPath(DashboardOverlayPath(conf), paths.Overlay) {
+		return nil, ErrSettingsPathsChanged
+	}
+	if overlay != nil {
+		v := viper.New()
+		v.SetConfigType("yaml")
+		if err := v.ReadConfig(bytes.NewReader(overlay)); err != nil {
+			return nil, err
+		}
+		if err := mergeDashboardOverlay(conf, v); err != nil {
+			return nil, err
+		}
+	}
+	if paths.Overlay != "" && !sameSettingsPath(conf.GetDashboardSecretsPath(), paths.Secrets) {
+		return nil, ErrSettingsPathsChanged
+	}
+	if paths.Secrets != "" {
+		applyDashboardSecretsAt(conf, paths.Secrets)
+	}
+	return conf, nil
+}
+
+func decodeMainConfig(v *viper.Viper) (*Config, error) {
+	v.SetEnvPrefix("APP")
+	v.AutomaticEnv()
+	_ = v.BindEnv("baidu.api_key", "BAIDU_SK")
+	_ = v.BindEnv("tavily.api_key", "TAVILY_SK")
+	_ = v.BindEnv("exa.api_key", "EXA_API_KEY")
+	_ = v.BindEnv("anysearch.api_key", "ANYSEARCH_API_KEY")
+	_ = v.BindEnv("doubao.api_key", "DOUBAO_SEARCH_API_KEY")
+	_ = v.BindEnv("yuanbao.api_key", "TENCENTCLOUD_WSA_APIKEY")
+	_ = v.BindEnv("llm.base_url", "LLM_BASE_URL")
+	_ = v.BindEnv("llm.api_key", "LLM_API_KEY")
+	_ = v.BindEnv("pdf_parser.mineru_token", "MINERU_TOKEN")
+	_ = v.BindEnv("academic.unpaywall_email", "UNPAYWALL_EMAIL")
+	_ = v.BindEnv("academic.openalex_api_key", "OPENALEX_API_KEY")
+	_ = v.BindEnv("language", "WEBCRAWLER_LANGUAGE")
 	var conf Config
-	if err := viper.Unmarshal(&conf); err != nil {
+	if err := v.Unmarshal(&conf); err != nil {
 		return nil, fmt.Errorf("配置解析失败,%w", err)
 	}
 
@@ -1472,7 +1610,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// API 上游超时默认 30s；显式 0 = 不设超时（有挂起风险，文档已注明）
-	if !viper.IsSet("upstream_timeout_sec") {
+	if !v.IsSet("upstream_timeout_sec") {
 		conf.UpstreamTimeoutSec = 30
 	} else if conf.UpstreamTimeoutSec < 0 {
 		conf.UpstreamTimeoutSec = 30 // 负值视为无效，回退默认
@@ -1490,22 +1628,22 @@ func Load(configPath string) (*Config, error) {
 	conf.Language = i18n.Normalize(conf.Language)
 
 	// Bing 默认开启
-	if !viper.IsSet("bing.enabled") {
+	if !v.IsSet("bing.enabled") {
 		conf.Bing.Enabled = true
 	}
 	// DuckDuckGo 默认开启（需代理才能访问）
-	if !viper.IsSet("duckduckgo.enabled") {
+	if !v.IsSet("duckduckgo.enabled") {
 		conf.DuckDuckGo.Enabled = true
 	}
 	// 学术引擎默认开启
-	if !viper.IsSet("academic.enabled") {
+	if !v.IsSet("academic.enabled") {
 		conf.Academic.Enabled = true
 	}
-	if !viper.IsSet("academic.bing_fallback") {
+	if !v.IsSet("academic.bing_fallback") {
 		conf.Academic.BingFallback = true
 	}
 	// 学术搜索评分增强默认开启，阀值比通用搜索更宽松
-	if !viper.IsSet("academic.enhance") {
+	if !v.IsSet("academic.enhance") {
 		conf.Academic.Enhance = true
 	}
 	if conf.Academic.Threshold <= 0 {
@@ -1535,7 +1673,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// MinerU 远程 PDF 精准解析默认开启（false 则远程 URL 一律不走 MinerU）
-	if !viper.IsSet("pdf_parser.mineru_remote_pdf") {
+	if !v.IsSet("pdf_parser.mineru_remote_pdf") {
 		conf.PDFParser.MinerURemotePDF = true
 	}
 
@@ -1558,28 +1696,28 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// 代理：标记用户显式禁用（enabled: false），跳过自动检测
-	if viper.IsSet("proxy.enabled") && !viper.GetBool("proxy.enabled") {
-		conf.Proxy.autoDisabled = true
+	if v.IsSet("proxy.enabled") {
+		conf.Proxy.SetEnabled(new(v.GetBool("proxy.enabled")))
 	}
 
 	// 百度 enable_ai_search 默认 true（不传 model 时走免费搜索，不产生 LLM 费用）
-	if !viper.IsSet("baidu.enable_ai_search") {
+	if !v.IsSet("baidu.enable_ai_search") {
 		conf.Baidu.EnableAISearch = true
 	}
 
 	// 豆包 Custom 版请求网页正文默认开启（API 快速路径：一次搜索即含正文）；
 	// 显式写 need_content: false 才退回摘要
-	if !viper.IsSet("doubao.need_content") {
+	if !v.IsSet("doubao.need_content") {
 		conf.Doubao.NeedContent = true
 	}
 
 	// SmartSearch 默认值
-	if !viper.IsSet("smartsearch.show_meta") {
+	if !v.IsSet("smartsearch.show_meta") {
 		conf.SmartSearch.ShowMeta = true // 默认显示引擎来源和 score
 	}
 	// fetch_top_n 默认 0：默认部署与旧版行为一致（不抓取正文）；
 	// 用户可设 1-5 让 agent 未传参时也默认获取正文，yaml 显式 0 即纯摘要模式
-	if !viper.IsSet("smartsearch.fetch_top_n") {
+	if !v.IsSet("smartsearch.fetch_top_n") {
 		conf.SmartSearch.FetchTopN = 0
 	}
 	if conf.SmartSearch.Enhance == nil {
@@ -1594,24 +1732,16 @@ func Load(configPath string) (*Config, error) {
 		conf.SmartSearch.RelevanceThreshold = 0.05 // 默认相关性阀值
 	}
 	// MMR 多样性重排默认开启，λ=0.7
-	if !viper.IsSet("smartsearch.mmr.enabled") {
+	if !v.IsSet("smartsearch.mmr.enabled") {
 		conf.SmartSearch.MMR.Enabled = true
 	}
-	if !viper.IsSet("smartsearch.mmr.lambda") {
+	if !v.IsSet("smartsearch.mmr.lambda") {
 		conf.SmartSearch.MMR.Lambda = 0.7
-	}
-
-	// 用户显式声明过控制中心（主配置 dashboard: 块）则不再套用
-	// 「默认生成启用配置」的兜底，尊重用户选择（含显式关闭）。
-	if viper.IsSet("dashboard.enabled") {
-		dashboardExplicit = true
 	}
 
 	// 环境变量回填：精简 yaml 缺字段时（如未写 tavily.api_key），
 	// viper 的 BindEnv 不会为不存在的 key 生效，这里显式覆盖。
-	applyKnownEnv(&conf)
-	applyDashboardOverlay(&conf)
-	applyDashboardSecrets(&conf)
+	applyKnownEnv(&conf, v)
 	conf.MCPHub.NormalizeMCPHub()
 
 	return &conf, nil
@@ -1659,7 +1789,7 @@ func Default() *Config {
 			},
 		},
 	}
-	applyKnownEnv(conf)
+	applyKnownEnv(conf, nil)
 	conf.MCPHub.NormalizeMCPHub()
 	return conf
 }
@@ -1676,7 +1806,9 @@ func LoadOrDefault(configPath string) (*Config, error) {
 	}
 	var notFound viper.ConfigFileNotFoundError
 	if errors.As(err, &notFound) {
-		return Default(), nil
+		conf := Default()
+		applyDashboardSecretsAt(conf, conf.GetDashboardSecretsPath())
+		return conf, nil
 	}
 	return nil, err
 }
@@ -1688,51 +1820,10 @@ func explicitConfigPath(configPath string) string {
 	return configPath
 }
 
-func applyKnownEnv(conf *Config) {
-	if v := os.Getenv("BAIDU_SK"); v != "" {
-		conf.Baidu.APIKey = v
-	}
-	if v := os.Getenv("TAVILY_SK"); v != "" {
-		conf.Tavily.APIKey = v
-	}
-	if v := os.Getenv("EXA_API_KEY"); v != "" {
-		conf.Exa.APIKey = v
-	}
-	if v := os.Getenv("ANYSEARCH_API_KEY"); v != "" {
-		conf.Anysearch.APIKey = v
-	}
-	if v := os.Getenv("TENCENTCLOUD_WSA_APIKEY"); v != "" {
-		conf.Yuanbao.APIKey = v
-	}
-	for _, envName := range []string{"DOUBAO_SEARCH_API_KEY", "ASK_ECHO_SEARCH_INFINITY_API_KEY"} {
-		if v := os.Getenv(envName); v != "" {
-			conf.Doubao.APIKey = v
-			break
-		}
-	}
-	if v := os.Getenv("GITHUB_TOKEN"); v != "" {
-		conf.GitHub.APIKey = v
-	}
+func applyKnownEnv(conf *Config, v *viper.Viper) {
+	applyCredentialEnv(conf, v)
 	if v := os.Getenv("LLM_BASE_URL"); v != "" {
 		conf.LLM.BaseURL = v
-	}
-	if v := os.Getenv("LLM_API_KEY"); v != "" {
-		conf.LLM.APIKey = v
-	}
-	if v := os.Getenv("MINERU_TOKEN"); v != "" {
-		conf.PDFParser.MinerUToken = v
-	}
-	if v := os.Getenv("SEMANTIC_SCHOLAR_API_KEY"); v != "" {
-		conf.Academic.SemanticScholarAPIKey = v
-	}
-	if v := os.Getenv("OPENALEX_API_KEY"); v != "" {
-		conf.Academic.OpenAlexAPIKey = v
-	}
-	if v := os.Getenv("UNPAYWALL_EMAIL"); v != "" {
-		conf.Academic.UnpaywallEmail = v
-	}
-	if v := os.Getenv("WEBSEARCH_TOKEN"); v != "" {
-		conf.AuthToken = v
 	}
 }
 
@@ -1815,8 +1906,6 @@ func parseAllowedNetworks(entries []string) ([]*net.IPNet, error) {
 	return out, nil
 }
 
-// applyDashboardSecrets loads an optional private overlay from the persistent
-// data volume. Values are intentionally kept out of config.yaml and logs.
 var dashboardOverlayFile string
 
 // GetDashboardOverlayFile 返回本次加载实际使用的控制中心独立配置文件路径；
@@ -1848,13 +1937,11 @@ func DashboardOverlayPath(conf *Config) string {
 //
 // 设计动机（迁移与回退）：
 //   - 升级：主 config.yaml 零改动，控制中心专属配置（管理员口令、访问网段、
-//     额度、品牌）全部住在这个文件，且完全在控制台设置页写路径之外——WebUI
-//     无法读取或修改它们，这是结构性保证而非白名单约定；
+//     额度、品牌）可以存放在这个文件。控制台只通过白名单编辑非安全运维项；
 //   - 回退：删除该文件并重启即回到基线；旧版本二进制不读取该文件，不受影响。
 //
 // 文件不存在时无操作；存在但解析失败时打警告并忽略，不拖垮主服务。
-func applyDashboardOverlay(conf *Config) {
-	path := DashboardOverlayPath(conf)
+func applyDashboardOverlay(conf *Config, path string) {
 	if _, err := os.Stat(path); err != nil {
 		return
 	}
@@ -1864,10 +1951,25 @@ func applyDashboardOverlay(conf *Config) {
 		fmt.Fprintf(os.Stderr, "warning: 控制中心配置 %s 无法解析，已忽略: %v\n", path, err)
 		return
 	}
-	var dash DashboardConfig
-	if err := v.UnmarshalKey("dashboard", &dash); err != nil {
+	if err := mergeDashboardOverlay(conf, v); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: 控制中心配置 %s 结构异常，已忽略: %v\n", path, err)
 		return
+	}
+	dashboardOverlayFile = path
+	dashboardExplicit = true
+}
+
+func mergeDashboardOverlay(conf *Config, v *viper.Viper) error {
+	var dash DashboardConfig
+	if err := v.UnmarshalKey("dashboard", &dash); err != nil {
+		return err
+	}
+	conf.Dashboard.overlaySettings = make(map[string]struct{})
+	overrides := func(path string, present bool) bool {
+		if present {
+			conf.Dashboard.overlaySettings[path] = struct{}{}
+		}
+		return present
 	}
 	// Enabled 的零值与「未设置」无法从结构体区分，用 IsSet 判定显式配置。
 	if v.IsSet("dashboard.enabled") {
@@ -1876,10 +1978,10 @@ func applyDashboardOverlay(conf *Config) {
 	if dash.StoragePath != "" {
 		conf.Dashboard.StoragePath = dash.StoragePath
 	}
-	if dash.RetentionDays > 0 {
+	if overrides("dashboard.retention_days", dash.RetentionDays > 0) {
 		conf.Dashboard.RetentionDays = dash.RetentionDays
 	}
-	if v.IsSet("dashboard.client_projects") {
+	if overrides("dashboard.client_projects", v.IsSet("dashboard.client_projects")) {
 		conf.Dashboard.ClientProjects = dash.ClientProjects
 	}
 	if dash.SecretsPath != "" {
@@ -1906,87 +2008,47 @@ func applyDashboardOverlay(conf *Config) {
 	if dash.AdminPasswordSHA256 != "" {
 		conf.Dashboard.AdminPasswordSHA256 = dash.AdminPasswordSHA256
 	}
-	if dash.Suspension.BanTimeOnFail != "" {
+	if overrides("dashboard.suspension.ban_time_on_fail", dash.Suspension.BanTimeOnFail != "") {
 		conf.Dashboard.Suspension.BanTimeOnFail = dash.Suspension.BanTimeOnFail
 	}
-	if dash.Suspension.MaxBanTimeOnFail != "" {
+	if overrides("dashboard.suspension.max_ban_time_on_fail", dash.Suspension.MaxBanTimeOnFail != "") {
 		conf.Dashboard.Suspension.MaxBanTimeOnFail = dash.Suspension.MaxBanTimeOnFail
 	}
 	if len(dash.Suspension.SuspendedTimes) > 0 {
 		conf.Dashboard.Suspension.SuspendedTimes = dash.Suspension.SuspendedTimes
 	}
-	if dash.Quotas.Reset != "" {
+	if overrides("dashboard.quotas.reset", dash.Quotas.Reset != "") {
 		conf.Dashboard.Quotas.Reset = dash.Quotas.Reset
 	}
-	if dash.Quotas.ResetDay > 0 {
+	if overrides("dashboard.quotas.reset_day", dash.Quotas.ResetDay > 0) {
 		conf.Dashboard.Quotas.ResetDay = dash.Quotas.ResetDay
 	}
-	if len(dash.Quotas.Limits) > 0 {
+	if overrides("dashboard.quotas.limits", len(dash.Quotas.Limits) > 0) {
 		conf.Dashboard.Quotas.Limits = dash.Quotas.Limits
 	}
-	if dash.Brand.Title != "" {
+	if overrides("dashboard.quotas.enforce_providers", v.IsSet("dashboard.quotas.enforce_providers")) {
+		conf.Dashboard.Quotas.EnforceProviders = dash.Quotas.EnforceProviders
+	}
+	if overrides("dashboard.brand.title", dash.Brand.Title != "") {
 		conf.Dashboard.Brand.Title = dash.Brand.Title
 	}
 	if dash.Brand.Logo != "" {
 		conf.Dashboard.Brand.Logo = dash.Brand.Logo
 	}
-	if dash.Brand.Theme != "" {
+	if overrides("dashboard.brand.theme", dash.Brand.Theme != "") {
 		conf.Dashboard.Brand.Theme = dash.Brand.Theme
 	}
-	if dash.Brand.Accent != "" {
+	if overrides("dashboard.brand.accent", dash.Brand.Accent != "") {
 		conf.Dashboard.Brand.Accent = dash.Brand.Accent
 	}
 	if dash.Brand.Icon != "" {
 		conf.Dashboard.Brand.Icon = dash.Brand.Icon
 	}
 	// Footer 用指针区分「未设置」（保持默认显示）与显式 false
-	if dash.Brand.Footer != nil {
+	if overrides("dashboard.brand.footer", dash.Brand.Footer != nil) {
 		conf.Dashboard.Brand.Footer = dash.Brand.Footer
 	}
-	dashboardOverlayFile = path
-	dashboardExplicit = true
-}
-
-func applyDashboardSecrets(conf *Config) {
-	path := conf.GetDashboardSecretsPath()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	var values map[string]string
-	if json.Unmarshal(b, &values) != nil {
-		return
-	}
-	if v := values["BAIDU_SK"]; v != "" {
-		conf.Baidu.APIKey = v
-		conf.Baidu.SKList = nil
-	}
-	if v := values["TAVILY_SK"]; v != "" {
-		conf.Tavily.APIKey = v
-		conf.Tavily.SKList = nil
-	}
-	if v := values["EXA_API_KEY"]; v != "" {
-		conf.Exa.APIKey = v
-		conf.Exa.SKList = nil
-	}
-	if v := values["ANYSEARCH_API_KEY"]; v != "" {
-		conf.Anysearch.APIKey = v
-		conf.Anysearch.SKList = nil
-	}
-	if v := values["DOUBAO_SEARCH_API_KEY"]; v != "" {
-		conf.Doubao.APIKey = v
-		conf.Doubao.SKList = nil
-	}
-	if v := values["TENCENTCLOUD_WSA_APIKEY"]; v != "" {
-		conf.Yuanbao.APIKey = v
-		conf.Yuanbao.SKList = nil
-	}
-	if v := values["JINA_API_KEY"]; v != "" {
-		conf.Jina.APIKey = v
-	}
-	if v := values["MINERU_TOKEN"]; v != "" {
-		conf.PDFParser.MinerUToken = v
-	}
+	return nil
 }
 
 // ExeBaseDir 返回可执行文件所在目录，获取失败时回退配置目录。

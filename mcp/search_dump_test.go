@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 	"websearch/pkg/config"
+	"websearch/pkg/fetch"
 	"websearch/pkg/search"
 	searchcore "websearch/pkg/search/core"
 
@@ -72,7 +73,7 @@ func TestDumpSearchResultsIfOversize_OverLimit(t *testing.T) {
 	if string(data) != body {
 		t.Fatal("落盘内容必须与渲染结果逐字节一致（零丢失）")
 	}
-	if !searchDumpFileRe.MatchString(filepath.Base(path)) {
+	if !fetch.IsSearchOutputName(filepath.Base(path)) {
 		t.Fatalf("文件名应匹配 search-* 模式: %s", filepath.Base(path))
 	}
 }

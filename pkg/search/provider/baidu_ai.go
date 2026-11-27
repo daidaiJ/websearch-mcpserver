@@ -141,16 +141,16 @@ func (b *BaiduAISearchImpl) search(ctx context.Context, query string) ([]core.Se
 	}
 
 	var resp baiduAIResponse
-	key, ok := b.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(b.name)
+	ctx, key, finish, err := b.keys.searchKey(ctx, b.name, query)
+	if err != nil {
+		return nil, err
 	}
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("X-Appbuilder-Authorization", fmt.Sprintf("Bearer %s", key)).
 		SetBody(req).
 		SetResult(&resp).
 		Post("https://qianfan.baidubce.com/v2/ai_search/chat/completions")
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s, %w", i18n.T("provider.baidu_ai.call_failed"), err))

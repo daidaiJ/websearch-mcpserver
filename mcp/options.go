@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"websearch/pkg/antirobot"
 	"websearch/pkg/cache"
 	"websearch/pkg/config"
-	"websearch/pkg/fetch/everything"
 	"websearch/pkg/fetch/jina"
 	"websearch/pkg/fetch/sitefetch"
 	"websearch/pkg/fetch/webfetch"
@@ -18,6 +16,7 @@ import (
 	"websearch/pkg/i18n"
 	"websearch/pkg/llm"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/search"
 	"websearch/pkg/search/provider"
 	"websearch/pkg/search/provider/mcphub"
@@ -28,7 +27,12 @@ type ServerOption func() error
 
 // WithSearchEngine 初始化搜索引擎（Bing 引擎 + 按模式选择主引擎）。
 func WithSearchEngine(conf config.Config) ServerOption {
-	return func() error { return applySearchEngine(conf) }
+	return WithSearchEngineQuota(conf, nil)
+}
+
+// WithSearchEngineQuota initializes search with the runtime's shared quota budget.
+func WithSearchEngineQuota(conf config.Config, service *quota.Service) ServerOption {
+	return func() error { return applySearchEngine(conf, service) }
 }
 
 // WithSummarizer 在 LLM 配置就绪时初始化摘要器。
@@ -92,11 +96,11 @@ func WithEverything(conf config.Config) ServerOption {
 
 // ── 内部 apply 函数 ──────────────────────────────────────────────────────────
 
-func applySearchEngine(conf config.Config) error {
+func applySearchEngine(conf config.Config, service *quota.Service) error {
 	// 引擎冷却落盘（P1-5）：与缓存数据库同目录的 engine_health.json，
 	// 跨进程复用冷却状态；须在引擎构造（收养落盘状态）之前设置
 	antirobot.SetHealthStore(filepath.Join(filepath.Dir(conf.GetCacheStoragePath()), "engine_health.json"))
-	g, err := search.NewFromConfig(conf)
+	g, err := search.NewFromConfigWithQuota(conf, service)
 	if err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("tool.init.search_engine_failed"), err)
 	}
@@ -156,37 +160,8 @@ func applyEverything(conf config.Config) error {
 		log.WarnT("log.mcp.current_platform_is_everything_only_supports", "gOOS", runtime.GOOS, "uRL", conf.Everything.URL)
 	}
 	everythingLazyCfg = &conf.Everything
+	setEverythingConnectivity("")
 	return nil
-}
-
-// ensureEverything 惰性探测 Everything HTTP Server：连通且鉴权通过才初始化
-// 客户端并返回 true（file_search 工具随之暴露）。由首个 MCP 客户端接入时
-// 的工具注册触发；探测失败只记一条 Info，不影响其它工具。
-func ensureEverything() bool {
-	everythingMu.Lock()
-	defer everythingMu.Unlock()
-	if everythingInst != nil {
-		return true
-	}
-	if everythingLazyCfg == nil {
-		return false
-	}
-	cfg := *everythingLazyCfg
-	client := everything.New(cfg.URL, cfg.Username, cfg.Password,
-		time.Duration(cfg.TimeoutSec)*time.Second)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := client.Probe(ctx); err != nil {
-		log.InfoT("log.mcp.everything_http_server_probe_failed_file", "err", err)
-		return false
-	}
-	everythingInst = client
-	everythingRoots = cfg.Roots
-	everythingMaxResults = cfg.MaxResults
-	everythingNoise = everything.NoiseDirSet(cfg.NoiseDirs)
-	everythingMinAlign = cfg.MinAlignment
-	log.InfoT("log.mcp.everything_http_server_probe_passed_file", "uRL", cfg.URL, "len", len(cfg.Roots))
-	return true
 }
 
 func applyWebFetch(conf config.Config) error {

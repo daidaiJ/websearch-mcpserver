@@ -99,6 +99,8 @@ func main() {
 
 #### 方式二：嵌入已有 HTTP Server
 
+嵌入式 Handler 使用与独立 HTTP 服务相同的额度账本。每个进程运行一个 WebSearch MCP 实例。宿主停止接收请求并等在途请求退出后，调用 `srv.Close()` 释放服务资源。
+
 ```go
 package main
 
@@ -138,7 +140,10 @@ func main() {
 
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
-    httpSrv.Shutdown(ctx)
+    // 关闭超时时，由宿主负责处理尚未退出的请求。
+    if err := httpSrv.Shutdown(ctx); err == nil {
+        _ = srv.Close()
+    }
 }
 ```
 

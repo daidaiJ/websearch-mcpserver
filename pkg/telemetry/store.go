@@ -3,9 +3,11 @@
 package telemetry
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -23,6 +25,9 @@ import (
 )
 
 const defaultRetentionDays = 30
+
+// QuotaSkipEvent is request-trace evidence, excluded from attempt and health counts.
+const QuotaSkipEvent = "quota_skip"
 
 var (
 	defaultMu    sync.RWMutex
@@ -62,6 +67,8 @@ type StoredEvent struct {
 	Tool          string `json:"tool"`
 	Provider      string `json:"provider"`
 	Success       bool   `json:"success"`
+	Outcome       string `json:"outcome,omitempty"`
+	SkipReason    string `json:"skip_reason,omitempty"`
 	DurationMS    int64  `json:"duration_ms"`
 	CacheHit      bool   `json:"cache_hit"`
 	ResultCount   int    `json:"result_count"`
@@ -136,11 +143,15 @@ type EventFilter struct {
 
 // CallFilter selects tool outcomes and matches source/error evidence within the request.
 type CallFilter struct {
-	Tool      string
-	Provider  string
-	Status    string
-	ErrorKind string
-	Limit     int
+	CacheHit         *bool
+	Application      string
+	Project          string
+	ProjectForClient func(string) string
+	Tool             string
+	Provider         string
+	Status           string
+	ErrorKind        string
+	Limit            int
 }
 
 type Overview struct {
@@ -225,6 +236,12 @@ func OpenWithMaxOpenConns(path string, retentionDays, maxOpenConns int) (*Store,
 			result_count INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY(day, kind, tool, provider)
 		);
+		CREATE TABLE IF NOT EXISTS search_quota (
+			provider TEXT PRIMARY KEY,
+			period_start INTEGER NOT NULL,
+			used INTEGER NOT NULL,
+			revision INTEGER NOT NULL
+		);
 		CREATE TABLE IF NOT EXISTS quota_state (
 			provider TEXT PRIMARY KEY,
 			period_start INTEGER NOT NULL,
@@ -245,7 +262,8 @@ func OpenWithMaxOpenConns(path string, retentionDays, maxOpenConns int) (*Store,
 		db.Close()
 		return nil, fmt.Errorf("add project attribution: %w", err)
 	}
-	if _, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_usage_events_request ON usage_events(request_id)`); err != nil {
+	if _, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_usage_events_request ON usage_events(request_id);
+ CREATE INDEX IF NOT EXISTS idx_usage_tool_clients ON usage_events(client) WHERE kind='tool'`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("index request events: %w", err)
 	}
@@ -310,6 +328,9 @@ func (s *Store) Record(e Event) error {
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, now.Unix(), day, e.Kind, e.Tool, e.Provider, success,
 		e.Duration.Milliseconds(), cacheHit, e.ResultCount, errSummary, hash, chars, lang, topic, keywords, e.Detail, errorKind, e.RequestID, e.AttemptChain, e.Client, NormalizeProject(e.Project)); err != nil {
 		return err
+	}
+	if e.Kind == QuotaSkipEvent {
+		return tx.Commit()
 	}
 	if _, err = tx.Exec(`INSERT INTO daily_usage(day,kind,tool,provider,requests,successes,failures,cache_hits,duration_ms,result_count)
 		VALUES(?,?,?,?,1,?,?,?,?,?)
@@ -402,6 +423,10 @@ const storedEventColumns = `id,occurred_at,kind,tool,provider,success,duration_m
 
 // RecentCalls limits tool records after matching the entire retained request, not a recent event sample.
 func (s *Store) RecentCalls(filter CallFilter) ([]StoredEvent, error) {
+	return s.RecentCallsContext(context.Background(), filter)
+}
+
+func (s *Store) RecentCallsContext(ctx context.Context, filter CallFilter) ([]StoredEvent, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
@@ -427,9 +452,49 @@ func (s *Store) RecentCalls(filter CallFilter) ([]StoredEvent, error) {
 			WHERE p.request_id=e.request_id AND p.kind='provider' AND p.error_kind=?)))`)
 		args = append(args, filter.ErrorKind, filter.ErrorKind)
 	}
-	args = append(args, limit)
-	return s.queryEvents(`SELECT `+storedEventColumns+` FROM usage_events e WHERE `+
-		strings.Join(where, " AND ")+` ORDER BY e.occurred_at DESC,e.id DESC LIMIT ?`, args...)
+	if filter.CacheHit != nil {
+		where = append(where, "e.cache_hit=?")
+		args = append(args, boolInt(*filter.CacheHit))
+	}
+	// Historical client tags may end in a truncated UTF-8 rune. Encode their original
+	// bytes across the JSON parameter so the SQL comparison remains exact.
+	if filter.Application != "" || filter.Project != "" {
+		rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT client FROM usage_events WHERE kind='tool'")
+		if err != nil {
+			return nil, err
+		}
+		var appClients, projectClients []string
+		for rows.Next() {
+			var client string
+			if err := rows.Scan(&client); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if filter.Application != "" && strings.EqualFold(Application(client), filter.Application) {
+				appClients = append(appClients, hex.EncodeToString([]byte(client)))
+			}
+			if filter.Project != "" && filter.ProjectForClient != nil && filter.ProjectForClient(client) == filter.Project {
+				projectClients = append(projectClients, hex.EncodeToString([]byte(client)))
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if filter.Application != "" {
+			names, _ := json.Marshal(appClients)
+			where = append(where, "e.client IN (SELECT CAST(unhex(value) AS TEXT) FROM json_each(?))")
+			args = append(args, string(names))
+		}
+		if filter.Project != "" {
+			names, _ := json.Marshal(projectClients)
+			where = append(where, "(e.project=? OR (e.project='' AND e.client IN (SELECT CAST(unhex(value) AS TEXT) FROM json_each(?))))")
+			args = append(args, filter.Project, string(names))
+		}
+	}
+	query := `SELECT ` + storedEventColumns + ` FROM usage_events e WHERE ` +
+		strings.Join(where, " AND ") + ` ORDER BY e.occurred_at DESC,e.id DESC LIMIT ?`
+	return s.queryEventsContext(ctx, query, append(args, limit)...)
 }
 
 // RequestEvents returns all retained evidence for one exact request, without list limits.
@@ -442,7 +507,11 @@ func (s *Store) RequestEvents(requestID string) ([]StoredEvent, error) {
 }
 
 func (s *Store) queryEvents(query string, args ...any) ([]StoredEvent, error) {
-	rows, err := s.db.Query(query, args...)
+	return s.queryEventsContext(context.Background(), query, args...)
+}
+
+func (s *Store) queryEventsContext(ctx context.Context, query string, args ...any) ([]StoredEvent, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -458,6 +527,9 @@ func (s *Store) queryEvents(query string, args ...any) ([]StoredEvent, error) {
 		}
 		e.Success, e.CacheHit = ok == 1, hit == 1
 		e.OccurredAt = time.Unix(ts, 0).In(s.location).Format(time.RFC3339)
+		if e.Kind == QuotaSkipEvent {
+			e.Outcome = "skipped"
+		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -808,7 +880,7 @@ func IsUnavailable(err error) bool { return errors.Is(err, sql.ErrConnDone) }
 
 // QuotaProviders 返回遥测中出现过的 provider 名（去重、按名称排序）。
 func (s *Store) QuotaProviders() ([]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT provider FROM usage_events WHERE kind='provider' AND provider<>'' ORDER BY provider`)
+	rows, err := s.db.Query(`SELECT provider FROM search_quota UNION SELECT provider FROM usage_events WHERE kind='provider' AND provider<>'' ORDER BY provider`)
 	if err != nil {
 		return nil, err
 	}

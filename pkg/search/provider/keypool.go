@@ -22,10 +22,11 @@ type keyState struct {
 
 // KeyPool 线程安全的 API Key 轮询池，支持失效标记与自动恢复。
 type KeyPool struct {
-	keys   []string
-	states []keyState
-	idx    atomic.Uint64
-	mu     sync.Mutex // 保护 states
+	keys        []string
+	states      []keyState
+	idx         atomic.Uint64
+	mu          sync.Mutex // 保护 states
+	searchQuota *searchQuota
 }
 
 // NewKeyPool 创建 KeyPool，keys 必须非空。

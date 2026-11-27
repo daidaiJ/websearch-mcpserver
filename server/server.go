@@ -3,13 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
-
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -21,17 +21,21 @@ import (
 	"websearch/pkg/daemon"
 	"websearch/pkg/dashboard"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
 	"websearch/pkg/telemetry"
 )
 
 // Server 封装了 MCP 服务的生命周期管理。
 // 可独立使用，也可被外部项目嵌入。
 type Server struct {
-	refMu      sync.Mutex // 保护 refCount 的「检查 + 更新」复合操作
-	refCount   int32
-	shutdownCh chan struct{}
-	startedAt  time.Time
-	inflight   atomic.Int64 // 正在处理的 HTTP 请求数（进程内指标）
+	refMu         sync.Mutex // 保护 refCount 的「检查 + 更新」复合操作
+	refCount      int32
+	shutdownCh    chan struct{}
+	startedAt     time.Time
+	inflight      atomic.Int64 // 正在处理的 HTTP 请求数（进程内指标）
+	embeddedMu    sync.Mutex
+	embedded      http.Handler
+	closeEmbedded func() error
 }
 
 // New 创建一个新的 Server 实例。
@@ -135,6 +139,10 @@ func dashboardAccessMiddleware(conf config.Config) (func(http.HandlerFunc) http.
 }
 
 func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, metrics *telemetry.Store) {
+	s.registerAdminHandlersWithQuota(mux, conf, metrics, quota.New(conf, metrics))
+}
+
+func (s *Server) registerAdminHandlersWithQuota(mux *http.ServeMux, conf config.Config, metrics *telemetry.Store, service *quota.Service) {
 	mux.HandleFunc("/__admin/refcount", localOnlyMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -193,29 +201,28 @@ func (s *Server) registerAdminHandlers(mux *http.ServeMux, conf config.Config, m
 			log.ErrorT("log.server.invalid_dashboard_allowed_networks_dashboard_falls", "err", err)
 			guard = localOnlyMiddleware
 		}
-		h := dashboard.New(conf, metrics, mcpserver.GetCache(), func() {
+		h := dashboard.NewWithQuota(conf, metrics, mcpserver.GetCache(), func() {
 			select {
 			case s.shutdownCh <- struct{}{}:
 			default:
 			}
-		})
-		h.Register(mux, guard)
-		h.WarmQuota()
+		}, service)
+		h.SetSearchHistory(mcpserver.GetSearchHistory())
+		h.RegisterWithReadGuard(mux, guard)
 	}
 }
 
-// Run 启动 HTTP 服务并阻塞直到收到关闭信号或引用计数归零。
-// 监听成功（端口可用）后调用 onListening 回调（可用于写 PID 文件）；
-// 监听失败（如端口占用）返回错误，不 panic。
-// 外部项目可直接调用此方法将 MCP 服务嵌入到自己的 HTTP Server 中。
-func (s *Server) Run(conf config.Config, onListening ...func()) error {
+func (s *Server) runtimeHandler(conf config.Config) (http.Handler, func() error, error) {
 	var metrics *telemetry.Store
-	if conf.Dashboard.Enabled {
+	if conf.Dashboard.Enabled || conf.Dashboard.Quotas.HasSearchEnforcement() {
 		var err error
 		metrics, err = telemetry.OpenWithMaxOpenConns(conf.GetDashboardStoragePath(), conf.Dashboard.RetentionDays, conf.Dashboard.GetMaxOpenConns())
 		if err != nil {
-			return fmt.Errorf("initialize dashboard telemetry: %w", err)
+			return nil, nil, fmt.Errorf("initialize dashboard telemetry: %w", err)
 		}
+	}
+	var stopTelemetry func()
+	if conf.Dashboard.Enabled {
 		if p := config.GetDashboardOverlayFile(); p != "" {
 			log.InfoT("log.server.dashboard_standalone_config", "p", p)
 		}
@@ -227,12 +234,15 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 			telemetry.SetSuspensionPolicy(policy)
 		}
 		// 明细按 retention_days 滚动过期：启动清一次，此后每 6 小时滚一次
-		stopCleanup := metrics.StartCleanupLoop(6 * time.Hour)
-		defer func() { stopCleanup(); _ = metrics.Close() }()
+		stopTelemetry = metrics.StartCleanupLoop(6 * time.Hour)
 		_ = metrics.Cleanup()
 	}
+	var service *quota.Service
+	if metrics != nil {
+		service = quota.New(conf, metrics)
+	}
 	if err := mcpserver.Init(conf,
-		mcpserver.WithSearchEngine(conf),
+		mcpserver.WithSearchEngineQuota(conf, service),
 		mcpserver.WithSummarizer(conf),
 		mcpserver.WithCache(conf),
 		mcpserver.WithWebFetch(conf),
@@ -241,12 +251,36 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 		mcpserver.WithEverything(conf),
 		mcpserver.WithSearchHistory(conf),
 	); err != nil {
-		return err
+		if stopTelemetry != nil {
+			stopTelemetry()
+		}
+		if metrics != nil {
+			_ = metrics.Close()
+		}
+		return nil, nil, err
 	}
 	mux := http.NewServeMux()
 	mcpserver.RegisterRouter(mux, conf)
-	s.registerAdminHandlers(mux, conf, metrics)
-	s.registerMetricsHandler(mux, metrics)
+	s.registerAdminHandlersWithQuota(mux, conf, metrics, service)
+	// Quota-only mode keeps the durable ledger available to search without exporting
+	// dashboard telemetry.
+	var stopWarmup func()
+	if conf.Dashboard.Enabled {
+		s.registerMetricsHandler(mux, metrics)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			defer cancel()
+			_ = service.Get(ctx)
+		}()
+		stopWarmup = func() {
+			cancel()
+			<-done
+		}
+	} else {
+		s.registerMetricsHandler(mux, nil)
+	}
 
 	// 启动缓存清理协程
 	var cleanup *cache.CleanupScheduler
@@ -254,6 +288,35 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 		cleanup = cache.NewCleanupScheduler(mcpserver.GetCache(), conf.GetCleanupInterval())
 		cleanup.Start()
 	}
+	closeRuntime := func() error {
+		if cleanup != nil {
+			cleanup.Stop(context.Background())
+		}
+		if stopWarmup != nil {
+			stopWarmup()
+		}
+		if stopTelemetry != nil {
+			stopTelemetry()
+		}
+		err := mcpserver.CloseRuntimeResources()
+		if metrics != nil {
+			err = errors.Join(err, metrics.Close())
+		}
+		return err
+	}
+	return s.instrument(mux), closeRuntime, nil
+}
+
+// Run 启动 HTTP 服务并阻塞直到收到关闭信号或引用计数归零。
+// 监听成功（端口可用）后调用 onListening 回调（可用于写 PID 文件）；
+// 监听失败（如端口占用）返回错误，不 panic。
+// 若需把路由挂载到宿主 HTTP 服务，使用 Handler。
+func (s *Server) Run(conf config.Config, onListening ...func()) (err error) {
+	handler, closeRuntime, err := s.runtimeHandler(conf)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, closeRuntime()) }()
 
 	host := conf.Host
 	if host == "" {
@@ -275,7 +338,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           s.instrument(mux),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -283,6 +346,7 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
 	go func() {
 		log.InfoT("log.server.server_start_on", "addr", addr)
@@ -302,32 +366,13 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 
 	log.InfoT("log.server.shutting_down_server")
 
-	// 停止缓存清理协程
-	if cleanup != nil {
-		cleanup.Stop(context.Background())
-	}
-
 	// 优雅关闭（5秒超时）：先停 HTTP，再进行中请求结束后再关依赖
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.ErrorT("log.server.server_shutdown_failed", "err", err)
+		_ = srv.Close()
 		return err
-	}
-
-	// 关闭 WebFetch 引擎
-	if wf := mcpserver.GetWebFetch(); wf != nil {
-		wf.Close()
-	}
-
-	// 关闭缓存数据库
-	if c := mcpserver.GetCache(); c != nil {
-		c.Close()
-	}
-
-	// 关闭搜索历史库（停清理协程，WAL 落盘）
-	if h := mcpserver.GetSearchHistory(); h != nil {
-		h.Close()
 	}
 
 	// 清理 PID 文件
@@ -337,24 +382,31 @@ func (s *Server) Run(conf config.Config, onListening ...func()) error {
 	return nil
 }
 
-// Handler 返回注册了 MCP 和 admin 路由的 http.Handler。
-// 适用于需要自行管理 http.Server 生命周期的嵌入场景。
+// Handler 返回可挂载的 MCP 和 admin 路由。由调用方管理 HTTP 服务，
+// 停止接收请求并排空后，调用 Close 释放本进程的 MCP 资源。
+// 同一个 Server 在关闭前复用首次创建的 Handler。
 func (s *Server) Handler(conf config.Config) http.Handler {
-	if err := mcpserver.Init(conf,
-		mcpserver.WithSearchEngine(conf),
-		mcpserver.WithSummarizer(conf),
-		mcpserver.WithCache(conf),
-		mcpserver.WithWebFetch(conf),
-		mcpserver.WithMCPHubFetch(conf),
-		mcpserver.WithJinaReader(conf),
-		mcpserver.WithEverything(conf),
-		mcpserver.WithSearchHistory(conf),
-	); err != nil {
-		panic(err)
+	s.embeddedMu.Lock()
+	defer s.embeddedMu.Unlock()
+	if s.embedded == nil {
+		handler, closeRuntime, err := s.runtimeHandler(conf)
+		if err != nil {
+			panic(err)
+		}
+		s.embedded, s.closeEmbedded = handler, closeRuntime
 	}
-	mux := http.NewServeMux()
-	mcpserver.RegisterRouter(mux, conf)
-	s.registerAdminHandlers(mux, conf, nil)
-	s.registerMetricsHandler(mux, nil)
-	return s.instrument(mux)
+	return s.embedded
+}
+
+// Close closes an embedded Handler's resources after its HTTP host has drained.
+// It is safe to call more than once. Run manages its own shutdown.
+func (s *Server) Close() error {
+	s.embeddedMu.Lock()
+	defer s.embeddedMu.Unlock()
+	if s.closeEmbedded == nil {
+		return nil
+	}
+	err := s.closeEmbedded()
+	s.embedded, s.closeEmbedded = nil, nil
+	return err
 }

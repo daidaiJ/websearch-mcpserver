@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -113,7 +114,7 @@ func (e *googleEngine) SearchContext(ctx context.Context, query string, page int
 	// 绕过 Cookie 同意页面
 	req.AddCookie(&http.Cookie{Name: "CONSENT", Value: "YES+"})
 
-	resp, err := sess.client.Do(req)
+	resp, err := webclient.Do(sess.client, req)
 	if err != nil {
 		if ctx.Err() == nil {
 			e.recordFail()

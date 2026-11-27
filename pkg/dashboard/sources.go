@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"slices"
 	"sort"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"websearch/pkg/antirobot"
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
+	"websearch/pkg/quota"
+	"websearch/pkg/search/provider/mcphub"
 	"websearch/pkg/telemetry"
 )
 
@@ -27,9 +30,11 @@ type SourceView struct {
 	Group               string                     `json:"group"`
 	Category            string                     `json:"category"`
 	Enabled             bool                       `json:"enabled"`
-	ControlPath         string                     `json:"control_path"`
+	ControlPath         string                     `json:"control_path,omitempty"`
+	ScoreKey            string                     `json:"score_key,omitempty"`
 	Inverted            bool                       `json:"inverted"`
 	Condition           string                     `json:"condition"`
+	Participation       string                     `json:"participation"`
 	Configured          bool                       `json:"configured"`
 	Active              bool                       `json:"active"`
 	Status              string                     `json:"status"`
@@ -54,6 +59,7 @@ type SourceView struct {
 	P95MS               int64                      `json:"p95_ms"`
 	ErrorKinds          []telemetry.ErrorKindCount `json:"error_kinds,omitempty"`
 	QuotaQueryable      bool                       `json:"quota_queryable"`
+	QuotaSkipReason     string                     `json:"quota_skip_reason,omitempty"`
 	aliases             []string
 }
 
@@ -71,10 +77,12 @@ type ActualCooldownView struct {
 type dashboardOverview struct {
 	telemetry.Overview
 	System          SystemSummary `json:"system"`
+	Runtime         runtimeView   `json:"runtime"`
 	Sources         []SourceView  `json:"sources"`
 	AcademicSources []SourceView  `json:"academic_sources"`
 	// ConfiguredTools 是公开 MCP 工具的固定清单，不依赖是否已经产生调用。
-	ConfiguredTools []MCPToolView `json:"configured_tools"`
+	ConfiguredTools []MCPToolView     `json:"configured_tools"`
+	Diagnostics     diagnosticOptions `json:"diagnostics"`
 	// Brand 是控制台品牌呈现（标题/主题/主色/logo），允许自托管用户自定义。
 	Brand map[string]any `json:"brand"`
 	// Language 是本响应实际使用的语言（Accept-Language 协商结果）。
@@ -94,12 +102,26 @@ func buildDashboardOverview(conf config.Config, observed telemetry.Overview, loc
 	return dashboardOverview{
 		Overview:        observed,
 		System:          summary,
+		Runtime:         buildRuntimeView(conf),
 		Sources:         web,
 		AcademicSources: academic,
 		ConfiguredTools: mcpToolCatalog(conf, loc),
+		Diagnostics:     diagnosticOptionsFor(conf, slices.Concat(web, academic)),
 		Brand:           brandView(conf),
 		Language:        loc.Code(),
 	}
+}
+
+func (h *Handler) dashboardOverview(ctx context.Context, observed telemetry.Overview) dashboardOverview {
+	loc := i18n.FromContext(ctx)
+	view := buildDashboardOverview(h.conf, observed, loc)
+	for i := range view.Sources {
+		source := &view.Sources[i]
+		if source.Active {
+			source.QuotaSkipReason = quota.SearchSkipMessage(loc, h.quota.SearchBlockReason(source.ID))
+		}
+	}
+	return view
 }
 
 func joinSources(defs []SourceView, observed []telemetry.Health) []SourceView {
@@ -124,7 +146,7 @@ func joinSources(defs []SourceView, observed []telemetry.Health) []SourceView {
 					remaining = 1
 				}
 				s.ActualCooldown = &ActualCooldownView{Engine: entry.Engine, Kind: entry.Kind,
-					Reason: entry.Reason, Until: until.Format(time.RFC3339),
+					Reason: entry.Reason, Until: until.Format(time.RFC3339Nano),
 					RemainingSeconds: remaining, CooldownSeconds: int64(entry.Cooldown), PersistEnabled: persistEnabled}
 				break
 			}
@@ -147,9 +169,6 @@ func joinSources(defs []SourceView, observed []telemetry.Health) []SourceView {
 			}
 			if today.Day == "" {
 				today.Day, today.Kind, today.Provider = candidate.Today.Day, "provider", s.ID
-			}
-			if candidate.P95MS > h.P95MS {
-				h.P95MS = candidate.P95MS
 			}
 			// Failure composition is additive across aliases: the newest alias
 			// may have no failures while an older one did.
@@ -364,6 +383,14 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 		if engineReady["baidu_web"] {
 			active["baidu_web"] = true
 		}
+	case config.ModeMCPHub:
+		if conf.MCPHub.IsEnabled() && validMCPHubServers(conf.MCPHub.GetServers(), nil) {
+			for _, name := range append(conf.MCPHub.GetRotationEngines(), conf.MCPHub.GetFallbackEngines()...) {
+				if engineReady[name] {
+					active[name] = true
+				}
+			}
+		}
 	case config.ModeBaidu:
 		if apiConfigured["baidu"] && conf.APISourceEnabled("baidu") {
 			active["baidu"] = true
@@ -415,6 +442,18 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 	for i := range out {
 		s := &out[i]
 		s.SuspensionScope = "observation"
+		s.ScoreKey = s.ID
+		switch s.ID {
+		case "baidu_web":
+			s.ScoreKey = "baidu"
+		case "baidu":
+			s.ScoreKey = "baidu_api"
+			if conf.Baidu.EnableAISearch {
+				s.ScoreKey = "baidu_ai"
+			}
+		case "tavily", "tinyfish", "keenable":
+			s.ScoreKey = s.ID + "_api"
+		}
 		if _, engine := engineEnabled[s.ID]; engine {
 			s.Category, s.Enabled = "engine", engineEnabled[s.ID]
 			s.ControlPath = s.ID + ".enabled"
@@ -466,8 +505,89 @@ func webSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
 				}
 			}
 		}
+		switch {
+		case s.Active:
+			s.Participation = loc.T("dashboard.participation.active")
+		case !s.Enabled:
+			s.Participation = loc.T("dashboard.participation.disabled")
+		case !s.Configured:
+			s.Participation = loc.T("dashboard.participation.credential_missing")
+		case s.Category == "engine" && !engineReady[s.ID]:
+			s.Participation = loc.T("dashboard.participation.proxy_disabled")
+		default:
+			s.Participation = loc.T("dashboard.participation.mode", "Mode", mode)
+		}
+	}
+	return append(out, mcpHubSourceCatalog(conf, active, proxyResolved, loc)...)
+}
+
+func mcpHubSourceCatalog(conf config.Config, active map[string]bool, proxyResolved bool, loc *i18n.Localizer) []SourceView {
+	mode := conf.GetMode()
+	inPool := mode == config.ModeApipool && (conf.Apipool.MCPHubFallback || slices.Contains(conf.Apipool.GetEngines(), "mcphub"))
+	hubActive := conf.MCPHub.IsEnabled() && (mode == config.ModeMCPHub || inPool)
+	configured := conf.MCPHub.GetServers()
+	var excluded map[string]bool
+	if inPool && conf.Apipool.DedupeMCPHubSources() {
+		excluded = make(map[string]bool)
+		for _, source := range apiPoolOptions {
+			excluded[source] = active[source]
+		}
+	}
+	hubActive = hubActive && validMCPHubServers(configured, excluded)
+	out := make([]SourceView, 0, len(configured))
+	index := map[string]int{}
+	for _, server := range configured {
+		if !mcphub.KnownServer(server.Name) {
+			continue
+		}
+		pos, exists := index[server.Name]
+		if exists && (out[pos].Enabled || !server.IsEnabled()) {
+			continue
+		}
+		id := "mcp_hub_" + server.Name
+		requiresProxy := server.RequiresProxy != nil && *server.RequiresProxy
+		condition := loc.T("dashboard.condition.mcphub")
+		if requiresProxy && !proxyResolved {
+			condition += loc.T("dashboard.suffix.proxy_unresolved")
+		}
+		enabled := server.IsEnabled() && conf.MCPHub.IsEnabled()
+		participating := hubActive && enabled && (!requiresProxy || proxyResolved) && !excluded[server.Name]
+		participation := loc.T("dashboard.participation.mode", "Mode", mode)
+		switch {
+		case participating:
+			participation = loc.T("dashboard.participation.active")
+		case !enabled:
+			participation = loc.T("dashboard.participation.disabled")
+		case requiresProxy && !proxyResolved:
+			participation = loc.T("dashboard.participation.network_requirements")
+		}
+		source := SourceView{ID: id, Name: server.Name, Group: "web", Category: "mcphub",
+			Configured: true, Enabled: enabled, Active: participating, Condition: condition,
+			Participation: participation, SuspensionScope: "observation", aliases: []string{id}}
+		if exists {
+			out[pos] = source
+		} else {
+			index[server.Name] = len(out)
+			out = append(out, source)
+		}
 	}
 	return out
+}
+
+// Each enabled, non-deduplicated preset must be buildable before the hub can accept traffic.
+func validMCPHubServers(servers []config.MCPHubServerConfig, excluded map[string]bool) bool {
+	for _, server := range servers {
+		if !server.IsEnabled() || excluded[server.Name] {
+			continue
+		}
+		keys := server.EffectiveKeys()
+		if !mcphub.KnownServer(server.Name) || (len(keys) > 0 && !slices.ContainsFunc(keys, func(key string) bool {
+			return strings.TrimSpace(key) != ""
+		})) {
+			return false
+		}
+	}
+	return true
 }
 
 func academicSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView {
@@ -500,9 +620,20 @@ func academicSourceCatalog(conf config.Config, loc *i18n.Localizer) []SourceView
 				condition += loc.T("dashboard.suffix.proxy_unresolved")
 			}
 		}
+		var participation string
+		switch {
+		case active:
+			participation = loc.T("dashboard.participation.active")
+		case d.disabled:
+			participation = loc.T("dashboard.participation.disabled")
+		case !enabled:
+			participation = loc.T("dashboard.participation.academic_disabled")
+		default:
+			participation = loc.T("dashboard.participation.network_requirements")
+		}
 		out = append(out, SourceView{ID: d.id, Name: d.name, Group: "academic", Category: "academic",
 			Configured: true, Enabled: !d.disabled, Active: active, ControlPath: "academic.disable_" + d.id,
-			Inverted: true, Condition: condition, SuspensionScope: "observation", aliases: []string{d.id}})
+			Inverted: true, Condition: condition, Participation: participation, SuspensionScope: "observation", aliases: []string{d.id}})
 	}
 	return out
 }

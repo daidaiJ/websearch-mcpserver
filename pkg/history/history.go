@@ -10,6 +10,7 @@
 package history
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -201,6 +202,22 @@ func (s *Store) Cleanup() error {
 		return fmt.Errorf("%s: %w", i18n.T("search.history.cleanup_failed"), err)
 	}
 	return nil
+}
+
+// Count reports the number of stored searches.
+func (s *Store) Count(ctx context.Context) (int64, error) {
+	var count int64
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM search_history`).Scan(&count)
+	return count, err
+}
+
+// Clear deletes history rows and their FTS index entries via the DELETE trigger.
+func (s *Store) Clear(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM search_history`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // Close 停止清理协程并关闭数据库。

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -163,6 +164,13 @@ func NewWithMaxOpenConns(storagePath string, maxOpenConns int) (*Cache, error) {
 // Close 关闭数据库连接
 func (c *Cache) Close() error {
 	return c.db.Close()
+}
+
+// Count reports the number of stored cache rows, including rows awaiting expiry cleanup.
+func (c *Cache) Count(ctx context.Context) (int64, error) {
+	var count int64
+	err := c.db.QueryRowContext(ctx, `SELECT count(*) FROM search_cache`).Scan(&count)
+	return count, err
 }
 
 // Clear removes cached search results and returns the number of deleted rows.

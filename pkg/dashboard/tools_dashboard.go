@@ -3,27 +3,34 @@ package dashboard
 import (
 	mcpserver "websearch/mcp"
 	"websearch/pkg/config"
+	"websearch/pkg/history"
 	"websearch/pkg/i18n"
 )
 
 // MCPToolView 是控制中心展示的公开 MCP 工具清单条目。它与
 // telemetry.Overview.Tools 不同：后者只包含产生过真实调用的事件聚合。
 type MCPToolView struct {
-	Name         string        `json:"name"`
-	Label        string        `json:"label"`
-	Enabled      bool          `json:"enabled"`
-	Registered   bool          `json:"registered"`
-	State        string        `json:"state"`
-	Description  string        `json:"description"`
-	FetchEnabled *bool         `json:"fetch_enabled,omitempty"`
-	PDF          *PDFToolView  `json:"pdf,omitempty"`
-	File         *FileToolView `json:"file,omitempty"`
+	History      *HistoryToolView `json:"history,omitempty"`
+	Name         string           `json:"name"`
+	Label        string           `json:"label"`
+	Enabled      bool             `json:"enabled"`
+	Registered   bool             `json:"registered"`
+	State        string           `json:"state"`
+	Description  string           `json:"description"`
+	FetchEnabled *bool            `json:"fetch_enabled,omitempty"`
+	PDF          *PDFToolView     `json:"pdf,omitempty"`
+	File         *FileToolView    `json:"file,omitempty"`
+}
+
+type HistoryToolView struct {
+	RetentionDays int `json:"retention_days"`
 }
 
 type FileToolView struct {
-	AllowedRootCount  int  `json:"allowed_root_count"`
-	PathMetadataOnly  bool `json:"path_metadata_only"`
-	WhitelistEnforced bool `json:"whitelist_enforced"`
+	Connectivity      string `json:"connectivity,omitempty"`
+	AllowedRootCount  int    `json:"allowed_root_count"`
+	PathMetadataOnly  bool   `json:"path_metadata_only"`
+	WhitelistEnforced bool   `json:"whitelist_enforced"`
 }
 
 type PDFToolView struct {
@@ -39,6 +46,10 @@ type PDFToolView struct {
 // 配置开关，不表示已经产生过真实调用；观测状态由遥测事件补充。
 // loc 决定标签与描述的语言（控制中心按 Accept-Language 每请求协商）。
 func mcpToolCatalog(conf config.Config, loc *i18n.Localizer) []MCPToolView {
+	retentionDays := conf.SearchHistory.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = history.DefaultRetentionDays
+	}
 	tools := []MCPToolView{
 		{
 			Name:        "smartsearch",
@@ -73,10 +84,15 @@ func mcpToolCatalog(conf config.Config, loc *i18n.Localizer) []MCPToolView {
 		{
 			Name: "file_search", Label: loc.T("dashboard.tool.file_search.label"), Enabled: conf.Everything.URL != "",
 			Description: loc.T("dashboard.tool.file_search.desc"),
-			File: &FileToolView{AllowedRootCount: len(conf.Everything.Roots),
+			File: &FileToolView{Connectivity: mcpserver.EverythingConnectivity(), AllowedRootCount: len(conf.Everything.Roots),
 				PathMetadataOnly: true, WhitelistEnforced: len(conf.Everything.Roots) > 0},
 		},
 	}
+	tools = append(tools, MCPToolView{
+		Name: "search_history", Label: loc.T("dashboard.tool.search_history.label"), Enabled: conf.SearchHistoryEnabled(),
+		Description: loc.T("dashboard.tool.search_history.desc"),
+		History:     &HistoryToolView{RetentionDays: retentionDays},
+	})
 	states := mcpserver.ToolSnapshot()
 	for i := range tools {
 		for _, state := range states {

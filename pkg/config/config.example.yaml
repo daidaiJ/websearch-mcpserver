@@ -593,11 +593,11 @@ log:
 #   max_open_conns: 1        # 遥测库 SQLite 连接池上限（默认 1，上限 32）
 #   client_projects: {}
 #   secrets_path: "./data/dashboard-secrets.json"
+# 控制中心的免密运行态操作与验密管理操作范围见 dashboard.example.yaml 和 docs/dashboard.md。
 #
 # 控制中心推荐使用独立配置文件 dashboard.yaml（主配置同目录，见
 # dashboard.example.yaml）：主 config.yaml 零改动，删除 dashboard.yaml 即完整回退。
-# 管理员口令 / 访问网段 / 额度 / 品牌主题只能配置在 dashboard.yaml，
-# 控制台 WebUI 永远无法读取或修改它们。
+# 管理员口令与访问网段在 dashboard.yaml 手动配置；WebUI 无法修改这两类配置。
 
 # ── Everything 本地文件检索（file_search 工具） ──────────────────────────────
 # 基于 Windows 下 Everything (voidtools) 的 HTTP Server 索引做本地文件快速检索。

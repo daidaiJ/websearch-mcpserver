@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"websearch/pkg/admission"
+	"websearch/pkg/client"
 	"websearch/pkg/i18n"
 	"websearch/pkg/redact"
 	"websearch/pkg/telemetry"
@@ -72,14 +74,18 @@ func (c *mcpCaller) Call(ctx context.Context, s *server, tool string, args map[s
 	if key != "" && s.authHeader != "" {
 		headers[s.authHeader] = s.authPrefix + key
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "websearch-mcphub", Version: "1.0"}, nil)
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint: s.url,
-		HTTPClient: &http.Client{Transport: &headerTransport{
-			base:      c.base,
-			headers:   headers,
-			userAgent: telemetry.ClientUserAgentFromContext(ctx),
-		}},
+	httpClient := &http.Client{Transport: &headerTransport{
+		base:      c.base,
+		headers:   headers,
+		userAgent: telemetry.ClientUserAgentFromContext(ctx),
+	}}
+	if admission.IsDiagnostic(ctx) {
+		httpClient = client.DiagnosticHTTPClient(httpClient)
+	}
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "websearch-mcphub", Version: "1.0"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             s.url,
+		HTTPClient:           httpClient,
 		DisableStandaloneSSE: true,
 		MaxRetries:           -1,
 	}, nil)

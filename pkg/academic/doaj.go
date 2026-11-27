@@ -1,6 +1,7 @@
 package academic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"websearch/pkg/antirobot"
+	webclient "websearch/pkg/client"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -36,15 +38,19 @@ func (e *doajEngine) Name() string                    { return "doaj" }
 func (e *doajEngine) Region() antirobot.NetworkRegion { return antirobot.RegionChina }
 
 func (e *doajEngine) Search(query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
+	return e.SearchContext(context.Background(), query, page, timeRange)
+}
+
+func (e *doajEngine) SearchContext(ctx context.Context, query string, page int, timeRange antirobot.TimeRange) (*antirobot.SearchResponse, error) {
 	u := doajURL(query, page, timeRange)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "websearch/1.0")
 
-	resp, err := e.client.Do(req)
+	resp, err := webclient.Do(e.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("doaj request: %w", err)
 	}

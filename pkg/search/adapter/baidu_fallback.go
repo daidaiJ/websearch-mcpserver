@@ -3,10 +3,12 @@ package adapter
 import (
 	"context"
 	"errors"
+	"time"
 
 	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 	"websearch/pkg/search/core"
+	"websearch/pkg/telemetry"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -46,8 +48,12 @@ func (b *BaiduWithFallback) SearchRawContext(ctx context.Context, query string) 
 			return nil, ctx.Err() // 请求已取消/超时，不再触发回退
 		}
 		// SK 调用失败，回退到百度网页搜索；双失败时保留两侧原因与错误码
+		started := time.Now()
 		fallbackResults, fallbackErr := searchWithContext(ctx, b.fallback, query)
 		if fallbackErr != nil {
+			if errcode.CodeOf(err) == errcode.QuotaSkip {
+				telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: b.fallback.Name(), Query: query, Duration: time.Since(started), Error: fallbackErr})
+			}
 			return nil, errcode.Message(i18n.T("tool.search.main_engine_also_failed", "Err", fallbackErr, "MainErr", err), errors.Join(err, fallbackErr))
 		}
 		return fallbackResults, nil

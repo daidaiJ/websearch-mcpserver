@@ -218,11 +218,11 @@ npm 装到的只有 Go 二进制，**本机通常没有这个仓库的源码**�
 
 ## 本机控制中心（可选，默认关闭）
 
-`dashboard.enabled: true` 后，本机浏览器访问 `http://127.0.0.1:8338/dashboard/`。四个页面：总览 KPI 与客户端用量归组、搜索源健康与失败构成、请求级调用链（可筛选、可导出 CSV）、备份后写入白名单配置；全程被动观测，失败分类只报告，不干预调用。
+`dashboard.enabled: true` 后，本机浏览器访问 `http://127.0.0.1:8338/dashboard/`。五个页面分别展示总览与客户端用量、搜索源、工具与能力、调用记录和设置。调用记录支持筛选和 CSV 导出。
 
 ![控制中心总览](docs/images/dashboard-overview.jpg)
 
-启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅本机 loopback 可读，写操作需 `admin_password`。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读）：进程内指标（在飞请求、uptime、goroutine、堆分配、遥测开关）始终输出；工具/供应商聚合来自脱敏遥测库，启用 `dashboard.enabled: true` 后追加，未启用时仅省略该部分。
+启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅 loopback 可访问。符合来源限制时，可以免密解除路由冷却、强刷官方额度、清理本地存储和运行人工诊断。可能消耗供应商额度的试搜与试抓仍需确认。设置保存或恢复、密钥、重启及额度重置或修正需管理员口令。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读）：进程内指标（在飞请求、uptime、goroutine、堆分配、遥测开关）始终输出；工具/供应商聚合来自脱敏遥测库，启用 `dashboard.enabled: true` 后追加，未启用时仅省略该部分。
 
 > 页面明细、全部配置键、快捷方式落位、安全模型与调用归属见 [docs/dashboard.md](docs/dashboard.md)。
 

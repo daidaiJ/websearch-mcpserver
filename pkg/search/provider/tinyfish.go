@@ -104,12 +104,11 @@ func (t *TinyFishSearchImpl) SearchRaw(query string) ([]core.SearchResult, error
 }
 
 func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackDays int) ([]core.SearchResult, error) {
-	key, ok := t.keys.NextUsable()
-	if !ok {
-		return nil, NoKeyError(t.name)
+	ctx, key, finish, err := t.keys.searchKey(ctx, t.name, query)
+	if err != nil {
+		return nil, err
 	}
-	req := client.DefaultClient.R().
-		SetContext(ctx).
+	req := client.Request(ctx).
 		SetHeader("X-API-Key", key).
 		SetQueryParam("query", query)
 	if lookbackDays > 0 {
@@ -117,6 +116,7 @@ func (t *TinyFishSearchImpl) search(ctx context.Context, query string, lookbackD
 	}
 	var resp tinyfishSearchResp
 	res, err := req.SetResult(&resp).Get(t.searchURL)
+	finish(res != nil && res.RawResponse != nil)
 	if err != nil {
 		// 传输层失败与 key 无关（超时/DNS/连接重置），不冷却 key
 		return nil, NewKeyError(KeyErrorTransport, key, fmt.Errorf("%s: %w", i18n.T("provider.tinyfish.call_failed"), err))
@@ -153,8 +153,7 @@ func (t *TinyFishSearchImpl) Fetch(ctx context.Context, rawURL string, maxChars 
 		return "", NoKeyError(t.name)
 	}
 	var resp tinyfishFetchResp
-	res, err := client.DefaultClient.R().
-		SetContext(ctx).
+	res, err := client.Request(ctx).
 		SetHeader("X-API-Key", key).
 		SetHeader("Content-Type", "application/json").
 		SetBody(tinyfishFetchReq{URLs: []string{rawURL}, Format: "markdown"}).

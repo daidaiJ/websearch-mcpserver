@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"websearch/pkg/admission"
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
@@ -105,6 +106,12 @@ var presets = map[string]preset{
 			return map[string]any{"url": rawURL, "formats": []string{"markdown"}}
 		},
 	},
+}
+
+// KnownServer reports whether name is an installed hosted MCP preset.
+func KnownServer(name string) bool {
+	_, ok := presets[name]
+	return ok
 }
 
 // backend 轮转池中的搜索/抓取后端。engineBackend 只支持搜索。
@@ -213,7 +220,7 @@ func (s *server) callWithKeys(ctx context.Context, tool string, args map[string]
 		if err == nil {
 			return res, nil
 		}
-		if !isAuthError(err) && !isQuotaError(err) {
+		if admission.IsDiagnostic(ctx) || (!isAuthError(err) && !isQuotaError(err)) {
 			return toolResult{}, err
 		}
 		s.keys.MarkInvalid(key)
@@ -533,7 +540,7 @@ func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, 
 		results, err := st.backend.Search(ctx, query, h.maxResults)
 		if err == nil && len(results) > 0 {
 			st.clearCooldown(false)
-			telemetry.Record(telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
+			telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
 				Query: query, Success: true, Duration: time.Since(started), ResultCount: len(results)})
 			return results, true
 		}
@@ -544,11 +551,33 @@ func (h *Hub) trySearch(ctx context.Context, states []*backendState, start int, 
 			return nil, false
 		}
 		h.handleFailure(st, false, err)
-		telemetry.Record(telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
+		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: st.backend.Name(),
 			Query: query, Success: false, Duration: time.Since(started), Error: err})
 		*errs = append(*errs, fmt.Sprintf("%s: %v", st.backend.Name(), err))
 	}
 	return nil, false
+}
+
+// DiagnosticSearch calls exactly one configured backend, without rotation,
+// fallback, cooldown changes, or operational telemetry.
+func (h *Hub) DiagnosticSearch(ctx context.Context, name, query string) ([]core.SearchResult, error) {
+	for _, st := range h.rotation {
+		if st.backend.Name() == "mcp_hub_"+name && st.backend.Available() {
+			return st.backend.Search(ctx, query, min(h.maxResults, 5))
+		}
+	}
+	return nil, errors.New(i18n.T("provider.mcphub.no_backends"))
+}
+
+// DiagnosticFetch performs one fetch tool call on the first available backend.
+func (h *Hub) DiagnosticFetch(ctx context.Context, rawURL string) (string, string, error) {
+	states, err := h.candidates(h.rotation, true, 0)
+	if err != nil {
+		return "", "", err
+	}
+	st := states[0]
+	body, err := st.backend.Fetch(ctx, rawURL, h.maxFetch)
+	return body, st.backend.Name(), err
 }
 
 // Fetch 通过托管 MCP 抓取网页正文；本地引擎不参与抓取。

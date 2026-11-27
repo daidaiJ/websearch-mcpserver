@@ -15,6 +15,8 @@ import (
 	"websearch/pkg/config"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
+	"websearch/pkg/quota"
+	"websearch/pkg/telemetry"
 )
 
 var version = "dev"
@@ -63,8 +65,18 @@ func runStdio(conf *config.Config) {
 	log.NewLoggerTo(os.Stderr, configDir, conf.Log)
 	log.SetLoggerLevel(conf.LogLevel)
 
+	var store *telemetry.Store
+	if conf.Dashboard.Quotas.HasSearchEnforcement() {
+		var err error
+		store, err = telemetry.OpenWithMaxOpenConns(conf.GetDashboardStoragePath(), conf.Dashboard.RetentionDays, conf.Dashboard.GetMaxOpenConns())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, i18n.T("dashboard.quota.search_usage_unavailable"))
+			os.Exit(1)
+		}
+		defer func() { _ = store.Close() }()
+	}
 	if err := mcpserver.Init(*conf,
-		mcpserver.WithSearchEngine(*conf),
+		mcpserver.WithSearchEngineQuota(*conf, quota.New(*conf, store)),
 		mcpserver.WithSummarizer(*conf),
 		mcpserver.WithCache(*conf),
 		mcpserver.WithWebFetch(*conf),

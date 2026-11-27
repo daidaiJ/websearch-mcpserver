@@ -1,4 +1,5 @@
 {
+  "tool.chain.skipped": "{{.Provider}} (skipped)",
   "tool.result.unavailable": "the reference does not exist, has expired, was invalidated by a server restart, or the file was cleaned up or changed; call the original tool again",
   "tool.result.read_failed": "**MCP read failed**: {{.Err}}",
   "tool.result.ref_create_failed": "failed to create the result reference",

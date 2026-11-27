@@ -287,7 +287,7 @@ func recordSmartSearchToolEvent(ctx context.Context, query, provider string, suc
 		Kind: "tool", Tool: "smartsearch", Provider: provider, Query: query,
 		Success: success, Duration: time.Since(started), CacheHit: cacheHit,
 		ResultCount: resultCount, Error: err, RequestID: requestID,
-		AttemptChain: recentAttemptChain(started, 12),
+		AttemptChain: webAttemptChain(ctx, 12),
 	})
 }
 

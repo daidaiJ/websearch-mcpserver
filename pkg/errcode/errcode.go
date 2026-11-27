@@ -15,6 +15,7 @@ type Code string
 const (
 	Timeout      Code = "timeout"       // request timeout / context cancellation
 	RateLimit    Code = "rate_limit"    // 429/202, local limiter, quota exhaustion
+	QuotaSkip    Code = "quota_skip"    // local routing decision before sending a paid search
 	Challenge    Code = "challenge"     // CAPTCHA / JS challenge / WAF
 	Blocked      Code = "blocked"       // security policy block (SSRF, denied URL)
 	AccessDenied Code = "access_denied" // 401/403 from an upstream API

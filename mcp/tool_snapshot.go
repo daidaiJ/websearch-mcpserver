@@ -11,7 +11,8 @@ type ToolState struct {
 
 var toolRegistry = struct {
 	sync.RWMutex
-	states []ToolState
+	states                 []ToolState
+	everythingConnectivity string
 }{states: pendingTools()}
 
 func pendingTools() []ToolState {

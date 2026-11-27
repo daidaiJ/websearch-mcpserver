@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"websearch/pkg/config"
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
 	"websearch/pkg/search/core"
@@ -171,7 +172,9 @@ func (h *HybridSearchImpl) run(ctx context.Context, query string, lookbackDays i
 			defer wg.Done()
 			started := time.Now()
 			results, err := h.callEngine(ctx, e, query, lookbackDays, withTimeRange)
-			telemetry.Record(telemetry.Event{Kind: "provider", Provider: e.Name(), Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
+			if errcode.CodeOf(err) != errcode.QuotaSkip {
+				telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "provider", Provider: e.Name(), Query: query, Success: err == nil, Duration: time.Since(started), ResultCount: len(results), Error: err})
+			}
 			ch <- indexedResult{index: idx, results: results, err: err}
 		}(i, engine)
 	}

@@ -166,3 +166,27 @@ func TestHealthJSONShape(t *testing.T) {
 		t.Fatalf("落盘应含 duckduckgo 键: %s", data)
 	}
 }
+
+func TestReleasePersistedRouteCooldown(t *testing.T) {
+	path := withTempHealthStore(t)
+	now := time.Now()
+	EnterCooldown("duckduckgo", HealthKindRateLimit, "202", now.Add(time.Minute), time.Minute)
+	EnterCooldown("arxiv", HealthKindRateLimit, "429", now.Add(time.Minute), time.Minute)
+
+	SetHealthStore(path)
+	gate, _ := AdoptRouteCooldown("duckduckgo")
+	if gate.Remaining() <= 0 {
+		t.Fatal("expected the persisted route to be cooling down")
+	}
+	if count := ReleaseRouteCooldown("duckduckgo"); count != 1 || gate.Remaining() != 0 {
+		t.Fatalf("release returned count=%d and left route behind for %s", count, gate.Remaining())
+	}
+
+	SetHealthStore(path)
+	if remaining, _ := AdoptRouteCooldown("duckduckgo"); remaining.Remaining() != 0 {
+		t.Fatal("released route returned after restart")
+	}
+	if remaining, _ := AdoptRouteCooldown("arxiv"); remaining.Remaining() <= 0 {
+		t.Fatal("single release removed another persisted route")
+	}
+}

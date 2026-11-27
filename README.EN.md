@@ -86,7 +86,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
-| Local console | Optional `dashboard.enabled`, a read-only `/dashboard/` UI: call stats, source health, failure classes, whitelisted config edits; `GET /metrics` always serves in-process metrics and adds sanitized telemetry aggregates when the console is enabled |
+| Local console | Optional `dashboard.enabled`, a local `/dashboard/` UI with call metrics, source health, runtime maintenance, diagnostics, and authenticated settings; `GET /metrics` always serves in-process metrics and adds sanitized telemetry aggregates when the console is enabled |
 | Lightweight deploy | Single binary, no CGO, reference-counted process management; `config.slim.yaml` targets 2C2G VMs (admission control + cache + memory reclaim); embeddable as a single-instance Go module |
 | Chinese / English | `language: auto|zh|en` covers logs, MCP tool descriptions and parameter docs, and the console UI in one switch; `auto` follows the system language, and the console additionally negotiates per request from the browser language |
 
@@ -223,11 +223,11 @@ The four built-in `mcphub` presets:
 
 ## Local Control Center (optional, off by default)
 
-With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser. Four pages: overview KPIs and client usage grouping, per-source health and failure composition, request-level call chains (filterable, CSV export), and whitelisted config writes after backup; fully passive observation — failure classes are reported only, calls are never skipped.
+With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser. The five pages cover overview and client usage, sources, tools and capabilities, call history, and settings. Call history supports filtering and CSV export.
 
 ![Control center overview](docs/images/dashboard-overview.jpg)
 
-To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; loopback-only reads by default, writes require `admin_password`. `GET /metrics` additionally exposes Prometheus/OpenMetrics text (read-only): in-process metrics (in-flight requests, uptime, goroutines, heap allocation, telemetry flag) are always present, while tool/provider aggregates come from the sanitized telemetry store and are appended once `dashboard.enabled: true`.
+To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; Access is loopback-only by default. Eligible clients can release routing cooldowns, refresh official quota, clean local storage, and run manual diagnostics without a password. Search and fetch trials that may consume provider quota still require confirmation. Saving or restoring settings, managing keys, restarting, and resetting or adjusting quota require the admin password. `GET /metrics` additionally exposes Prometheus/OpenMetrics text (read-only): in-process metrics (in-flight requests, uptime, goroutines, heap allocation, telemetry flag) are always present, while tool/provider aggregates come from the sanitized telemetry store and are appended once `dashboard.enabled: true`.
 
 > Page details, every config key, shortcut placement, the security model and call attribution: [docs/dashboard.en.md](docs/dashboard.en.md).
 

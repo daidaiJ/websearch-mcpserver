@@ -2,7 +2,7 @@
 :root{
   --bg:#eef1ef; --surface:#fff; --surface-2:#f6f8f6;
   --border:#e4e8e5; --border-2:#d5dbd7;
-  --ink:#1b2320; --ink-2:#55605a; --dim:#8a938d;
+  --ink:#1b2320; --ink-2:#55605a; --dim:#68746d;
   --accent:#14633f; --accent-hover:#10563a; --accent-soft:#e8f1ec;
   --healthy:#1f7a4d; --degraded:#a8690b; --down:#b0322a; --unknown:#8a938d;
   --inactive:#4f6f8f; --inactive-soft:#eef2f6;
@@ -62,7 +62,6 @@ nav{display:flex;flex-direction:column;gap:4px}
    表格 min-content 会把 main 撑出视口（1280 宽屏复现） */
 main{padding:22px 26px 36px;min-width:0;width:min(100%,1760px);justify-self:center}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
-.eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:0;color:var(--dim)}
 h1{font-size:21px;font-weight:700}
 h2{font-size:15px;font-weight:650}
 .header-actions{display:flex;align-items:center;gap:10px}
@@ -293,8 +292,6 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,t
 .provider-mode-row>label{flex:1;min-width:0}
 .provider-help{position:static;border:0;min-height:34px}
 .provider-help .mode-tip{left:0;width:100%}
-.source-version{display:block;width:96px;max-width:100%;margin:4px auto 0;padding:4px 6px;font-size:12px;color:var(--ink-2)}
-.source-version:disabled{opacity:.55;cursor:not-allowed}
 .settings-toggle{display:flex;align-items:center;gap:8px;min-height:32px;cursor:pointer}
 .form-check-input{appearance:none;-webkit-appearance:none;width:34px;height:19px;margin:0;flex:0 0 auto;position:relative;border:1px solid var(--border-2);border-radius:999px;background:var(--border);cursor:pointer;transition:background .15s,border-color .15s}
 .form-check-input::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
@@ -346,7 +343,7 @@ input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,t
 /* 与相邻高面板 stretch 对齐时均匀分行，避免底部死区 */
 .secret-list{flex:1;display:flex;flex-direction:column;justify-content:space-evenly}
 .pill{padding:3px 9px;border-radius:999px;background:#fdeedc;color:var(--degraded);font-size:12px}
-.hidden{display:none!important}
+[hidden],.hidden{display:none!important}
 
 /* ---------- dialog & toast ---------- */
 dialog{
@@ -440,13 +437,33 @@ html[data-theme="mono"] aside{box-shadow:2px 0 10px rgba(15,18,20,.07)}
 .accent-field input{width:88px}
 
 /* ---------- 密钥弹窗（含供应商获取 Key 链接） ---------- */
-.secret-link-row{font-size:13px;color:var(--ink-2);margin:0 0 10px}
-.secret-link-row a{color:var(--accent);font-weight:600;text-decoration:none}
-.secret-link-row a:hover{text-decoration:underline}
+.secret-row a{color:var(--accent);font-size:12px;text-decoration:none}
+.secret-row a:hover,.secret-row a:focus-visible{text-decoration:underline}
 .secret-input-row{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink-2);margin-bottom:10px}
-.secret-input-row input{width:100%}
+.secret-input-row :is(input,select){width:100%;min-width:0}
+#secret-dialog-help:empty{display:none}
+.quota-skipped{color:var(--degraded)}
+small.quota-skipped{display:block;margin-top:4px}
 
-/* 额度管理操作按钮尺寸 */
+/* 搜索源和设置共用额度样式 */
+#page-sources .source-quota-table th:nth-child(1){width:13%}
+#page-sources .source-quota-table th:nth-child(2){width:6%}
+#page-sources .source-quota-table th:nth-child(4),#page-sources .source-quota-table th:nth-child(3){width:12%}
+#page-sources .source-quota-table th:nth-child(5),#page-sources .source-quota-table th:nth-child(6){width:7%}
+#page-sources .source-quota-table th:nth-child(7){width:9%}
+#page-sources .source-quota-table th:nth-child(8){width:14%}
+#page-sources .source-quota-table th:nth-child(9){width:20%}
+.quota-manage-table th:nth-child(1),.quota-manage-table th:nth-child(4){width:16%}
+.quota-manage-table th:nth-child(2){width:46%}
+.quota-manage-table th:nth-child(3){width:22%}
+#page-sources .data-table td.quota-cell,.data-table td.quota-cell{text-align:left}
+.quota-cell .muted{font-size:12px}
+.quota-metric{margin:3px 0}
+.quota-metric progress{display:block;width:min(100%,210px);height:6px;margin:3px 0 5px;accent-color:var(--accent)}
+.quota-warning,.quota-metric.warn b{color:var(--degraded)}
+.quota-metric.warn progress{accent-color:var(--degraded)}
+.quota-metric.bad b{color:var(--down)}
+.quota-metric.bad progress{accent-color:var(--down)}
 #quota-manage-body button{font-size:12.5px}
 #quota-manage-body .icon-btn{margin:2px}
 
@@ -468,3 +485,96 @@ html[data-theme="mono"] aside{box-shadow:2px 0 10px rgba(15,18,20,.07)}
 }
 .sub-head:first-of-type{margin-top:2px;padding-top:0;border-top:0}
 .advanced-actions{margin-top:2px}
+
+#page-sources .source-condition{display:block;margin:4px 0 0;white-space:normal}
+.source-errors{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+#page-sources .route-cooldown{display:block;width:fit-content;margin:4px auto 0;background:#e8edf8;color:#294c88}
+
+.tool-observation{display:block;margin-top:2px;color:var(--dim)}
+
+.overview-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);gap:14px}
+.runtime-list dd{overflow-wrap:anywhere}
+.call-trend{display:block;width:100%;height:auto}
+.call-trend line{stroke:var(--border-2);stroke-width:1}
+.call-trend text{fill:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
+.call-trend .trend-target{fill:transparent}
+.call-trend g:hover .trend-target{fill:var(--ink);opacity:.04}
+.trend-success{fill:var(--healthy);background:var(--healthy)}
+.trend-failure{fill:var(--down);background:var(--down)}
+.trend-cache{fill:#4b65b7;background:#4b65b7}
+.trend-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;margin:8px 0 0;padding:0;list-style:none;color:var(--ink-2);font-size:12px}
+.trend-legend li{display:flex;align-items:center;gap:6px}
+.trend-legend i{width:9px;height:9px;border-radius:2px}
+@media(max-width:780px){.overview-detail-grid{grid-template-columns:1fr;gap:0}}
+
+#page-sources .source-participation{display:block;margin:5px 0 0;color:var(--ink-2)}
+
+/* Configuration directories, capability panels and source drawers. */
+.apply-inline:empty{display:none}
+.apply-inline:not(:empty){margin:0 0 12px}
+.section-directory{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.section-directory button{background:var(--surface);border:1px solid var(--border-2);color:var(--ink-2);padding:6px 10px;text-align:left}
+.section-directory button:hover,.section-directory button:focus-visible{color:var(--accent);border-color:var(--accent)}
+.capability-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.capability-grid>.panel{margin:0}
+.capability .panel-head{align-items:flex-start;gap:10px}
+.capability-state{text-align:right;flex:0 1 42%;font-size:12px}
+.capability .form-grid,.source-config-row .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.capability,.settings-column .panel[id]{scroll-margin-top:16px}
+.capability .panel-note{margin-bottom:12px}
+.config-advanced{margin-top:12px}
+#routing-controls:empty,#routing-controls:not(:has([data-mode-config]:not([hidden]))){display:none}
+#brand-controls{padding-bottom:12px;border-bottom:1px solid var(--border)}
+#quota-controls{margin-bottom:12px}
+#quota-controls .config-advanced{margin-top:0}
+#settings-operations>.settings-advanced{margin-top:12px}
+.form-grid textarea{display:block;width:100%;max-width:100%;resize:vertical;min-height:5em;padding:7px 8px;font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--border-2);border-radius:var(--radius-sm)}
+.form-grid :is(input,select,textarea){min-width:0}
+.form-grid .field-status{color:var(--degraded)}
+.form-grid .settings-toggle:has(.field-status:not(:empty)){flex-wrap:wrap}
+.form-grid .settings-toggle .field-status{flex-basis:100%}
+.form-grid label>small{color:var(--ink-2);line-height:1.4}
+.form-grid :is(input,textarea):user-invalid:not(:disabled),.form-grid [aria-invalid=true]:not(:disabled){border-color:var(--down)}
+.ordered-field{min-width:0;margin:0;padding:6px 10px 8px;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.ordered-field legend{padding:0 4px;color:var(--ink-2)}
+.ordered-options{list-style:none;padding:0;margin:0}
+.ordered-options li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:5px;padding:4px 0}
+.ordered-options li+li{border-top:1px solid var(--border)}
+.ordered-options li label{display:flex;align-items:center;flex-direction:row;gap:7px}
+.ordered-options li label input{appearance:auto;width:auto;margin:0}
+.ordered-options li span{display:flex;gap:5px}
+.ordered-options button{padding:3px 7px;font-size:12px}
+.source-params{margin:5px auto 0;display:block;padding:3px 8px}
+.source-params[aria-expanded=true]{background:var(--accent-soft);color:var(--accent)}
+#page-sources .source-config-row>td{background:var(--surface-2);text-align:left;padding:12px 14px}
+#page-sources .source-config-row .form-grid{max-width:720px}
+.scope-button{margin-top:10px}
+.scope-view{margin-top:10px;border-top:1px solid var(--border);overflow-wrap:anywhere}
+.scope-view div{padding:7px 0}
+.scope-view dt{font-weight:600}
+.scope-view ul{margin:4px 0;padding-left:17px}
+
+@media(max-width:860px){
+  aside nav{width:100%;gap:2px}
+  aside .nav{padding:6px 8px;min-height:36px}
+  .side-bottom{display:none}
+  .capability-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:560px){
+  .capability .form-grid,.source-config-row .form-grid{grid-template-columns:minmax(0,1fr)}
+  .capability .panel-head{flex-wrap:wrap}
+  .capability-state{text-align:left;flex:1 0 100%}
+  #page-sources .table-scroll{overflow:visible}
+  #page-sources .data-table,#page-sources .data-table tbody{display:block;min-width:0}
+  #page-sources .data-table thead{display:none}
+  #page-sources .source-entry{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--border);padding:8px 0}
+  #page-sources .source-entry>td{text-align:left;min-width:0;padding:5px 6px;border:0;white-space:normal}
+  #page-sources .source-entry>.src-name,#page-sources .source-entry>.wrap-any,#page-sources .source-entry>.quota-cell{grid-column:1/-1}
+  #page-sources .source-entry>.src-name{font-size:14px}
+  #page-sources .source-control,#page-sources .source-toggle{margin-left:0}
+  #page-sources .source-entry>td[data-label]::before{content:attr(data-label);display:block;color:var(--ink-2);font-size:11.5px}
+  #page-sources .source-config-row:not([hidden]),#page-sources .source-config-row td{display:block}
+  #page-sources .source-config-row>td{padding:10px}
+  #page-sources .source-params{margin:4px 0;padding:5px 8px}
+  #page-sources .route-cooldown,#page-sources .kind-chip.suspend{margin-left:0}
+}

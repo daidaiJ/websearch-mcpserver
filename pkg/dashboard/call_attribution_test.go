@@ -6,11 +6,22 @@ import (
 	"websearch/pkg/telemetry"
 )
 
+func TestApplicationFilterPreservesLegacyClientBytes(t *testing.T) {
+	h, mux := newTestHandler(t)
+	if err := h.store.Record(telemetry.Event{Kind: "tool", Tool: "probe", Client: "codex-legacy\xe4", RequestID: "legacy"}); err != nil {
+		t.Fatal(err)
+	}
+	var rows []telemetry.StoredEvent
+	if err := json.Unmarshal(getJSON(t, mux, "/__admin/api/calls?application=codex"), &rows); err != nil || len(rows) != 1 || rows[0].RequestID != "legacy" {
+		t.Fatalf("legacy client filter: %+v, %v", rows, err)
+	}
+}
+
 func TestCallAttributionMatchesUsage(t *testing.T) {
 	h, mux := newTestHandler(t)
 	h.conf.Dashboard.ClientProjects = map[string]string{"codex-mcp-client": "Mapped", "workbuddy": "Fallback"}
 	for _, e := range []telemetry.Event{
-		{Kind: "tool", Tool: "probe", Client: "codex-mcp-client", RequestID: "codex-request", Success: true},
+		{Kind: "tool", Tool: "probe", Client: "codex-mcp-client", RequestID: "codex-request", CacheHit: true, Success: true},
 		{Kind: "provider", Provider: "synthetic", Client: "codex-mcp-client", RequestID: "codex-request", Success: true},
 		{Kind: "tool", Tool: "probe", Client: "workbuddy", Project: "Explicit", RequestID: "workbuddy-request", Success: true},
 		{Kind: "tool", Tool: "probe", Client: "websearch", RequestID: "unknown-request", Success: true},
@@ -43,6 +54,20 @@ func TestCallAttributionMatchesUsage(t *testing.T) {
 			if r.Application != wantApp || r.Project != wantProject {
 				t.Fatalf("%s: %+v want %s/%s", endpoint, r, wantApp, wantProject)
 			}
+		}
+	}
+	for query, want := range map[string]string{
+		"application=codex&project=Mapped&cache_hit=true&limit=1": "codex-request",
+		"project=Explicit&cache_hit=false&limit=1":                "workbuddy-request",
+		"project=Fallback":                  "",
+		"application=codex&cache_hit=false": "",
+	} {
+		var calls []telemetry.StoredEvent
+		if err := json.Unmarshal(getJSON(t, mux, "/__admin/api/calls?"+query), &calls); err != nil {
+			t.Fatal(err)
+		}
+		if (want == "" && len(calls) != 0) || (want != "" && (len(calls) != 1 || calls[0].RequestID != want)) {
+			t.Fatalf("%s: got %+v, want %q", query, calls, want)
 		}
 	}
 	var usage struct{ Usage []telemetry.AttributionUsage }

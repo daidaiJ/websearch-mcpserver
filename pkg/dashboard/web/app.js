@@ -62,7 +62,7 @@ function applyI18n(root) {
 
 const REFRESH_MS = 60000;
 const TZ = { hour12: false, timeZone: 'Asia/Shanghai' };
-const PAGES = { overview: t('web.page.overview'), sources: t('web.page.search_sources'), usage: t('web.page.call_log'), settings: t('web.page.settings') };
+const PAGES = { overview: t('web.page.overview'), sources: t('web.page.search_sources'), tools: t('web.page.tools_capabilities'), usage: t('web.page.call_log'), settings: t('web.page.settings') };
 const HEALTH = { healthy: t('web.status.healthy'), degraded: t('web.status.degraded'), down: t('web.status.failing'), unknown: t('web.status.unknown') };
 const ERROR_KINDS = {
   rate_limit: t('web.status.rate_limited'), captcha: t('web.status.captcha'), access_denied: t('web.status.access_denied'), timeout: t('web.status.timeout'),
@@ -71,37 +71,46 @@ const ERROR_KINDS = {
 const SYSTEM = { healthy: t('web.status.running_normally'), degraded: t('web.status.partially_degraded'), down: t('web.status.partially_failing'), waiting: t('web.status.awaiting_real_calls') };
 const DOT = { healthy: 'healthy', degraded: 'degraded', down: 'down', unknown: 'unknown' };
 const DISPLAY = {
-  smartsearch: t('web.name.smart_search'), academicsearch: t('web.name.academic_search'), cleanfetch: t('web.name.content_fetch'), pdf_parser: t('web.name.pdf_parsing'), file_search: t('web.name.local_file_search'),
-  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), tavily: 'Tavily', exa: 'Exa', doubao: t('web.name.doubao_search'),
-  baidu_web: t('web.name.baidu_web'), bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo',
+  smartsearch: t('web.name.smart_search'), academicsearch: t('web.name.academic_search'), cleanfetch: t('web.name.content_fetch'), pdf_parser: t('web.name.pdf_parsing'), file_search: t('web.name.local_file_search'), search_history: t('web.storage.history'),
+  anysearch: 'AnySearch', baidu: t('web.name.baidu_qianfan'), baidu_api: t('web.name.baidu_qianfan'), baidu_ai: t('web.name.baidu_qianfan'), tavily: 'Tavily', tavily_api: 'Tavily', tinyfish: 'TinyFish', tinyfish_api: 'TinyFish', exa: 'Exa', doubao: t('web.name.doubao_search'), keenable: 'Keenable', keenable_api: 'Keenable', yuanbao: t('web.name.yuanbao'), tencent_yuanbao: t('web.name.yuanbao'), mcphub: 'MCPHub',
+  baidu_web: t('web.name.baidu_web'), bing: 'Bing', google: 'Google', duckduckgo: 'DuckDuckGo', wikipedia: 'Wikipedia', googlenews: 'Google News', github: 'GitHub', mojeek: 'Mojeek',
   arxiv: 'arXiv', crossref: 'Crossref', openalex: 'OpenAlex', pubmed: 'PubMed', europepmc: 'Europe PMC',
   dblp: 'DBLP', doaj: 'DOAJ', semantic_scholar: 'Semantic Scholar', google_scholar: 'Google Scholar',
   webfetch: t('web.name.web_fetcher'), jina: 'Jina Reader', pdf_pipeline: t('web.name.pdf_pipeline'),
 };
 const SECRETS = {
-  BAIDU_SK: t('web.name.baidu_qianfan'), TAVILY_SK: 'Tavily', EXA_API_KEY: 'Exa', ANYSEARCH_API_KEY: 'AnySearch',
-  DOUBAO_SEARCH_API_KEY: t('web.name.doubao'), TENCENTCLOUD_WSA_APIKEY: t('web.name.yuanbao'), JINA_API_KEY: 'Jina Reader', MINERU_TOKEN: 'MinerU',
+  BAIDU_SK: [t('web.name.baidu_qianfan'), 'https://console.bce.baidu.com/iam/#/iam/apikey/list'],
+  TAVILY_SK: ['Tavily', 'https://app.tavily.com/home'],
+  EXA_API_KEY: ['Exa', 'https://dashboard.exa.ai/api-keys'],
+  ANYSEARCH_API_KEY: ['AnySearch', 'https://www.anysearch.com/console/api-keys'],
+  DOUBAO_SEARCH_API_KEY: [t('web.name.doubao'), 'https://console.volcengine.com/search-infinity/api-key'],
+  TENCENTCLOUD_WSA_APIKEY: [t('web.name.yuanbao'), 'https://console.cloud.tencent.com/wsapi/index'],
+  TINYFISH_API_KEY: ['TinyFish', 'https://agent.tinyfish.ai/sign-up'],
+  KEENABLE_API_KEY: ['Keenable', 'https://app.keenable.ai/console'],
+  GITHUB_TOKEN: ['GitHub', 'https://github.com/settings/tokens'],
+  JINA_API_KEY: ['Jina Reader', 'https://jina.ai/api-keys'],
+  MINERU_TOKEN: ['MinerU', 'https://mineru.net/apiManage/token'],
+  LLM_API_KEY: ['LLM', 'https://platform.openai.com/api-keys', t('web.credential.openai_example')],
+  SEMANTIC_SCHOLAR_API_KEY: ['Semantic Scholar', 'https://webflow.semanticscholar.org/product/api'],
+  OPENALEX_API_KEY: ['OpenAlex', 'https://help.openalex.org/api/authentication/'],
+  UNPAYWALL_EMAIL: ['Unpaywall', 'https://data.unpaywall.org/products/api', t('web.credential.email_documentation')],
+  WEBSEARCH_TOKEN: [t('web.credential.business_auth')],
 };
-// 各供应商的官方「获取 Key」入口，配置页一键直达
-const SECRET_LINKS = {
-  BAIDU_SK: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
-  TAVILY_SK: 'https://app.tavily.com/home',
-  EXA_API_KEY: 'https://dashboard.exa.ai/api-keys',
-  ANYSEARCH_API_KEY: 'https://www.anysearch.com/console/api-keys',
-  DOUBAO_SEARCH_API_KEY: 'https://console.volcengine.com/search-infinity/api-key',
-  TENCENTCLOUD_WSA_APIKEY: 'https://console.cloud.tencent.com/wsapi/index',
-  JINA_API_KEY: 'https://jina.ai/api-keys',
-  MINERU_TOKEN: 'https://mineru.net/apiManage/token',
+const SECRET_ACTIONS = {
+  append: t('web.credential.append'), set: t('web.credential.set'), delete: t('web.credential.delete'),
+  label: t('web.credential.edit_label'), clear: t('web.credential.clear'), reset: t('web.credential.reset'),
 };
+const SECRET_API = '/__admin/api/secrets';
 
 const state = {
-  overview: null, overviewError: null, overviewStale: false,
-  quotas: null, quotaError: null,
+  overview: null, overviewError: null, overviewStale: false, overviewRequest: 0,
+  quotas: null, quotaError: null, quotaRequest: 0, runtimeAction: '',
   clients: { rows: null, error: null, tab: null, dimension: 'application', application: '', days: 7, windowDays: 7, loading: false, request: 0 },
   settings: null, settingsError: null, settingsDirty: false, settingsLoaded: false,
-  draft: {}, draftBefore: {}, draftRevision: '', saving: false, applying: false, applyResult: null, adminPass: '', adminUser: '',
+  storage: { data: null, error: null, clearing: false, request: 0 },
+  draft: {}, draftBefore: {}, invalidDraft: {}, openSources: new Set(), draftRevision: '', saving: false, applying: false, applyResult: null, adminPass: '', adminUser: '',
   events: { rows: null, error: null, loading: false, exporting: false, expanded: new Set(), details: new Map() },
-  filters: { status: '', errorKind: '', tool: '', provider: '' },
+  filters: { status: '', errorKind: '', tool: '', provider: '', application: '', project: '', cacheHit: '' },
   lastLoad: 0,
 };
 
@@ -147,7 +156,7 @@ function errorKindChip(kind) {
 }
 function formatErrorKinds(list) {
   if (!Array.isArray(list) || !list.length) return '<span class="dim">—</span>';
-  return list.slice(0, 3).map(item =>
+  return list.map(item =>
     `<span class="kind-chip bad">${esc(errorKindLabel(item.kind))} ×${fmtInt(item.count)}</span>`
   ).join(' ');
 }
@@ -195,7 +204,9 @@ async function fetchJSON(path, options = {}) {
   try { body = await res.json(); } catch (e) { body = null; }
   if (!res.ok) {
     const msg = body && body.error ? body.error : 'HTTP ' + res.status;
-    throw new Error(msg);
+    const error = new Error(msg);
+    error.status = res.status;
+    throw error;
   }
   if (body === null) throw new Error(t('web.msg.response_is_not_valid_json'));
   return body;
@@ -204,8 +215,10 @@ async function fetchJSON(path, options = {}) {
 /* ---------- loaders (each panel fails on its own) ---------- */
 
 async function loadOverview() {
+  const request = ++state.overviewRequest;
   try {
     const data = await fetchJSON('/__admin/api/overview');
+    if (request !== state.overviewRequest) return;
     state.overview = data;
     // The source catalog is the schema this page is built around; older
     // payloads are shown as-is but flagged so they are never read as current.
@@ -213,11 +226,16 @@ async function loadOverview() {
     state.overviewError = null;
     if (data && data.brand) applyBrand(data.brand);
   } catch (e) {
+    if (request !== state.overviewRequest) return;
     state.overviewError = e.message;
   }
   renderSystem();
   renderToolKpis();
+  renderRuntime();
+  renderCallTrend();
   renderMCPTools();
+  renderCapabilityStates();
+  renderDiagnosticControls();
   renderWebSources();
   renderSourcePages();
   renderUsageSourceOptions();
@@ -244,14 +262,21 @@ async function loadClients() {
 }
 
 async function loadQuotas() {
+  if (state.runtimeAction === 'quota') return;
+  const request = ++state.quotaRequest;
   try {
     const data = await fetchJSON('/__admin/api/quotas');
+    if (request !== state.quotaRequest) return;
     state.quotas = Array.isArray(data) ? data : [];
     state.quotaError = null;
   } catch (e) {
+    if (request !== state.quotaRequest) return;
     state.quotaError = e.message;
   }
-  renderTavily();
+  renderQuotas();
+}
+
+function renderQuotas() {
   renderWebSources();
   renderSourcePages();
   renderQuotaManage();
@@ -264,7 +289,7 @@ async function loadSettings() {
     state.settings = data;
     state.settingsError = null;
     const pending = data.pending_changes || {};
-    if (Object.keys(pending).length && !state.applying && !state.saving && (!state.applyResult || !state.applyResult.failed)) {
+    if ((Object.keys(pending).length || data.credential_status?.pending_restart) && !state.applying && !state.saving && (!state.applyResult || !state.applyResult.failed)) {
       state.applyResult = {
         targets: { ...pending }, backup: (data.backups || [])[0]?.name,
         failed: true, status: t('web.msg.config_saved_not_yet_confirmed'),
@@ -290,6 +315,9 @@ async function loadEvents() {
   if (f.errorKind) params.set('error_kind', f.errorKind);
   if (f.tool) params.set('tool', f.tool);
   if (f.provider) params.set('provider', f.provider);
+  if (f.application) params.set('application', f.application);
+  if (f.project) params.set('project', f.project);
+  if (f.cacheHit) params.set('cache_hit', f.cacheHit);
   state.events.loading = true;
   state.events.error = null;
   renderUsage();
@@ -381,6 +409,103 @@ function renderToolKpis() {
   ).join('');
 }
 
+function uptimeLabel(seconds) {
+  const value = num(seconds);
+  if (value === null || value < 0) return '—';
+  const days = Math.floor(value / 86400);
+  const hours = Math.floor(value % 86400 / 3600);
+  const minutes = Math.floor(value % 3600 / 60);
+  if (days) return t('web.runtime.uptime_days', { days, hours });
+  if (hours) return t('web.runtime.uptime_hours', { hours, minutes });
+  if (minutes) return t('web.runtime.uptime_minutes', { minutes, seconds: value % 60 });
+  return value + ' ' + t('web.label.seconds');
+}
+
+function renderRuntime() {
+  const list = $('#runtime-list');
+  if (!list) return;
+  const runtime = state.overview && state.overview.runtime;
+  if (!runtime) {
+    list.innerHTML = '<div><dd>—</dd></div>';
+    return;
+  }
+  const onOff = value => value ? t('web.label.on') : t('web.label.off_2');
+  const proxy = runtime.proxy;
+  const mode = {
+    auto: t('web.runtime.proxy_auto'),
+    explicit: t('web.runtime.proxy_explicit'),
+    disabled: t('web.runtime.proxy_disabled'),
+  }[proxy.mode];
+  const route = proxy.mode === 'disabled' ? mode : [mode, proxy.resolved ? t('web.runtime.proxy_resolved') : t('web.runtime.proxy_unresolved')].join(' · ');
+  const llm = runtime.llm;
+  const hub = runtime.mcp_hub;
+  const servers = hub.servers.length ? hub.servers.map(server => server.enabled ? server.name :
+    t('web.runtime.server_disabled', { name: server.name })).join(' → ') : '—';
+  const fetchMode = {
+    off: t('web.label.off_2'),
+    prefer: t('web.runtime.hub_fetch_prefer'),
+    fallback: t('web.runtime.hub_fetch_fallback'),
+  }[hub.fetch_mode] || hub.fetch_mode;
+  const rows = [
+    [t('web.runtime.version'), runtime.version],
+    [t('web.runtime.uptime'), uptimeLabel(runtime.uptime_seconds)],
+    [t('web.runtime.mcp_stateless'), onOff(runtime.mcp_stateless)],
+    [t('web.runtime.mcp_resources'), onOff(runtime.mcp_resources)],
+    [t('web.runtime.searxng'), runtime.searxng_enabled ? t('web.label.on') : t('web.runtime.removed')],
+    [t('web.runtime.proxy'), route],
+    [t('web.runtime.proxy_api_providers'), onOff(proxy.api_providers)],
+    [t('web.runtime.llm_summary'), [onOff(llm.enabled), llm.model_id, llm.timeout_seconds + ' ' + t('web.label.seconds')].filter(Boolean).join(' · ')],
+    ['MCPHub', onOff(hub.enabled)],
+    [t('web.runtime.hub_fetch'), fetchMode],
+    [t('web.runtime.hub_servers'), servers],
+  ];
+  list.innerHTML = rows.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value || '—')}</dd></div>`).join('');
+}
+
+function renderCallTrend() {
+  const chart = $('#call-trend');
+  if (!chart) return;
+  const days = state.overview && state.overview.trend;
+  if (!Array.isArray(days) || !days.length) {
+    chart.innerHTML = `<p class="panel-note">${esc(t('web.note.no_tool_layer_events_yet'))}</p>`;
+    return;
+  }
+  const series = [
+    ['successes', 'success', t('web.status.success')],
+    ['failures', 'failure', t('web.status.failure')],
+    ['cache_hits', 'cache', t('web.trend.cache_hits')],
+  ];
+  const daily = new Map(days.map(day => [day.day, day]));
+  const startDay = Date.parse(days[0].day);
+  const endDay = Date.parse(days[days.length - 1].day);
+  const dayMS = 86400000;
+  const count = Math.min(14, Math.round((endDay - startDay) / dayMS) + 1);
+  const max = Math.max(2, Math.ceil(Math.max(...days.flatMap(day => series.map(([key]) => day[key] || 0))) / 2) * 2);
+  const left = 47;
+  const top = 14;
+  const height = 144;
+  const bottom = top + height;
+  const width = 612;
+  const step = width / count;
+  const bar = Math.min(16, step / 4);
+  const grid = [0, max / 2, max].map(value => {
+    const y = bottom - value / max * height;
+    return `<line x1="${left}" y1="${y}" x2="${left + width}" y2="${y}"/><text x="${left - 6}" y="${y + 4}" text-anchor="end">${fmtInt(value)}</text>`;
+  }).join('');
+  const groups = Array.from({ length: count }, (_, index) => {
+    const day = new Date(endDay - (count - 1 - index) * dayMS).toISOString().slice(0, 10);
+    const row = daily.get(day) || {};
+    const x = left + step * (index + 0.5);
+    const title = [day, ...series.map(([key, , label]) => label + ' ' + fmtInt(row[key] || 0))].join(' · ');
+    return `<g><title>${esc(title)}</title>${series.map(([key, style], position) => {
+      const size = (row[key] || 0) / max * height;
+      return `<rect class="trend-${style}" x="${x + (position - 1.5) * bar}" y="${bottom - size}" width="${bar - 2}" height="${size}" rx="1"/>`;
+    }).join('')}<rect class="trend-target" x="${x - step / 2}" y="${top}" width="${step}" height="${height}"/>${(count <= 7 || index % 3 === 0 || index === count - 1) ? `<text x="${x}" y="${bottom + 18}" text-anchor="middle">${day.slice(5)}</text>` : ''}</g>`;
+  }).join('');
+  chart.innerHTML = `<svg class="call-trend" viewBox="0 0 675 184" role="img" aria-label="${esc(t('web.page.call_trend'))}">${grid}${groups}</svg>` +
+    `<ul class="trend-legend">${series.map(([, style, label]) => `<li><i class="trend-${style}" aria-hidden="true"></i>${esc(label)}</li>`).join('')}</ul>`;
+}
+
 // renderMCPTools 展示公开 MCP 工具的固定清单（不依赖是否已经产生调用），
 // 并用遥测健康数据补充“已观测 / 尚无调用”的观测状态。
 function renderMCPTools() {
@@ -403,33 +528,492 @@ function renderMCPTools() {
   if (help) setNote(help, t('web.note.switches_come_from_the_running_config_health_comes_from_real'), '');
   list.innerHTML = configured.map(tool => {
     const health = observed.get(tool.name);
-    let stateLabel;
-    let dotClass;
-    if (!tool.enabled) {
-      stateLabel = t('web.status.disabled_in_config');
-      if (tool.name === 'file_search' && (tool.registration_state || tool.state) === 'unprobed') stateLabel += ` ${t('web.note.not_probed_yet')}`;
-      dotClass = 'unknown';
-    } else if (['unprobed', 'pending', 'unavailable', 'disabled'].includes(tool.registration_state || tool.state)) {
-      stateLabel = ({ unprobed: t('web.status.not_probed'), pending: t('web.status.awaiting_registration'), unavailable: t('web.status.unavailable'), disabled: t('web.status.not_registered') })[tool.registration_state || tool.state];
-      dotClass = 'unknown';
-    } else if (health && health.last_seen_at) {
-      stateLabel = HEALTH[health.status] || t('web.status.unknown');
-      dotClass = DOT[health.status] || 'unknown';
-    } else {
-      stateLabel = t('web.status.callable_no_observations_yet');
-      dotClass = 'unknown';
-    }
+    const registration = tool.registration_state || tool.state;
+    const registrationLabel = tool.registered ? t('web.status.registered') : ({
+      unprobed: t('web.status.not_probed'),
+      pending: t('web.status.awaiting_registration'),
+      unavailable: t('web.status.unavailable'),
+    })[registration] || t('web.status.not_registered');
+    const stateLabel = tool.enabled ? registrationLabel :
+      t('web.status.disabled_in_config') + (registration === 'unprobed' ? ` ${t('web.note.not_probed_yet')}` : ` · ${registrationLabel}`);
+    const hasObservation = health && health.last_seen_at;
+    const observationLabel = hasObservation ? (HEALTH[health.status] || t('web.status.unknown')) : t('web.status.no_observations');
+    const dotClass = hasObservation ? (DOT[health.status] || 'unknown') : 'unknown';
     const stats = health && health.today
       ? `<small>${fmtInt(health.today.requests)} ${t('web.note.text')} ${fmtInt(health.today.successes)} ${t('web.note.success')} ${fmtInt(health.today.failures)} ${t('web.status.failure')}</small>`
       : `<small>${t('web.note.no_tool_layer_events_yet')}</small>`;
     const pdf = tool.pdf ? `<small class="pdf-params">${t('web.label.default_pages')} ${esc(tool.pdf.max_pages)} ${t('web.note.page_limit_per_task')} ${esc(tool.pdf.mineru_page_limit)} ${t('web.note.batch_size')} ${esc(tool.pdf.mineru_page_batch_size)} ${t('web.note.call_budget')} ${esc(tool.pdf.mineru_page_budget)} · OCR ${tool.pdf.ocr_enabled ? t('web.label.on') : t('web.label.off_2')}${tool.pdf.page_progress === 'not_collected' ? t('web.note.page_progress_not_collected') : ''}</small>` : '';
     const file = tool.file ? `<small class="pdf-params">${t('web.label.allowlisted_roots')} ${esc(tool.file.allowed_root_count)} · ${tool.file.whitelist_enforced ? t('web.status.allowlist_enforced') : t('web.status.directories_unrestricted')}${tool.file.path_metadata_only ? t('web.note.path_metadata_only') : ''}</small>` : '';
-    const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small>${t('web.note.saved_content_reads_available_url_fetching')}${tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')}</small>` : '';
+    const fetch = typeof tool.fetch_enabled === 'boolean' ? `<small class="pdf-params">${t('web.note.saved_content_reads_available_url_fetching')}${tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')}</small>` : '';
+    const history = tool.history ? `<small class="pdf-params">${esc(t('web.note.history_retention', { days: fmtInt(tool.history.retention_days) }))}</small>` : '';
     return `<div class="tool-row"><span class="tool-head">${dot(dotClass)}` +
       `<b>${esc(tool.label || displayName(tool.name))}</b><small class="mono">${esc(tool.name)}</small></span>` +
-      `<span class="tool-state">${esc(stateLabel)}</span>` +
-      `<p class="tool-stats">${stats}${pdf}${file}${fetch}</p></div>`;
+      `<span class="tool-state">${esc(stateLabel)}<small class="tool-observation">${esc(observationLabel)}</small></span>` +
+      `<p class="tool-stats">${stats}${pdf}${file}${fetch}${history}</p></div>`;
   }).join('');
+}
+
+
+/* ---------- configuration controls ---------- */
+
+const FIELD_TYPES = {
+  'smartsearch.max_size': ['web.label.max_results', 'number', 0, 360],
+  'smartsearch.relevance_threshold': ['web.label.relevance_threshold', 'decimal', 0, 1],
+  'smartsearch.fetch_top_n': ['web.config.fetch_top_n', 'number', 0, 5],
+  'smartsearch.enhance': ['web.config.enhance', 'checkbox'],
+  'smartsearch.show_meta': ['web.config.show_meta', 'checkbox'],
+  'smartsearch.off_topic_guard': ['web.config.off_topic_guard', 'select', ['shadow', 'enforce', 'off']],
+  'smartsearch.engine_timeout_sec': ['web.config.engine_timeout', 'number', -1, 3600],
+  'smartsearch.inline_max_chars': ['web.config.inline_max_chars', 'number', -1, 10000000],
+  'smartsearch.mmr.enabled': ['web.config.mmr_enabled', 'checkbox'],
+  'smartsearch.mmr.lambda': ['web.config.mmr_lambda', 'decimal', 0, 1],
+  'smartsearch.mmr.target_count': ['web.config.mmr_target', 'number', 0, 360],
+  'black_list_host': ['web.config.blocked_hosts', 'hosts'],
+  'cleanfetch.enabled': ['web.label.url_fetching', 'checkbox'],
+  'cleanfetch.auto_proxy': ['web.label.fetch_through_the_system_proxy', 'checkbox'],
+  'mcp_hub.fetch_mode': ['web.config.fetch_mode', 'select', ['off', 'fallback', 'prefer']],
+  'cleanfetch.timeout_sec': ['web.config.timeout', 'number', 1, 3600],
+  'cleanfetch.max_fetch_size_mb': ['web.config.max_fetch_mb', 'number', 1, 2048],
+  'cleanfetch.max_inline_lines': ['web.config.max_inline_lines', 'number', 1, 100000],
+  'cleanfetch.max_inline_chars': ['web.config.inline_max_chars', 'number', 0, 10000000],
+  'cleanfetch.file_ttl_hours': ['web.config.file_ttl', 'number', 1, 8760],
+  'cleanfetch.max_retries': ['web.config.retries', 'number', 1, 10],
+  'pdf_parser.enabled': ['web.name.pdf_parsing', 'checkbox'],
+  'pdf_parser.mineru_model': ['web.config.mineru_model', 'select', ['pipeline','vlm']],
+  'pdf_parser.mineru_ocr': ['web.config.mineru_ocr', 'checkbox'],
+  'pdf_parser.mineru_formula': ['web.config.mineru_formula', 'checkbox'],
+  'pdf_parser.mineru_table': ['web.config.mineru_table', 'checkbox'],
+  'pdf_parser.mineru_lang': ['web.config.mineru_language', 'text'],
+  'pdf_parser.mineru_remote_pdf': ['web.config.mineru_remote', 'checkbox'],
+  'pdf_parser.max_pages': ['web.label.default_pages', 'number', 1, 10000],
+  'pdf_parser.mineru_page_limit': ['web.config.mineru_page_limit', 'number', 1, 10000],
+  'pdf_parser.mineru_page_batch_size': ['web.config.mineru_batch_size', 'number', 0, 200],
+  'pdf_parser.mineru_page_budget': ['web.config.mineru_page_budget', 'number', 0, 100000],
+  'academic.enabled': ['web.name.academic_search', 'checkbox'],
+  'academic.enhance': ['web.config.enhance', 'checkbox'],
+  'academic.threshold': ['web.label.relevance_threshold', 'decimal', 0, 1],
+  'search_history.enabled': ['web.config.history_enabled', 'checkbox'],
+  'search_history.retention_days': ['web.config.retention', 'number', 1, 36500],
+  'llm.base_url': ['web.config.base_url', 'text'],
+  'llm.model_id': ['web.config.model', 'text'],
+  'llm.timeout_sec': ['web.config.timeout', 'number', 1, 3600],
+  'llm.summary_progress_interval': ['web.config.progress_interval', 'number', 1, 3600],
+  'everything.max_results': ['web.label.max_results', 'number', 1, 20],
+  'everything.timeout_sec': ['web.config.timeout', 'number', 1, 3600],
+  'everything.min_alignment': ['web.config.min_alignment', 'decimal', 0, 1],
+  'apipool.strategy': ['web.config.strategy', 'select', ['round-robin','priority','weighted']],
+  'apipool.engines': ['web.config.pool_order', 'ordered'],
+  'apipool.weights': ['web.config.pool_weights', 'weights-map'],
+  'mcp_hub.strategy': ['web.config.strategy', 'select', ['priority','round-robin']],
+  'mcp_hub.timeout_sec': ['web.config.timeout', 'number', 1, 3600],
+  'mcp_hub.fetch_timeout_sec': ['web.config.fetch_timeout', 'number', 1, 3600],
+  'mcp_hub.cooldown_sec': ['web.config.cooldown', 'number', 1, 86400],
+  'mcp_hub.rotation_engines': ['web.config.rotation_engines', 'ordered'],
+  'mcp_hub.fallback_engines': ['web.config.fallback_engines', 'ordered'],
+  'proxy.enabled': ['web.config.proxy_mode', 'tri-state', [null, true, false]],
+  'proxy.endpoint': ['web.config.proxy_endpoint', 'text'],
+  'proxy.api_providers': ['web.config.api_proxy', 'checkbox'],
+  'rate_limit.per_sec': ['web.config.per_second', 'number', 1, 100000],
+  'rate_limit.per_min': ['web.config.per_minute', 'number', 1, 1000000],
+  'language': ['web.config.language', 'select', ['auto','zh','en']],
+  'log_level': ['web.config.log_level', 'select', ['trace','debug','info','warn','error','fatal','panic','disabled']],
+  'dashboard.retention_days': ['web.config.telemetry_retention', 'number', 1, 36500],
+  'dashboard.client_projects': ['web.config.client_projects', 'text-map'],
+  'dashboard.brand.title': ['web.config.brand_title', 'text'],
+  'dashboard.brand.theme': ['web.config.brand_theme', 'select', ['green','blue','mono']],
+  'dashboard.brand.accent': ['web.config.brand_accent', 'text'],
+  'dashboard.brand.footer': ['web.config.brand_footer', 'checkbox'],
+  'dashboard.quotas.reset': ['web.config.quota_reset', 'select', ['monthly','weekly','daily','none']],
+  'dashboard.quotas.reset_day': ['web.config.quota_reset_day', 'number', 1, 28],
+  'dashboard.quotas.limits': ['web.config.quota_limits', 'numbers-map'],
+  'dashboard.quotas.enforce_providers': ['web.config.quota_enforced_providers', 'checklist'],
+  'yuanbao.monthly_limit': ['web.config.yuanbao_limit', 'number', 0, 10000000],
+  'yuanbao.mode': ['web.label.search_mode', 'numeric-select', [0,1,2]],
+  'yuanbao.industry': ['web.config.industry', 'select', ['', 'gov','news','acad','finance']],
+  'yuanbao.site': ['web.config.site', 'text'],
+  'doubao.version': ['web.label.doubao_api_version', 'select', ['global','custom']],
+  'doubao.icp_host_only': ['web.config.icp_only', 'checkbox'],
+  'doubao.need_content': ['web.config.include_text', 'checkbox'],
+  'doubao.auth_level': ['web.config.auth_level', 'numeric-select', [0,1]],
+  'doubao.query_rewrite': ['web.config.rewrite_query', 'checkbox'],
+  'doubao.num_results': ['web.label.max_results', 'number', 1, 50],
+  'baidu.enable_ai_search': ['web.config.baidu_ai', 'checkbox'],
+  'baidu.model': ['web.config.model', 'text'],
+  'baidu.search_mode': ['web.label.search_mode', 'select', ['auto','required','disabled']],
+  'tavily.include_raw_content': ['web.config.include_text', 'checkbox'],
+  'exa.include_text': ['web.config.include_text', 'checkbox'],
+  'exa.lookback_days': ['web.config.lookback_days', 'number', 1, 36500],
+  'exa.num_results': ['web.label.max_results', 'number', 1, 100],
+  'keenable.live': ['web.config.live', 'checkbox'],
+  'wikipedia.lang': ['web.config.language', 'text'],
+  'google_news.edition': ['web.config.edition', 'select', ['zh-CN','zh-TW','en-US','en-GB','ja-JP','ko-KR']],
+  'so360.safe_search': ['web.config.safe_search', 'numeric-select', [0,1,2]],
+};
+
+const TOOL_CONFIGS = [
+  ['smartsearch', 'web.capability.smartsearch', 'web.capability.smartsearch_help',
+    ['smartsearch.enhance','smartsearch.max_size','black_list_host'],
+    ['smartsearch.fetch_top_n','smartsearch.show_meta','smartsearch.off_topic_guard','smartsearch.engine_timeout_sec','smartsearch.inline_max_chars','smartsearch.relevance_threshold','smartsearch.mmr.enabled','smartsearch.mmr.lambda','smartsearch.mmr.target_count']],
+  ['cleanfetch', 'web.capability.cleanfetch', 'web.capability.cleanfetch_help',
+    ['cleanfetch.enabled','mcp_hub.fetch_mode','cleanfetch.timeout_sec'],
+    ['cleanfetch.auto_proxy','cleanfetch.max_fetch_size_mb','cleanfetch.max_inline_lines','cleanfetch.max_inline_chars','cleanfetch.file_ttl_hours','cleanfetch.max_retries']],
+  ['pdf_parser', 'web.capability.pdf', 'web.capability.pdf_help',
+    ['pdf_parser.enabled','pdf_parser.mineru_model','pdf_parser.mineru_ocr'],
+    ['pdf_parser.mineru_formula','pdf_parser.mineru_table','pdf_parser.mineru_lang','pdf_parser.mineru_remote_pdf','pdf_parser.max_pages','pdf_parser.mineru_page_limit','pdf_parser.mineru_page_batch_size','pdf_parser.mineru_page_budget']],
+  ['academicsearch', 'web.capability.academic', 'web.capability.academic_help',
+    ['academic.enabled','academic.enhance'], ['academic.threshold']],
+  ['search_history', 'web.capability.history', 'web.capability.history_help',
+    ['search_history.enabled','search_history.retention_days'], []],
+  ['llm', 'web.capability.llm', 'web.capability.llm_help',
+    ['llm.model_id','llm.base_url'], ['llm.timeout_sec','llm.summary_progress_interval']],
+  ['file_search', 'web.capability.everything', 'web.capability.everything_help',
+    ['everything.max_results'], ['everything.timeout_sec','everything.min_alignment']],
+];
+
+const SOURCE_CONFIGS = {
+  yuanbao: ['yuanbao.monthly_limit','yuanbao.mode','yuanbao.industry','yuanbao.site'],
+  doubao: ['doubao.version','doubao.icp_host_only','doubao.need_content','doubao.auth_level','doubao.query_rewrite','doubao.num_results'],
+  baidu: ['baidu.enable_ai_search','baidu.model','baidu.search_mode'],
+  tavily: ['tavily.include_raw_content'],
+  exa: ['exa.include_text','exa.lookback_days','exa.num_results'],
+  keenable: ['keenable.live'],
+  wikipedia: ['wikipedia.lang'],
+  googlenews: ['google_news.edition'],
+  so360: ['so360.safe_search'],
+};
+
+function configField(key) {
+  if (FIELD_TYPES[key]) return FIELD_TYPES[key];
+  const score = /^smartsearch\.engines\.[a-z0-9_]+\.(weight|max_size|min_score)$/.exec(key);
+  if (!score) return null;
+  if (score[1] === 'weight') return ['web.config.engine_weight', 'decimal', 0, 1000];
+  if (score[1] === 'max_size') return ['web.label.max_results', 'number', 0, 360];
+  return ['web.config.engine_min_score', 'decimal', 0, 1];
+}
+
+function configFieldHtml(key) {
+  const [labelKey, type, limits, max] = configField(key);
+  const label = t(labelKey);
+  const attrs = ' data-key="' + esc(key) + '" data-config-type="' + type + '"';
+  const title = '<span>' + esc(label) + '</span>';
+  if (type === 'checkbox') {
+    return '<label class="settings-toggle form-check form-switch"><input type="checkbox" class="form-check-input" role="switch"' + attrs + '>' + title + '</label>';
+  }
+  if (type === 'ordered' || type === 'checklist') {
+    const help = type === 'checklist' ? '<p class="panel-note">' + esc(t('web.config.quota_enforced_help')) + '</p>' : '';
+    return '<fieldset class="ordered-field settings-wide"><legend>' + esc(label) + '</legend>' + help + '<div data-ordered-field="' + esc(key) + '"></div></fieldset>';
+  }
+  if (['select', 'tri-state', 'numeric-select'].includes(type)) {
+    const optionLabels = type === 'tri-state'
+      ? [t('web.config.proxy_auto'), t('web.config.proxy_explicit'), t('web.config.proxy_disabled')] : limits;
+    const choices = limits.map((value, index) => '<option value="' + esc(String(value)) + '">' + esc(optionLabels[index] || t('web.config.any_value')) + '</option>');
+    return '<label>' + title + '<select' + attrs + '>' + choices.join('') + '</select></label>';
+  }
+  if (type === 'hosts' || type.endsWith('-map')) {
+    const help = type === 'hosts' ? t('web.config.host_list_help') : t('web.config.key_value_help');
+    return '<label class="settings-wide">' + title + '<textarea rows="3" spellcheck="false" aria-describedby="help-' + esc(key) + '"' + attrs + '></textarea><small id="help-' + esc(key) + '">' + esc(help) + '</small></label>';
+  }
+  const numeric = type === 'number' || type === 'decimal';
+  const range = (limits === undefined ? '' : ' min="' + limits + '"') + (max === undefined ? '' : ' max="' + max + '"');
+  return '<label>' + title + '<input type="' + (numeric ? 'number' : 'text') + '"' + attrs + range + (numeric ? ' step="' + (type === 'decimal' ? 'any' : '1') + '" required' : ' spellcheck="false"') + '></label>';
+}
+
+function configFields(keys) {
+  return '<div class="form-grid">' + keys.map(configFieldHtml).join('') + '</div>';
+}
+
+function advancedFields(keys) {
+  return '<details class="settings-advanced config-advanced"><summary>' +
+    esc(t('web.config.advanced')) + '</summary>' + configFields(keys) + '</details>';
+}
+
+function mountConfigControls() {
+  $('#tools-directory').innerHTML = TOOL_CONFIGS.map(([id, label]) =>
+    '<button type="button" data-jump-section="capability-' + id + '">' + esc(t(label)) + '</button>').join('');
+  $('#tool-controls').innerHTML = TOOL_CONFIGS.map(([id, label, description, common, advanced]) => {
+    const scope = id === 'file_search'
+      ? '<button id="everything-scope-button" type="button" class="scope-button" aria-expanded="false" aria-controls="everything-scope">' + esc(t('web.config.show_scope')) + '</button><button id="diagnostic-everything" type="button" class="scope-button" disabled>' + esc(t('web.diagnostics.reprobe_everything')) + '</button><p id="diagnostic-everything-result" class="panel-note" role="status"></p><div id="everything-scope" aria-live="polite"></div>'
+      : '';
+    return '<article id="capability-' + id + '" class="panel capability"><div class="panel-head"><h2>' +
+      esc(t(label)) + '</h2><span class="muted capability-state" data-tool-state="' + id + '"></span></div><p class="panel-note">' +
+      esc(t(description)) + '</p>' + configFields(common) + (advanced.length ? advancedFields(advanced) : '') + scope + '</article>';
+  }).join('');
+  const network = $('#academic-network-template');
+  const academic = $('#capability-academicsearch .settings-advanced');
+  academic.append(network.content.cloneNode(true));
+  applyI18n(academic);
+  $('#routing-controls').innerHTML =
+    '<div data-mode-config="apipool" hidden>' + configFields(['apipool.strategy','apipool.engines']) + advancedFields(['apipool.weights']) + '</div>' +
+    '<div data-mode-config="mcphub" hidden>' + configFields(['mcp_hub.strategy','mcp_hub.timeout_sec','mcp_hub.fetch_timeout_sec','mcp_hub.cooldown_sec','mcp_hub.rotation_engines','mcp_hub.fallback_engines']) + '</div>';
+  $('#operational-controls').innerHTML = configFields(['language','log_level','proxy.enabled','proxy.endpoint','proxy.api_providers']) +
+    advancedFields(['rate_limit.per_sec','rate_limit.per_min','dashboard.retention_days','dashboard.client_projects']);
+  $('#brand-controls').innerHTML = configFields(['dashboard.brand.title','dashboard.brand.theme','dashboard.brand.accent','dashboard.brand.footer']);
+  $('#quota-controls').innerHTML = configFields(['dashboard.quotas.enforce_providers']) +
+    advancedFields(['dashboard.quotas.reset','dashboard.quotas.reset_day','dashboard.quotas.limits']);
+}
+
+function orderedConfigHtml(key, options, chosen, disabled) {
+  const active = new Set(Array.isArray(chosen) ? chosen : []);
+  const ordered = configField(key)?.[1] !== 'checklist';
+  const values = [...new Set(ordered ? [...active, ...options] : [...options, ...active])];
+  const moveUp = t('web.config.move_up');
+  const moveDown = t('web.config.move_down');
+  const disable = ' disabled';
+  return '<ul class="ordered-options">' + values.map((name, index) => {
+    const label = esc(displayName(name));
+    const checked = active.has(name);
+    const attrs = ' type="button" data-order-key="' + esc(key) + '" data-order-name="' + esc(name) + '"';
+    return '<li><label><input type="checkbox" data-order-key="' + esc(key) + '" value="' + esc(name) + '"' + (checked ? ' checked' : '') +
+      (disabled ? disable : '') + '>' + label + '</label>' +
+      (checked && ordered ? '<span><button' + attrs + ' data-order-shift="-1" aria-label="' + esc(moveUp) + ' ' + label + '"' +
+        (disabled || index === 0 ? disable : '') + '>' + esc(moveUp) + '</button><button' + attrs + ' data-order-shift="1" aria-label="' + esc(moveDown) + ' ' + label + '"' +
+        (disabled || index === active.size - 1 ? disable : '') + '>' + esc(moveDown) + '</button></span>' : '') + '</li>';
+  }).join('') + '</ul>';
+}
+
+function renderOrderedFields() {
+  $$('[data-ordered-field]').forEach(el => {
+    const key = el.dataset.orderedField;
+    const options = state.settings?.options?.[key] || [];
+    const markup = orderedConfigHtml(key, options, displayedConfigValue(key), Boolean(settingsFieldReason(key)));
+    if (el.dataset.markup !== markup) {
+      const active = document.activeElement;
+      const focused = el.contains(active) ? Array.from(el.querySelectorAll('input,button')).indexOf(active) : -1;
+      el.innerHTML = markup;
+      el.dataset.markup = markup;
+      if (focused >= 0) el.querySelectorAll('input,button')[focused]?.focus();
+    }
+  });
+}
+
+function changeOrderedConfig(key, name, checked, shift) {
+  const next = [...(draftValue(key) || [])];
+  const current = next.indexOf(name);
+  if (shift) {
+    const index = current + shift;
+    if (current < 0 || index < 0 || index >= next.length) return;
+    [next[current], next[index]] = [next[index], next[current]];
+  } else if (checked && current < 0) next.push(name);
+  else if (!checked && current >= 0) next.splice(current, 1);
+  setDraft(key, next);
+  renderOrderedFields();
+}
+
+function displayedConfigValue(key) {
+  return state.settings?.locked_fields?.[key] ? state.settings.values[key] : draftValue(key);
+}
+
+function displayEditValue(value, type) {
+  if (type === 'tri-state') return String(value ?? null);
+  if (type === 'hosts') return Array.isArray(value) ? value.join('\n') : '';
+  if (type && type.endsWith('-map')) return Object.entries(value || {}).map(([key, val]) => key + ' = ' + val).join('\n');
+  return value ?? '';
+}
+
+function normalizeBlockedHost(value) {
+  const host = value.replace(/\.$/, '');
+  const domain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+  if (host.length <= 253 && domain.test(host)) return host;
+  if (host && !/[/\\?#[\]@%*]/u.test(host)) {
+    try {
+      const isIPv6 = host.includes(':');
+      const hostname = new URL('http://' + (isIPv6 ? '[' + host + ']' : host)).hostname;
+      if (isIPv6) return hostname.slice(1, -1);
+      if (hostname.length <= 253 && domain.test(hostname)) return hostname;
+    } catch (_) { /* Invalid host syntax. */ }
+  }
+  throw new Error(t('web.config.invalid_domain'));
+}
+
+function parseConfigInput(el) {
+  const type = el.dataset.configType;
+  if (el.type === 'checkbox') return el.checked;
+  if (type === 'tri-state') return { null: null, true: true, false: false }[el.value];
+  if (type === 'hosts') {
+    const input = el.value.toLowerCase().split(/[\s,]+/u).filter(Boolean);
+    return [...new Set(input.map(normalizeBlockedHost))];
+  }
+  if (type && type.endsWith('-map')) {
+    const entries = new Map();
+    for (const line of el.value.split('\n').map(line => line.trim()).filter(Boolean)) {
+      const entry = /^([^=]+?)\s*=\s*(.+)$/.exec(line);
+      if (!entry || !entry[1].trim() || entries.has(entry[1].trim())) throw new Error(t('web.config.invalid_mapping'));
+      let value = entry[2].trim();
+      if (!value) throw new Error(t('web.config.invalid_mapping'));
+      if (type === 'numbers-map' || type === 'weights-map') {
+        const minimum = type === 'weights-map' ? 0 : 1;
+        const maximum = type === 'weights-map' ? 1000000 : 1000000000;
+        if (!/^\d+$/.test(value) || Number(value) < minimum || Number(value) > maximum) {
+          throw new Error(t('web.config.invalid_mapping_range', { min: minimum, max: maximum }));
+        }
+        value = Number(value);
+      }
+      entries.set(entry[1].trim(), value);
+    }
+    return Object.fromEntries(entries);
+  }
+  if (el.type === 'number' || type === 'numeric-select') {
+    const value = el.value === '' ? null : Number(el.value);
+    if (el.dataset.key === 'pdf_parser.mineru_page_batch_size' && value > 0 && value < 10) {
+      throw new Error(t('web.config.invalid_page_batch'));
+    }
+    if (el.dataset.key === 'doubao.num_results' && displayedConfigValue('doubao.version') === 'global' && value > 20) {
+      throw new Error(t('web.config.invalid_global_results'));
+    }
+    return value;
+  }
+  return el.value;
+}
+
+function renderCapabilityStates() {
+  const configured = state.overview?.configured_tools || [];
+  const llm = state.overview?.runtime?.llm;
+  $$('[data-tool-state]').forEach(el => {
+    const id = el.dataset.toolState;
+    const tool = configured.find(item => item.name === id);
+    const ready = tool ? tool.enabled : id === 'llm' ? llm?.enabled : undefined;
+    const status = tool?.registration_state || tool?.state;
+    const registration = tool?.registered ? t('web.status.registered') : ({
+      unprobed: t('web.status.not_probed'), pending: t('web.status.awaiting_registration'),
+      unavailable: t('web.status.unavailable'),
+    })[status] || (tool ? t('web.status.not_registered') : '');
+    const enabled = ready === undefined ? t('web.status.unknown') :
+      ready ? t('web.status.enabled') : t('web.status.disabled_in_config');
+    const file = tool?.file;
+    const scope = file ? t('web.label.allowlisted_roots') + ' ' + fmtInt(file.allowed_root_count) : '';
+    const model = id === 'llm' && llm?.enabled ? llm.model_id : '';
+    const fetch = id === 'cleanfetch' && typeof tool?.fetch_enabled === 'boolean'
+      ? t('web.note.saved_content_reads_available_url_fetching') + (tool.fetch_enabled ? t('web.label.on') : t('web.label.off_2')) : '';
+    const connectivity = file?.connectivity === 'available' ? t('web.diagnostics.connectivity_available') :
+      file?.connectivity === 'unavailable' ? t('web.diagnostics.connectivity_unavailable') : '';
+    el.textContent = [enabled, registration, model, scope, fetch, connectivity].filter(Boolean).join(' · ');
+  });
+}
+
+async function toggleEverythingScope() {
+  const button = $('#everything-scope-button');
+  const view = $('#everything-scope');
+  if (button.getAttribute('aria-expanded') === 'true') {
+    view.textContent = '';
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = t('web.config.show_scope');
+    return;
+  }
+  button.disabled = true;
+  try {
+    const result = await fetchJSON('/__admin/api/everything/scope', { headers: await adminHeaders(), signal: AbortSignal.timeout(5000) });
+    if (!$('#page-tools').classList.contains('active')) return;
+    const roots = Array.isArray(result.roots) ? result.roots : [];
+    view.innerHTML = '<dl class="scope-view"><div><dt>' + esc(t('web.config.scope_url')) +
+      '</dt><dd>' + esc(result.url || '—') + '</dd></div><div><dt>' + esc(t('web.label.allowlisted_roots')) +
+      '</dt><dd>' + (roots.length ? '<ul>' + roots.map(root => '<li>' + esc(root) + '</li>').join('') +
+      '</ul>' : esc(t('web.status.directories_unrestricted'))) + '</dd></div></dl>';
+    button.setAttribute('aria-expanded', 'true');
+    button.textContent = t('web.config.hide_scope');
+  } catch (e) {
+    clearRejectedCredentials(e);
+    toast(e.message, true);
+  } finally {
+    button.disabled = !writeAllowed();
+  }
+}
+
+
+function renderDiagnosticControls() {
+  const options = state.overview?.diagnostics;
+  const search = $('#diagnostic-search');
+  const select = search?.elements?.namedItem('source');
+  if (!select) return;
+  const selected = select.value;
+  const sources = options?.sources || [];
+  select.replaceChildren(...sources.map(({ id, name }) => new Option(name, id)));
+  if (sources.some(({ id }) => id === selected)) select.value = selected;
+  const file = state.overview?.configured_tools?.find(tool => tool.name === 'file_search');
+  const fetch = state.overview?.configured_tools?.find(tool => tool.name === 'cleanfetch');
+  for (const [selector, enabled] of [
+    ['#diagnostic-proxy', true], ['#diagnostic-everything', file?.enabled],
+    ['#diagnostic-search button', sources.length], ['#diagnostic-fetch button', fetch?.fetch_enabled],
+  ]) {
+    const button = $(selector);
+    if (button) button.disabled = !enabled || !localActionAvailable() || Boolean(button.dataset.running);
+  }
+}
+
+function diagnosticResultText(result) {
+  const message = [result.ok ? t('web.status.success') : t('web.status.failure'), fmtMS(result.elapsed_ms)];
+  if (result.endpoint) message.push(result.endpoint);
+  const kinds = {
+    unconfigured: t('web.diagnostics.unconfigured'),
+    invalid_endpoint: t('web.diagnostics.invalid_endpoint'),
+    blocked: t('web.diagnostics.blocked'),
+    challenge: t('web.diagnostics.challenge'),
+  };
+  if (result.error_kind) message.push(result.error_detail || kinds[result.error_kind] || errorKindLabel(result.error_kind));
+  if (typeof result.result_count === 'number') message.push(t('web.diagnostics.result_count', { count: fmtInt(result.result_count) }));
+  if (result.titles?.length) message.push(result.titles.join(' / '));
+  if (result.fetch) {
+    const { node, attempts, body_status, characters, remote_redirects } = result.fetch;
+    if (node) message.push(t('web.diagnostics.fetch_node', { node: displayName(node) }));
+    if (attempts?.length > 1) message.push(attempts.map(displayName).join(' → '));
+    message.push(body_status === 'available'
+      ? t('web.diagnostics.fetch_chars', { count: fmtInt(characters) }) : t('web.diagnostics.no_body'));
+    if (remote_redirects) message.push(t('web.diagnostics.remote_redirects'));
+  }
+  return message.join(' · ');
+}
+
+async function runDiagnostic(kind, button, view, payload = {}) {
+  if (!localActionAvailable() || button.disabled) return;
+  button.dataset.running = 'true';
+  button.disabled = true;
+  view.textContent = '';
+  try {
+    const result = await localActionPost('/__admin/api/diagnostics/' + kind, payload);
+    setNote(view, diagnosticResultText(result), result.ok ? 'ok' : 'bad');
+    for (const { title, url } of result.links || []) {
+      if (!/^https:\/\/pubmed\.ncbi\.nlm\.nih\.gov\/[1-9][0-9]*\/$/.test(url)) continue;
+      const link = document.createElement('a');
+      link.textContent = title;
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      view.append(' · ', link);
+    }
+    if (kind === 'everything') await loadOverview();
+  } catch (e) {
+    setNote(view, e.message, 'bad');
+  } finally {
+    delete button.dataset.running;
+    renderDiagnosticControls();
+  }
+}
+
+function wireDiagnostics() {
+  for (const kind of ['proxy', 'everything']) {
+    const button = $('#diagnostic-' + kind);
+    button?.addEventListener('click', () => runDiagnostic(kind, button, $('#diagnostic-' + kind + '-result')));
+  }
+  const search = $('#diagnostic-search');
+  search?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const { source, query } = Object.fromEntries(new FormData(search));
+    const chosen = state.overview?.diagnostics?.sources?.find(item => item.id === source);
+    if (!chosen) return;
+    const button = search.querySelector('button');
+    if (button.disabled) return;
+    if (chosen.confirm && !(await confirmDialog(t('web.diagnostics.run_search'), t('web.diagnostics.confirm_search', { source: chosen.name })))) return;
+    await runDiagnostic('search', button, search.querySelector('[role=status]'), { source, query, confirm: Boolean(chosen.confirm) });
+  });
+  const fetch = $('#diagnostic-fetch');
+  fetch?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const { url } = Object.fromEntries(new FormData(fetch));
+    const services = state.overview?.diagnostics?.fetch_services || [];
+    const button = fetch.querySelector('button');
+    if (button.disabled) return;
+    if (services.length && !(await confirmDialog(t('web.diagnostics.run_fetch'), t('web.diagnostics.confirm_fetch', { sources: services.map(displayName).join(', ') })))) return;
+    await runDiagnostic('fetch', button, fetch.querySelector('[role=status]'), { url, confirm: services.length > 0 });
+  });
 }
 
 /* ---------- sources ---------- */
@@ -450,11 +1034,6 @@ function academicSources() {
   return Array.isArray(o.academic_sources) ? o.academic_sources : null;
 }
 
-function tavilyItem() {
-  if (!Array.isArray(state.quotas)) return null;
-  return state.quotas.find(q => q && q.provider === 'tavily') || null;
-}
-
 function healthStrip(s) {
   const outcomes = Array.isArray(s.recent_outcomes) ? s.recent_outcomes.slice(-20) : [];
   const cells = Array(Math.max(0, 20 - outcomes.length)).fill(null).concat(outcomes);
@@ -470,18 +1049,123 @@ function sourceRowHtml(s, detailed) {
   const id = s.id || '';
   const successRate = today && num(today.requests) > 0 ? today.successes / today.requests : null;
   const avg = today && num(today.requests) > 0 ? fmtMS(Math.round(today.duration_ms / today.requests)) : '<span class="dim">—</span>';
+  const heading = key => ' data-label="' + esc(t(key)) + '"';
   const cells = [
-    `<td class="src-name"><b>${esc(name)}</b>${detailed && id === 'doubao' ? doubaoVersionControl() : ''}</td>`,
-    `<td>${sourceControl(s)}</td>`,
-    `<td><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}</td>`,
-    `<td>${healthStrip(s)}</td>`,
-    `<td class="num">${today ? fmtInt(today.requests) : '<span class="dim">—</span>'}</td>`,
-    `<td class="num">${successRate === null ? '<span class="dim">—</span>' : esc(Math.round(successRate * 100) + '%')}</td>`,
-    `<td class="num">${avg}</td>`,
-    `<td class="wrap-any">${s.last_error ? '<span class="bad-text">' + esc(s.last_error) + '</span>' : '<span class="dim">—</span>'}</td>`,
+    `<td class="src-name"><b>${esc(name)}</b>${detailed ? sourceDrawerButton(s, name) : ''}${s.participation ? `<small class="source-participation">${esc(s.participation)}</small>` : ''}${s.condition ? `<small class="source-condition">${esc(s.condition)}</small>` : ''}</td>`,
+    `<td${heading('web.label.enabled')}>${sourceControl(s)}</td>`,
+    `<td${heading('web.label.historical_health')}><span class="nowrap" title="${t('web.note.last_observed')}${esc(fmtAt(s.last_seen_at))}">${dot(health.dot)} ${esc(health.label)}</span>${suspendBadge(s)}${cooldownBadge(s.actual_cooldown, detailed, name)}</td>`,
+    `<td${heading('web.label.last_20')}>${healthStrip(s)}</td>`,
+    `<td class="num"${heading('web.label.attempts_today')}>${today ? fmtInt(today.requests) : '<span class="dim">—</span>'}</td>`,
+    `<td class="num"${heading('web.label.success_rate')}>${successRate === null ? '<span class="dim">—</span>' : esc(Math.round(successRate * 100) + '%')}</td>`,
+    `<td class="num"${heading('web.label.average_latency')}>${avg}${num(s.p95_ms) > 0 ? `<small>P95 ${esc(fmtMS(s.p95_ms))}</small>` : ''}</td>`,
+    `<td class="wrap-any"${heading('web.label.last_error')}>${s.last_error ? '<span class="bad-text">' + esc(s.last_error) + '</span>' : '<span class="dim">—</span>'}${s.error_kinds && s.error_kinds.length ? `<div class="source-errors" aria-label="${t('web.label.failure_breakdown')}">${formatErrorKinds(s.error_kinds)}</div>` : ''}</td>`,
   ];
+  if (detailed && s.category === 'api') {
+    const quota = state.quotas?.find(q => q.provider === id);
+    const skipped = s.quota_skip_reason ? `<small class="quota-skipped">${esc(s.quota_skip_reason)}</small>` : '';
+    cells.push(`<td class="quota-cell"${heading('web.quota.heading')}>${quota ? quotaUsageHtml(quota, true) : skipped ? '' : '—'}${skipped}</td>`);
+  }
   const rowClass = s.active === true && s.suspended === true ? 'row-suspended' : (s.active === true && s.status === 'down' ? 'row-down' : '');
-  return `<tr class="${rowClass}">${cells.join('')}</tr>`;
+  return `<tr class="source-entry ${rowClass}">${cells.join('')}</tr>` + (detailed ? sourceDrawer(s, cells.length) : '');
+}
+
+function sourceConfigKeys(s) {
+  const score = s.score_key ? ['weight', 'max_size', 'min_score'].map(field => 'smartsearch.engines.' + s.score_key + '.' + field) : [];
+  return [...(SOURCE_CONFIGS[s.id] || []), ...score].filter(key => Object.hasOwn(savedValues(), key));
+}
+
+function sourceDrawerButton(s, name) {
+  if (!sourceConfigKeys(s).length) return '';
+  const open = state.openSources.has(s.id);
+  const label = t('web.config.source_parameters');
+  return '<button type="button" class="source-params" data-source-drawer="' + esc(s.id) + '" aria-controls="source-config-' +
+    esc(s.id) + '" aria-expanded="' + open + '" aria-label="' + esc(name + ' · ' + label) + '">' + esc(label) + '</button>';
+}
+
+function sourceDrawer(s, cols) {
+  const keys = sourceConfigKeys(s);
+  if (!keys.length) return '';
+  return '<tr class="source-config-row" id="source-config-' + esc(s.id) + '"' +
+    (state.openSources.has(s.id) ? '' : ' hidden') + '><td colspan="' + cols + '">' + configFields(keys) + '</td></tr>';
+}
+
+function cooldownSeconds(until) {
+  return Math.ceil((Date.parse(until) - Date.now()) / 1000);
+}
+
+function cooldownLabel(seconds) {
+  return t('web.label.cooldown_countdown', { count: fmtInt(seconds) });
+}
+
+function cooldownBadge(cooldown, detailed, name) {
+  if (!cooldown) return '';
+  const seconds = cooldownSeconds(cooldown.until);
+  if (!(seconds > 0)) return '';
+  const title = [errorKindLabel(cooldown.kind), fmtAt(cooldown.until)].filter(Boolean).join(' · ');
+  const badge = `<span class="kind-chip route-cooldown" data-route-cooldown-until="${esc(cooldown.until)}" title="${esc(title)}">${esc(cooldownLabel(seconds))}</span>`;
+  if (!detailed) return badge;
+  const label = esc(t('web.runtime_action.release_source', { Name: name }));
+  return `<span class="route-cooldown-control">${badge} <button type="button" class="icon-btn" data-cooldown-release="${esc(cooldown.engine)}" data-cooldown-name="${esc(name)}" title="${label}" aria-label="${label}" disabled>${icon('rotate-ccw')}</button></span>`;
+}
+
+function updateRoutingCooldowns() {
+  const page = $('#page-sources');
+  if (document.hidden || !page.classList.contains('active')) return;
+  $$('[data-route-cooldown-until]', page).forEach(badge => {
+    const seconds = cooldownSeconds(badge.dataset.routeCooldownUntil);
+    if (seconds > 0) badge.textContent = cooldownLabel(seconds);
+    else (badge.closest?.('.route-cooldown-control') || badge).remove();
+  });
+  renderRuntimeActionButtons();
+}
+
+function renderRuntimeActionButtons() {
+  const disabled = !localActionAvailable() || Boolean(state.runtimeAction);
+  $$('[data-cooldown-release], [data-quota-refresh]').forEach(button => { button.disabled = disabled; });
+  const all = $('[data-cooldown-release="all"]');
+  if (all) all.hidden = ![...(webSources() || []), ...(academicSources() || [])]
+    .some(source => source.actual_cooldown && cooldownSeconds(source.actual_cooldown.until) > 0);
+}
+
+async function releaseRoutingCooldown(engine, name) {
+  if (!localActionAvailable() || state.runtimeAction) return;
+  state.runtimeAction = 'cooldown';
+  renderRuntimeActionButtons();
+  try {
+    const title = engine === 'all' ? t('web.runtime_action.release_all') : t('web.runtime_action.release_source', { Name: name });
+    if (!(await confirmDialog(title, t('web.runtime_action.release_confirm')))) return;
+    const result = await localActionPost('/__admin/api/sources/cooldowns/release', { engine, confirm: true });
+    await loadOverview();
+    toast(t('web.runtime_action.released', { Count: fmtInt(result.cleared) }));
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.runtimeAction = '';
+    renderRuntimeActionButtons();
+  }
+}
+
+async function refreshOfficialQuotas() {
+  if (!localActionAvailable() || state.runtimeAction) return;
+  state.runtimeAction = 'quota';
+  renderRuntimeActionButtons();
+  try {
+    if (!(await confirmDialog(t('web.runtime_action.refresh_quota'), t('web.runtime_action.quota_confirm')))) return;
+    state.quotaRequest++;
+    const result = await localActionPost('/__admin/api/quotas/refresh', { confirm: true });
+    state.quotas = result.items;
+    state.quotaError = null;
+    renderQuotas();
+    const failed = result.items.some(item => item.status === 'query_failed' || item.official_query_failed || item.details?.fetch_error);
+    toast(t(result.refreshed
+      ? failed ? 'web.runtime_action.quota_partial' : 'web.runtime_action.quota_refreshed'
+      : 'web.runtime_action.quota_debounced'), failed);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.runtimeAction = '';
+    renderRuntimeActionButtons();
+  }
 }
 
 function suspendBadge(s) {
@@ -496,14 +1180,6 @@ function savedValues() {
   return state.settings && (state.settings.saved_values || state.settings.values) || {};
 }
 
-function doubaoVersionControl() {
-  const key = 'doubao.version';
-  const locked = state.settings && state.settings.locked_fields && state.settings.locked_fields[key];
-  const value = locked ? state.settings.values[key] : draftValue(key);
-  const reason = settingsFieldReason(key);
-  return `<select class="source-version" data-source-setting="${key}" aria-label="${t('web.label.doubao_api_version')}" title="${esc(reason || t('web.label.doubao_api_version'))}" ${reason ? 'disabled' : ''}><option value="global" ${value === 'global' ? 'selected' : ''}>Global</option><option value="custom" ${value === 'custom' ? 'selected' : ''}>Custom</option></select>`;
-}
-
 function draftValue(key) {
   return Object.hasOwn(state.draft, key) ? state.draft[key] : savedValues()[key];
 }
@@ -512,11 +1188,19 @@ function writeAllowed() {
   return Boolean(!state.settingsError && state.settings && !state.settings.config_error && state.settings.revision && state.settings.write_access && state.settings.write_access.allowed && adminConfigured());
 }
 
+function localActionAllowed() {
+  return !state.settingsError && state.settings?.local_action_allowed === true;
+}
+
+function localActionAvailable() {
+  return localActionAllowed() && !state.applying && !state.saving;
+}
+
 function sourceControl(s) {
   const key = s.control_path;
   const inputId = 'source-switch-' + s.id;
-  const value = key && Object.hasOwn(savedValues(), key) ? draftValue(key) : s.inverted ? !s.enabled : s.enabled;
-  const enabled = s.inverted ? value === false : value === true;
+  const value = key && Object.hasOwn(savedValues(), key) ? displayedConfigValue(key) : s.inverted ? !s.enabled : s.enabled;
+  const enabled = value === null ? s.active === true : s.inverted ? value === false : value === true;
   const locked = key && state.settings && state.settings.locked_fields && state.settings.locked_fields[key];
   const disabled = !key || !writeAllowed() || locked || state.applying || state.saving;
   return `<div class="form-check form-switch source-toggle" title="${esc(locked || (!writeAllowed() ? writeReason() : ''))}"><input class="form-check-input" type="checkbox" role="switch" id="${esc(inputId)}" data-source-key="${esc(key || '')}" data-inverted="${s.inverted === true}" aria-label="${esc(s.name || s.id)} ${t('web.status.enabled_in_config')}" ${enabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}></div>`;
@@ -545,73 +1229,31 @@ function renderWebSources() {
   else setNote(note, '', '');
 }
 
-function renderSourcePages() {
+function renderSourcePages(force = false) {
   const webList = webSources();
   const acadList = academicSources();
-  const groups = [['web', webList && webList.filter(s => s.category !== 'api')], ['api', webList && webList.filter(s => s.category === 'api')], ['academic', acadList]];
+  const groups = [
+    ['web', webList && webList.filter(s => s.category !== 'api' && s.category !== 'mcphub')],
+    ['api', webList && webList.filter(s => s.category === 'api')],
+    ['academic', acadList],
+    ['mcphub', webList && webList.filter(s => s.category === 'mcphub')],
+  ];
   groups.forEach(([id, list]) => {
     const body = $('#sources-' + id + '-body');
     if (!body) return;
-    body.innerHTML = list === null ? emptyRow(8, t('web.note.loading_2')) : list.length ? list.map(s => sourceRowHtml(s, true)).join('') : emptyRow(8, t('web.note.no_sources_yet'));
+    const cols = id === 'api' ? 9 : 8;
+    if (force || !document.activeElement?.closest('.source-config-row, .source-params') || !body.contains(document.activeElement)) {
+      body.innerHTML = list === null ? emptyRow(cols, t('web.note.loading_2')) : list.length ? list.map(s => sourceRowHtml(s, true)).join('') : emptyRow(cols, t('web.note.no_sources_yet'));
+    }
     setText('#sources-' + id + '-counts', list ? countsLabel(list) : '—');
-    setNote($('#sources-' + id + '-note'), state.overviewError ? t('web.note.data_may_be_stale_2') + state.overviewError : '', state.overviewError ? 'warn' : '');
+    const overviewNote = state.overviewError ? t('web.note.data_may_be_stale_2') + state.overviewError : '';
+    const quotaNote = id === 'api' ? quotaLoadNote() : '';
+    const stale = state.overviewError || (id === 'api' && state.quotaError);
+    setNote($('#sources-' + id + '-note'), [overviewNote, quotaNote].filter(Boolean).join(' · '), stale ? 'warn' : '');
   });
+  renderConfigInputs();
   renderDraftState();
-}
-
-/* ---------- Tavily quota card ---------- */
-
-function renderTavily() {
-  const value = $('#tavily-value');
-  const note = $('#tavily-note');
-  const dotEl = $('#tavily-dot');
-  const details = $('#tavily-details');
-  // 总览已移除额度面板；额度仍通过搜索源页的额度列展示。
-  if (!value || !details) return;
-  const q = tavilyItem();
-  const kv = (pairs) => pairs.filter(p => p[1]).map(p => `<div><dt>${esc(p[0])}</dt><dd>${esc(p[1])}</dd></div>`).join('');
-  if (state.quotaError && !q) {
-    value.textContent = t('web.status.query_failed');
-    dotEl.className = 'dot down';
-    setNote(note, t('web.note.data_may_be_stale_2') + state.quotaError, 'warn');
-    details.innerHTML = '';
-    return;
-  }
-  if (!q) {
-    value.textContent = '—';
-    dotEl.className = 'dot unknown';
-    setNote(note, state.quotas ? t('web.note.the_official_quota_endpoint_returned_no_tavily_entry') : t('web.note.loading_2'), state.quotas ? 'bad' : '');
-    details.innerHTML = '';
-    return;
-  }
-  details.innerHTML = kv([
-    [t('web.label.used'), num(q.used) === null ? '' : fmtInt(q.used) + ' ' + (q.unit || '')],
-    [t('web.label.limit'), num(q.limit) === null ? '' : fmtInt(q.limit) + ' ' + (q.unit || '')],
-    [t('web.label.plan'), q.plan || ''],
-    [t('web.label.updated'), q.updated_at ? fmtAt(q.updated_at) : ''],
-    [t('web.label.official_api'), q.source || ''],
-  ]);
-  switch (q.status) {
-    case 'available':
-      value.textContent = `${fmtInt(q.remaining)} / ${fmtInt(q.limit)} ${q.unit || ''}`.trim();
-      dotEl.className = 'dot healthy';
-      setNote(note, state.quotaError ? t('web.note.data_may_be_stale_2') + state.quotaError : t('web.note.from_the_official_quota_endpoint_not_a_local_estimate'), state.quotaError ? 'warn' : '');
-      break;
-    case 'not_configured':
-      value.textContent = t('web.status.not_configured');
-      dotEl.className = 'dot unknown';
-      setNote(note, t('web.note.tavily_key_not_configured_cannot_query_the_official_quota'), '');
-      break;
-    case 'query_failed':
-      value.textContent = t('web.status.query_failed');
-      dotEl.className = 'dot down';
-      setNote(note, q.error || t('web.note.the_official_quota_endpoint_returned_no_usable_data'), 'bad');
-      break;
-    default:
-      value.textContent = t('web.status.unknown');
-      dotEl.className = 'dot unknown';
-      setNote(note, q.error || t('web.note.the_official_quota_endpoint_returned_an_unrecognized_status'), 'warn');
-  }
+  renderRuntimeActionButtons();
 }
 
 /* ---------- effective config summary ---------- */
@@ -681,10 +1323,16 @@ function callDetails(e) {
   const detail = state.events.details.get(e.request_id);
   if (!detail || detail.loading) return html + `<p class="panel-note" role="status">${t('web.note.loading_source_details')}</p>`;
   if (detail.error) return html + `<p class="panel-note bad">${t('web.note.read_failed')}${esc(detail.error)} <button type="button" class="icon-btn" data-retry-request="${esc(e.request_id)}" aria-label="${t('web.action.retry_loading_source_details')}" title="${t('web.action.retry_loading_source_details')}">${icon('refresh-cw')}</button></p>`;
-  const providers = (detail.rows || []).filter(row => row.kind === 'provider');
+  const providers = (detail.rows || []).filter(row => row.kind === 'provider' || row.kind === 'quota_skip');
   if (!providers.length) return html + `<p class="panel-note">${t('web.note.no_source_details_were_retained')}</p>`;
   html += `<table class="data-table call-detail-table"><colgroup><col style="width:24%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:40%"></colgroup><thead><tr><th>${t('web.label.source')}</th><th>${t('web.label.status')}</th><th>${t('web.label.latency')}</th><th>${t('web.label.results')}</th><th>${t('web.label.error_summary')}</th></tr></thead><tbody>`;
-  html += providers.map(row => `<tr><td title="${esc(row.detail || '')}">${esc(displayName(row.provider))}</td><td class="${row.success ? 'ok-text' : 'bad-text'}">${row.success ? t('web.status.success') : t('web.status.failure')}</td><td>${esc(fmtMS(row.duration_ms))}</td><td>${fmtInt(row.result_count)}</td><td class="wrap-any">${esc([errorKindLabel(row.error_kind), row.error_summary].filter(Boolean).join(' · ') || '—')}</td></tr>`).join('');
+  html += providers.map(row => {
+    const skipped = row.kind === 'quota_skip' || row.outcome === 'skipped';
+    const status = skipped ? t('web.status.skipped') : row.success ? t('web.status.success') : t('web.status.failure');
+    const style = skipped ? 'quota-skipped' : row.success ? 'ok-text' : 'bad-text';
+    const summary = skipped ? row.skip_reason : [errorKindLabel(row.error_kind), row.error_summary].filter(Boolean).join(' · ');
+    return `<tr><td title="${esc(row.detail || '')}">${esc(displayName(row.provider))}</td><td class="${style}">${esc(status)}</td><td>${skipped ? '—' : esc(fmtMS(row.duration_ms))}</td><td>${skipped ? '—' : fmtInt(row.result_count)}</td><td class="wrap-any">${esc(summary || '—')}</td></tr>`;
+  }).join('');
   return html + '</tbody></table>';
 }
 
@@ -753,7 +1401,7 @@ async function exportCSV() {
       if (!call.request_id || requests.has(call.request_id)) continue;
       requests.add(call.request_id);
       const details = await loadRequestEvents(call.request_id, true);
-      rows.push(...details.filter(e => e.kind === 'provider'));
+      rows.push(...details.filter(e => e.kind === 'provider' || e.kind === 'quota_skip'));
     }
   } catch (e) {
     toast(t('web.msg.export_incomplete_reading_source_details_failed') + e.message, true);
@@ -771,11 +1419,11 @@ async function exportCSV() {
   rows.forEach(e => {
     lines.push([
       fmtAt(e.occurred_at),
-      e.kind === 'provider' ? t('web.label.source') : t('web.label.tool'),
+      e.kind === 'provider' || e.kind === 'quota_skip' ? t('web.label.source') : t('web.label.tool'),
       e.kind === 'tool' ? displayName(e.tool) : '',
       e.provider ? displayName(e.provider) : '',
       e.detail || '',
-      e.success ? t('web.status.success') : t('web.status.failure'),
+      e.kind === 'quota_skip' ? t('web.status.skipped') : e.success ? t('web.status.success') : t('web.status.failure'),
       errorKindLabel(e.error_kind),
       num(e.duration_ms) === null ? '' : e.duration_ms,
       num(e.result_count) === null ? '' : e.result_count,
@@ -785,7 +1433,7 @@ async function exportCSV() {
       e.query_keywords || '',
       e.query_hash || '',
       num(e.query_chars) === null ? '' : e.query_chars,
-      e.error_summary || '',
+      e.skip_reason || e.error_summary || '',
       e.request_id || '',
       e.attempt_chain || '',
       applicationLabel(e),
@@ -858,6 +1506,7 @@ function knownErrorKinds() {
 
 function renderUsageSourceOptions() {
   const entries = knownFilterEntries();
+  renderFilterSelect('#filter-application', Object.entries(APPLICATION_LABELS), state.filters.application);
   renderFilterSelect('#filter-tool', entries.tools, state.filters.tool);
   renderFilterSelect('#filter-provider', entries.providers, state.filters.provider);
   renderFilterSelect('#filter-error-kind', knownErrorKinds(), state.filters.errorKind);
@@ -870,36 +1519,89 @@ function settingsFieldReason(key) {
   if (locked) return locked;
   if (!writeAllowed()) return writeReason();
   if (state.applying || state.saving) return t('web.note.applying_configuration');
-  const versionLocked = state.settings.locked_fields && state.settings.locked_fields['doubao.version'];
-  const version = versionLocked ? state.settings.values['doubao.version'] : draftValue('doubao.version');
-  return key === 'doubao.icp_host_only' && version !== 'global' ? t('web.note.applies_to_global_only_the_current_value_is_kept') : '';
+  const version = displayedConfigValue('doubao.version');
+  if (key === 'doubao.icp_host_only' && version !== 'global') return t('web.note.applies_to_global_only_the_current_value_is_kept');
+  if (['doubao.need_content', 'doubao.auth_level', 'doubao.query_rewrite'].includes(key) && version !== 'custom') return t('web.config.custom_only');
+  if (key === 'proxy.endpoint' && displayedConfigValue('proxy.enabled') !== true) return t('web.config.explicit_proxy_only');
+  if (key === 'dashboard.quotas.reset_day' && displayedConfigValue('dashboard.quotas.reset') !== 'monthly') return t('web.config.monthly_only');
+  return '';
+}
+
+function renderConfigInputs(force = false) {
+  $$('[data-key]').forEach(el => {
+    const key = el.dataset.key;
+    const value = displayedConfigValue(key);
+    if (el.type === 'checkbox') el.checked = value === true;
+    else if (el.type === 'radio') el.checked = el.value === value;
+    else if (Object.hasOwn(state.invalidDraft, key)) {
+      if (force || document.activeElement !== el) el.value = state.invalidDraft[key].value;
+      el.setCustomValidity?.(state.invalidDraft[key].message);
+    }
+    else if (force || document.activeElement !== el) el.value = displayEditValue(value, el.dataset.configType);
+    const reason = settingsFieldReason(key);
+    showConfigInputStatus(el);
+    el.disabled = Boolean(reason);
+    el.title = reason;
+  });
+}
+
+function showConfigInputStatus(el) {
+  const key = el.dataset.key;
+  const locked = state.settings?.locked_fields?.[key];
+  const issue = state.invalidDraft[key];
+  if (issue) el.setAttribute('aria-invalid', 'true');
+  else el.removeAttribute?.('aria-invalid');
+  const label = el.closest?.('label');
+  if (!label || label.closest('.mode-choice')) return;
+  let note = label.querySelector('.field-status');
+  if ((locked || issue) && !note) {
+    note = document.createElement('small');
+    note.className = 'field-status';
+    note.setAttribute('aria-live', 'polite');
+    label.append(note);
+  }
+  if (note) note.textContent = locked || issue?.message || '';
 }
 
 function renderSettingsForm() {
   const s = state.settings;
   if (!s || !s.values) return;
-  $$('[data-key]').forEach(el => {
-    const lockedValue = ['mode', 'doubao.version', 'doubao.icp_host_only'].includes(el.dataset.key) && s.locked_fields && s.locked_fields[el.dataset.key];
-    const value = lockedValue ? s.values[el.dataset.key] : draftValue(el.dataset.key);
-    if (el.type === 'checkbox') el.checked = value === true;
-    else if (el.type === 'radio') el.checked = el.value === value;
-    else el.value = value === null || value === undefined ? '' : value;
-    const reason = settingsFieldReason(el.dataset.key);
-    el.disabled = Boolean(reason);
-    el.title = reason;
-  });
-
+  renderConfigInputs();
+  renderOrderedFields();
   renderModeControls();
-  const flags = s.secrets || {};
-  $('#secret-list').innerHTML = Object.keys(flags).map(key => {
-    const on = flags[key] === true;
-    return `<div class="secret-row">${dot(on ? 'healthy' : 'unknown')}` +
-      `<div><b>${esc(SECRETS[key] || key)}</b><small>${on ? t('web.status.configured') : t('web.status.not_configured')}</small></div>` +
-      `<button type="button" class="icon-btn" data-secret="${esc(key)}" title="${on ? t('web.action.replace') : t('web.page.settings')}${esc(SECRETS[key] || key)}${t('web.label.key')}" aria-label="${on ? t('web.action.replace') : t('web.page.settings')}${esc(SECRETS[key] || key)}${t('web.label.key')}" ${!writeAllowed() || state.applying || state.saving ? 'disabled' : ''}>${icon('key-round')}</button></div>`;
-  }).join('');
-  $$('[data-secret]').forEach(b => { b.onclick = () => editSecret(b.dataset.secret); });
+  renderCredentials();
   state.settingsLoaded = true;
   renderDraftState();
+}
+
+function credentialCount(s) {
+  return t('web.credential.count', {count: fmtInt(s.count)});
+}
+
+function renderCredentials() {
+  const status = state.settings?.credential_status;
+  const error = state.settings?.credential_error;
+  const note = $('#secret-note');
+  setNote(note, error || (status?.pending_restart ? t('web.credential.pending_restart') : ''), 'warn');
+  const list = $('#secret-list');
+  const credentials = status?.credentials || {};
+  const markup = Object.entries(SECRETS).flatMap(([key, [name, url, linkLabel]]) => {
+    const row = credentials[key];
+    if (!row) return [];
+    const readOnly = key === 'WEBSEARCH_TOKEN' || row.read_only;
+    const on = row.configured;
+    const meta = [readOnly && t('web.credential.read_only'), on ? t('web.status.configured') : t('web.status.not_configured'),
+      credentialCount(row), ...(row.sources || [])].filter(Boolean).join(' · ');
+    const link = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(linkLabel || t('web.credential.get_key'))}</a>` : '';
+    const title = t('web.credential.manage', {name});
+    const edit = readOnly ? '' : `<button type="button" class="icon-btn" data-secret="${esc(key)}" title="${esc(title)}" aria-label="${esc(title)}"${error || !writeAllowed() || state.applying || state.saving ? ' disabled' : ''}>${icon('key-round')}</button>`;
+    return `<div class="secret-row">${dot(on ? 'healthy' : 'unknown')}<div><b>${esc(name)}</b><small>${esc(key)} · ${esc(meta)}</small>${link}</div>${edit}</div>`;
+  }).join('');
+  if (list.dataset?.markup !== markup) {
+    list.innerHTML = markup;
+    if (list.dataset) list.dataset.markup = markup;
+    $$('[data-secret]', list).forEach(b => { b.onclick = () => editSecret(b.dataset.secret); });
+  }
 }
 
 const PROVIDER_MODES = ['baidu', 'tavily', 'exa', 'anysearch', 'doubao', 'yuanbao'];
@@ -919,6 +1621,7 @@ function renderModeControls() {
     el.title = reason;
   });
   $('#mode-provider-options').classList.toggle('hidden', !single);
+  $$('[data-mode-config]').forEach(el => { el.hidden = el.dataset.modeConfig !== mode; });
   select.disabled = !single || Boolean(reason);
   select.title = reason;
   const info = $('#mode-provider-info');
@@ -939,9 +1642,9 @@ function changes() {
 
 function setDraft(key, value) {
   if (!key || settingsFieldReason(key)) return;
-  if (!state.settingsDirty) state.draftRevision = state.settings.revision;
+  if (!state.draftRevision) state.draftRevision = state.settings.revision;
   if (!Object.hasOwn(state.draftBefore, key)) state.draftBefore[key] = savedValues()[key];
-  if (JSON.stringify(value) === JSON.stringify(state.draftBefore[key])) {
+  if (configEqual(value, state.draftBefore[key])) {
     delete state.draft[key];
     delete state.draftBefore[key];
   } else state.draft[key] = value;
@@ -951,8 +1654,31 @@ function setDraft(key, value) {
 
 function markDirty(e) {
   const el = e.target;
-  if (el.type === 'radio' && !el.checked) return;
-  setDraft(el.dataset.key, el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value);
+  const key = el.dataset.key;
+  if (!key || (el.type === 'radio' && !el.checked) || settingsFieldReason(key)) return;
+  el.setCustomValidity?.('');
+  try {
+    const value = parseConfigInput(el);
+    if (el.validity && !el.validity.valid) throw new Error(el.validationMessage);
+    delete state.invalidDraft[key];
+    setDraft(key, value);
+  } catch (e) {
+    if (!state.draftRevision) state.draftRevision = state.settings.revision;
+    state.invalidDraft[key] = { value: el.value, message: e.message };
+    el.setCustomValidity?.(e.message);
+    renderDraftState();
+  }
+  showConfigInputStatus(el);
+  if (['proxy.enabled','doubao.version','dashboard.quotas.reset'].includes(key)) renderConfigInputs();
+}
+
+function configEqual(left, right) {
+  if (left === right) return true;
+  if (Array.isArray(left)) {
+    return Array.isArray(right) && left.length === right.length && left.every((value, i) => configEqual(value, right[i]));
+  }
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object' || Array.isArray(right)) return false;
+  return Object.keys(left).length === Object.keys(right).length && Object.entries(left).every(([key, value]) => Object.hasOwn(right, key) && configEqual(value, right[key]));
 }
 
 function setModeHelp(button, expanded, dismissed = false) {
@@ -963,21 +1689,24 @@ function setModeHelp(button, expanded, dismissed = false) {
 }
 
 function renderDraftState() {
-  const count = Object.keys(state.draft).length;
+  const count = new Set([...Object.keys(state.draft), ...Object.keys(state.invalidDraft)]).size;
   const dirty = count > 0;
   state.settingsDirty = dirty;
-  $('#settings-dirty').classList.toggle('hidden', !dirty);
-  setText('#source-draft-count', dirty ? count + ` ${t('web.note.draft_items')}` : '');
-  ['#save-settings', '#save-sources'].forEach(sel => { const el = $(sel); if (el) el.disabled = !dirty || !writeAllowed() || state.applying || state.saving; });
-  ['#undo-settings', '#undo-sources'].forEach(sel => { const el = $(sel); if (el) el.disabled = !dirty || state.applying || state.saving; });
+  if (!dirty) state.draftRevision = '';
+  ['#source-draft-count', '#tools-draft-count', '#settings-draft-count'].forEach(sel => setText(sel, dirty ? count + ` ${t('web.note.draft_items')}` : ''));
+  ['#save-settings', '#save-sources', '#save-tools'].forEach(sel => { const el = $(sel); if (el) el.disabled = !dirty || !writeAllowed() || state.applying || state.saving; });
+  ['#undo-settings', '#undo-sources', '#undo-tools'].forEach(sel => { const el = $(sel); if (el) el.disabled = !dirty || state.applying || state.saving; });
 }
 
 function discardDraft() {
   state.draft = {};
   state.draftBefore = {};
+  state.invalidDraft = {};
+  $$('[data-key]').forEach(el => el.setCustomValidity?.(''));
   state.draftRevision = '';
+  renderConfigInputs(true);
   renderSettingsForm();
-  renderSourcePages();
+  renderSourcePages(true);
 }
 
 function writeReason() {
@@ -990,14 +1719,16 @@ function writeReason() {
 }
 
 function renderWriteAccess() {
-  ['#source-write-note', '#settings-write-note'].forEach(sel => setNote($(sel), writeAllowed() ? '' : writeReason(), writeAllowed() ? '' : 'warn'));
-  ['#restart-service', '#clear-cache', '#retry-apply', '#restore-backup'].forEach(sel => { const el = $(sel); if (el) el.disabled = !writeAllowed() || state.applying || state.saving; });
-  $$('[data-quota-reset], [data-quota-adjust]').forEach(el => { el.disabled = !writeAllowed() || state.applying || state.saving; });
-  $$('[data-key]').forEach(el => {
-    const reason = settingsFieldReason(el.dataset.key);
-    el.disabled = Boolean(reason);
-    el.title = reason;
-  });
+  renderRuntimeActionButtons();
+  renderDiagnosticControls();
+  const localReason = localActionReason();
+  $$('[data-local-action-note]').forEach(note => setNote(note, localReason, localReason ? 'warn' : ''));
+  ['#source-write-note', '#settings-write-note', '#tools-write-note'].forEach(sel => setNote($(sel), writeAllowed() ? '' : writeReason(), writeAllowed() ? '' : 'warn'));
+  ['#restart-service', '#retry-apply', '#restore-backup', '#everything-scope-button'].forEach(sel => { const el = $(sel); if (el) el.disabled = !writeAllowed() || state.applying || state.saving; });
+  renderStorage();
+  $$('[data-quota-reset], [data-quota-adjust]').forEach(el => { el.disabled = !writeAllowed() || state.applying || state.saving || Boolean(state.quotaError); });
+  renderConfigInputs();
+  renderOrderedFields();
   renderModeControls();
   const backups = state.settings && state.settings.backups || [];
   const select = $('#backup-select');
@@ -1010,6 +1741,73 @@ function renderWriteAccess() {
     $('#restore-backup').disabled = !writeAllowed() || state.applying || state.saving || !select.value;
   }
   renderDraftState();
+}
+
+async function loadStorage() {
+  const request = ++state.storage.request;
+  try {
+    const data = await fetchJSON('/__admin/api/storage', { signal: AbortSignal.timeout(5000) });
+    if (request !== state.storage.request) return;
+    state.storage.data = data;
+    state.storage.error = null;
+  } catch (e) {
+    if (request !== state.storage.request) return;
+    state.storage.error = e.message;
+  }
+  renderStorage();
+}
+
+function storageSize(bytes) {
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let unit = 0;
+  while (bytes >= 1024 && unit < units.length - 1) {
+    bytes /= 1024;
+    unit++;
+  }
+  return new Intl.NumberFormat(I18N_LANG, { maximumFractionDigits: unit ? 1 : 0 }).format(bytes) + ' ' + units[unit];
+}
+
+function renderStorage() {
+  const note = $('#storage-note');
+  if (!note) return;
+  const { data, error, clearing } = state.storage;
+  const problem = error || data?.cache?.error || data?.history?.error || data?.fetchdata?.error;
+  setNote(note, problem || (!data ? t('web.note.loading_2') : ''), problem ? 'bad' : '');
+  for (const kind of ['cache', 'history', 'fetchdata']) {
+    const entry = data?.[kind];
+    const available = !error && entry?.enabled && !entry.error;
+    setText('#storage-' + kind + '-count', available ? fmtInt(entry.count) : entry && !entry.enabled ? t('web.storage.disabled') : '—');
+    setText('#storage-' + kind + '-bytes', available ? storageSize(entry.bytes) : '—');
+  }
+  setText('#storage-fetchdata-expired', !error && data?.fetchdata && !data.fetchdata.error ?
+    t('web.storage.expired_count', { Count: fmtInt(data.fetchdata.expired) }) : '');
+  const canClear = localActionAvailable() && !error && !clearing;
+  const controls = [
+    ['#clear-cache', data?.cache, 'count'],
+    ['#clear-history', data?.history, 'count'],
+    ['#clear-expired-fetchdata', data?.fetchdata, 'expired'],
+    ['#clear-fetchdata', data?.fetchdata, 'clearable'],
+  ];
+  for (const [selector, entry, field] of controls) {
+    const button = $(selector);
+    if (button) button.disabled = !canClear || !entry?.enabled || !!entry.error || !entry[field];
+  }
+}
+
+async function clearStorage(button, endpoint, title, message, payload = {}) {
+  if (!localActionAvailable() || button.disabled || state.storage.clearing) return;
+  state.storage.clearing = true;
+  renderStorage();
+  try {
+    if (!(await confirmDialog(title, message))) return;
+    const res = await localActionPost(endpoint, { confirm: true, ...payload });
+    toast(t('web.storage.cleared', { Count: fmtInt(res.cleared) }));
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.storage.clearing = false;
+    await loadStorage();
+  }
 }
 
 async function confirmDialog(title, copy, diff) {
@@ -1042,8 +1840,20 @@ async function postJSON(path, payload, headers) {
   });
 }
 
+function localActionReason() {
+  if (localActionAllowed()) return '';
+  if (state.settingsError) return t('web.runtime_action.permission_unavailable');
+  if (!state.settings) return t('web.runtime_action.permission_loading');
+  return t('web.runtime_action.source_not_allowed');
+}
+
+async function localActionPost(path, payload) {
+  if (!localActionAvailable()) throw new Error(localActionReason() || t('web.note.applying_configuration'));
+  return postJSON(path, payload);
+}
+
 /* ---------- 管理员口令（写操作统一闸门） ---------- */
-// 服务端约束：写端点限 loopback 或独立写白名单 + X-Admin-Password 头；
+// 配置、凭证和账本等敏感操作限 loopback 或独立写白名单 + X-Admin-Password 头；
 // 口令只能配置在 dashboard.yaml，控制台永远读不到也改不了它。
 
 function adminConfigured() {
@@ -1094,15 +1904,35 @@ async function securePost(path, payload) {
   try {
     return await postJSON(path, payload, headers);
   } catch (e) {
-    if (String(e.message).includes(t('web.label.password'))) state.adminPass = '';
-    if (String(e.message).includes(t('web.label.username'))) state.adminUser = '';
+    clearRejectedCredentials(e);
     throw e;
   }
+}
+
+function clearRejectedCredentials(error) {
+  if (error.status === 401 || error.status === 403 || String(error.message).includes(t('web.label.password'))) state.adminPass = '';
+  if (error.status === 401 || error.status === 403 || String(error.message).includes(t('web.label.username'))) state.adminUser = '';
+}
+
+function configDiff(values, before, files) {
+  const groups = new Map();
+  for (const [key, value] of Object.entries(values)) {
+    const file = files?.[key] === 'dashboard.yaml' ? 'dashboard.yaml' : 'config.yaml';
+    if (!groups.has(file)) groups.set(file, []);
+    groups.get(file).push(key + ': ' + (JSON.stringify(before[key]) ?? '—') + ' → ' + (JSON.stringify(value) ?? '—'));
+  }
+  return [...groups].map(([name, lines]) => name + '\n' + lines.join('\n')).join('\n\n');
 }
 
 async function saveSettings() {
   if (state.applying || state.saving || !writeAllowed()) return;
   const diff = changes();
+  const localErrors = Object.entries(state.invalidDraft);
+  if (localErrors.length) {
+    const [key, error] = localErrors[0];
+    toast((configField(key) ? t(configField(key)[0]) : key) + ' · ' + error.message, true);
+    return;
+  }
   const invalid = $$('[data-key]').find(el => Object.hasOwn(diff, el.dataset.key) && !el.reportValidity());
   if (invalid) return;
   if (!Object.keys(diff).length) {
@@ -1115,11 +1945,12 @@ async function saveSettings() {
   renderWriteAccess();
   try {
     const revision = state.draftRevision || state.settings.revision;
-    await securePost('/__admin/api/settings', { changes: diff, revision, confirm: false });
-    const detail = Object.entries(diff).map(([key, value]) => key + ': ' + JSON.stringify(state.draftBefore[key]) + ' → ' + JSON.stringify(value)).join('\n');
+    const preview = await securePost('/__admin/api/settings', { changes: diff, revision, confirm: false });
+    const targets = preview.changes || diff;
+    const detail = configDiff(targets, state.draftBefore, preview.field_files || state.settings.field_files);
     if (!(await confirmDialog(t('web.action.save_and_restart'), t('web.dialog.the_current_config_is_backed_up_then_changes_are_saved_and_t'), detail))) return;
     const res = await securePost('/__admin/api/settings', { changes: diff, revision, confirm: true });
-    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}), ...diff }, status: t('web.msg.saved_restarting') };
+    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}), ...(res.changes || targets) }, status: t('web.msg.saved_restarting') };
     renderApplyResult();
     discardDraft();
     await loadSettings();
@@ -1135,14 +1966,19 @@ async function saveSettings() {
 }
 
 function runtimeMatches(settings, targets) {
-  return Object.entries(targets).every(([key, value]) => JSON.stringify(settings.values[key]) === JSON.stringify(value) && JSON.stringify((settings.saved_values || settings.values)[key]) === JSON.stringify(value));
+  return Object.entries(targets).every(([key, value]) => configEqual(settings.values[key], value) && configEqual((settings.saved_values || settings.values)[key], value));
 }
 
 function renderApplyResult() {
   const result = state.applyResult;
-  setNote($('#apply-note'), result ? result.status : '', result && result.failed ? 'warn' : '');
+  const credentialPending = Boolean(state.settings?.credential_status?.pending_restart);
+  ['#apply-note', '#source-apply-note', '#tools-apply-note', '#settings-apply-note'].forEach(selector => {
+    const el = $(selector);
+    setNote(el, result?.status || '', result?.failed ? 'warn' : '');
+    if (el && selector !== '#apply-note') el.classList.add('apply-inline');
+  });
   const pending = Object.keys(state.settings && state.settings.pending_changes || {}).length > 0;
-  const retry = Boolean(result && result.failed) || pending;
+  const retry = Boolean(result && result.failed) || pending || credentialPending;
   const backups = Boolean(state.settings && state.settings.backups && state.settings.backups.length);
   $('#apply-recovery').classList.toggle('hidden', !retry && !backups);
   $('#retry-apply').classList.toggle('hidden', !retry);
@@ -1175,7 +2011,9 @@ async function restartAndVerify() {
       try {
         const settings = await fetchJSON('/__admin/api/settings', { signal: AbortSignal.timeout(Math.max(1, Math.min(3000, deadline - Date.now()))) });
         const overview = await fetchJSON('/__admin/api/overview', { signal: AbortSignal.timeout(Math.max(1, Math.min(3000, deadline - Date.now()))) });
-        if (settings.values && overview.system && runtimeMatches(settings, state.applyResult.targets)) {
+        const credentialsApplied = !state.applyResult.credentials && !state.settings?.credential_status?.pending_restart ||
+          settings.credential_status?.pending_restart === false;
+        if (settings.values && overview.system && credentialsApplied && runtimeMatches(settings, state.applyResult.targets)) {
           state.settings = settings;
           state.overview = overview;
           state.settingsError = null;
@@ -1186,7 +2024,7 @@ async function restartAndVerify() {
       } catch (e) { /* Restart temporarily disconnects the API. */ }
     }
     if (!confirmed) throw new Error(t('web.msg.saved_not_confirmed_within_60_seconds'));
-    state.applyResult.status = t('web.msg.effective_config_confirmed');
+    state.applyResult.status = state.applyResult.backupCreated ? t('web.credential.applied_with_backup') : t('web.msg.effective_config_confirmed');
     toast(state.applyResult.status);
   } catch (e) {
     state.applyResult.failed = true;
@@ -1207,12 +2045,12 @@ async function restoreBackup() {
   try {
     const revision = state.settings.revision;
     const preview = await securePost('/__admin/api/settings', { restore_backup: backup, revision, confirm: false });
-    const detail = Object.entries(preview.changes || {}).map(([key, value]) => key + ': ' + JSON.stringify(savedValues()[key]) + ' → ' + JSON.stringify(value)).join('\n');
+    const detail = configDiff(preview.changes || {}, savedValues(), preview.field_files || state.settings.field_files);
     if (!(await confirmDialog(t('web.action.restore_backup_and_restart'), backup + t('web.note.the_current_draft_will_be_discarded'), detail))) return;
     const res = await securePost('/__admin/api/settings', { restore_backup: backup, revision, confirm: true });
     discardDraft();
     await loadSettings();
-    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}) }, status: t('web.msg.backup_restored_restarting') };
+    state.applyResult = { backup: res.backup, targets: { ...(state.settings.pending_changes || {}), ...(res.changes || {}) }, status: t('web.msg.backup_restored_restarting') };
     await restartAndVerify();
   } catch (e) { toast(e.message, true); }
   finally {
@@ -1224,62 +2062,95 @@ async function restoreBackup() {
 }
 
 function editSecret(name) {
-  if (!writeAllowed()) return;
-  const label = SECRETS[name] || name;
-  const d = $('#secret-dialog');
-  $('#secret-dialog-title').textContent = `${t('web.action.update')} ` + label + ' Key';
-  const link = $('#secret-dialog-link');
-  const linkRow = link.closest('.secret-link-row');
-  if (SECRET_LINKS[name]) {
-    link.href = SECRET_LINKS[name];
-    linkRow.style.display = '';
-  } else {
-    linkRow.style.display = 'none';
+  const status = state.settings?.credential_status;
+  const current = status?.pending?.[name] || status?.credentials?.[name];
+  if (!current || current.read_only || name === 'WEBSEARCH_TOKEN' || state.settings?.credential_error || !writeAllowed() || state.saving || state.applying) return;
+  if (!adminConfigured()) {
+    toast(t('web.msg.admin_password_not_configured_set_dashboard_admin_password_i'), true);
+    return;
   }
-  $('#secret-dialog-input').value = '';
-  $('#secret-dialog-pass').value = cachedAdminPass();
+  const d = $('#secret-dialog');
+  const action = $('#secret-dialog-action');
+  const slot = $('#secret-dialog-slot');
+  const value = $('#secret-dialog-input');
+  const label = $('#secret-dialog-label');
+  const pass = $('#secret-dialog-pass');
+  const user = $('#secret-dialog-user');
+  const slots = current.slots || [];
+  const provider = SECRETS[name][0];
+  $('#secret-dialog-title').textContent = t('web.credential.manage', {name: provider});
+  $('#secret-dialog-help').textContent = name === 'UNPAYWALL_EMAIL' ? t('web.credential.email_help') :
+    name === 'LLM_API_KEY' ? t('web.credential.llm_help') : '';
+  const actions = [current.multi ? 'append' : 'set'];
+  if (slots.length) {
+    actions.push('delete');
+    if (current.multi) actions.push('label', 'clear');
+  }
+  actions.push('reset');
+  action.innerHTML = actions.map(op => `<option value="${op}">${esc(SECRET_ACTIONS[op])}</option>`).join('');
+  action.value = actions[0];
+  slot.innerHTML = slots.map((s, index) => `<option value="${esc(s.id)}">${esc([t('web.credential.slot_number', {number: index + 1}), s.source, s.label].filter(Boolean).join(' · '))}</option>`).join('');
+  slot.value = slots[0]?.id || '';
+  value.value = '';
+  pass.value = cachedAdminPass();
   $('#secret-dialog-user-row').classList.toggle('hidden', !usernameConfigured());
-  $('#secret-dialog-user').value = cachedAdminUser();
+  user.required = usernameConfigured();
+  user.value = cachedAdminUser();
+  const updateFields = () => {
+    const usesValue = action.value === 'append' || action.value === 'set';
+    const usesLabel = action.value === 'append' || action.value === 'label';
+    const usesSlot = action.value === 'delete' || action.value === 'label';
+    for (const [id, input, show] of [['value', value, usesValue], ['label', label, usesLabel], ['slot', slot, usesSlot]]) {
+      $('#secret-dialog-' + id + '-row').classList.toggle('hidden', !show);
+      input.disabled = !show;
+    }
+    value.required = usesValue;
+    label.value = action.value === 'label' ? slots.find(s => s.id === slot.value)?.label || '' : '';
+    if (!usesValue) value.value = '';
+  };
+  action.onchange = slot.onchange = updateFields;
+  updateFields();
+  d.returnValue = '';
   d.showModal();
   d.addEventListener('close', async () => {
-    if (d.returnValue !== 'confirm') {
-      $('#secret-dialog-input').value = '';
-      $('#secret-dialog-pass').value = '';
+    const op = action.value;
+    const payload = {name, action: op, revision: status.revision};
+    if (!value.disabled) payload.value = value.value;
+    if (!label.disabled) payload.label = label.value;
+    if (!slot.disabled) payload.slot_id = slot.value;
+    const credentials = {pass: pass.value, user: user.value.trim()};
+    value.value = label.value = pass.value = user.value = '';
+    if (d.returnValue !== 'confirm' || !writeAllowed() || state.saving || state.applying) return;
+    if (!credentials.pass || (usernameConfigured() && !credentials.user)) {
+      toast(t(credentials.pass ? 'web.msg.admin_username_required' : 'web.msg.admin_password_required'), true);
       return;
     }
-    const value = $('#secret-dialog-input').value;
-    const pass = $('#secret-dialog-pass').value.trim();
-    if (!adminConfigured()) {
-      toast(t('web.msg.admin_password_not_configured_set_dashboard_admin_password_i'), true);
-      return;
-    }
-    if (!pass) {
-      toast(t('web.msg.admin_password_required'), true);
-      return;
-    }
-    state.adminPass = pass;
-    const headers = { 'X-Admin-Password': pass };
-    if (usernameConfigured()) {
-      const user = $('#secret-dialog-user').value.trim();
-      if (!user) {
-        toast(t('web.msg.admin_username_required'), true);
-        return;
-      }
-      state.adminUser = user;
-      headers['X-Admin-User'] = user;
-    }
+    state.adminPass = credentials.pass;
+    state.adminUser = credentials.user;
+    state.saving = true;
+    renderSettingsForm();
+    renderWriteAccess();
     try {
-      await postJSON('/__admin/api/secrets', { name: name, value: value, confirm: true }, headers);
-      toast(label + ` ${t('web.msg.saved_the_service_must_be_restarted')}`);
+      const preview = await securePost(SECRET_API, {...payload, confirm: false});
+      const diff = SECRET_ACTIONS[op] + '\n' + t('web.credential.count_diff', {before: fmtInt(preview.before_count), after: fmtInt(preview.after_count)});
+      const title = preview.restart_required ? t('web.action.save_and_restart') : t('web.action.save');
+      if (!(await confirmDialog(title, t('web.credential.backup_help'), diff))) return;
+      const saved = await securePost(SECRET_API, {...payload, revision: preview.revision, confirm: true});
+      if (saved.restart_required) {
+        state.applyResult = {
+          targets: {...state.settings.pending_changes}, credentials: true, backupCreated: saved.backup,
+          status: saved.backup ? t('web.credential.backup_created') : t('web.msg.saved_restarting'),
+        };
+      }
       await loadSettings();
+      if (saved.restart_required) await restartAndVerify();
+      else toast(saved.backup ? t('web.credential.backup_created') : t('web.credential.saved'));
     } catch (e) {
-      if (String(e.message).includes(t('web.label.password'))) state.adminPass = '';
-      if (String(e.message).includes(t('web.label.username'))) state.adminUser = '';
       toast(e.message, true);
     } finally {
-      $('#secret-dialog-input').value = '';
-      $('#secret-dialog-pass').value = '';
-      $('#secret-dialog-user').value = '';
+      state.saving = false;
+      renderSettingsForm();
+      renderWriteAccess();
     }
   }, { once: true });
 }
@@ -1327,30 +2198,78 @@ function markActiveTheme() {
 
 /* ---------- 额度管理（重置 / 修正，需管理员口令） ---------- */
 
+function quotaLoadNote() {
+  if (state.quotaError) {
+    const prefix = state.quotas ? t('web.note.data_may_be_stale_2') : t('web.note.read_failed');
+    return prefix + state.quotaError;
+  }
+  return state.quotas ? '' : t('web.quota.loading');
+}
+
+function quotaResetHtml(q) {
+  if (q.reset_at) return `<time datetime="${esc(q.reset_at)}">${esc(fmtAt(q.reset_at))}</time>`;
+  if (q.source === 'local') return esc(t('web.label.manual_only'));
+  if (q.provider === 'tavily' && q.status === 'available') return esc(t('web.quota.tavily_reset'));
+  return '—';
+}
+
+function quotaMetric(label, used, limit, remaining, unit) {
+  const amount = t('web.quota.amount', { Used: fmtInt(used), Limit: fmtInt(limit), Unit: unit });
+  const left = remaining == null ? '' : ' · ' + t('web.quota.remaining', { Count: fmtInt(remaining) });
+  const labelHtml = label ? `<b>${esc(label)}</b> ` : '';
+  if (num(used) === null || !(limit > 0)) return `<div class="quota-metric">${labelHtml}${esc(amount + left)}</div>`;
+  const percent = 100 * used / limit;
+  const level = percent >= 100 ? 'bad' : percent >= 80 ? 'warn' : '';
+  const warning = level === 'bad' ? t('web.quota.limit_reached') : level ? t('web.quota.near_limit') : '';
+  return `<div class="quota-metric ${level}">${labelHtml}${esc(amount + left)}` +
+    (warning ? ` <b>${esc(warning)}</b>` : '') +
+    `<progress max="100" value="${Math.max(0, Math.min(100, percent))}" aria-label="${esc((label ? label + ' · ' : '') + amount)}"></progress></div>`;
+}
+
+function quotaUsageHtml(q, showReset) {
+  const local = q.source === 'local';
+  if (q.status === 'not_configured') return `<span class="muted">${esc(t('web.status.not_configured'))}</span>`;
+  const failed = `<span class="quota-warning">${esc(t('web.quota.official_failed'))}</span>`;
+  if (q.status === 'query_failed') return failed;
+  const source = `<span class="muted" title="${esc(local ? '' : q.source)}">${esc(local ? t('web.quota.local') : t('web.quota.official'))}</span>`;
+  const unit = q.unit === 'credits' ? t('web.quota.credits') : t('web.quota.calls');
+  const details = q.details || {};
+  const amount = quotaMetric(!local && q.provider === 'tinyfish' ? t('web.quota.tinyfish_search_reference') : '', q.used, q.limit, q.remaining, unit);
+  let breakdown = '';
+  if (!local && q.provider === 'tinyfish') {
+    breakdown = num(details.fetch_used) !== null && details.fetch_limit > 0
+      ? quotaMetric(t('web.quota.fetch'), details.fetch_used, details.fetch_limit, Math.max(0, details.fetch_limit - details.fetch_used), unit)
+      : `<div class="quota-warning">${esc(t('web.quota.fetch_failed'))}</div>`;
+  } else if (!local && q.provider === 'tavily') {
+    const counters = [
+      [t('web.quota.plan_usage'), details.account_plan_usage, details.account_plan_limit],
+      [t('web.quota.key_usage'), details.key_usage, details.key_limit],
+      [t('web.quota.paygo_usage'), details.paygo_usage, details.paygo_limit],
+    ];
+    const pairs = counters.filter(([, used, limit]) => num(used) !== null || num(limit) !== null)
+      .map(([label, used, limit]) => `${label} ${fmtInt(used)} / ${fmtInt(limit > 0 ? limit : null)}`);
+    const search = num(details.search_usage);
+    const extract = num(details.extract_usage);
+    if (search !== null) pairs.push(`${t('web.quota.search')} ${fmtInt(search)}`);
+    if (extract !== null) pairs.push(`${t('web.quota.extract')} ${fmtInt(extract)}`);
+    const summary = [q.plan, ...pairs].filter(Boolean).join(' · ');
+    if (summary) breakdown = `<div class="muted">${esc(summary)}</div>`;
+  }
+  const reset = showReset ? `<div class="muted">${esc(t('web.label.next_automatic_reset'))} · ${quotaResetHtml(q)}</div>` : '';
+  return `${q.official_query_failed ? failed + ' · ' : ''}${source}${amount}${breakdown}${reset}`;
+}
+
 function renderQuotaManage() {
   const body = $('#quota-manage-body');
   const note = $('#quota-manage-note');
   if (!body || !note) return;
-  if (state.quotaError) {
-    body.innerHTML = '';
-    setNote(note, t('web.note.read_failed') + state.quotaError, 'bad');
-    return;
-  }
-  const rows = (state.quotas || []).filter(q => q.source === 'local');
-  if (!rows.length) {
-    body.innerHTML = '';
-    setNote(note, t('web.note.no_local_usage_data_yet_real_calls_accumulate_automatically_'), '');
-    return;
-  }
-  setNote(note, t('web.note.usage_comes_from_local_real_calls_successful_ones_the_limit_'), '');
+  const rows = state.quotas || [];
+  setNote(note, quotaLoadNote() || (rows.length ? t('web.quota.local_policy') : t('web.quota.no_data')), state.quotaError ? 'warn' : '');
   body.innerHTML = rows.map(q => {
-    const used = q.used == null ? '—' : fmtInt(q.used);
-    const limit = q.limit == null ? '—' : fmtInt(q.limit);
-    const reset = q.reset_at ? fmtAt(q.reset_at) : t('web.label.manual_only');
-    const name = esc(DISPLAY[q.provider] || q.provider);
-    return `<tr><td>${name}</td><td class="num">${used} / ${limit}</td><td>${esc(reset)}</td>` +
-      `<td><div class="row-actions"><button type="button" class="icon-btn" title="${t('web.action.reset')}${esc(displayName(q.provider))}${t('web.label.usage')}" aria-label="${t('web.action.reset')}${esc(displayName(q.provider))}${t('web.label.usage')}" data-quota-reset="${esc(q.provider)}">${icon('rotate-ccw')}</button> ` +
-      `<button type="button" class="icon-btn" title="${t('web.action.adjust')}${esc(displayName(q.provider))}${t('web.label.usage')}" aria-label="${t('web.action.adjust')}${esc(displayName(q.provider))}${t('web.label.usage')}" data-quota-adjust="${esc(q.provider)}" data-used="${q.used || 0}">${icon('pencil')}</button></div></td></tr>`;
+    const name = esc(displayName(q.provider));
+    const actions = q.source === 'local' ? `<div class="row-actions"><button type="button" class="icon-btn" title="${t('web.action.reset')}${name}${t('web.label.usage')}" aria-label="${t('web.action.reset')}${name}${t('web.label.usage')}" data-quota-reset="${esc(q.provider)}">${icon('rotate-ccw')}</button> ` +
+      `<button type="button" class="icon-btn" title="${t('web.action.adjust')}${name}${t('web.label.usage')}" aria-label="${t('web.action.adjust')}${name}${t('web.label.usage')}" data-quota-adjust="${esc(q.provider)}" data-used="${num(q.used) || 0}">${icon('pencil')}</button></div>` : '—';
+    return `<tr><td>${name}</td><td class="quota-cell">${quotaUsageHtml(q, false)}</td><td>${quotaResetHtml(q)}</td><td>${actions}</td></tr>`;
   }).join('');
   renderWriteAccess();
 }
@@ -1542,13 +2461,23 @@ function refreshHScroll() {
 /* ---------- navigation & wiring ---------- */
 
 function nav(page, push) {
-  if (page === 'events') page = 'usage';
+  if (page === 'events') {
+    page = 'usage';
+    history.replaceState(null, '', '#usage');
+  }
   if (!PAGES[page]) page = 'overview';
   if ($('.page.active')?.id !== 'page-' + page) window.scrollTo(0, 0);
   $$('.page').forEach(el => el.classList.toggle('active', el.id === 'page-' + page));
-  $$('.nav').forEach(el => el.classList.toggle('active', el.dataset.page === page));
+  $$('.nav').forEach(el => {
+    const active = el.dataset.page === page;
+    el.classList.toggle('active', active);
+    if (active) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
+  });
+  if (page !== 'tools' && $('#everything-scope-button')?.getAttribute('aria-expanded') === 'true') toggleEverythingScope();
+  if (page === 'settings') loadStorage();
   $('#page-title').textContent = PAGES[page];
-  if (push !== false) history.replaceState(null, '', '#' + page);
+  if (push !== false && location.hash !== '#' + page) history.pushState(null, '', '#' + page);
   // 隐藏页的表格尺寸为 0，切页后重新判定溢出并挂粘性滚动条
   refreshHScroll();
 }
@@ -1563,18 +2492,16 @@ function wire() {
   $('#export-csv').addEventListener('click', exportCSV);
   $('#save-settings').addEventListener('click', saveSettings);
   $('#save-sources').addEventListener('click', saveSettings);
+  $('#save-tools').addEventListener('click', saveSettings);
+  $('#everything-scope-button').addEventListener('click', toggleEverythingScope);
+  wireDiagnostics();
   $('#undo-settings').addEventListener('click', discardDraft);
   $('#undo-sources').addEventListener('click', discardDraft);
+  $('#undo-tools').addEventListener('click', discardDraft);
   $('#retry-apply').addEventListener('click', restartAndVerify);
   $('#restore-backup').addEventListener('click', restoreBackup);
   $('#backup-select').addEventListener('change', renderWriteAccess);
   $('#page-sources').addEventListener('change', e => {
-    if (e.target.dataset.sourceSetting) {
-      setDraft(e.target.dataset.sourceSetting, e.target.value);
-      renderSettingsForm();
-      renderSourcePages();
-      return;
-    }
     const el = e.target.closest('[data-source-key]');
     if (!el) return;
     setDraft(el.dataset.sourceKey, el.dataset.inverted === 'true' ? !el.checked : el.checked);
@@ -1628,16 +2555,44 @@ function wire() {
       toast(e.message, true);
     }
   });
-  $('#clear-cache').addEventListener('click', async () => {
-    if (!(await confirmDialog(t('web.action.clear_search_cache'), t('web.dialog.this_cannot_be_undone_but_monitoring_history_is_not_deleted')))) return;
-    try {
-      const res = await securePost('/__admin/api/cache/clear', { confirm: true });
-      toast(`${t('web.msg.cleared')} ` + fmtInt(res.cleared) + ` ${t('web.note.cached')}`);
-    } catch (e) {
-      toast(e.message, true);
+  $('#refresh-storage').addEventListener('click', loadStorage);
+  $('#clear-cache').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/cache/clear',
+    t('web.action.clear_search_cache'), t('web.dialog.this_cannot_be_undone_but_monitoring_history_is_not_deleted')));
+  $('#clear-history').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/history/clear',
+    t('web.storage.clear_history'), t('web.storage.history_confirm')));
+  $('#clear-expired-fetchdata').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/fetchdata/clear',
+    t('web.storage.clear_expired'), t('web.storage.expired_confirm'), { scope: 'expired' }));
+  $('#clear-fetchdata').addEventListener('click', e => clearStorage(e.currentTarget, '/__admin/api/fetchdata/clear',
+    t('web.storage.clear_all'), t('web.storage.all_confirm'), { scope: 'all' }));
+  document.addEventListener('input', markDirty);
+  document.addEventListener('change', e => {
+    const { orderKey } = e.target.dataset;
+    if (orderKey && e.target.type === 'checkbox') changeOrderedConfig(orderKey, e.target.value, e.target.checked, 0);
+  });
+  document.addEventListener('click', e => {
+    const release = e.target.closest('[data-cooldown-release]');
+    if (release) releaseRoutingCooldown(release.dataset.cooldownRelease, release.dataset.cooldownName);
+    if (e.target.closest('[data-quota-refresh]')) refreshOfficialQuotas();
+    const jump = e.target.closest('[data-jump-section]');
+    if (jump) {
+      const target = document.getElementById(jump.dataset.jumpSection);
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: 'start' });
+    }
+    const order = e.target.closest('[data-order-shift]');
+    if (order) changeOrderedConfig(order.dataset.orderKey, order.dataset.orderName, true, Number(order.dataset.orderShift));
+    const drawer = e.target.closest('[data-source-drawer]');
+    if (drawer) {
+      const id = drawer.dataset.sourceDrawer;
+      const open = !state.openSources.has(id);
+      if (open) state.openSources.add(id);
+      else state.openSources.delete(id);
+      document.getElementById('source-config-' + id).hidden = !open;
+      drawer.setAttribute('aria-expanded', String(open));
+      refreshHScroll();
     }
   });
-  $$('[data-key]').forEach(el => el.addEventListener('input', markDirty));
   $('#mode-single').addEventListener('change', changeSingleProvider);
   $('#mode-provider').addEventListener('change', changeSingleProvider);
   $$('.mode-info').forEach(button => {
@@ -1662,9 +2617,12 @@ function wire() {
     state.filters.errorKind = $('#filter-error-kind').value;
     state.filters.tool = $('#filter-tool').value;
     state.filters.provider = $('#filter-provider').value;
+    state.filters.application = $('#filter-application').value.trim();
+    state.filters.project = $('#filter-project').value.trim();
+    state.filters.cacheHit = $('#filter-cache').value;
     loadEvents();
   };
-  ['#filter-status', '#filter-error-kind', '#filter-tool', '#filter-provider'].forEach(sel => {
+  ['#filter-status', '#filter-error-kind', '#filter-tool', '#filter-provider', '#filter-application', '#filter-project', '#filter-cache'].forEach(sel => {
     $(sel).addEventListener('change', applyFilter);
   });
   $('#filter-status').value = state.filters.status;
@@ -1687,6 +2645,7 @@ function applyLocalTheme() {
 sessionStorage.removeItem('adminPass');
 sessionStorage.removeItem('adminUser');
 applyI18n(document);
+mountConfigControls();
 wire();
 renderWriteAccess();
 applyLocalTheme();
@@ -1694,3 +2653,4 @@ $('#accent-input').value = localStorage.getItem('accent') || '';
 nav(location.hash.slice(1) || 'overview', false);
 loadAll();
 setInterval(() => { if (!document.hidden) loadAll(); }, REFRESH_MS);
+setInterval(updateRoutingCooldowns, 1000);

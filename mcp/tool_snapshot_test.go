@@ -3,6 +3,8 @@ package mcpserver
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -61,5 +63,38 @@ func TestSmartsearchRegistrationUsesActualGroupWithoutBing(t *testing.T) {
 	}
 	if text := renderCapabilities(conf); !strings.Contains(text, "`smartsearch`") || strings.Contains(text, "`pdf_parser`") {
 		t.Fatalf("capabilities must reflect registration, not config: %s", text)
+	}
+}
+
+func TestSearchHistoryRegistrationDistinguishesDisabledAndUnavailable(t *testing.T) {
+	initTestLogger()
+	restoreGlobals(t)
+	oldHistory, oldCfg, oldInst := historyInst, everythingLazyCfg, everythingInst
+	t.Cleanup(func() { historyInst, everythingLazyCfg, everythingInst = oldHistory, oldCfg, oldInst })
+	historyInst, everythingLazyCfg, everythingInst = nil, nil, nil
+
+	for _, tc := range []struct {
+		enabled bool
+		want    string
+	}{{false, "disabled"}, {true, "unavailable"}} {
+		root := t.TempDir()
+		conf := config.Config{SearchHistory: config.SearchHistoryConfig{
+			Enabled: &tc.enabled, StoragePath: filepath.Join(root, "history.db", "invalid.db"),
+		}}
+		// A regular file used as a parent directory cannot open as a history store.
+		if err := os.WriteFile(filepath.Join(root, "history.db"), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := WithSearchHistory(conf)(); err != nil {
+			t.Fatal(err)
+		}
+		if names := listToolNames(t, conf); slices.Contains(names, "search_history") {
+			t.Fatal("history without a store was listed as callable")
+		}
+		snapshot := ToolSnapshot()
+		index := slices.IndexFunc(snapshot, func(state ToolState) bool { return state.Name == "search_history" })
+		if index < 0 || snapshot[index].State != tc.want || snapshot[index].Registered {
+			t.Fatalf("history enabled=%v should report %s: %+v", tc.enabled, tc.want, snapshot)
+		}
 	}
 }

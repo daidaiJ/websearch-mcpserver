@@ -64,7 +64,10 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		telemetry.RecordEventContext(ctx, telemetry.Event{Kind: "tool", Tool: "file_search", Query: params.Query, Success: err == nil, Duration: time.Since(started), ResultCount: count, Error: err, RequestID: requestID, AttemptChain: recentAttemptChain(started, 15)})
 	}()
 
-	if everythingInst == nil {
+	everythingMu.Lock()
+	client, roots, maxResults, noise, minAlign := everythingInst, everythingRoots, config.ClampMaxResults(everythingMaxResults), everythingNoise, everythingMinAlign
+	everythingMu.Unlock()
+	if client == nil {
 		return nil, nil, errors.New(i18n.T("tool.filesearch.disabled"))
 	}
 	if strings.TrimSpace(params.Query) == "" {
@@ -82,7 +85,6 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		}
 		timeFmt = f
 	}
-	maxResults := config.ClampMaxResults(everythingMaxResults)
 	maxClamped := false
 	if params.MaxResults > 0 {
 		maxResults = config.ClampMaxResults(params.MaxResults)
@@ -103,13 +105,12 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 		userQuery = `regex:"` + params.Query + `"`
 	}
 	userQuery = everything.AppendExcludes(userQuery, params.Exclude)
-	query, err := everything.ScopeQuery(everythingRoots, params.Folder, userQuery)
+	query, err := everything.ScopeQuery(roots, params.Folder, userQuery)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// 调用级 min_alignment 覆盖服务端配置默认值；越界值收敛到 [0,1]
-	minAlign := everythingMinAlign
 	if params.MinAlignment != nil {
 		minAlign = *params.MinAlignment
 		if minAlign < 0 {
@@ -123,7 +124,7 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 	// 候选池按页码加深超采（单页上限的 3 倍，硬上限 600）：二次过滤会丢条，
 	// 只有越过整页候选才能保证本页取到过滤结果集里的连续切片。
 	candidates := fileSearchCandidates(page, maxResults)
-	res, err := everythingInst.Search(ctx, query, everything.SearchOptions{
+	res, err := client.Search(ctx, query, everything.SearchOptions{
 		Count:      candidates,
 		Sort:       sort,
 		Descending: params.Descending,
@@ -138,7 +139,7 @@ func FileSearch(ctx context.Context, req *mcp.CallToolRequest, params *FileSearc
 	// sort 显式指定时尊重服务端排序（只做阈值过滤）；默认 name 时才按对齐分重排
 	items := everything.EnhanceItems(res.Items, params.Query, everything.EnhanceOptions{
 		ReRank:    sort == "",
-		NoiseDirs: everythingNoise,
+		NoiseDirs: noise,
 		MinAlign:  minAlign,
 	})
 	pageItems, pageInfo := fileSearchPageSlice(items, page, maxResults, candidates, res.Total)
