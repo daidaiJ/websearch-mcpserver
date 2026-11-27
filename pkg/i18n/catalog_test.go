@@ -11,7 +11,7 @@ package i18n
 //   - pkg/log 的 *T helper（日志层）；
 //   - i18n 的 T / TCtx 调用（dashboard 响应、MCP 资源正文等）；
 //   - jsonschema 结构体标签（MCP 参数描述）；
-//   - pkg/dashboard/web 下的 web.* 引用（前端域，数据由 serveIndex 内联注入）。
+//   - 控制中心 TypeScript 源码里的 web.* 引用（文案在控制中心入口注入）。
 
 import (
 	"encoding/json"
@@ -243,35 +243,40 @@ func collectUsedKeys(t *testing.T, root string) (used map[string]string, dynamic
 		})
 	})
 
-	// 前端域：pkg/dashboard/web 下的 web.* 引用
-	webDir := filepath.Join(root, "pkg", "dashboard", "web")
-	entries, err := os.ReadDir(webDir)
+	// 扫描控制中心 TypeScript 源码，测试里的模拟词典和生成产物不计入。
+	err := filepath.WalkDir(filepath.Join(root, "frontend", "src"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == "__tests__" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		ext := filepath.Ext(d.Name())
+		base := strings.TrimSuffix(d.Name(), ext)
+		if (ext == ".ts" || ext == ".tsx") && !strings.HasSuffix(base, ".test") && !strings.HasSuffix(base, ".spec") {
+			collectWebKeys(t, root, path, record)
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("读取前端目录失败: %v", err)
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		switch filepath.Ext(e.Name()) {
-		case ".js", ".html":
-		default:
-			continue
-		}
-		path := filepath.Join(webDir, e.Name())
-		buf, rerr := os.ReadFile(path)
-		if rerr != nil {
-			t.Fatalf("读取 %s 失败: %v", path, rerr)
-		}
-		text := string(buf)
-		if strings.HasSuffix(e.Name(), ".js") {
-			text = stripJSComments(text)
-		}
-		for _, key := range webKeyRe.FindAllString(text, -1) {
-			record(key, "pkg/dashboard/web/"+e.Name())
-		}
+		t.Fatalf("读取控制中心前端目录失败: %v", err)
 	}
 	return used, dynamic
+}
+
+func collectWebKeys(t *testing.T, root, path string, record func(string, string)) {
+	t.Helper()
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取 %s 失败: %v", path, err)
+	}
+	rel, _ := filepath.Rel(root, path)
+	for _, key := range webKeyRe.FindAllString(stripJSComments(string(buf)), -1) {
+		record(key, filepath.ToSlash(rel))
+	}
 }
 
 var webKeyRe = regexp.MustCompile(`\bweb\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+`)

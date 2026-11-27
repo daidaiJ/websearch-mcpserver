@@ -10,11 +10,13 @@ import (
 )
 
 type credentialSlot struct {
-	ID     string `json:"id"`
-	Value  string `json:"value"`
-	Label  string `json:"label,omitempty"`
-	First  bool   `json:"first,omitempty"`
-	source string
+	ID    string `json:"id"`
+	Value string `json:"value"`
+	Label string `json:"label,omitempty"`
+	First bool   `json:"first,omitempty"`
+	// Replaces anchors this overlay slot to a removed config or environment slot.
+	Replaces string `json:"replaces,omitempty"`
+	source   string
 }
 
 type credentialPatch struct {
@@ -66,6 +68,7 @@ func (doc credentialDocument) patch(name string, snapshot *credentialSnapshot, m
 		return patch, ErrCredentialFile
 	}
 	seen := map[string]bool{}
+	replaced := map[string]bool{}
 	for i := range patch.Slots {
 		slot := &patch.Slots[i]
 		if slot.ID == "" || seen[slot.ID] || strings.TrimSpace(slot.Value) == "" || strings.ContainsAny(slot.Value, "\r\n") {
@@ -73,6 +76,12 @@ func (doc credentialDocument) patch(name string, snapshot *credentialSnapshot, m
 		}
 		if multi {
 			slot.Value = strings.TrimSpace(slot.Value)
+		}
+		if slot.Replaces != "" {
+			if !multi || slot.First || replaced[slot.Replaces] || !slices.Contains(patch.Removed, slot.Replaces) {
+				return patch, ErrCredentialFile
+			}
+			replaced[slot.Replaces] = true
 		}
 		seen[slot.ID] = true
 	}
@@ -88,22 +97,30 @@ func (p credentialPatch) effective(base []credentialSlot) []credentialSlot {
 			seen[slot.Value] = true
 		}
 	}
+	replacements := map[string]credentialSlot{}
 	for _, slot := range p.Slots {
 		if slot.First {
 			slot.source = "overlay"
 			appendSlot(slot)
+		} else if slot.Replaces != "" {
+			slot.source = "overlay"
+			replacements[slot.Replaces] = slot
 		}
 	}
 	if !p.HideBase {
 		for _, slot := range base {
-			if !slices.Contains(p.Removed, slot.ID) {
+			if replacement, ok := replacements[slot.ID]; ok {
+				appendSlot(replacement)
+				delete(replacements, slot.ID)
+			} else if !slices.Contains(p.Removed, slot.ID) {
 				slot.Label = p.Labels[slot.ID]
 				appendSlot(slot)
 			}
 		}
 	}
 	for _, slot := range p.Slots {
-		if !slot.First {
+		_, unmatched := replacements[slot.Replaces]
+		if !slot.First && (slot.Replaces == "" || unmatched) {
 			slot.source = "overlay"
 			appendSlot(slot)
 		}

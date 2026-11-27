@@ -95,5 +95,7 @@
   "dashboard.diagnostics.invalid_input": "请输入有效的测试词或公开网页 URL。",
   "dashboard.diagnostics.confirm_required": "请先确认这次诊断可能消耗上游调用额度。",
   "dashboard.runtime.quota_timeout": "官方额度刷新超时。",
-  "dashboard.storage.files_clear_failed": "清理时遇到存储错误，已清理 {{.Count}} 个临时文件。请刷新统计后再试。"
+  "dashboard.runtime.quota_provider_unsupported": "请选择 Tavily 或 TinyFish 刷新官方额度。",
+  "dashboard.storage.files_clear_failed": "清理时遇到存储错误，已清理 {{.Count}} 个临时文件。请刷新统计后再试。",
+  "dashboard.traces.invalid_cursor": "调用分页游标无效，格式应为 Unix 秒数:事件 ID。"
 }

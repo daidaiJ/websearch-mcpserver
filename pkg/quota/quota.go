@@ -64,6 +64,20 @@ type Item struct {
 	// AutoReset 是生效的重置策略：monthly / weekly / daily / none / official。
 	// official 表示该条目由供应商官方端点给出，本地周期不参与计算。
 	AutoReset string `json:"auto_reset,omitempty"`
+	// LocalUsage is the independent local accounting window, even when an
+	// official response supplies the primary quota totals.
+	LocalUsage *LocalUsage `json:"local_usage,omitempty"`
+}
+
+type LocalUsage struct {
+	Status    string   `json:"status"`
+	Unit      string   `json:"unit"`
+	Used      *float64 `json:"used,omitempty"`
+	Limit     *float64 `json:"limit,omitempty"`
+	Remaining *float64 `json:"remaining,omitempty"`
+	ResetAt   string   `json:"reset_at,omitempty"`
+	AutoReset string   `json:"auto_reset,omitempty"`
+	Enforced  bool     `json:"enforced"`
 }
 
 // tinyfishUsageResponse 只取官方 /usage 分页列表的 total 字段（配合
@@ -100,10 +114,14 @@ type Service struct {
 	tinyfishSearchURL string
 	tinyfishFetchURL  string
 
-	mu          sync.Mutex
-	cached      []Item
+	mu       sync.Mutex
+	official map[string]officialQuotaCache
+	routes   map[string]*searchGuard
+}
+
+type officialQuotaCache struct {
+	item        Item
 	cachedAt    time.Time
-	routes      map[string]*searchGuard
 	lastRefresh time.Time
 }
 
@@ -139,61 +157,89 @@ func newService(conf config.Config, endpoint string, client *http.Client, store 
 		}
 	}
 	return &Service{conf: conf, store: store, client: client, endpoint: endpoint, now: time.Now,
+		official:          make(map[string]officialQuotaCache),
 		tinyfishSearchURL: tinyfishSearchUsageEndpoint, tinyfishFetchURL: tinyfishFetchUsageEndpoint, routes: routes}
 }
 
-// Get 返回额度条目：官方 Tavily（有 Key 才查）加上每个 API 供应商的本地
-// 用量条目；5 分钟内复用缓存结果，手动重置/修正会立即失效缓存。
+// Get reads local usage and reuses each provider's official result for five minutes.
 func (s *Service) Get(ctx context.Context) []Item {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cached != nil && s.clock().Sub(s.cachedAt) < cacheTTL {
-		return append([]Item(nil), s.cached...)
-	}
-	items := s.collect(ctx, true)
-	if ctx.Err() == nil {
-		s.cached = items
-		s.cachedAt = s.clock()
-	}
-	return append([]Item(nil), items...)
+	official, _ := s.readOfficial(ctx, false, providerTavily, providerTinyfish)
+	return s.collect(official, true)
 }
 
 // Refresh bypasses the regular cache without modifying local quota state.
 func (s *Service) Refresh(ctx context.Context) (items []Item, refreshed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if ctx.Err() != nil || s.clock().Sub(s.lastRefresh) < refreshInterval {
-		return append([]Item{}, s.cached...), false
-	}
-
-	items = s.collect(ctx, false)
-	s.lastRefresh = s.clock()
-	if ctx.Err() != nil {
-		return append([]Item{}, s.cached...), false
-	}
-	s.cached = items
-	s.cachedAt = s.lastRefresh
-	return append([]Item(nil), items...), true
+	official, refreshed := s.readOfficial(ctx, true, providerTavily, providerTinyfish)
+	return s.collect(official, false), refreshed
 }
 
-// collect 汇总官方与本地两条来源。没有遥测 store 时保持旧行为：只返回
-// 官方条目（含查询失败状态）。有遥测时，官方数字可用则官方优先（本地周期
-// 不参与计算），官方失败则回退本地用量。
-func (s *Service) collect(ctx context.Context, updateLedger bool) []Item {
-	now := s.clock()
-	// 两个官方端点并行查询：各自 12s 超时，串行最坏 24s 会拖慢控制中心面板。
-	var (
-		wg                 sync.WaitGroup
-		tavilyItem, tfItem Item
-	)
-	wg.Add(2)
-	go func() { defer wg.Done(); tavilyItem = s.tavily(ctx) }()
-	go func() { defer wg.Done(); tfItem = s.tinyfish(ctx) }()
-	wg.Wait()
-	official := map[string]Item{
-		providerTavily:   tavilyItem,
-		providerTinyfish: tfItem,
+var ErrUnsupportedRefreshProvider = errors.New("provider does not support official quota refresh")
+
+// RefreshProvider refreshes just the selected provider's official quota.
+func (s *Service) RefreshProvider(ctx context.Context, provider string) (Item, bool, error) {
+	provider = canonicalQuotaProvider(provider)
+	if provider != providerTavily && provider != providerTinyfish {
+		return Item{}, false, ErrUnsupportedRefreshProvider
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	official, refreshed := s.readOfficial(ctx, true, provider)
+	local, hasLocal := s.localItem(provider, s.clock(), false)
+	return s.combineUsage(official[0], local, hasLocal), refreshed, nil
+}
+
+// readOfficial holds the caller's lock for cache coordination. Providers in a
+// global refresh are contacted concurrently and debounced independently.
+func (s *Service) readOfficial(ctx context.Context, force bool, providers ...string) ([]Item, bool) {
+	now := s.clock()
+	var wg sync.WaitGroup
+	items := make([]Item, len(providers))
+	pending := make([]int, 0, len(providers))
+	for i, provider := range providers {
+		cached := s.official[provider]
+		items[i] = cached.item
+		if items[i].Provider == "" {
+			items[i] = Item{Provider: provider, Configured: providerKeyConfigured(s.conf, provider), Status: "no_data"}
+		}
+		fresh := !cached.cachedAt.IsZero() && now.Sub(cached.cachedAt) < cacheTTL
+		if force {
+			fresh = !cached.lastRefresh.IsZero() && now.Sub(cached.lastRefresh) < refreshInterval
+		}
+		if fresh || ctx.Err() != nil {
+			continue
+		}
+		pending = append(pending, i)
+		wg.Go(func() {
+			if provider == providerTavily {
+				items[i] = s.tavily(ctx)
+			} else {
+				items[i] = s.tinyfish(ctx)
+			}
+		})
+	}
+	wg.Wait()
+	for _, i := range pending {
+		provider := providers[i]
+		cached := s.official[provider]
+		if force {
+			cached.lastRefresh = s.clock()
+		}
+		if ctx.Err() == nil {
+			cached.item = items[i]
+			cached.cachedAt = s.clock()
+		}
+		s.official[provider] = cached
+	}
+	return items, len(pending) != 0 && ctx.Err() == nil
+}
+
+// collect combines the local view with the official results for the full panel.
+func (s *Service) collect(official []Item, updateLedger bool) []Item {
+	now := s.clock()
 	byName := make(map[string]Item)
 	if s.store != nil {
 		if names, err := s.store.QuotaProviders(); err == nil {
@@ -225,22 +271,12 @@ func (s *Service) collect(ctx context.Context, updateLedger bool) []Item {
 			}
 		}
 	}
-	for _, provider := range []string{providerTavily, providerTinyfish} {
-		item := official[provider]
-		local, hasLocal := byName[provider]
-		if item.Status == "available" || !hasLocal {
-			item.AutoReset = "official"
-			if s.SearchEnforced(provider) && local.Used != nil {
-				if item.Details == nil {
-					item.Details = map[string]any{}
-				}
-				item.Details["local_search_used"], item.Details["local_search_limit"] = *local.Used, *local.Limit
-			}
-			byName[provider] = item
-		} else if item.Status == "query_failed" {
-			local.OfficialQueryFailed = true
-			byName[provider] = local
+	for _, item := range official {
+		local, hasLocal := byName[item.Provider]
+		if !hasLocal {
+			local, hasLocal = s.localItem(item.Provider, now, updateLedger)
 		}
+		byName[item.Provider] = s.combineUsage(item, local, hasLocal)
 	}
 	out := make([]Item, 0, len(byName))
 	for _, item := range byName {
@@ -248,6 +284,29 @@ func (s *Service) collect(ctx context.Context, updateLedger bool) []Item {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Provider < out[j].Provider })
 	return out
+}
+
+func (s *Service) combineUsage(official, local Item, hasLocal bool) Item {
+	official.AutoReset = "official"
+	if !hasLocal {
+		return official
+	}
+	if official.Status != "available" {
+		local.OfficialQueryFailed = official.Status == "query_failed"
+		local.Details = official.Details
+		return local
+	}
+	official.LocalUsage = local.LocalUsage
+	if local.LocalUsage.Enforced && local.Used != nil {
+		// Details comes from the official cache. Keep local values out of it.
+		details := make(map[string]any, len(official.Details)+2)
+		for key, value := range official.Details {
+			details[key] = value
+		}
+		details["local_search_used"], details["local_search_limit"] = *local.Used, *local.Limit
+		official.Details = details
+	}
+	return official
 }
 
 // localItem 把一个供应商的真实调用记录折算成本地用量条目；没有配置 Key 也
@@ -273,10 +332,12 @@ func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item
 		Provider: name, Configured: configured, Status: "no_data", Unit: "calls",
 		Source: "local", AutoReset: s.conf.Dashboard.Quotas.GetReset(),
 	}
+	enforced := s.SearchEnforced(name)
+	item.LocalUsage = &LocalUsage{Status: "no_data", Unit: item.Unit, AutoReset: item.AutoReset, Enforced: enforced}
 	if s.store == nil {
 		return Item{}, false
 	}
-	if s.SearchEnforced(name) {
+	if enforced {
 		used, err := s.searchUsed(name, now)
 		if err != nil {
 			item.Error = SearchSkipMessage(i18n.Default(), SkipUnavailable)
@@ -286,7 +347,7 @@ func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item
 	}
 	periodStart, adjust, err := s.store.QuotaState(name)
 	if err != nil {
-		item.Error = "读取本地额度状态失败"
+		item.Error = SearchSkipMessage(i18n.Default(), SkipUnavailable)
 		return item, true
 	}
 	// 自动重置：进入新周期后把周期起点推进到当前窗口、修正量清零。
@@ -304,9 +365,12 @@ func (s *Service) localItem(name string, now time.Time, updateLedger bool) (Item
 		if window == 0 {
 			window = s.conf.Dashboard.Quotas.PeriodStart(now).Unix()
 		}
-		if n, err := s.countLocalCalls(name, window); err == nil {
-			used = n + adjust
+		n, err := s.countLocalCalls(name, window)
+		if err != nil {
+			item.Error = SearchSkipMessage(i18n.Default(), SkipUnavailable)
+			return item, true
 		}
+		used = n + adjust
 	}
 	return s.localUsageItem(item, now, used, limit), true
 }
@@ -327,6 +391,9 @@ func (s *Service) localUsageItem(item Item, now time.Time, used int64, limit flo
 	if reset := s.conf.Dashboard.Quotas.NextReset(now); !reset.IsZero() {
 		item.ResetAt = reset.Format(time.RFC3339)
 	}
+	item.LocalUsage.Status = "available"
+	item.LocalUsage.Used, item.LocalUsage.Limit, item.LocalUsage.Remaining = item.Used, item.Limit, item.Remaining
+	item.LocalUsage.ResetAt = item.ResetAt
 	return item
 }
 
@@ -498,7 +565,10 @@ func (s *Service) SetProviderUsed(provider string, used int64) error {
 
 func (s *Service) invalidate() error {
 	s.mu.Lock()
-	s.cachedAt = time.Time{}
+	for provider, cached := range s.official {
+		cached.cachedAt = time.Time{}
+		s.official[provider] = cached
+	}
 	s.mu.Unlock()
 	return nil
 }
@@ -586,11 +656,15 @@ func (s *Service) tinyfish(ctx context.Context) Item {
 		return Item{Provider: providerTinyfish, Status: "not_configured"}
 	}
 	dayStart := s.clock().UTC().Truncate(24 * time.Hour)
-	item := s.tinyfishSearchItemAt(ctx, keys[0], dayStart)
-	if item.Status != "available" {
-		return item
-	}
+	var item Item
+	var wg sync.WaitGroup
+	wg.Go(func() { item = s.tinyfishSearchItemAt(ctx, keys[0], dayStart) })
 	fetchUsed, errMsg := s.tinyfishUsed(ctx, s.tinyfishFetchURL, keys[0], dayStart)
+	wg.Wait()
+	if item.Details == nil {
+		item.Details = make(map[string]any)
+	}
+	item.Details["fetch_reset_at"] = dayStart.Add(24 * time.Hour).Format(time.RFC3339)
 	if errMsg != "" {
 		// fetch 计数失败不拖垮主指标：搜索数字照常返回，失败说明进 Details。
 		item.Details["fetch_error"] = "fetch 用量查询失败：" + errMsg

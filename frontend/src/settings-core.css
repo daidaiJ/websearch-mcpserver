@@ -1,0 +1,48 @@
+.set-core { display: grid; gap: var(--gap); align-content: start; min-width: 0; }
+.set-mode-field, .set-list-field { min-width: 0; padding: 0; margin: 0; border: 0; }
+.set-mode-field legend, .set-list-field legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 650; }
+.set-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.set-mode-card { display: flex; align-items: start; gap: 8px; min-height: 68px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
+.set-mode-card:hover:not(:has(:disabled)) { background: var(--soft); }
+.set-mode-card:has(:checked) { background: var(--cap-tint); border-color: var(--cap-focus); }
+.set-mode-card:has(:disabled) { color: var(--muted); cursor: default; }
+.set-mode-card input, .set-order-list input { flex: none; margin: 4px 0 0; accent-color: var(--cap-focus); }
+.set-mode-card span { display: grid; gap: 2px; }
+.set-mode-card strong { font-weight: 650; }
+.set-mode-card small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.set-single-provider { max-width: 55ch; }
+.set-policy { display: grid; gap: calc(var(--gap) * .75); padding-top: var(--gap); border-top: 1px solid var(--line); }
+.set-inline-link { display: flex; align-items: center; gap: 6px; width: fit-content; color: var(--cap-focus); font-size: 13px; text-underline-offset: 3px; }
+.set-hub-orders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.set-order-list { display: grid; list-style: none; margin: 7px 0 0; padding: 0; border: 1px solid var(--line); border-radius: 9px; }
+.set-order-list li + li { border-top: 1px solid var(--line); }
+.set-order-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 37px; padding: 5px 8px; }
+.set-order-list label { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.set-order-list input { margin: 0; }
+.set-order-actions { display: flex; gap: 4px; flex: none; }
+.set-order-actions .cap-button { min-height: 27px; min-width: 27px; padding: 3px; }
+.set-arrow-up { display: grid; rotate: -90deg; }
+.set-arrow-down { display: grid; rotate: 90deg; }
+.set-advanced { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.set-advanced summary { margin-bottom: 10px; font-size: 13px; font-weight: 650; cursor: pointer; }
+.set-advanced .cap-note { margin-bottom: 8px; }
+.set-map textarea { width: 100%; min-height: 80px; padding: 8px 10px; border: 1px solid var(--cap-control-border); border-radius: 8px; resize: vertical; background: var(--panel); color: var(--ink); font: 12px/1.6 var(--font-mono); }
+.set-map textarea:disabled { color: var(--muted); background: var(--soft); }
+.set-map textarea[aria-invalid='true'] { border-color: var(--danger); }
+.set-service-proxy { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: var(--gap); }
+.set-service-proxy > .cap-field { width: min(100%, 35ch); }
+.set-action-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.set-action-line h3 { margin: 0 0 3px; font-size: 14px; font-weight: 650; }
+.set-action-line + .set-action-line { padding-top: var(--gap); border-top: 1px solid var(--line); }
+.set-recovery-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; min-width: 0; }
+.set-recovery-actions > label { width: min(380px, 100%); }
+.set-recovery-actions select { max-width: 100%; }
+.set-config-dialog { width: min(560px, calc(100vw - 24px)); }
+.set-config-dialog .set-danger { color: var(--panel); background: var(--danger); border-color: var(--danger); }
+.set-config-dialog .set-danger:hover:not(:disabled) { color: var(--panel); background: color-mix(in srgb, var(--danger) 84%, var(--ink)); }
+
+@media (max-width: 610px) {
+  .set-mode-grid, .set-hub-orders { grid-template-columns: minmax(0, 1fr); }
+  .set-recovery-actions { width: 100%; }
+  .set-recovery-actions > label { width: 100%; }
+}

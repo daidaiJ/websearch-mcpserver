@@ -186,7 +186,7 @@ func (e *CredentialEditor) Edit(data []byte, req CredentialEditRequest) (Credent
 	if !exists || req.Name == credentialAuthToken {
 		return result, nil, ErrCredentialRequest
 	}
-	if req.Revision != "" && req.Revision != result.Revision {
+	if (req.Revision != "" || req.Action == "replace") && req.Revision != result.Revision {
 		return result, nil, ErrCredentialConflict
 	}
 	doc, err := decodeCredentialDocument(data)
@@ -204,7 +204,8 @@ func (e *CredentialEditor) Edit(data []byte, req CredentialEditRequest) (Credent
 	}
 	req.Value = strings.TrimSpace(req.Value)
 	req.Label = strings.TrimSpace(req.Label)
-	if !validCredentialLabel(req.Label, append(sensitive, req.Value)) {
+	sensitive = append(sensitive, req.Value)
+	if !validCredentialLabel(req.Label, sensitive) {
 		return result, nil, ErrCredentialLabel
 	}
 	legacyGitHub := req.Action == "" && req.Name == "GITHUB_TOKEN"
@@ -222,9 +223,14 @@ func (e *CredentialEditor) Edit(data []byte, req CredentialEditRequest) (Credent
 	if err != nil {
 		return result, nil, err
 	}
-	changed, err := e.editPatch(&patch, req, multi, legacyGitHub, slots)
+	changed, err := e.editPatch(&patch, req, multi, legacyGitHub, slots, sensitive)
 	if err != nil {
 		return result, nil, err
+	}
+	pending[req.Name] = patch.effective(e.snapshot.base[req.Name])
+	result.AfterCount = len(pending[req.Name])
+	if req.Action == "replace" && result.AfterCount != result.BeforeCount {
+		return result, nil, ErrCredentialConflict
 	}
 	if req.Action == "reset" {
 		_, changed = doc[req.Name]
@@ -235,8 +241,6 @@ func (e *CredentialEditor) Edit(data []byte, req CredentialEditRequest) (Credent
 			return result, nil, ErrCredentialFile
 		}
 	}
-	pending[req.Name] = patch.effective(e.snapshot.base[req.Name])
-	result.AfterCount = len(pending[req.Name])
 	result.RestartRequired = e.restartRequired(pending)
 	result.Saved = req.Confirm
 	if !changed || !req.Confirm {
@@ -250,7 +254,7 @@ func (e *CredentialEditor) Edit(data []byte, req CredentialEditRequest) (Credent
 	return result, encoded, nil
 }
 
-func (e *CredentialEditor) editPatch(p *credentialPatch, req CredentialEditRequest, multi, first bool, slots []credentialSlot) (bool, error) {
+func (e *CredentialEditor) editPatch(p *credentialPatch, req CredentialEditRequest, multi, first bool, slots []credentialSlot, sensitive []string) (bool, error) {
 	switch req.Action {
 	case "append", "set":
 		if req.Value == "" || req.SlotID != "" || (req.Action == "append") != multi {
@@ -265,6 +269,34 @@ func (e *CredentialEditor) editPatch(p *credentialPatch, req CredentialEditReque
 			*p = credentialPatch{HideBase: true}
 		}
 		p.Slots = append(p.Slots, credentialSlot{ID: rand.Text(), Value: req.Value, Label: req.Label, First: first})
+		return true, nil
+	case "replace":
+		if !multi || req.Value == "" || req.SlotID == "" || req.Label != "" {
+			return false, ErrCredentialRequest
+		}
+		index := slices.IndexFunc(slots, func(slot credentialSlot) bool { return e.slotID(req.Name, slot) == req.SlotID })
+		if index == -1 {
+			return false, ErrCredentialConflict
+		}
+		slot := slots[index]
+		if slot.Value == req.Value {
+			return false, nil
+		}
+		if slices.ContainsFunc(slots, func(other credentialSlot) bool { return other.Value == req.Value }) {
+			return false, ErrCredentialRequest
+		}
+		if !validCredentialLabel(slot.Label, sensitive) {
+			slot.Label = ""
+		}
+		if slot.source == "overlay" {
+			saved := slices.IndexFunc(p.Slots, func(candidate credentialSlot) bool { return candidate.ID == slot.ID })
+			p.Slots[saved].Value = req.Value
+			p.Slots[saved].Label = slot.Label
+		} else {
+			p.Removed = append(p.Removed, slot.ID)
+			delete(p.Labels, slot.ID)
+			p.Slots = append(p.Slots, credentialSlot{ID: rand.Text(), Value: req.Value, Label: slot.Label, Replaces: slot.ID})
+		}
 		return true, nil
 	case "clear", "reset":
 		if req.Value != "" || req.Label != "" || req.SlotID != "" {

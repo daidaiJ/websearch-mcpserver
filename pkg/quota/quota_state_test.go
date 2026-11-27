@@ -167,9 +167,44 @@ func TestOfficialQueryFailurePreservesLocalQuotaAndReportsFallback(t *testing.T)
 		if !item.OfficialQueryFailed {
 			t.Fatalf("the dashboard must know official usage failed: %+v", item)
 		}
+		if item.LocalUsage == nil || f64(item.LocalUsage.Used) != "3" || item.LocalUsage.Status != "available" {
+			t.Fatalf("missing independent local usage on official failure: %+v", item.LocalUsage)
+		}
 		return
 	}
 	t.Fatal("missing Tavily quota")
+}
+
+func TestOfficialQuotaPreservesIndependentLocalUsage(t *testing.T) {
+	conf := tavilyConf("test-key")
+	conf.Dashboard.Quotas.Limits = map[string]int{"tavily": 100}
+	svc, store := newLocalService(t, conf)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"key":{"usage":10,"limit":50}}`))
+	}))
+	defer upstream.Close()
+	svc.endpoint = upstream.URL
+
+	item := itemOf(svc.Get(t.Context()), "tavily")
+	local := item.LocalUsage
+	if item.Unit != "credits" || f64(item.Used) != "10" || local == nil || local.Enforced ||
+		local.Status != "available" || local.Unit != "calls" || f64(local.Used) != "0" ||
+		f64(local.Limit) != "100" || f64(local.Remaining) != "100" || local.AutoReset != "monthly" {
+		t.Fatalf("official quota = %+v, local usage = %+v", item, local)
+	}
+	recordN(t, store, "tavily_api", 4)
+	local = itemOf(svc.Get(t.Context()), "tavily").LocalUsage
+	if f64(local.Used) != "4" || f64(local.Remaining) != "96" {
+		t.Fatalf("new local calls were hidden by the official cache: %+v", local)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	item = itemOf(svc.Get(t.Context()), "tavily")
+	local = item.LocalUsage
+	if item.Status != "available" || local == nil || local.Status != "no_data" || local.Used != nil || local.Remaining != nil {
+		t.Fatalf("unreadable local state looked like observed usage: %+v", local)
+	}
 }
 
 func TestQuotaCanonicalizesTelemetryAliases(t *testing.T) {

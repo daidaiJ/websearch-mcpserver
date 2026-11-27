@@ -265,11 +265,11 @@ func TestGetTinyfishAvailable(t *testing.T) {
 	var gotKey string
 	var gotQuery url.Values
 	svc := tinyfishTestService(t, tinyfishConf("tf-test-key"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotKey = r.Header.Get("X-API-Key")
-		gotQuery = r.URL.Query()
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/usage":
+			gotKey = r.Header.Get("X-API-Key")
+			gotQuery = r.URL.Query()
 			json.NewEncoder(w).Encode(map[string]any{"total": 12, "items": []any{map[string]any{}}})
 		case "/fetch_usage":
 			json.NewEncoder(w).Encode(map[string]any{"total": 3, "items": []any{map[string]any{}}})
@@ -369,6 +369,27 @@ func TestGetTinyfishFetchFailureKeepsSearchTotals(t *testing.T) {
 	}
 }
 
+func TestGetTinyfishSearchFailureKeepsFetchTotalsAndLocalUsage(t *testing.T) {
+	conf := tinyfishConf("tf-test-key")
+	conf.Dashboard.Quotas.Limits = map[string]int{"tinyfish": 100}
+	_, store := newLocalService(t, conf)
+	svc := tinyfishTestService(t, conf, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/fetch_usage" {
+			_, _ = io.WriteString(w, `{"total":0}`)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	svc.store = store
+	recordN(t, store, "tinyfish", 3)
+
+	item := itemOf(svc.Get(t.Context()), "tinyfish")
+	if !item.OfficialQueryFailed || item.Source != "local" || f64(item.Used) != "3" || item.Details["fetch_used"] != 0 ||
+		item.Details["fetch_limit"] != 1000 || item.Details["fetch_reset_at"] == "" {
+		t.Fatalf("Search failure obscured the independent official zero Fetch usage or local fallback: %+v", item)
+	}
+}
+
 func TestProviderKeyCountCoversNewProviders(t *testing.T) {
 	conf := config.Config{
 		TinyFish: config.TinyFishConfig{SKList: []string{"a", "b"}},
@@ -411,5 +432,41 @@ func TestRefreshBypassesTTLAndDebouncesOfficialQueries(t *testing.T) {
 	items, refreshed = svc.Refresh(t.Context())
 	if used := f64(itemOf(items, "tavily").Used); !refreshed || used != "3" {
 		t.Fatalf("refresh after debounce used = %s, refreshed = %v, want 3 and true", used, refreshed)
+	}
+}
+
+func TestRefreshProviderQueriesOnlySelectedOfficialEndpoints(t *testing.T) {
+	var tavily, tinySearch, tinyFetch atomic.Int32
+	conf := tavilyConf("test-key")
+	conf.TinyFish.APIKey = "test-tinyfish-key"
+	svc := testService(t, conf, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/usage":
+			fmt.Fprintf(w, `{"key":{"usage":%d,"limit":10}}`, tavily.Add(1))
+		case "/search":
+			fmt.Fprintf(w, `{"total":%d}`, tinySearch.Add(1))
+		case "/fetch":
+			fmt.Fprintf(w, `{"total":%d}`, tinyFetch.Add(1))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}), nil)
+	root := strings.TrimSuffix(svc.endpoint, "/usage")
+	svc.tinyfishSearchURL, svc.tinyfishFetchURL = root+"/search", root+"/fetch"
+	item, refreshed, err := svc.RefreshProvider(t.Context(), "tavily")
+	if err != nil || !refreshed || f64(item.Used) != "1" || tinySearch.Load() != 0 || tinyFetch.Load() != 0 {
+		t.Fatalf("Tavily refresh contacted the wrong endpoints: %+v, refreshed=%t, err=%v", item, refreshed, err)
+	}
+	item, refreshed, err = svc.RefreshProvider(t.Context(), "tavily")
+	if err != nil || refreshed || f64(item.Used) != "1" || tavily.Load() != 1 {
+		t.Fatalf("repeat refresh ignored debounce: %+v, refreshed=%t, err=%v", item, refreshed, err)
+	}
+	items, refreshed := svc.Refresh(t.Context())
+	if !refreshed || len(items) != 2 || tavily.Load() != 1 || tinySearch.Load() != 1 || tinyFetch.Load() != 1 {
+		t.Fatalf("global refresh failed to coalesce Tavily and query TinyFish: %+v (Tavily %d, Search %d, Fetch %d)", items, tavily.Load(), tinySearch.Load(), tinyFetch.Load())
+	}
+	item, refreshed, err = svc.RefreshProvider(t.Context(), "tinyfish")
+	if err != nil || refreshed || f64(item.Used) != "1" || tinySearch.Load() != 1 || tinyFetch.Load() != 1 {
+		t.Fatalf("global refresh did not debounce scoped TinyFish refresh: %+v, refreshed=%t, err=%v", item, refreshed, err)
 	}
 }

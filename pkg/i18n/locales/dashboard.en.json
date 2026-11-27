@@ -95,5 +95,7 @@
   "dashboard.diagnostics.invalid_input": "Enter a valid test query or public page URL.",
   "dashboard.diagnostics.confirm_required": "Confirm that this diagnostic can use upstream quota.",
   "dashboard.runtime.quota_timeout": "The official quota refresh timed out.",
-  "dashboard.storage.files_clear_failed": "Cleared {{.Count}} temporary files before a storage error. Refresh the totals and retry."
+  "dashboard.runtime.quota_provider_unsupported": "Select Tavily or TinyFish to refresh its official quota.",
+  "dashboard.storage.files_clear_failed": "Cleared {{.Count}} temporary files before a storage error. Refresh the totals and retry.",
+  "dashboard.traces.invalid_cursor": "Invalid call cursor. Expected unix_seconds:event_id."
 }

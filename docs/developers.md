@@ -246,7 +246,7 @@ CI 在 `test` job 内跑 10s 短窗口（种子语料始终随 `go test` 执行�
 
 **约定与防漏**（`pkg/i18n/catalog_test.go` 是唯一入口，改动后必须跑 `go test ./pkg/i18n/`）：
 
-1. **加文案**：先写 key 再用，不写裸字符串。日志走 `log.*T`；Go 侧走 `i18n.T` / `i18n.TCtx`；MCP 参数说明走 `jsonschema:"mcp.param.<工具>.<字段>"`；前端走 `data-i18n` 或 `t()`。
+1. **加文案**：先写 key 再用，不写裸字符串。日志走 `log.*T`；Go 侧走 `i18n.T` / `i18n.TCtx`；MCP 参数说明走 `jsonschema:"mcp.param.<工具>.<字段>"`；控制中心 TS/TSX 走 `t()`。
 2. **审计不变量**：每个域在 zh/en 下 key 集合完全一致；同一 key 的 `{{.占位符}}` 集合一致；代码引用的 key 与目录条目双向一致（既无漏登记，也无死条目）；`{{.}}` 之外的花括号与裸 `%` 动词不再使用。
 3. **新增域**：加 `locales/<域>.<语言>.json` 并同步 `catalog_test.go` 的 `keyDomains`。
 4. **纯转发包装**（key 由调用方给出）要显式登记到 `catalog_test.go` 的 `dynamicKeyAllowlist` 并写清理由，其余任何非字面量 key 都是审计失败。

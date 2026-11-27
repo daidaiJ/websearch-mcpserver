@@ -1,15 +1,12 @@
 package dashboard
 
 import (
-	"bytes"
 	"context"
 	"crypto/subtle"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -29,9 +26,6 @@ import (
 func secureEquals(input, want string) bool {
 	return input != "" && subtle.ConstantTimeCompare([]byte(input), []byte(want)) == 1
 }
-
-//go:embed web/*
-var webFiles embed.FS
 
 const defaultEventLimit = 50
 
@@ -130,20 +124,7 @@ func (h *Handler) registerRoutes(mux *http.ServeMux, guard, runtimeGuard func(ht
 			}
 		}))
 	}
-	assets, _ := fs.Sub(webFiles, "web")
-	fileServer := http.FileServer(http.FS(assets))
-	// 内嵌资源禁止启发式缓存：二进制升级后浏览器必须立即取到新资源
-	mux.Handle("/dashboard/", guard(i18n.HTTP(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-cache")
-		if r.URL.Path == "/dashboard/" {
-			serveIndex(w, r, assets)
-			return
-		}
-		http.StripPrefix("/dashboard/", fileServer).ServeHTTP(w, r)
-	})))
-	mux.HandleFunc("/dashboard", guard(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/dashboard/", http.StatusTemporaryRedirect)
-	}))
+	h.registerDashboardAssets(mux, guard)
 	mux.HandleFunc("/__admin/api/overview", guard(i18n.HTTP(h.overview)))
 	mux.HandleFunc("/__admin/api/events", guard(i18n.HTTP(h.events)))
 	mux.HandleFunc("/__admin/api/calls", guard(i18n.HTTP(h.calls)))
@@ -166,37 +147,6 @@ func (h *Handler) registerRoutes(mux *http.ServeMux, guard, runtimeGuard func(ht
 	mux.HandleFunc("/__admin/api/history/clear", localAction(h.clearHistory))
 	mux.HandleFunc("/__admin/api/fetchdata/clear", localAction(h.clearTemporaryOutputs))
 	mux.HandleFunc("/__admin/api/storage", guard(i18n.HTTP(h.storageStats)))
-}
-
-// indexLangAnchor 是 index.html 中 <html lang> 的取值锚点（见 serveIndex）。
-const indexLangAnchor = `lang="zh-CN"`
-
-// indexMessagesAnchor 是 index.html 里内联前端文案的占位注释（见 serveIndex）。
-const indexMessagesAnchor = "<!--i18n-messages-->"
-
-// serveIndex 输出内嵌 index.html，并把 <html lang> 改写为本次请求协商出的语言。
-// 前端据 document.documentElement.lang 选词典并内联当前语言的 web 域文案，
-// 首帧即正确语言，无需二次切换。
-func serveIndex(w http.ResponseWriter, r *http.Request, assets fs.FS) {
-	page, err := fs.ReadFile(assets, "index.html")
-	if err != nil {
-		http.Error(w, "index.html unavailable", http.StatusInternalServerError)
-		return
-	}
-	code := i18n.FromContext(r.Context()).Code()
-	page = bytes.Replace(page, []byte(indexLangAnchor), []byte(`lang="`+htmlLang(code)+`"`), 1)
-	page = bytes.Replace(page, []byte(indexMessagesAnchor),
-		[]byte(`<script>window.__I18N__ = `+string(i18n.RawMessages(code, "web"))+`;</script>`), 1)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(page)
-}
-
-// htmlLang 把语言代码转成 <html lang> 取值：中文带地区（zh-CN），英文用裸 en。
-func htmlLang(code string) string {
-	if code == i18n.En {
-		return "en"
-	}
-	return "zh-CN"
 }
 
 func (h *Handler) overview(w http.ResponseWriter, r *http.Request) {
@@ -312,6 +262,16 @@ func (h *Handler) calls(w http.ResponseWriter, r *http.Request) {
 		Tool: strings.TrimSpace(query.Get("tool")), Provider: strings.TrimSpace(query.Get("provider")),
 		Status: eventStatus(query.Get("status")), ErrorKind: eventErrorKind(query.Get("error_kind")),
 		Limit: eventLimit(limit),
+	}
+	if cursor := query.Get("before"); cursor != "" {
+		rawAt, rawID, ok := strings.Cut(cursor, ":")
+		at, atErr := strconv.ParseInt(rawAt, 10, 64)
+		id, idErr := strconv.ParseInt(rawID, 10, 64)
+		if !ok || atErr != nil || idErr != nil || at <= 0 || id <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.traces.invalid_cursor")})
+			return
+		}
+		filter.BeforeAt, filter.BeforeID = at, id
 	}
 	switch query.Get("cache_hit") {
 	case "true", "false":
