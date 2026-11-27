@@ -430,9 +430,7 @@ def main() -> None:
             png = OUT / name.replace(".jpg", ".png")
             page.screenshot(path=str(png), full_page=False)
             with Image.open(png) as image:
-                image.convert("RGB").resize((1400, 875), Image.Resampling.LANCZOS).save(
-                    OUT / name, quality=90, optimize=True
-                )
+                image.convert("RGB").save(OUT / name, quality=95, optimize=True)
             png.unlink()
             print(f"wrote {OUT / name}")
 

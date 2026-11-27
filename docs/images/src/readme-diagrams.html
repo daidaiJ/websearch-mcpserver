@@ -5,20 +5,21 @@
 <title>websearch-mcpserver README diagrams</title>
 <style>
   :root {
-    --bg: #f6f6f7;
+    --bg: #ececee;
     --card: #ffffff;
-    --row: #ffffff;
-    --row2: #fbfbfc;
-    --ink: #202024;
-    --muted: #64646c;
-    --line: rgba(32, 32, 36, 0.10);
-    --cyan: #286950;
-    --cyan2: #3c7d63;
-    --orange: #92531b;
-    --teal: #2f6f5e;
-    --purple: #5f568f;
-    --green: #287153;
-    --blue: #4755a2;
+    --row: #fbfbfc;
+    --row2: #f6f6f7;
+    --ink: #18181b;
+    --muted: #3f3f46;
+    --line: rgba(24, 24, 27, 0.14);
+    --border: #cfcfd6;
+    --cyan: #1f5a43;
+    --cyan2: #2f6f5e;
+    --orange: #8a4a12;
+    --teal: #245c4c;
+    --purple: #4f477e;
+    --green: #206044;
+    --blue: #3a478e;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -32,118 +33,108 @@
     position: relative;
     overflow: hidden;
     background:
-      radial-gradient(1100px 480px at 12% -10%, rgba(40, 105, 80, 0.07), transparent 60%),
-      radial-gradient(900px 420px at 95% 110%, rgba(60, 125, 99, 0.05), transparent 55%),
+      radial-gradient(1100px 480px at 12% -10%, rgba(31, 90, 67, 0.06), transparent 60%),
+      radial-gradient(900px 420px at 95% 110%, rgba(47, 111, 94, 0.05), transparent 55%),
       var(--bg);
-  }
-  .board::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(30deg, rgba(32,32,36,0.035) 12%, transparent 12.5%, transparent 87%, rgba(32,32,36,0.035) 87.5%),
-      linear-gradient(150deg, rgba(32,32,36,0.025) 12%, transparent 12.5%, transparent 87%, rgba(32,32,36,0.025) 87.5%);
-    background-size: 56px 48px;
-    pointer-events: none;
   }
   .frame {
     position: absolute;
-    inset: 28px;
-    border: 1px solid var(--line);
-    border-radius: 28px;
-    background: rgba(255, 255, 255, 0.88);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 18px 48px rgba(15, 23, 42, 0.06);
-    padding: 36px 40px 32px;
+    inset: 26px;
+    border: 1px solid #d7d7dd;
+    border-radius: 26px;
+    background: var(--card);
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.09);
+    padding: 34px 40px 30px;
     display: flex;
     flex-direction: column;
   }
   h1 {
-    font-size: 42px;
-    font-weight: 750;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
+    font-size: 46px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
   }
   .sub {
-    margin-top: 8px;
+    margin-top: 10px;
     color: var(--muted);
-    font-size: 18px;
+    font-size: 21px;
     font-weight: 500;
   }
   .badge {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    border: 1px solid rgba(40, 105, 80, 0.32);
+    border: 1.5px solid rgba(31, 90, 67, 0.55);
     color: var(--cyan);
     border-radius: 999px;
-    padding: 7px 16px;
-    font-size: 15px;
-    font-weight: 650;
-    background: rgba(40, 105, 80, 0.07);
+    padding: 8px 18px;
+    font-size: 17px;
+    font-weight: 700;
+    background: rgba(31, 90, 67, 0.07);
   }
   .head {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 24px;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
     flex-shrink: 0;
   }
   .pill {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    border: 1px solid rgba(32, 32, 36, 0.12);
+    gap: 9px;
+    border: 1.5px solid #c4c4cc;
     background: #ffffff;
     color: var(--ink);
     border-radius: 999px;
-    padding: 7px 16px;
-    font-size: 15px;
-    font-weight: 600;
+    padding: 8px 14px;
+    font-size: 19px;
+    font-weight: 650;
     white-space: nowrap;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   }
   .dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 9px; height: 9px; border-radius: 50%;
     background: var(--cyan);
-    box-shadow: 0 0 0 3px rgba(40, 105, 80, 0.10);
+    box-shadow: 0 0 0 3px rgba(31, 90, 67, 0.14);
     flex-shrink: 0;
   }
 
   /* ── Hero ── */
-  #hero .frame { padding: 48px 48px 40px; }
+  #hero .frame { padding: 44px 46px 38px; }
   .hero-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: 430px 1fr;
-    gap: 20px;
+    grid-template-columns: 420px 1fr;
+    gap: 18px;
     align-items: center;
   }
-  .hero-copy h1 { font-size: 38px; white-space: nowrap; letter-spacing: -0.04em; }
-  .hero-copy .sub { font-size: 19px; max-width: 380px; line-height: 1.4; margin: 14px 0 22px; }
+  .hero-copy h1 { font-size: 40px; white-space: nowrap; letter-spacing: -0.04em; font-weight: 800; }
+  .hero-copy .sub { font-size: 22px; max-width: 400px; line-height: 1.35; margin: 12px 0 20px; }
   .flow {
     display: grid;
-    grid-template-columns: 168px 28px 196px 28px 210px;
+    grid-template-columns: 190px 26px 208px 26px 232px;
     align-items: center;
     justify-content: end;
   }
   .stack { display: flex; flex-direction: column; gap: 10px; }
   .node {
-    border: 1px solid rgba(32,32,36,0.10);
+    border: 1.5px solid #c4c4cc;
     background: #ffffff;
     border-radius: 12px;
-    padding: 10px 14px;
-    font-size: 15px;
+    padding: 11px 16px;
+    font-size: 19px;
     font-weight: 650;
     display: flex;
     align-items: center;
     gap: 10px;
-    box-shadow: 0 1px 2px rgba(15,23,42,0.03);
+    box-shadow: 0 1px 3px rgba(15,23,42,0.08);
   }
   .hub {
-    height: 168px;
-    border: 1px solid rgba(40,105,80,0.28);
-    background: linear-gradient(180deg, #f3f8f5, #e9f2ec);
+    height: 208px;
+    border: 1.5px solid rgba(31, 90, 67, 0.58);
+    background: linear-gradient(180deg, #eef7f1, #dfeee6);
     border-radius: 16px;
     display: flex;
     flex-direction: column;
@@ -152,11 +143,11 @@
     gap: 10px;
     text-align: center;
     color: var(--cyan);
-    font-weight: 700;
-    font-size: 15px;
-    box-shadow: inset 0 1px 0 #ffffff, 0 8px 24px rgba(40,105,80,0.08);
+    font-weight: 750;
+    font-size: 19px;
+    box-shadow: inset 0 1px 0 #ffffff, 0 8px 24px rgba(31,90,67,0.12);
   }
-  .hub svg { opacity: 0.95; }
+  .hub svg { opacity: 1; }
   .out .node { justify-content: flex-start; }
   .icon {
     width: 18px; height: 18px; flex-shrink: 0;
@@ -165,14 +156,16 @@
   .wires path { stroke: #6d9b85; opacity: 0.75; }
   .hub svg circle, .hub svg path { stroke: var(--cyan); }
   .wires {
-    height: 168px;
+    height: 279px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  .wires svg { width: 28px; height: 168px; overflow: visible; }
+  .wires svg { width: 26px; height: 279px; overflow: visible; }
+  .out-wires, .out-wires svg { height: 221px; }
 
   /* ── Architecture ── */
+  #architecture { height: 810px; }
   .layers { display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .layer-flow {
     width: 148px;
@@ -192,41 +185,41 @@
   }
   .layer {
     display: grid;
-    grid-template-columns: 148px 1fr;
+    grid-template-columns: 156px 1fr;
     gap: 16px;
     align-items: center;
-    background: var(--row);
-    border: 1px solid rgba(32,32,36,0.09);
+    background: #f6f6f7;
+    border: 1.5px solid #d4d4d8;
     border-radius: 16px;
     padding: 12px 18px;
-    min-height: 72px;
-    box-shadow: 0 1px 2px rgba(15,23,42,0.03);
+    min-height: 76px;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.05);
   }
   .layer-name {
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 800;
-    letter-spacing: 0.12em;
-    color: #5f5f66;
+    letter-spacing: 0.10em;
+    color: var(--muted);
   }
   .pills { display: flex; flex-wrap: wrap; gap: 8px; }
   .engines {
     display: grid;
-    grid-template-columns: 1.15fr 1fr;
+    grid-template-columns: 0.94fr 1fr;
     gap: 10px;
   }
   .eng-box {
-    background: var(--row);
-    border: 1px solid rgba(32,32,36,0.09);
+    background: #f6f6f7;
+    border: 1.5px solid #d4d4d8;
     border-radius: 16px;
     padding: 12px 16px 14px;
-    min-height: 132px;
-    box-shadow: 0 1px 2px rgba(15,23,42,0.03);
+    min-height: 150px;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.05);
   }
   .eng-title {
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 800;
-    letter-spacing: 0.08em;
-    color: #5f5f66;
+    letter-spacing: 0.06em;
+    color: var(--muted);
     margin-bottom: 10px;
   }
   .arrow-col {
@@ -248,30 +241,30 @@
   }
   .tool {
     border-radius: 18px;
-    border: 1.5px solid;
+    border: 1.8px solid;
     background: #ffffff;
-    padding: 26px 20px 22px;
+    padding: 28px 18px 22px;
     display: flex;
     flex-direction: column;
-    height: 360px;
-    box-shadow: 0 8px 24px rgba(15,23,42,0.04);
+    height: 380px;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.05);
   }
   .tool .n {
-    width: 34px; height: 34px; border-radius: 50%;
-    border: 1.5px solid; display: flex; align-items: center; justify-content: center;
-    font-weight: 750; font-size: 16px; margin-bottom: 16px;
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1.8px solid; display: flex; align-items: center; justify-content: center;
+    font-weight: 750; font-size: 18px; margin-bottom: 16px;
   }
-  .tool h3 { font-size: 20px; font-weight: 750; margin-bottom: 10px; letter-spacing: -0.02em; }
-  .tool p { color: var(--muted); font-size: 14.5px; line-height: 1.45; font-weight: 500; }
-  .t1 { border-color: rgba(40,105,80,0.42); }
+  .tool h3 { font-size: 22px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.02em; }
+  .tool p { color: var(--muted); font-size: 17px; line-height: 1.45; font-weight: 550; }
+  .t1 { border-color: rgba(31,90,67,0.68); }
   .t1 .n, .t1 h3 { color: var(--cyan); border-color: var(--cyan); }
-  .t2 { border-color: rgba(146,83,27,0.42); }
+  .t2 { border-color: rgba(138,74,18,0.68); }
   .t2 .n, .t2 h3 { color: var(--orange); border-color: var(--orange); }
-  .t3 { border-color: rgba(47,111,94,0.42); }
+  .t3 { border-color: rgba(36,92,76,0.68); }
   .t3 .n, .t3 h3 { color: var(--teal); border-color: var(--teal); }
-  .t4 { border-color: rgba(95,86,143,0.42); }
+  .t4 { border-color: rgba(79,71,126,0.68); }
   .t4 .n, .t4 h3 { color: var(--purple); border-color: var(--purple); }
-  .t5 { border-color: rgba(40,113,83,0.42); }
+  .t5 { border-color: rgba(32,96,68,0.68); }
   .t5 .n, .t5 h3 { color: var(--green); border-color: var(--green); }
   .chain-sep {
     border-left: 1px dashed rgba(32,32,36,0.16);
@@ -282,10 +275,10 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    color: #8a8a92;
-    font-size: 22px;
-    padding-top: 78px;
-    height: 360px;
+    color: #5f5f68;
+    font-size: 24px;
+    padding-top: 92px;
+    height: 380px;
   }
 
   /* ── Pipeline ── */
@@ -304,43 +297,43 @@
     text-align: center;
   }
   .step-box {
-    border: 1.4px solid;
+    border: 1.8px solid;
     border-radius: 14px;
     background: #ffffff;
-    padding: 14px 8px 12px;
+    padding: 16px 8px 14px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    min-height: 86px;
+    gap: 9px;
+    min-height: 98px;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(15,23,42,0.03);
+    box-shadow: 0 2px 6px rgba(15,23,42,0.05);
   }
-  .step h3 { font-size: 16px; font-weight: 750; }
-  .step .cap { margin-top: 8px; color: var(--muted); font-size: 13px; font-weight: 550; }
-  .step svg { width: 22px; height: 22px; }
-  .s-cyan { border-color: rgba(40,105,80,0.40); color: var(--cyan); }
-  .s-blue { border-color: rgba(71,85,162,0.40); color: var(--blue); }
-  .s-teal { border-color: rgba(47,111,94,0.40); color: var(--teal); }
-  .s-orange { border-color: rgba(146,83,27,0.42); color: var(--orange); }
-  .s-purple { border-color: rgba(95,86,143,0.42); color: var(--purple); }
+  .step h3 { font-size: 19px; font-weight: 800; }
+  .step .cap { margin-top: 8px; color: var(--muted); font-size: 16px; font-weight: 600; }
+  .step svg { width: 24px; height: 24px; }
+  .s-cyan { border-color: rgba(31,90,67,0.62); color: var(--cyan); }
+  .s-blue { border-color: rgba(58,71,142,0.62); color: var(--blue); }
+  .s-teal { border-color: rgba(36,92,76,0.62); color: var(--teal); }
+  .s-orange { border-color: rgba(138,74,18,0.64); color: var(--orange); }
+  .s-purple { border-color: rgba(79,71,126,0.64); color: var(--purple); }
   .arrow {
     display: none;
   }
   .step { position: relative; }
   .step .arr {
     position: absolute;
-    right: -20px;
-    top: 36px;
-    color: #9a9aa2;
-    font-size: 18px;
+    right: -21px;
+    top: 40px;
+    color: #6b6b74;
+    font-size: 20px;
   }
   .wrap {
     grid-column: 1 / -1;
     display: grid;
     grid-template-columns: 8.3% 1fr 8.3%;
     grid-template-rows: 1fr 1fr;
-    height: 36px;
+    height: 44px;
   }
   .wrap .down { border-right: 1.6px dashed #b5b5bc; }
   .wrap .across-start { border-top: 1.6px dashed #b5b5bc; border-left: 1.6px dashed #b5b5bc; }
@@ -367,16 +360,16 @@
           <div class="node"><span class="dot"></span>Academic · 9</div>
         </div>
         <div class="wires">
-          <svg viewBox="0 0 28 168">
-            <path d="M0 16 C18 16, 10 84, 28 84" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 50 C18 50, 10 84, 28 84" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 84 C16 84, 12 84, 28 84" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 118 C18 118, 10 84, 28 84" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 152 C18 152, 10 84, 28 84" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
+          <svg viewBox="0 0 26 279">
+            <path d="M0 24 C17 24, 9 140, 26 140" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 82 C17 82, 9 140, 26 140" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 140 C15 140, 11 140, 26 140" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 197 C17 197, 9 140, 26 140" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 255 C17 255, 9 140, 26 140" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
           </svg>
         </div>
         <div class="hub">
-          <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+          <svg width="48" height="48" viewBox="0 0 42 42" fill="none">
             <circle cx="21" cy="10" r="4" stroke="#286950" stroke-width="1.8"/>
             <circle cx="8" cy="30" r="4" stroke="#286950" stroke-width="1.8"/>
             <circle cx="34" cy="30" r="4" stroke="#286950" stroke-width="1.8"/>
@@ -385,12 +378,12 @@
           </svg>
           local orchestration
         </div>
-        <div class="wires">
-          <svg viewBox="0 0 28 168">
-            <path d="M0 84 C12 84, 10 22, 28 22" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 84 C12 84, 10 62, 28 62" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 84 C12 84, 10 106, 28 106" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
-            <path d="M0 84 C12 84, 10 146, 28 146" fill="none" stroke="#3c7d63" stroke-width="1.6"/>
+        <div class="wires out-wires">
+          <svg viewBox="0 0 26 221">
+            <path d="M0 111 C11 111, 9 24, 26 24" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 111 C11 111, 9 82, 26 82" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 111 C11 111, 9 140, 26 140" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
+            <path d="M0 111 C11 111, 9 197, 26 197" fill="none" stroke="#2f6f5e" stroke-width="2.2"/>
           </svg>
         </div>
         <div class="stack out">
