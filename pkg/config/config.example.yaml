@@ -593,6 +593,9 @@ log:
 #   max_open_conns: 1        # 遥测库 SQLite 连接池上限（默认 1，上限 32）
 #   client_projects: {}
 #   secrets_path: "./data/dashboard-secrets.json"
+#   ui:
+#     enabled: true           # false = 只保留 API，不挂载 /dashboard/ 页面
+#     dir: ""                 # 外挂前端目录（含 index.html）；空 = 内置 React 页面
 # 控制中心的免密运行态操作与验密管理操作范围见 dashboard.example.yaml 和 docs/dashboard.md。
 #
 # 控制中心推荐使用独立配置文件 dashboard.yaml（主配置同目录，见

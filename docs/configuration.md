@@ -334,6 +334,9 @@ cache:
 #   max_open_conns: 1        # 遥测库 SQLite 连接池上限（默认 1，上限 32）
 #   secrets_path: "./data/dashboard-secrets.json" # 私密覆盖文件，不回显 Key
 #   config_path: ""          # 独立配置文件路径；空 = 主配置同目录 dashboard.yaml
+#   ui:
+#     enabled: true          # false = 只保留 API，不挂载 /dashboard/ 页面
+#     dir: ""                # 外挂前端目录（含 index.html）；空 = 内置 React 页面
 #   admin_password: ""       # 管理操作口令（明文）；与 admin_password_sha256 二选一
 #   admin_password_sha256: "" # 管理操作口令（SHA-256 十六进制）
 #   allowed_networks: []     # 只读放行网段（CIDR/裸 IP）；空 = 仅本机 loopback
@@ -592,6 +595,7 @@ dashboard:
 
 - `brand.theme`：`green`（默认，绿色办公）/ `blue`（蓝白科技）/ `mono`（黑白灰度·立体）；`brand.accent` 自定义主色（`#RRGGBB`）覆盖主题主色。
 - `brand.title` / `brand.logo` 自定义标题与 logo（http(s) URL 或本地图片路径）；WebUI 内也提供仅存本浏览器的外观选择。
+- `dashboard.ui.dir` 指向包含 `index.html` 的目录可整体替换控制中心前端；接口与最小示例见 [dashboard-api.md](dashboard-api.md)。
 - 桌面快捷方式图标跟随 `brand.theme`：每次启动做一次轻量检查，主题变化即重建快捷方式（每主题独立 ico 文件，规避 Windows 图标缓存）。
 
 ### 客户端用量归组

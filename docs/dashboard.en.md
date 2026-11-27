@@ -10,6 +10,8 @@ Open `/dashboard/`. Overview leads with call volume and trends. Traces, Sources,
 
 Edit `frontend/src/`. In `frontend/` run `npm ci`, `npm test` and `npm run build`, then commit the sources and generated `pkg/dashboard/web/dist/` together. At the repository root run `go test ./pkg/i18n/` and `go test -short ./...`. Go embeds the built pages, scripts, styles and WOFF2 fonts for offline operation.
 
+To avoid changing the built-in frontend, put a custom static page in any directory and point `dashboard.ui.dir` at it. After a restart, `/dashboard/` serves the external page instead; the embedded React UI is no longer routed. The external page uses the same-origin `/__admin/api/` endpoints. See [dashboard-api.en.md](dashboard-api.en.md) for the API, permissions and a minimal example.
+
 When replacing a key inherited from configuration or the environment, the private credential overlay records the original slot position. If rolling back to an older binary after such a replacement, restore the matching pre-change credential overlay from the protected backup together with the binary.
 
 ---
@@ -57,7 +59,8 @@ cp dashboard.example.yaml dashboard.yaml   # next to config.yaml, edit as needed
 | **Overview** | Tool-call KPIs, daily success / failure / cache-hit trend, service runtime, six public MCP tools and client usage |
 | **Sources** | Enable switches, routing conditions, observed health, last 20 results, failure breakdown, success rate, average / P95 latency, API quotas and routing cooldowns |
 | **Tools & capabilities** | Module settings for search ranking, fetching, PDF parsing, academic search, history, LLM summaries and Everything file search |
-| **Usage** | Filter by status, tool, provider, error kind, application, project and cache state. Expand a call to see its provider attempts or export the current list to CSV. |
+| **Diagnostics lab** | Proxy connectivity, Everything probes, single-source test searches and single-URL test fetches with latency, error class and fetch node; provider quota may be consumed and confirmation is required |
+| **Traces** | Filter by status, tool, provider, error kind, application, project and cache state. Expand a call to see its provider attempts or export the current list to CSV. |
 | **Settings** | Writes whitelisted config (mode, timeouts, thresholds, suspension durations, etc.) after backing up the current YAML; secrets are never echoed; theme and advanced actions live in the "Appearance & maintenance" card |
 
 Behavior boundaries:
@@ -88,6 +91,9 @@ dashboard:
   max_open_conns: 1             # telemetry SQLite pool cap (default 1, hard ceiling 32)
   secrets_path: "./data/dashboard-secrets.json"  # private key overlay (never echoed)
   config_path: ""               # path of dashboard.yaml itself; empty = next to config.yaml
+  ui:
+    enabled: true               # false = API only; /dashboard/ is not mounted
+    dir: ""                     # external UI directory containing index.html; empty = embedded React UI
 
   # —— independent read/write boundaries ——
   allowed_networks: []          # CIDR/bare-IP allowlist; empty = loopback only
@@ -143,6 +149,8 @@ dashboard:
 | `client_projects` | map<string,string> | `{}` | Explicit exact-client-name to project-label mapping for calls without a project header |
 | `secrets_path` | path | `./data/dashboard-secrets.json` | Private credential overlay. APIs expose counts, sources and slot metadata |
 | `config_path` | path | empty | Custom location of dashboard.yaml (env var also works) |
+| `ui.enabled` | bool | true | `false` keeps `/__admin/api/` and does not mount `/dashboard/` or its static assets. It does not remove embedded bytes; use `go build -tags no_ui` for the smallest binary |
+| `ui.dir` | path | empty | External UI directory (must contain `index.html`); empty = embedded React UI. Relative paths resolve against the main config directory. An invalid directory makes `/dashboard/` return 500. Switching directories requires a restart; file edits apply on refresh. See [dashboard-api.en.md](dashboard-api.en.md) |
 | `allowed_networks` | []string | `[]` | Read-only allowlist; fail-closed |
 | `write_allowed_networks` | []string | `[]` | Independent allowlist for runtime and authenticated operations; empty/invalid = loopback only; read access grants no operation permissions; explicit overlay `[]` revokes the main-config write allowlist |
 | `admin_password` | string | empty | Admin password (plaintext form) |

@@ -10,6 +10,8 @@
 
 界面源码位于 `frontend/src/`。在 `frontend/` 依次运行 `npm ci`、`npm test`、`npm run build`，提交源码及 `pkg/dashboard/web/dist/`。从仓库根目录运行 `go test ./pkg/i18n/` 和 `go test -short ./...`。Go 二进制直接嵌入已构建页面、脚本、样式和 WOFF2 字体，可以离线启动。
 
+不想改内置前端时，可以把自建静态页面放到任意目录，用 `dashboard.ui.dir` 指向它；重启后 `/dashboard/` 整体改用外挂页面，内置 React 页面不再参与路由。外挂页面通过同源 `/__admin/api/` 使用控制中心数据，接口、权限与最小示例见 [dashboard-api.md](dashboard-api.md)。
+
 替换来自配置或环境变量的多 Key 槽位时，私有凭证覆盖文件会记录其原始位置。此后如需回退旧版二进制，请同时从受保护的备份恢复替换前的凭证覆盖文件，旧版解析器只接受其已知字段。
 
 ---
@@ -57,7 +59,8 @@ cp dashboard.example.yaml dashboard.yaml   # 放在 config.yaml 同目录，按�
 | **总览** | 工具调用 KPI、成功／失败／缓存命中的多日趋势、服务运行状态、6 个公开 MCP 工具、客户端用量 |
 | **搜索源** | 来源启用与参与条件、健康观测、最近 20 次结果、失败构成、成功率、平均／P95 延迟、API 额度及真实路由冷却 |
 | **工具与能力** | 按模块调整搜索评分、网页抓取、PDF 解析、学术检索、搜索历史、LLM 摘要及 Everything 文件检索 |
-| **调用记录** | 按状态、工具、来源、错误类型、应用、项目和缓存状态筛选；展开可看请求级来源链，按当前列表导出 CSV |
+| **诊断实验室** | 代理连通性、Everything 探测、单源试搜与单 URL 试抓，返回耗时、错误分类和抓取节点；可能消耗供应商额度，需确认 |
+| **调用追踪** | 按状态、工具、来源、错误类型、应用、项目和缓存状态筛选；展开可看请求级来源链，按当前列表导出 CSV |
 | **设置** | 备份当前 YAML 后写入白名单配置（模式、超时、阈值、熔断时长等），密钥永不回显；外观主题与高级操作合并为「外观与维护」卡片 |
 
 行为边界：
@@ -88,6 +91,9 @@ dashboard:
   max_open_conns: 1             # 遥测库 SQLite 连接池上限（默认 1，上限 32）
   secrets_path: "./data/dashboard-secrets.json"  # API Key 私密覆盖文件（接口永不回显）
   config_path: ""               # dashboard.yaml 自身路径；空 = 主配置同目录
+  ui:
+    enabled: true               # false = 只保留 API，不挂载 /dashboard/ 页面
+    dir: ""                     # 外挂前端目录（含 index.html）；空 = 内置 React 页面
 
   # —— 独立读/写访问边界 ——
   allowed_networks: []          # CIDR/裸 IP 白名单；空 = 仅本机 loopback
@@ -142,6 +148,8 @@ dashboard:
 | `client_projects` | map<string,string> | `{}` | 精确客户端名到项目简称的显式映射；仅用于缺少项目头时的统计归属 |
 | `secrets_path` | path | `./data/dashboard-secrets.json` | 凭证覆盖文件；接口返回生效数量、来源及槽位备注 |
 | `config_path` | path | 空 | dashboard.yaml 的自定义位置（也可用环境变量） |
+| `ui.enabled` | bool | true | `false` 只保留 `/__admin/api/`，不挂载 `/dashboard/` 页面与静态资源；不会从二进制移除已嵌入资产，极限体积用 `go build -tags no_ui` |
+| `ui.dir` | path | 空 | 外挂前端目录（必须含 `index.html`）；空 = 内置 React 页面。相对路径按主配置目录解析，目录无效时 `/dashboard/` 返回 500；切换目录需重启，目录内文件变更刷新即生效。接口见 [dashboard-api.md](dashboard-api.md) |
 | `allowed_networks` | []string | `[]` | 只读放行网段；fail-closed |
 | `write_allowed_networks` | []string | `[]` | 独立操作白名单，覆盖运行态与验密操作；空/非法 = 仅 loopback；读白名单不授予操作权限；overlay 显式 `[]` 可撤销主配置写白名单 |
 | `admin_password` | string | 空 | 管理操作口令（明文形态） |

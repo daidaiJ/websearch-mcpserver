@@ -34,6 +34,8 @@ vendor/
 /autostart.vbs
 /start-mcp.vbs
 *.html
+__pycache__/
+*.pyc
 qwen-code-export-*.html
 # 引擎解析契约真实快照需要入库
 !pkg/search/engine/*/testdata/*.html

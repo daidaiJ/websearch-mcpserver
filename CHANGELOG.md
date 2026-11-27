@@ -6,6 +6,9 @@
 
 ### 新增
 
+- **文档配图更新**：README 四张示意图切换为与最新控制中心一致的亮色主题；控制中心截图改用 React 版界面，并新增 `docs/images/src/render_dashboard.py` 以便重渲染。
+- **控制中心前端可关闭 / 可裁剪**：`dashboard.ui.enabled: false` 只保留 `/__admin/api/`，不挂载页面与静态资源；`go build -tags no_ui` 从二进制移除内嵌前端资产（仍可用 `ui.dir` 外挂 UI）。默认构建与默认配置保持原样。
+- **控制中心外挂前端**：新增 `dashboard.ui.dir`，指向含 `index.html` 的静态目录即可整体替换内置 React 控制台；外挂页面同源调用 `/__admin/api/`，JSON 响应新增 `X-WebSearch-Dashboard-API: 1` 版本头，静态服务拒绝路径穿越、点文件与越界符号链接。接入指南见 [docs/dashboard-api.md](docs/dashboard-api.md)。
 - **并发准入与瘦虚机预设**：新增 `limits`（默认 4 个并发 `tools/call`、12 个并发出站请求、满额排队 2 s）。准入用带缓冲 channel 的闸门实现，超出预算的调用直接返回“服务繁忙”，不再把 goroutine、socket 与页缓冲堆进进程；异步路径（引擎扇出、`fetch_top_n`、批量 `cleanfetch`）共享同一出站闸门。新增 `config.slim.yaml`（2C2G / 2C4G）与 `/metrics` 的 `websearch_admission_*` 指标。实测见 `docs/installation.md`「瘦虚机部署」。
 - **内存回收策略 `memory`**：`off`（默认，沿用 Go 默认）/ `balanced`（GOGC=75，空闲 60 s 归还）/ `aggressive`（GOGC=40，空闲 10 s、堆 >4 MB 即 `debug.FreeOSMemory`），可选 `limit_mb` 设置软内存上限。重载 95 KB 页面后实测：`off` 停留在 43.9 MB，`aggressive` 20–35 s 回落到 37.7 MB；`/metrics` 新增 `websearch_memory_policy` 与 `websearch_memory_free_os_total`。
 - **apipool 的 mcphub 后备补充源**：`apipool.mcphub_fallback: true` 把 `mcp_hub` 托管 MCP 级联追加在已配置供应商之后、`baidu_web` 之前，无 Key 也能提供额外匿名用量；也可在 `apipool.engines` 里显式写 `mcphub` 自行决定位置。`apipool.mcphub_dedupe`（默认 true）跳过与 apipool 已启用供应商同源的托管 server（anysearch / exa），避免同一出口 IP 被两条链路叠加限流。
@@ -23,6 +26,7 @@
 
 ### 变更
 
+- **WebUI 文案不再进入后端 i18n bundle**：`web.*` 只由控制中心前端通过 `RawMessages` 按需读取；后端首次渲染日志/MCP 文案时不再解析两份约 84KB 的前端 JSON（微基准：bundle 加载 7.1ms/4.07MB → 4.2ms/2.37MB）。
 - **正文预算语义**：`max_chars` 从“按条均分”改为“按排名分配、每条保底 200 字符”；`inline_max_chars` 超限时不再整单只给预览，排名靠前的结果正文继续保留在响应内。无配置变更。
 
 - **进程内并发默认受限**：未显式配置 `limits` 时也会按 4 / 12 / 2000 ms 的默认值准入；需要旧的“来者不拒”行为可显式设 `limits.max_inflight: -1` 与 `limits.max_outbound: -1`。

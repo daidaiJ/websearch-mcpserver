@@ -935,9 +935,30 @@ type DashboardConfig struct {
 	AdminPasswordSHA256 string           `mapstructure:"admin_password_sha256"`
 	Suspension          SuspensionConfig `mapstructure:"suspension"`
 	Quotas              QuotasConfig     `mapstructure:"quotas"`
+	// UI 选择控制中心前端。零值 = 使用二进制内嵌的默认前端；dir 指向
+	// 外部静态目录时整体替换内置界面，供二次开发与定制。
+	UI DashboardUIConfig `mapstructure:"ui"`
 	// Brand 允许自托管用户自定义控制台的标题与 logo（更开放：打自己的牌子）。
 	// 空值 = 内置默认品牌；旧配置文件没有该块时完全兼容。
 	Brand BrandConfig `mapstructure:"brand"`
+}
+
+// DashboardUIConfig 控制控制中心前端的来源。
+type DashboardUIConfig struct {
+	// Enabled 控制是否挂载 /dashboard/ 前端；nil 或 true = 启用，
+	// false = 只保留 /__admin/api/，不提供页面与静态资源。
+	// 关闭页面不会从二进制移除已嵌入的资产；极限体积需使用 no_ui 构建标签。
+	Enabled *bool `mapstructure:"enabled"`
+	// Dir 是包含 index.html 的外部 UI 目录；空值 = 内嵌前端。
+	// 相对路径按主 config.yaml 所在目录解析。目录内容原样按同源静态资源
+	// 提供（文件变更刷新即生效，切换目录需重启）。外挂 UI 通过
+	// /__admin/api/ 使用控制中心 API。
+	Dir string `mapstructure:"dir"`
+}
+
+// IsEnabled 返回控制中心前端是否启用；零值按启用处理，兼容旧配置。
+func (u DashboardUIConfig) IsEnabled() bool {
+	return u.Enabled == nil || *u.Enabled
 }
 
 // BrandConfig 控制控制台的品牌呈现。
@@ -1867,6 +1888,19 @@ func (c Config) GetDashboardSecretsPath() string {
 	return filepath.Join(filepath.Dir(c.GetDashboardStoragePath()), "dashboard-secrets.json")
 }
 
+// GetDashboardUIDir 返回外挂控制中心前端目录；空串表示使用内嵌前端。
+// 相对路径按主 config.yaml 所在目录解析；未加载配置文件时保持相对当前目录。
+func (c Config) GetDashboardUIDir() string {
+	dir := strings.TrimSpace(c.Dashboard.UI.Dir)
+	if dir == "" || filepath.IsAbs(dir) {
+		return dir
+	}
+	if file := GetConfigFile(); file != "" {
+		return filepath.Join(filepath.Dir(file), dir)
+	}
+	return dir
+}
+
 // ParseAllowedNetworks 解析 allowed_networks 中的 CIDR 网段；裸 IP 视为单地址
 // 网段。任一条目非法即返回错误，调用方必须 fail-closed（回退为仅 loopback）。
 func (d DashboardConfig) ParseAllowedNetworks() ([]*net.IPNet, error) {
@@ -2028,6 +2062,12 @@ func mergeDashboardOverlay(conf *Config, v *viper.Viper) error {
 	}
 	if overrides("dashboard.quotas.enforce_providers", v.IsSet("dashboard.quotas.enforce_providers")) {
 		conf.Dashboard.Quotas.EnforceProviders = dash.Quotas.EnforceProviders
+	}
+	if overrides("dashboard.ui.enabled", dash.UI.Enabled != nil) {
+		conf.Dashboard.UI.Enabled = dash.UI.Enabled
+	}
+	if overrides("dashboard.ui.dir", v.IsSet("dashboard.ui.dir")) {
+		conf.Dashboard.UI.Dir = dash.UI.Dir
 	}
 	if overrides("dashboard.brand.title", dash.Brand.Title != "") {
 		conf.Dashboard.Brand.Title = dash.Brand.Title

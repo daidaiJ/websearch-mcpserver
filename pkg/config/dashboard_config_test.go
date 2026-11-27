@@ -103,6 +103,9 @@ func TestDashboardOverlayMerge(t *testing.T) {
   admin_password: "pw-1"
   client_projects: { example-check: Example }
   allowed_networks: ["192.168.1.0/24"]
+  ui:
+    enabled: false
+    dir: "./dashboard-ui"
   quotas:
     reset: weekly
     limits: { tavily: 2000 }
@@ -131,8 +134,33 @@ func TestDashboardOverlayMerge(t *testing.T) {
 	if d.Brand.GetTitle() != "My Console" || d.Brand.GetTheme() != "blue" || d.Brand.GetAccent() != "#1e5db8" {
 		t.Fatal("overlay 品牌配置应生效")
 	}
+	if got, want := filepath.Clean(conf.GetDashboardUIDir()), filepath.Join(dir, "dashboard-ui"); got != want {
+		t.Fatalf("ui.dir 应按主配置目录解析: got %q, want %q", got, want)
+	}
+	if conf.Dashboard.UI.IsEnabled() {
+		t.Fatal("overlay 的 ui.enabled:false 应关闭前端")
+	}
 	if GetDashboardOverlayFile() == "" {
 		t.Fatal("应记录 overlay 文件路径")
+	}
+}
+
+func TestDashboardUIOverlayCanClear(t *testing.T) {
+	dir := t.TempDir()
+	mainYAML := "port: 8338\ndashboard:\n  ui:\n    dir: \"./main-ui\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(mainYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	overlay := "dashboard:\n  ui:\n    dir: \"\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "dashboard.yaml"), []byte(overlay), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	conf, err := Load(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := conf.GetDashboardUIDir(); got != "" {
+		t.Fatalf("overlay 显式空 ui.dir 应清空主配置值, got %q", got)
 	}
 }
 

@@ -599,9 +599,14 @@ func decodeJSON(r *http.Request, dst any) error {
 	return dec.Decode(dst)
 }
 
+// dashboardAPIVersion is the stable contract for external dashboard UIs.
+// Bump it only for breaking response or endpoint changes.
+const dashboardAPIVersion = "1"
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-WebSearch-Dashboard-API", dashboardAPIVersion)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }

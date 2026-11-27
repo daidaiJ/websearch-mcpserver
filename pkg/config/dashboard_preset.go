@@ -35,6 +35,11 @@ dashboard:
   # admin_username: "admin"
   storage_path: "./data/dashboard.db"
   retention_days: 30
+  # 控制中心前端：enabled:false 只保留 API；dir 非空时改用外挂页面。
+  # 极限体积用 go build -tags no_ui，配置无法移除已编译资产。
+  # ui:
+  #   enabled: true
+  #   dir: "./dashboard-ui"
   # 只读放行网段（CIDR），默认仅本机；Docker 部署按需放行 bridge 网段
   # allowed_networks: ["192.168.1.0/24"]
   quotas:

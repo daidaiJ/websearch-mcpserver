@@ -27,6 +27,7 @@ func (h *Handler) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-WebSearch-Dashboard-API", dashboardAPIVersion)
 	_, _ = w.Write([]byte(renderMetricsText(snapshot)))
 }
 
