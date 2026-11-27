@@ -229,11 +229,9 @@ docker build -t websearch-mcpserver .
 - 搜索质量闭环暂缓项：D4 citation/untrusted 边界、D6 垂直源、D7 配置分层、D8 tracing 与显式 DI；D3 剩余 hybrid 包装 goroutine 与 cleanfetch 统一预算。
 - 上游限流导致的并发失败入口侧治理；缓存空闲连接参数（`ConnMaxIdleTime` / `MaxIdleConns`）复核。
 
-### 运维待办（本机）
+### 运维状态
 
-- 部署目录 `D:\tool\websearch-mcpserver`，2026-11-05 从旧构建升级到 `v3.10.4` 并迁移配置；启动为 Startup `WebSearchMCP.lnk` → `wscript autostart.vbs`（隐藏窗口、脱离当前 shell 的 Job Object）。
-- 配置沿用旧行为：`dashboard.enabled: false`，port 8338 / apipool / anysearch → tavily → exa；备份 `websearch-mcpserver.exe.bak-pre-v3.10.4`、`config.yaml.bak-pre-v3.10.4`。
-- 升级到 `v3.11.0` 后的配置与整包走查仍待做；迁移细节见归档快照。
+本机与远程部署的路径、主机名、端口和备份文件名只保留在本地交接，不入库。
 
 ### 发布红线
 
