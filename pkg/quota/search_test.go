@@ -202,7 +202,7 @@ func TestSearchQuotaSeedsExistingUsageAndAdjustmentOnce(t *testing.T) {
 	requireSearchSkip(t, err, SkipLocalLimit)
 }
 
-func TestSearchQuotaTracksUsageWhilePreviouslyEnforcedProviderIsDisabled(t *testing.T) {
+func TestSearchQuotaSeedsDisabledPeriodUsageOnReenable(t *testing.T) {
 	ctx := context.Background()
 	conf := config.Config{Exa: config.ExaConfig{APIKey: "key"}}
 	conf.Dashboard.Quotas = config.QuotasConfig{Limits: map[string]int{"exa": 1}, EnforceProviders: []string{"exa"}}
@@ -221,10 +221,74 @@ func TestSearchQuotaTracksUsageWhilePreviouslyEnforcedProviderIsDisabled(t *test
 			t.Fatal(err)
 		}
 		finish(true)
+		// The provider layer records telemetry even when quota enforcement is off.
+		if err := store.Record(telemetry.Event{Kind: "provider", Provider: "exa", Success: true}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	_, err := New(conf, store).AdmitSearch(ctx, "exa", "key")
 	requireSearchSkip(t, err, SkipLocalLimit)
+}
+
+func TestStaleOfficialSnapshotRefreshesWithoutBlockingAdmission(t *testing.T) {
+	var calls atomic.Int32
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			fmt.Fprint(w, `{"account":{"plan_usage":0,"plan_limit":100}}`)
+			return
+		}
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		<-release
+		fmt.Fprint(w, `{"account":{"plan_usage":1,"plan_limit":100}}`)
+	}))
+	t.Cleanup(endpoint.Close)
+
+	conf := config.Config{Tavily: config.TavilyConfig{SKList: []string{"key"}}}
+	conf.Dashboard.Quotas.EnforceProviders = []string{"tavily"}
+	store := openSearchQuotaStore(t)
+	service := newService(conf, endpoint.URL, endpoint.Client(), store)
+	now := time.Now()
+	service.now = func() time.Time { return now }
+	ctx := context.Background()
+
+	finish, err := service.AdmitSearch(ctx, "tavily", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finish(true)
+	now = now.Add(searchQuotaTTL + time.Second)
+
+	start := time.Now()
+	finish, err = service.AdmitSearch(ctx, "tavily", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finish(true)
+	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
+		t.Fatalf("stale admission blocked for %v", elapsed)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("background refresh did not start")
+	}
+	close(release)
+	waitQuotaRefresh(service.routes["tavily"])
+
+	route := service.routes["tavily"]
+	route.mu.Lock()
+	snap := route.snapshots["key"]
+	route.mu.Unlock()
+	if snap.item.Used == nil || *snap.item.Used != 1 {
+		t.Fatalf("snapshot was not refreshed: %+v", snap)
+	}
 }
 
 func openSearchQuotaStore(t *testing.T) *telemetry.Store {
