@@ -2,7 +2,6 @@ package quota
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
@@ -12,8 +11,9 @@ import (
 
 const (
 	// A single provider's official snapshot is cached independently of Dashboard.
-	searchQuotaTTL     = 90 * time.Second
-	searchUsageTimeout = 2 * time.Second
+	searchQuotaTTL        = 90 * time.Second
+	searchUsageTimeout    = 2 * time.Second
+	searchRefreshThrottle = 15 * time.Second
 
 	SkipLocalLimit   = "local_limit"
 	SkipOfficial     = "official_limit"
@@ -47,6 +47,7 @@ type searchGuard struct {
 	initialized bool
 	enforce     bool
 	poll        chan struct{}
+	lastPoll    time.Time
 	snapshots   map[string]searchSnapshot
 	providerUse searchReservations
 	keyUse      map[string]*searchReservations
@@ -70,7 +71,8 @@ func (s *Service) SearchEnforced(provider string) bool {
 	return s.TracksSearch(provider) && s.routes[provider].enforce
 }
 
-// TracksSearch also accounts for direct usage between two opt-in periods.
+// TracksSearch reports whether the provider has a quota entry to display.
+// Search admission only attaches a runtime guard while SearchEnforced is true.
 func (s *Service) TracksSearch(provider string) bool {
 	return s != nil && s.routes[provider] != nil
 }
@@ -101,18 +103,22 @@ func (s *Service) AdmitSearch(ctx context.Context, provider, key string) (finish
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// A provider that is only displayed is not part of the outbound hot path.
+	// Re-enabling an enforcement period seeds the ledger from telemetry once.
+	if !route.enforce {
+		return func(bool) {}, nil
+	}
 
-	limit := int64(math.MaxInt64)
-	if route.enforce {
-		limit = s.localSearchLimit(provider)
-		// Avoid a quota API call if the configured hard limit already disallows this search.
-		if reason := s.localBlockReason(provider); reason != "" {
-			return nil, &SkipError{Reason: reason}
-		}
-		if s.officialSearchUsageAvailable(provider) {
-			if err := s.refreshSearchSnapshot(ctx, route, provider, key); err != nil {
-				return nil, err
-			}
+	limit := s.localSearchLimit(provider)
+	// Avoid a quota API call if the configured hard limit already disallows this search.
+	if reason := s.localBlockReason(provider); reason != "" {
+		return nil, &SkipError{Reason: reason}
+	}
+	if s.officialSearchUsageAvailable(provider) {
+		if s.searchSnapshotReady(route, provider, key) {
+			s.startSearchSnapshotRefresh(route, provider, key)
+		} else if err := s.refreshSearchSnapshot(ctx, route, provider, key); err != nil {
+			return nil, err
 		}
 	}
 
@@ -120,13 +126,10 @@ func (s *Service) AdmitSearch(ctx context.Context, provider, key string) (finish
 	defer route.mu.Unlock()
 	now := s.clock()
 	snapshot := route.snapshots[key]
-	if route.enforce && s.officialLimitReached(provider, key, route, snapshot, now) {
+	if s.officialLimitReached(provider, key, route, snapshot, now) {
 		return nil, &SkipError{Reason: SkipOfficial}
 	}
 	revision, ok, err := s.store.ReserveSearchQuota(ctx, provider, s.searchWindow(now), limit)
-	if !route.enforce && (err != nil || !ok) {
-		return func(bool) {}, nil
-	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -138,7 +141,7 @@ func (s *Service) AdmitSearch(ctx context.Context, provider, key string) (finish
 	}
 	route.providerUse.pending++
 	var keyUse *searchReservations
-	if route.enforce && provider == providerTavily {
+	if provider == providerTavily {
 		if route.keyUse == nil {
 			route.keyUse = make(map[string]*searchReservations)
 		}
@@ -198,10 +201,31 @@ func (s *Service) searchUsed(provider string, now time.Time) (int64, error) {
 }
 
 func (s *Service) seedLegacySearchQuota(provider string, now time.Time) error {
-	if present, err := s.store.HasSearchQuota(provider); present || err != nil {
+	present, err := s.store.HasSearchQuota(provider)
+	if err != nil {
 		return err
 	}
 	window := s.searchWindow(now)
+	if present {
+		// Admission does not write the ledger while enforcement is off. A
+		// re-enabled provider reconciles once from telemetry before enforcing.
+		// max(existing, observed) avoids double counting reservations.
+		if window == 0 {
+			return nil
+		}
+		used, err := s.store.SearchQuotaUsage(provider, window)
+		if err != nil {
+			return err
+		}
+		observed, err := s.countLocalCalls(provider, time.Unix(0, window).Unix())
+		if err != nil {
+			return err
+		}
+		if observed > used {
+			return s.store.SetSearchQuotaUsed(provider, window, observed)
+		}
+		return nil
+	}
 	periodStart, adjust, err := s.store.QuotaState(provider)
 	if err != nil {
 		return err
@@ -245,6 +269,54 @@ func (s *Service) officialSearchUsageAvailable(provider string) bool {
 		(provider == providerTinyfish && len(usableProviderKeys(s.conf, provider)) == 1)
 }
 
+// searchSnapshotReady reports whether a snapshot for the selected key can be
+// used while a background refresh runs. A missing or window-mismatched snapshot
+// still takes the synchronous path on first use.
+func (s *Service) searchSnapshotReady(route *searchGuard, provider, key string) bool {
+	var window int64
+	if provider == providerTinyfish {
+		var err error
+		window, err = s.store.SearchQuotaPeriodStart(provider, s.searchWindow(s.clock()))
+		if err != nil || window == 0 {
+			return false
+		}
+	}
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	snap := route.snapshots[key]
+	if snap.checkedAt.IsZero() {
+		return false
+	}
+	return provider != providerTinyfish || snap.window == window
+}
+
+// startSearchSnapshotRefresh refreshes a usable but stale snapshot without
+// blocking admission. The current request uses the last known snapshot; the
+// next request sees the updated value.
+func (s *Service) startSearchSnapshotRefresh(route *searchGuard, provider, key string) {
+	route.mu.Lock()
+	if route.poll != nil || s.clock().Sub(route.lastPoll) < searchRefreshThrottle {
+		route.mu.Unlock()
+		return
+	}
+	route.lastPoll = s.clock()
+	pending := make(chan struct{})
+	route.poll = pending
+	route.mu.Unlock()
+
+	go func() {
+		defer func() {
+			route.mu.Lock()
+			close(pending)
+			route.poll = nil
+			route.mu.Unlock()
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), searchUsageTimeout)
+		defer cancel()
+		_ = s.fetchSearchSnapshot(ctx, route, provider, key)
+	}()
+}
+
 func (s *Service) refreshSearchSnapshot(ctx context.Context, route *searchGuard, provider, key string) error {
 	for {
 		var window int64
@@ -272,39 +344,63 @@ func (s *Service) refreshSearchSnapshot(ctx context.Context, route *searchGuard,
 		}
 		pending := make(chan struct{})
 		route.poll = pending
-		providerCompleted := route.providerUse.completed
-		var keyCompleted uint64
-		if use := route.keyUse[key]; use != nil {
-			keyCompleted = use.completed
-		}
+		route.lastPoll = s.clock()
 		route.mu.Unlock()
-		var item Item
-		pollCtx, cancel := context.WithTimeout(ctx, searchUsageTimeout)
-		if provider == providerTavily {
-			item = s.tavilyForKey(pollCtx, key)
-		} else {
-			now := s.clock()
-			item = s.tinyfishSearchItemAt(pollCtx, key, time.Unix(0, window).UTC())
-			limit := float64(s.localSearchLimit(provider))
-			item.Limit = &limit
-			item.ResetAt = ""
-			if reset := s.conf.Dashboard.Quotas.NextReset(now); !reset.IsZero() {
-				item.ResetAt = reset.Format(time.RFC3339)
-			}
-		}
-		cancel()
+
+		err := s.fetchSearchSnapshot(ctx, route, provider, key)
 		route.mu.Lock()
-		if ctx.Err() == nil {
-			route.snapshots[key] = searchSnapshot{
-				item: item, checkedAt: s.clock(), window: window,
-				providerCompleted: providerCompleted, keyCompleted: keyCompleted,
-			}
-		}
 		close(pending)
 		route.poll = nil
 		route.mu.Unlock()
-		return ctx.Err()
+		return err
 	}
+}
+
+// fetchSearchSnapshot performs one official usage query and stores the result.
+// Callers own route.poll so a single query is in flight per guard.
+func (s *Service) fetchSearchSnapshot(ctx context.Context, route *searchGuard, provider, key string) error {
+	var window int64
+	if provider == providerTinyfish {
+		var err error
+		window, err = s.store.SearchQuotaPeriodStart(provider, s.searchWindow(s.clock()))
+		if err != nil || window == 0 {
+			return nil
+		}
+	}
+
+	route.mu.Lock()
+	providerCompleted := route.providerUse.completed
+	var keyCompleted uint64
+	if use := route.keyUse[key]; use != nil {
+		keyCompleted = use.completed
+	}
+	route.mu.Unlock()
+
+	var item Item
+	pollCtx, cancel := context.WithTimeout(ctx, searchUsageTimeout)
+	if provider == providerTavily {
+		item = s.tavilyForKey(pollCtx, key)
+	} else {
+		now := s.clock()
+		item = s.tinyfishSearchItemAt(pollCtx, key, time.Unix(0, window).UTC())
+		limit := float64(s.localSearchLimit(provider))
+		item.Limit = &limit
+		item.ResetAt = ""
+		if reset := s.conf.Dashboard.Quotas.NextReset(now); !reset.IsZero() {
+			item.ResetAt = reset.Format(time.RFC3339)
+		}
+	}
+	cancel()
+
+	route.mu.Lock()
+	if ctx.Err() == nil {
+		route.snapshots[key] = searchSnapshot{
+			item: item, checkedAt: s.clock(), window: window,
+			providerCompleted: providerCompleted, keyCompleted: keyCompleted,
+		}
+	}
+	route.mu.Unlock()
+	return ctx.Err()
 }
 
 func (snap searchSnapshot) current(now time.Time) bool {
@@ -323,7 +419,12 @@ func (s *Service) officialLimitReached(provider, key string, route *searchGuard,
 		}
 	}
 	item := snap.item
-	if !snap.current(now) || item.Status != "available" {
+	// Use the last known official snapshot while a background refresh runs.
+	// A passed reset boundary means the snapshot describes the previous period.
+	if snap.checkedAt.IsZero() || item.Status != "available" {
+		return false
+	}
+	if reset, err := time.Parse(time.RFC3339, item.ResetAt); err == nil && !now.Before(reset) {
 		return false
 	}
 	providerReserved := float64(route.providerUse.completed-snap.providerCompleted+route.providerUse.pending) + 1

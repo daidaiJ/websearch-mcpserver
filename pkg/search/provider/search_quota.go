@@ -20,7 +20,7 @@ type searchQuota struct {
 // SetSearchQuota attaches the runtime budget to a pool before sharing the pool.
 // Fetch adapters keep using NextUsable without spending search allowance.
 func (p *KeyPool) SetSearchQuota(provider string, service *quota.Service) {
-	if service.TracksSearch(provider) {
+	if service.SearchEnforced(provider) {
 		p.searchQuota = &searchQuota{provider: provider, service: service}
 	}
 }
