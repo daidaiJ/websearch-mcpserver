@@ -29,6 +29,12 @@ github.com/bogdanfinn/websocket v1.5.5-barnius/go.mod h1:gvvEw6pTKHb7yOiFvIfAFTS
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/daidaiJ/go-webfetch v0.2.1-0.20260913051955-85f5174c4851 h1:4T3tpLgGdZmMmCoo8ggFNAH0j0vKrYpl4Yie+MO3iXs=
 github.com/daidaiJ/go-webfetch v0.2.1-0.20260913051955-85f5174c4851/go.mod h1:UGwVl62pKGQJEUkNq5AU9CFCJsElztYnzEEiQ89r9cI=
+github.com/daidaiJ/go-webfetch v0.2.1-0.20261127053932-0578a982d0cf h1:Sozz1qDCBI6q7G5HSnNIuTGpMTqA4kBpjEwffX6zahY=
+github.com/daidaiJ/go-webfetch v0.2.1-0.20261127053932-0578a982d0cf/go.mod h1:UGwVl62pKGQJEUkNq5AU9CFCJsElztYnzEEiQ89r9cI=
+github.com/daidaiJ/go-webfetch v0.2.1-0.20261127062217-b84b13c81950 h1:GG9HKOaHm81/MfgvebuP2zh7W4VoyH4q6PTrDMJI9r8=
+github.com/daidaiJ/go-webfetch v0.2.1-0.20261127062217-b84b13c81950/go.mod h1:UGwVl62pKGQJEUkNq5AU9CFCJsElztYnzEEiQ89r9cI=
+github.com/daidaiJ/go-webfetch v0.3.0 h1:Ux2MQuh/OWNyQs42Ze+8yToXf4rsCmkYQNa3GLgYbGE=
+github.com/daidaiJ/go-webfetch v0.3.0/go.mod h1:UGwVl62pKGQJEUkNq5AU9CFCJsElztYnzEEiQ89r9cI=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
