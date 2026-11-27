@@ -125,25 +125,30 @@ func doAcademicSearchWithRequest(ctx context.Context, req *mcp.CallToolRequest, 
 	if err != nil {
 		return nil, nil, err
 	}
-	if requestCache != nil {
-		// 逐引擎错误不写入缓存（Store 仍只存干净结果），命中路径展示的是上次结果；
-		// TTL 按 freshness 分桶：day → 1h、week → 6h、month 及其它 → 24h/默认
-		if storeErr := requestCache.Store(cacheKey, "", true, res.Results, "", cache.TTLForFreshness(timeRange)); storeErr != nil && !errors.Is(storeErr, cache.ErrStaleGeneration) {
-			log.ErrorT("log.mcp.cache_write_error_ignoring", "err", storeErr)
-		}
-	}
+	storeAcademicCache(requestCache, cacheKey, timeRange, res)
 	ret = provenanceHeaderForRequest(req, time.Now(), 0) + ret
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 }
 
-// academicCacheKey 学术搜索的缓存键：query|timeRange|engines|page。
+func storeAcademicCache(requestCache *cache.Cache, key, timeRange string, result search.AcademicSearchResult) {
+	// 部分结果可供本次调用使用，下一次调用仍需重试失败的引擎。
+	if requestCache == nil || len(result.EngineErrors) != 0 {
+		return
+	}
+	if err := requestCache.Store(key, "", true, result.Results, "", cache.TTLForFreshness(timeRange)); err != nil && !errors.Is(err, cache.ErrStaleGeneration) {
+		log.ErrorT("log.mcp.cache_write_error_ignoring", "err", err)
+	}
+}
+
+// academicCacheKey 学术搜索的缓存键：query|timeRange|engines|page|complete=v1。
+// 旧键未区分部分失败与完整结果，换键后重新检索，旧记录按原 TTL 淘汰。
 // page 必须参与（B7）：缺页码会让 page>=2 在 TTL 内命中第一页记录，分页静默退化。
 // engines 顺序保持调用方给定的顺序，不排序：引擎组合顺序本身是检索语义的一部分。
 func academicCacheKey(query, timeRange string, engines []string, page int) string {
 	if page <= 0 {
 		page = 1
 	}
-	return query + "|" + timeRange + "|" + strings.Join(engines, ",") + "|page=" + strconv.Itoa(page)
+	return query + "|" + timeRange + "|" + strings.Join(engines, ",") + "|page=" + strconv.Itoa(page) + "|complete=v1"
 }
 
 // academicProviderErrorsFromError extracts the adapter's "engine: message"

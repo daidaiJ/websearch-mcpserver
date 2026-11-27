@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
-	"websearch/pkg/cache"
+	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
-	"websearch/pkg/log"
 	"websearch/pkg/search"
 	searchcore "websearch/pkg/search/core"
 	"websearch/pkg/telemetry"
@@ -60,8 +60,11 @@ func doSmartSearch(ctx context.Context, req *mcp.CallToolRequest, request smartS
 
 	months := effectiveTimeRangeMonths(request.TimeRange)
 	if len(queries) == 1 {
-		res, _, _, _, err := searchOne(ctx, req, queries[0], request.Intent, months, fetchTopN, contentBudget, filter, web, academic, true)
-		return res, nil, err
+		out, err := searchOne(ctx, req, queries[0], request.Intent, months, fetchTopN, contentBudget, filter, web, academic, true)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(out.text), nil, nil
 	}
 	return searchBatch(ctx, req, queries, request.Intent, months, fetchTopN, contentBudget, filter, web, academic)
 }
@@ -212,70 +215,96 @@ func resolveSearchDepth(depth string, fetchTopN *int, maxChars *int) (int, int, 
 	return n, budget, nil
 }
 
-func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent string, months, fetchTopN, contentBudget int, filter searchcore.DomainFilter, web, academic, record bool) (*mcp.CallToolResult, int, string, bool, error) {
+type smartSearchOutcome struct {
+	text     string
+	count    int
+	engine   string
+	cacheHit bool
+	warning  error
+}
+
+func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent string, months, fetchTopN, contentBudget int, filter searchcore.DomainFilter, web, academic, record bool) (out smartSearchOutcome, err error) {
 	started := time.Now()
-	var parts []string
-	var notes []string
-	total := 0
-	engine := ""
-	cacheHit := false
-
-	if web {
-		stats := &webSearchStats{}
-		res, _, err := doWebSearch(ctx, req, query, intent, months, &fetchTopN,
-			withMaxContentChars(contentBudget), withDomainFilter(filter), withSearchStats(stats), withoutToolEvent())
-		if err != nil {
-			if !academic {
-				if record {
-					recordSmartSearchToolEvent(ctx, query, "", false, started, false, 0, err)
-				}
-				return nil, 0, "", false, err
-			}
-			notes = append(notes, i18n.T("tool.search.source_web_failed", "Err", err))
-		} else {
-			parts = append(parts, callToolText(res))
-			total += stats.resultCount
-			engine = stats.engineName
-			cacheHit = stats.cacheHit
-		}
-	}
-
-	if academic {
-		text, count, err := runAcademicSource(ctx, query)
-		if err != nil {
-			if !web {
-				if record {
-					recordSmartSearchToolEvent(ctx, query, "academic", false, started, false, 0, err)
-				}
-				return nil, 0, "", false, err
-			}
-			notes = append(notes, i18n.T("tool.search.source_academic_failed", "Err", err))
-		} else if strings.TrimSpace(text) != "" {
-			parts = append(parts, i18n.T("tool.search.source_academic_header")+"\n\n"+text)
-			total += count
-			if engine == "" {
-				engine = "academic"
-			}
-		}
-	}
-
-	parts = append(parts, notes...)
-	if len(parts) == 0 {
-		err := errors.New(i18n.T("tool.search.no_valid_results"))
-		if record {
-			recordSmartSearchToolEvent(ctx, query, engine, false, started, false, 0, err)
-		}
-		return nil, 0, "", false, err
-	}
-
-	var eventErr error
-	if len(notes) > 0 {
-		eventErr = errors.New(strings.Join(notes, "; "))
-	}
 	if record {
-		recordSmartSearchToolEvent(ctx, query, engine, eventErr == nil, started, cacheHit && eventErr == nil, total, eventErr)
+		defer func() {
+			eventErr := err
+			if eventErr == nil {
+				eventErr = out.warning
+			}
+			recordSmartSearchToolEvent(ctx, query, out.engine, eventErr == nil, started, out.cacheHit && eventErr == nil, out.count, eventErr)
+		}()
 	}
-	return textResult(strings.Join(parts, "\n\n---\n\n")), total, engine, cacheHit && eventErr == nil, nil
+
+	var (
+		webResult     *mcp.CallToolResult
+		webStats      webSearchStats
+		webErr        error
+		academicText  string
+		academicCount int
+		academicErr   error
+		wg            sync.WaitGroup
+	)
+	runAcademic := func() {
+		academicText, academicCount, academicErr = runAcademicSource(ctx, query)
+		if academicErr == nil && strings.TrimSpace(academicText) == "" {
+			academicErr = errors.New(i18n.T("tool.search.no_valid_results"))
+		}
+	}
+	if academic {
+		if web {
+			wg.Go(runAcademic)
+		} else {
+			runAcademic()
+		}
+	}
+	if web {
+		webResult, _, webErr = doWebSearch(ctx, req, query, intent, months, &fetchTopN,
+			withMaxContentChars(contentBudget), withDomainFilter(filter), withSearchStats(&webStats), withoutToolEvent())
+	}
+	wg.Wait()
+
+	if !academic && webErr != nil {
+		return out, webErr
+	}
+	if !web && academicErr != nil {
+		out.engine = "academic"
+		return out, academicErr
+	}
+	var parts, notes []string
+	if web {
+		if webErr != nil {
+			notes = append(notes, i18n.T("tool.search.source_web_failed", "Err", webErr))
+		} else {
+			parts = append(parts, callToolText(webResult))
+			out.count = webStats.resultCount
+			out.engine = webStats.engineName
+			out.cacheHit = webStats.cacheHit
+		}
+	}
+	if academic {
+		if academicErr != nil {
+			notes = append(notes, i18n.T("tool.search.source_academic_failed", "Err", academicErr))
+		} else {
+			parts = append(parts, i18n.T("tool.search.source_academic_header")+"\n\n"+academicText)
+			out.count += academicCount
+			if out.engine == "" {
+				out.engine = "academic"
+			}
+		}
+	}
+
+	if len(notes) > 0 {
+		out.warning = errcode.Message(strings.Join(notes, "; "), errors.Join(webErr, academicErr))
+		out.cacheHit = false
+	}
+	if len(parts) == 0 {
+		if out.warning != nil {
+			return out, out.warning
+		}
+		return out, errors.New(i18n.T("tool.search.no_valid_results"))
+	}
+	out.text = strings.Join(append(parts, notes...), "\n\n---\n\n")
+	return out, nil
 }
 
 func recordSmartSearchToolEvent(ctx context.Context, query, provider string, success bool, started time.Time, cacheHit bool, resultCount int, err error) {
@@ -302,30 +331,36 @@ func searchBatch(ctx context.Context, req *mcp.CallToolRequest, queries []string
 	var (
 		parts    []string
 		failures []string
+		causes   []error
+		warnings []error
 		engines  = make(map[string]struct{}, 2)
 		total    int
 		success  int
 		allCache = true
 	)
 	for _, query := range queries {
-		res, count, engine, cacheHit, err := searchOne(ctx, req, query, intent, months, fetchTopN, contentBudget, filter, web, academic, false)
+		out, err := searchOne(ctx, req, query, intent, months, fetchTopN, contentBudget, filter, web, academic, false)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %v", query, err))
+			causes = append(causes, err)
 			continue
 		}
 		success++
-		total += count
-		allCache = allCache && cacheHit
-		if engine != "" {
-			engines[engine] = struct{}{}
+		total += out.count
+		allCache = allCache && out.cacheHit
+		if out.engine != "" {
+			engines[out.engine] = struct{}{}
 		}
-		parts = append(parts, callToolText(res))
+		parts = append(parts, out.text)
+		if out.warning != nil {
+			warnings = append(warnings, out.warning)
+		}
 	}
 
+	failuresErr := errcode.Message(strings.Join(failures, "; "), errors.Join(causes...))
 	if success == 0 {
-		err := errors.New(strings.Join(failures, "; "))
-		recordSmartSearchToolEvent(ctx, strings.Join(queries, " | "), "batch", false, started, false, 0, err)
-		return nil, nil, err
+		recordSmartSearchToolEvent(ctx, strings.Join(queries, " | "), "batch", false, started, false, 0, failuresErr)
+		return nil, nil, failuresErr
 	}
 
 	provider := "batch"
@@ -334,10 +369,7 @@ func searchBatch(ctx context.Context, req *mcp.CallToolRequest, queries []string
 			provider = name
 		}
 	}
-	var batchErr error
-	if len(failures) > 0 {
-		batchErr = errors.New(strings.Join(failures, "; "))
-	}
+	batchErr := errors.Join(append(warnings, failuresErr)...)
 	recordSmartSearchToolEvent(ctx, strings.Join(queries, " | "), provider, batchErr == nil, started, allCache && batchErr == nil, total, batchErr)
 
 	text := strings.Join(parts, "\n\n---\n\n")
@@ -408,10 +440,6 @@ func runAcademicSource(ctx context.Context, query string) (string, int, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	if requestCache != nil {
-		if storeErr := requestCache.Store(cacheKey, "", true, res.Results, "", cache.TTLForFreshness("")); storeErr != nil && !errors.Is(storeErr, cache.ErrStaleGeneration) {
-			log.ErrorT("log.mcp.cache_write_error_ignoring", "err", storeErr)
-		}
-	}
+	storeAcademicCache(requestCache, cacheKey, "", res)
 	return text, len(res.Results), nil
 }

@@ -2,12 +2,15 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"websearch/pkg/config"
 	"websearch/pkg/search"
 	searchcore "websearch/pkg/search/core"
+	"websearch/pkg/telemetry"
 )
 
 func TestApplyContentBudget(t *testing.T) {
@@ -145,6 +148,26 @@ func TestSmartSearchBatchOverMCP(t *testing.T) {
 	t.Fatal("smartsearch tool not listed")
 }
 
+func TestSmartSearchMixedFailureOverMCP(t *testing.T) {
+	srv := newMCPHTTPTestServer(t, config.Config{MCPStateless: true})
+	searchapi = &mockSearch{name: "mock", err: errors.New("web offline")}
+	academicSearcher = &mockAcademic{err: errors.New("academic offline")}
+
+	for _, payload := range []string{
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"smartsearch","arguments":{"query":"q","sources":["web","academic"]}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"smartsearch","arguments":{"queries":["q1","q2"],"sources":["web","academic"]}}}`,
+	} {
+		code, _, msg := mcpHTTPPost(t, srv.Client(), srv.URL+"/mcp", payload)
+		result, _ := msg["result"].(map[string]any)
+		if code != 200 || result["isError"] != true {
+			t.Fatalf("want MCP tool error, got status %d and response %v", code, msg)
+		}
+		if got := jsonToolText(t, msg); !strings.Contains(got, "web offline") || !strings.Contains(got, "academic offline") {
+			t.Fatalf("both source errors should be visible: %q", got)
+		}
+	}
+}
+
 func TestValidateSourcePresets(t *testing.T) {
 	n := 3
 	chars := 1000
@@ -179,16 +202,129 @@ func TestValidateSourcePresets(t *testing.T) {
 func TestDoSmartSearchAcademicSource(t *testing.T) {
 	initTestLogger()
 	restoreGlobals(t)
-	searchapi = &mockSearch{name: "mock", results: []search.SearchResult{{Title: "web hit", Url: "https://example.com"}}}
-	academicSearcher = &mockAcademic{engines: []string{"arxiv"}, results: []search.SearchResult{{Title: "paper hit", Url: "https://arxiv.org/abs/1"}}}
-	cacheInst = nil
+	cacheInst, fallbackSearch, summarizerInst = nil, nil, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ctx = telemetry.WithRequestID(ctx, "mixed-request")
+	requestDone := ctx.Done()
+	webStarted, academicStarted := make(chan struct{}), make(chan struct{})
+	checkContext := func(ctx context.Context) error {
+		if telemetry.RequestID(ctx) != "mixed-request" {
+			return errors.New("request ID was not forwarded")
+		}
+		if ctx.Done() != requestDone {
+			return errors.New("request cancellation was not shared")
+		}
+		return nil
+	}
+	searchapi = &smartSearchTestWeb{run: func(ctx context.Context, _ string) ([]search.SearchResult, error) {
+		close(webStarted)
+		select {
+		case <-academicStarted:
+			return []search.SearchResult{{Title: "web hit", Url: "https://example.com"}}, checkContext(ctx)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	academicSearcher = &smartSearchTestAcademic{run: func(ctx context.Context, _ string) (search.AcademicSearchResult, error) {
+		select {
+		case <-webStarted:
+		case <-ctx.Done():
+			return search.AcademicSearchResult{}, ctx.Err()
+		}
+		close(academicStarted)
+		return search.AcademicSearchResult{Results: []search.SearchResult{{Title: "paper hit", Url: "https://arxiv.org/abs/1"}}}, checkContext(ctx)
+	}}
 
-	res, _, err := doSmartSearch(context.Background(), nil, smartSearchRequest{Query: "q", Sources: []string{"web", "academic"}})
+	res, _, err := doSmartSearch(ctx, nil, smartSearchRequest{Query: "q", Depth: "fast", Sources: []string{"academic", "web"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := callToolText(res)
-	if !strings.Contains(text, "## 学术来源") || !strings.Contains(text, "paper hit") {
-		t.Fatalf("academic section missing: %q", text)
+	webIndex, academicIndex := strings.Index(text, "web hit"), strings.Index(text, "## 学术来源")
+	if webIndex < 0 || academicIndex < webIndex || !strings.Contains(text, "paper hit") {
+		t.Fatalf("response should contain web then academic results: %q", text)
+	}
+}
+
+type smartSearchTestWeb struct {
+	mockSearch
+	run func(context.Context, string) ([]search.SearchResult, error)
+}
+
+func (s *smartSearchTestWeb) SearchRawContext(ctx context.Context, query string) ([]search.SearchResult, error) {
+	return s.run(ctx, query)
+}
+
+type smartSearchTestAcademic struct {
+	mockAcademic
+	run func(context.Context, string) (search.AcademicSearchResult, error)
+}
+
+func (s *smartSearchTestAcademic) SearchAcademicRawContext(ctx context.Context, query string, _ ...search.AcademicSearchOptions) (search.AcademicSearchResult, error) {
+	return s.run(ctx, query)
+}
+
+func TestDoSmartSearchMixedSourceFailures(t *testing.T) {
+	initTestLogger()
+	restoreGlobals(t)
+	cacheInst, fallbackSearch, summarizerInst = nil, nil, nil
+	smartSearchConf = config.SmartSearchConfig{}
+	webErr := errors.New("web offline")
+	academicErr := errors.New("academic offline")
+	searchapi = &smartSearchTestWeb{run: func(_ context.Context, query string) ([]search.SearchResult, error) {
+		if query == "web hit" {
+			return []search.SearchResult{{Title: "web result", Url: "https://example.com"}}, nil
+		}
+		return nil, webErr
+	}}
+	academicSearcher = &smartSearchTestAcademic{run: func(_ context.Context, query string) (search.AcademicSearchResult, error) {
+		switch query {
+		case "academic hit":
+			return search.AcademicSearchResult{Results: []search.SearchResult{{Title: "paper result", Url: "https://arxiv.org/abs/1"}}}, nil
+		case "academic empty":
+			return search.AcademicSearchResult{}, nil
+		default:
+			return search.AcademicSearchResult{}, academicErr
+		}
+	}}
+
+	for _, tc := range []struct {
+		name, query string
+		queries     []string
+		want        []string
+		wantErr     []error
+	}{
+		{name: "both failed", query: "failure", want: []string{"网页检索失败", "学术检索失败"}, wantErr: []error{webErr, academicErr}},
+		{name: "academic empty and web failed", query: "academic empty", want: []string{"网页检索失败", "学术检索失败"}, wantErr: []error{webErr}},
+		{name: "web partial success", query: "web hit", want: []string{"web result", "academic offline"}},
+		{name: "academic partial success", query: "academic hit", want: []string{"paper result", "web offline"}},
+		{name: "batch all failed", queries: []string{"first failure", "second failure"}, want: []string{"first failure", "second failure"}, wantErr: []error{webErr, academicErr}},
+		{name: "batch partial success", queries: []string{"failure", "web hit"}, want: []string{"web result", "academic offline", "failure:", "web offline"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res, _, err := doSmartSearch(context.Background(), nil, smartSearchRequest{
+				Query: tc.query, Queries: tc.queries, Depth: "fast", Sources: []string{"web", "academic"},
+			})
+			got := callToolText(res)
+			if len(tc.wantErr) > 0 {
+				if res != nil {
+					t.Fatalf("got result for failed search: %q", got)
+				}
+				for _, cause := range tc.wantErr {
+					if !errors.Is(err, cause) {
+						t.Fatalf("error = %v, want cause %v", err, cause)
+					}
+				}
+				got = err.Error()
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Fatalf("%q missing %q", got, want)
+				}
+			}
+		})
 	}
 }

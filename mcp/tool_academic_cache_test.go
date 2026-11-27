@@ -43,6 +43,55 @@ func setupAcademicCacheTest(t *testing.T) {
 	cacheInst, cacheNamespace = c, "academic-cache-key-test"
 }
 
+func TestAcademicCacheRetriesPartialResults(t *testing.T) {
+	const query = "thermoacoustic refrigeration"
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		run  func() (*mcp.CallToolResult, any, error)
+	}{
+		{"academicsearch", func() (*mcp.CallToolResult, any, error) {
+			return doAcademicSearch(ctx, query, nil, "", 1)
+		}},
+		{"smartsearch academic source", func() (*mcp.CallToolResult, any, error) {
+			return doSmartSearch(ctx, nil, smartSearchRequest{Query: query, Sources: []string{"academic"}})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupAcademicCacheTest(t)
+			view, err := cacheInst.ForRequest(cacheNamespace)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// This old key may represent either a complete or a partial search.
+			if err := view.Store(query+"|||page=1", "", true, []search.SearchResult{{Title: "legacy cached paper"}}, "", cache.DefaultTTL); err != nil {
+				t.Fatal(err)
+			}
+			searcher := &attemptedAcademic{registered: []string{"arxiv", "openalex"}, result: search.AcademicSearchResult{
+				Results:      []search.SearchResult{{Title: "arxiv paper", Engine: "arxiv"}},
+				EngineErrors: map[string]string{"openalex": "synthetic timeout"},
+			}}
+			academicSearcher = searcher
+
+			check := func(wantCalls int, wantText string) {
+				t.Helper()
+				res, _, err := tc.run()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if text := callToolText(res); searcher.calls != wantCalls || !strings.Contains(text, wantText) {
+					t.Fatalf("calls = %d, want %d, result = %q, want %q", searcher.calls, wantCalls, text, wantText)
+				}
+			}
+			check(1, "arxiv paper")
+			searcher.result.Results = append(searcher.result.Results, search.SearchResult{Title: "recovered openalex paper", Engine: "openalex"})
+			searcher.result.EngineErrors = nil
+			check(2, "recovered openalex paper")
+			check(2, "recovered openalex paper")
+		})
+	}
+}
+
 // TestAcademicCacheKeyIncludesPage 同一 query/timeRange/engines 下 page=1 与
 // page=2 必须各自检索并各自缓存：第二次调用不得命中第一页记录。
 func TestAcademicCacheKeyIncludesPage(t *testing.T) {
