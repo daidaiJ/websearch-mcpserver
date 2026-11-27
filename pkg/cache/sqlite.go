@@ -51,6 +51,7 @@ type CacheRecord struct {
 	Academic   bool      `json:"academic"`    // 是否为学术搜索
 	RawResults string    `json:"raw_results"` // []core.SearchResult JSON
 	Summary    string    `json:"summary"`     // LLM 摘要文本，可能为空
+	Meta       string    `json:"meta"`        // 调用方自定义元数据（学术搜索记录逐引擎失败）
 	CreatedAt  time.Time `json:"created_at"`  // 存储时间
 	LastHitAt  time.Time `json:"last_hit_at"` // 最近一次命中时间
 	TTLSeconds int64     `json:"ttl_seconds"` // 存活时长（秒，按 freshness 分桶写入）
@@ -123,6 +124,13 @@ func NewWithMaxOpenConns(storagePath string, maxOpenConns int) (*Cache, error) {
 	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
 		db.Close()
 		return nil, fmt.Errorf("迁移 ttl_seconds 列失败: %w", err)
+	}
+
+	// 迁移：为旧表添加 meta 列（学术搜索逐引擎失败等调用方元数据）。
+	_, err = db.Exec(`ALTER TABLE search_cache ADD COLUMN meta TEXT NOT NULL DEFAULT ''`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		db.Close()
+		return nil, fmt.Errorf("迁移 meta 列失败: %w", err)
 	}
 
 	// 迁移：删除 (query, intent, academic) 重复行，每组保留 last_hit_at 最新的一条。
@@ -228,12 +236,12 @@ func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, strin
 
 	// 第一步：精确匹配（query + intent + academic），直接利用索引 B-tree 定位
 	err := c.db.QueryRow(`
-		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at, ttl_seconds
+		SELECT id, query, intent, academic, raw_results, summary, meta, created_at, last_hit_at, ttl_seconds
 		  FROM search_cache
 		 WHERE query = ? AND intent = ? AND academic = ?
 		 LIMIT 1`,
 		c.key(query), intent, academicInt,
-	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt, &ttlSeconds)
+	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &rec.Meta, &createdAt, &lastHitAt, &ttlSeconds)
 
 	if err == nil {
 		if expired(now, createdAt, ttlSeconds) {
@@ -258,13 +266,13 @@ func (c *Cache) Lookup(query, intent string, academic bool) (*CacheRecord, strin
 
 	// 第二步：仅 query 匹配（回退），按 last_hit_at 降序取最新
 	err = c.db.QueryRow(`
-		SELECT id, query, intent, academic, raw_results, summary, created_at, last_hit_at, ttl_seconds
+		SELECT id, query, intent, academic, raw_results, summary, meta, created_at, last_hit_at, ttl_seconds
 		  FROM search_cache
 		 WHERE query = ?
 		 ORDER BY last_hit_at DESC
 		 LIMIT 1`,
 		c.key(query),
-	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &createdAt, &lastHitAt, &ttlSeconds)
+	).Scan(&rec.ID, &rec.Query, &rec.Intent, &recAcademicInt, &rec.RawResults, &rec.Summary, &rec.Meta, &createdAt, &lastHitAt, &ttlSeconds)
 
 	if err == sql.ErrNoRows {
 		return nil, "miss", nil
@@ -309,6 +317,11 @@ func (c *Cache) touchLastHit(id int64, now int64) {
 // Store 存储缓存记录。ttl 为记录存活时长（按 freshness 分桶，见 TTLForFreshness），
 // ttl <= 0 时取 DefaultTTL。
 func (c *Cache) Store(query, intent string, academic bool, results []core.SearchResult, summary string, ttl time.Duration) error {
+	return c.StoreWithMeta(query, intent, academic, results, summary, "", ttl)
+}
+
+// StoreWithMeta 同 Store，并附带调用方元数据（例如学术搜索的逐引擎失败）。
+func (c *Cache) StoreWithMeta(query, intent string, academic bool, results []core.SearchResult, summary, meta string, ttl time.Duration) error {
 	now := time.Now().Unix()
 	rawJSON, err := json.Marshal(results)
 	if err != nil {
@@ -328,16 +341,17 @@ func (c *Cache) Store(query, intent string, academic bool, results []core.Search
 	}
 
 	res, err := c.db.Exec(
-		`INSERT INTO search_cache (query, intent, academic, raw_results, summary, created_at, last_hit_at, ttl_seconds)
-		 SELECT ?, ?, ?, ?, ?, ?, ?, ? FROM cache_generation
+		`INSERT INTO search_cache (query, intent, academic, raw_results, summary, meta, created_at, last_hit_at, ttl_seconds)
+		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? FROM cache_generation
 		 WHERE id = 1 AND (? IS NULL OR generation = ?)
 		 ON CONFLICT(query, intent, academic) DO UPDATE SET
 			raw_results = excluded.raw_results,
 			summary     = excluded.summary,
+			meta        = excluded.meta,
 			last_hit_at = excluded.last_hit_at,
 			created_at  = excluded.created_at,
 			ttl_seconds = excluded.ttl_seconds`,
-		c.key(query), intent, academicInt, string(rawJSON), summary, now, now, ttlSeconds, generation, generation,
+		c.key(query), intent, academicInt, string(rawJSON), summary, meta, now, now, ttlSeconds, generation, generation,
 	)
 	if err != nil {
 		return fmt.Errorf("缓存写入失败: %w", err)

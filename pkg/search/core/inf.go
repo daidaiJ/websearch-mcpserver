@@ -103,7 +103,8 @@ func FormatScore(score float64) string {
 }
 
 // AcademicSearchResult 学术搜索聚合结果：结果列表 + 逐引擎错误信息。
-// EngineErrors 仅含本次失败的引擎（成功引擎不出现），不写入缓存。
+// EngineErrors 仅含本次失败的引擎（成功引擎不出现）；部分成功时调用方
+// 可把它写入缓存元数据，命中后只重试这些引擎。
 type AcademicSearchResult struct {
 	Results      []SearchResult
 	EngineErrors map[string]string // engine name → error message

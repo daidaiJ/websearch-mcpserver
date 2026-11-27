@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"websearch/pkg/config"
+	"websearch/pkg/i18n"
 	"websearch/pkg/search"
 	searchcore "websearch/pkg/search/core"
 	"websearch/pkg/telemetry"
@@ -247,6 +248,27 @@ func TestDoSmartSearchAcademicSource(t *testing.T) {
 	}
 }
 
+func TestDoSmartSearchAcademicEmptyIsSuccess(t *testing.T) {
+	initTestLogger()
+	restoreGlobals(t)
+	cacheInst, fallbackSearch, summarizerInst = nil, nil, nil
+	smartSearchConf = config.SmartSearchConfig{}
+	searchapi = &smartSearchTestWeb{run: func(context.Context, string) ([]search.SearchResult, error) {
+		return nil, errors.New("web must not run")
+	}}
+	academicSearcher = &smartSearchTestAcademic{run: func(context.Context, string) (search.AcademicSearchResult, error) {
+		return search.AcademicSearchResult{}, nil
+	}}
+
+	res, _, err := doSmartSearch(context.Background(), nil, smartSearchRequest{Query: "no hits", Sources: []string{"academic"}})
+	if err != nil {
+		t.Fatalf("academic empty result must not fail: %v", err)
+	}
+	if text := callToolText(res); !strings.Contains(text, i18n.T("search.academic.no_results")) {
+		t.Fatalf("empty result text = %q", text)
+	}
+}
+
 type smartSearchTestWeb struct {
 	mockSearch
 	run func(context.Context, string) ([]search.SearchResult, error)
@@ -296,7 +318,7 @@ func TestDoSmartSearchMixedSourceFailures(t *testing.T) {
 		wantErr     []error
 	}{
 		{name: "both failed", query: "failure", want: []string{"网页检索失败", "学术检索失败"}, wantErr: []error{webErr, academicErr}},
-		{name: "academic empty and web failed", query: "academic empty", want: []string{"网页检索失败", "学术检索失败"}, wantErr: []error{webErr}},
+		{name: "academic empty and web failed", query: "academic empty", want: []string{"网页检索失败"}, wantErr: []error{webErr}},
 		{name: "web partial success", query: "web hit", want: []string{"web result", "academic offline"}},
 		{name: "academic partial success", query: "academic hit", want: []string{"paper result", "web offline"}},
 		{name: "batch all failed", queries: []string{"first failure", "second failure"}, want: []string{"first failure", "second failure"}, wantErr: []error{webErr, academicErr}},

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	academicpkg "websearch/pkg/academic"
 	"websearch/pkg/errcode"
 	"websearch/pkg/i18n"
 	"websearch/pkg/search"
@@ -231,7 +232,10 @@ func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent stri
 			if eventErr == nil {
 				eventErr = out.warning
 			}
-			recordSmartSearchToolEvent(ctx, query, out.engine, eventErr == nil, started, out.cacheHit && eventErr == nil, out.count, eventErr)
+			// A source warning still delivered usable results; record the
+			// warning text but keep the call successful.
+			success := err == nil && strings.TrimSpace(out.text) != ""
+			recordSmartSearchToolEvent(ctx, query, out.engine, success, started, out.cacheHit && success, out.count, eventErr)
 		}()
 	}
 
@@ -246,9 +250,6 @@ func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent stri
 	)
 	runAcademic := func() {
 		academicText, academicCount, academicErr = runAcademicSource(ctx, query)
-		if academicErr == nil && strings.TrimSpace(academicText) == "" {
-			academicErr = errors.New(i18n.T("tool.search.no_valid_results"))
-		}
 	}
 	if academic {
 		if web {
@@ -270,6 +271,13 @@ func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent stri
 		out.engine = "academic"
 		return out, academicErr
 	}
+	// An academic query with zero hits is a valid empty result, not a
+	// provider failure. Return the empty state as a successful call.
+	if !web && academic && strings.TrimSpace(academicText) == "" {
+		out.engine = "academic"
+		out.text = i18n.T("search.academic.no_results")
+		return out, nil
+	}
 	var parts, notes []string
 	if web {
 		if webErr != nil {
@@ -282,9 +290,10 @@ func searchOne(ctx context.Context, req *mcp.CallToolRequest, query, intent stri
 		}
 	}
 	if academic {
-		if academicErr != nil {
+		switch {
+		case academicErr != nil:
 			notes = append(notes, i18n.T("tool.search.source_academic_failed", "Err", academicErr))
-		} else {
+		case strings.TrimSpace(academicText) != "":
 			parts = append(parts, i18n.T("tool.search.source_academic_header")+"\n\n"+academicText)
 			out.count += academicCount
 			if out.engine == "" {
@@ -370,7 +379,9 @@ func searchBatch(ctx context.Context, req *mcp.CallToolRequest, queries []string
 		}
 	}
 	batchErr := errors.Join(append(warnings, failuresErr)...)
-	recordSmartSearchToolEvent(ctx, strings.Join(queries, " | "), provider, batchErr == nil, started, allCache && batchErr == nil, total, batchErr)
+	// Partial batch success still delivered results for the successful
+	// queries; keep the failure text for diagnostics.
+	recordSmartSearchToolEvent(ctx, strings.Join(queries, " | "), provider, success > 0, started, allCache && batchErr == nil, total, batchErr)
 
 	text := strings.Join(parts, "\n\n---\n\n")
 	if len(failures) > 0 {
@@ -403,7 +414,13 @@ func runAcademicSource(ctx context.Context, query string) (string, int, error) {
 		if err == nil && rec != nil && rec.Academic && hitType == "query_only" {
 			results, parseErr := rec.GetRawResults()
 			if parseErr == nil {
-				text, formatErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results})
+				meta := decodeAcademicCacheMeta(rec.Meta)
+				if len(meta.EngineErrors) != 0 {
+					merged := retryPartialAcademic(ctx, query, search.AcademicSearchOptions{Page: 1}, results, meta)
+					storeAcademicCache(requestCache, cacheKey, "", merged)
+					results, meta.EngineErrors = merged.Results, merged.EngineErrors
+				}
+				text, formatErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results, EngineErrors: meta.EngineErrors})
 				if formatErr == nil {
 					return text, len(results), nil
 				}
@@ -422,18 +439,26 @@ func runAcademicSource(ctx context.Context, query string) (string, int, error) {
 	} else {
 		res, err = academicSearcher.SearchAcademicRaw(query, opts)
 	}
-	if err != nil {
-		return "", 0, err
-	}
-	if len(res.Results) == 0 {
-		return "", 0, nil
-	}
-
 	attempted := res.AttemptedEngines
 	attemptsKnown := attempted != nil
 	if !attemptsKnown {
 		attempted = academicEngineSelection(academicSearcher.AcademicEngines(), nil)
 	}
+	if err != nil {
+		// Zero hits across healthy engines is a valid empty result for keyword
+		// queries; an exact DOI / arXiv lookup miss is still a failed lookup.
+		kind, _ := academicpkg.ParsePaperQuery(query)
+		if kind == "" && len(res.EngineErrors) == 0 && err.Error() == i18n.T("search.academic.no_results") {
+			recordAcademicProviderEvents(ctx, query, nil, nil, attempted, attemptsKnown, started, telemetry.RequestID(ctx))
+			return "", 0, nil
+		}
+		return "", 0, err
+	}
+	if len(res.Results) == 0 {
+		recordAcademicProviderEvents(ctx, query, nil, res.EngineErrors, attempted, attemptsKnown, started, telemetry.RequestID(ctx))
+		return "", 0, nil
+	}
+
 	recordAcademicProviderEvents(ctx, query, res.Results, res.EngineErrors, attempted, attemptsKnown, started, telemetry.RequestID(ctx))
 
 	text, err := formatAcademicResults(query, res)

@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	academicpkg "websearch/pkg/academic"
 	"websearch/pkg/cache"
 	"websearch/pkg/i18n"
 	"websearch/pkg/log"
@@ -73,7 +75,18 @@ func doAcademicSearchWithRequest(ctx context.Context, req *mcp.CallToolRequest, 
 				cacheHit = true
 				resultCount = len(results)
 				log.InfoT("log.mcp.academic_cache_hit_query", "query", query)
-				ret, mergeErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results})
+				meta := decodeAcademicCacheMeta(rec.Meta)
+				if len(meta.EngineErrors) != 0 {
+					// 部分成功的缓存只复用成功引擎；失败引擎按引擎重试，
+					// 避免九引擎全量重跑，同时保持「下次调用会补查」。
+					merged := retryPartialAcademic(ctx, query, search.AcademicSearchOptions{
+						Page: page, TimeRange: timeRange, Engines: engines,
+					}, results, meta)
+					storeAcademicCache(requestCache, cacheKey, timeRange, merged)
+					results, resultCount = merged.Results, len(merged.Results)
+					meta.EngineErrors = merged.EngineErrors
+				}
+				ret, mergeErr := formatAcademicResults(query, search.AcademicSearchResult{Results: results, EngineErrors: meta.EngineErrors})
 				if mergeErr == nil {
 					// 缓存命中：retrieved_at 为原检索时间，附带 cache_age_seconds
 					ret = provenanceHeaderForRequest(req, rec.CreatedAt, time.Since(rec.CreatedAt)) + ret
@@ -91,18 +104,22 @@ func doAcademicSearchWithRequest(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 
 	log.InfoT("log.mcp.academic_search_query_engines_timerange_page", "query", query, "engines", engines, "timeRange", timeRange, "page", page)
-	var res search.AcademicSearchResult
-	if ctxSearcher, ok := academicSearcher.(search.ContextAcademicSearcher); ok {
-		res, err = ctxSearcher.SearchAcademicRawContext(ctx, query, opts)
-	} else {
-		res, err = academicSearcher.SearchAcademicRaw(query, opts)
-	}
+	res, err := callAcademicSearcher(ctx, query, opts)
 	attempted := res.AttemptedEngines
 	attemptsKnown := attempted != nil
 	if !attemptsKnown {
 		attempted = academicEngineSelection(academicSearcher.AcademicEngines(), engines)
 	}
 	if err != nil {
+		// Zero hits across healthy engines is an empty result, not a provider
+		// failure; return it as a successful call so callers can distinguish
+		// "nothing matched" from "the engines failed".
+		kind, _ := academicpkg.ParsePaperQuery(query)
+		if kind == "" && len(res.EngineErrors) == 0 && err.Error() == i18n.T("search.academic.no_results") {
+			recordAcademicProviderEvents(ctx, query, nil, nil, attempted, attemptsKnown, started, requestID)
+			text := i18n.T("search.academic.no_results")
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
+		}
 		// Provider failures must still be visible in telemetry even though the
 		// aggregate tool call returned an error.
 		engineErrors := res.EngineErrors
@@ -130,25 +147,138 @@ func doAcademicSearchWithRequest(ctx context.Context, req *mcp.CallToolRequest, 
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: ret}}}, nil, nil
 }
 
+// academicCacheMeta 随部分成功的结果一起缓存逐引擎失败，命中时仍能显示
+// 「结果可能不完整」，而不是把部分结果伪装成完整结果。
+type academicCacheMeta struct {
+	EngineErrors map[string]string `json:"engine_errors,omitempty"`
+}
+
+const partialAcademicTTL = 10 * time.Minute
+
+func decodeAcademicCacheMeta(raw string) academicCacheMeta {
+	var meta academicCacheMeta
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &meta)
+	}
+	return meta
+}
+
+func callAcademicSearcher(ctx context.Context, query string, opts search.AcademicSearchOptions) (search.AcademicSearchResult, error) {
+	if ctxSearcher, ok := academicSearcher.(search.ContextAcademicSearcher); ok {
+		return ctxSearcher.SearchAcademicRawContext(ctx, query, opts)
+	}
+	return academicSearcher.SearchAcademicRaw(query, opts)
+}
+
+// retryPartialAcademic re-runs only the engines recorded as failed in a cached
+// partial result, then merges the fresh hits with the cached ones.
+func retryPartialAcademic(ctx context.Context, query string, opts search.AcademicSearchOptions, cached []search.SearchResult, meta academicCacheMeta) search.AcademicSearchResult {
+	failed := meta.EngineErrors
+	retry := make([]string, 0, len(failed))
+	available := academicEngineSelection(academicSearcher.AcademicEngines(), nil)
+	if len(available) == 0 {
+		for name := range failed {
+			retry = append(retry, name)
+		}
+		slices.Sort(retry)
+	} else {
+		for _, name := range available {
+			if _, ok := failed[name]; ok {
+				retry = append(retry, name)
+			}
+		}
+	}
+	if len(retry) == 0 {
+		return search.AcademicSearchResult{Results: cached, EngineErrors: failed}
+	}
+
+	opts.Engines = retry
+	fresh, err := callAcademicSearcher(ctx, query, opts)
+	attempted := fresh.AttemptedEngines
+	if attempted == nil {
+		attempted = retry
+	}
+	remaining := make(map[string]string, len(failed))
+	for name, msg := range failed {
+		remaining[name] = msg
+	}
+	for _, name := range attempted {
+		delete(remaining, name)
+	}
+	for name, msg := range fresh.EngineErrors {
+		remaining[name] = msg
+	}
+	if err != nil && len(fresh.EngineErrors) == 0 && err.Error() != i18n.T("search.academic.no_results") {
+		for _, name := range attempted {
+			remaining[name] = err.Error()
+		}
+	}
+	if len(remaining) == 0 {
+		remaining = nil
+	}
+	return search.AcademicSearchResult{
+		Results:          mergeAcademicResults(cached, fresh.Results),
+		EngineErrors:     remaining,
+		AttemptedEngines: attempted,
+	}
+}
+
+func mergeAcademicResults(base, extra []search.SearchResult) []search.SearchResult {
+	index := make(map[string]int, len(base)+len(extra))
+	key := func(r search.SearchResult) string {
+		if doi := strings.ToLower(strings.TrimSpace(r.DOI)); doi != "" {
+			return "doi:" + doi
+		}
+		if url := strings.TrimSpace(r.Url); url != "" {
+			return "url:" + url
+		}
+		return "title:" + strings.ToLower(strings.TrimSpace(r.Title))
+	}
+	merged := slices.Clone(base)
+	for i, r := range merged {
+		index[key(r)] = i
+	}
+	for _, r := range extra {
+		k := key(r)
+		if i, ok := index[k]; ok {
+			merged[i] = r
+			continue
+		}
+		index[k] = len(merged)
+		merged = append(merged, r)
+	}
+	return merged
+}
+
 func storeAcademicCache(requestCache *cache.Cache, key, timeRange string, result search.AcademicSearchResult) {
-	// 部分结果可供本次调用使用，下一次调用仍需重试失败的引擎。
-	if requestCache == nil || len(result.EngineErrors) != 0 {
+	if requestCache == nil {
 		return
 	}
-	if err := requestCache.Store(key, "", true, result.Results, "", cache.TTLForFreshness(timeRange)); err != nil && !errors.Is(err, cache.ErrStaleGeneration) {
+	meta := ""
+	ttl := cache.TTLForFreshness(timeRange)
+	if len(result.EngineErrors) != 0 {
+		// 部分成功仍可复用成功引擎的结果；失败引擎在短 TTL 后重试，
+		// 避免每次调用都重新打满九个学术引擎。
+		ttl = min(ttl, partialAcademicTTL)
+		if raw, err := json.Marshal(academicCacheMeta{EngineErrors: result.EngineErrors}); err == nil {
+			meta = string(raw)
+		}
+	}
+	if err := requestCache.StoreWithMeta(key, "", true, result.Results, "", meta, ttl); err != nil && !errors.Is(err, cache.ErrStaleGeneration) {
 		log.ErrorT("log.mcp.cache_write_error_ignoring", "err", err)
 	}
 }
 
-// academicCacheKey 学术搜索的缓存键：query|timeRange|engines|page|complete=v1。
-// 旧键未区分部分失败与完整结果，换键后重新检索，旧记录按原 TTL 淘汰。
+// academicCacheKey 学术搜索的缓存键：query|timeRange|engines|page|partial=v2。
+// v2 起部分成功的结果也会缓存，并带 meta 记录失败引擎；旧键没有该元数据，
+// 换键后重新检索，旧记录按原 TTL 淘汰。
 // page 必须参与（B7）：缺页码会让 page>=2 在 TTL 内命中第一页记录，分页静默退化。
 // engines 顺序保持调用方给定的顺序，不排序：引擎组合顺序本身是检索语义的一部分。
 func academicCacheKey(query, timeRange string, engines []string, page int) string {
 	if page <= 0 {
 		page = 1
 	}
-	return query + "|" + timeRange + "|" + strings.Join(engines, ",") + "|page=" + strconv.Itoa(page) + "|complete=v1"
+	return query + "|" + timeRange + "|" + strings.Join(engines, ",") + "|page=" + strconv.Itoa(page) + "|partial=v2"
 }
 
 // academicProviderErrorsFromError extracts the adapter's "engine: message"
