@@ -61,7 +61,7 @@ cp dashboard.example.yaml dashboard.yaml   # next to config.yaml, edit as needed
 | **Tools & capabilities** | Module settings for search ranking, fetching, PDF parsing, academic search, history, LLM summaries and Everything file search |
 | **Diagnostics lab** | Proxy connectivity, Everything probes, single-source test searches and single-URL test fetches with latency, error class and fetch node; provider quota may be consumed and confirmation is required |
 | **Traces** | Filter by status, tool, provider, error kind, application, project and cache state. Expand a call to see its provider attempts or export the current list to CSV. |
-| **Settings** | Writes whitelisted config (mode, timeouts, thresholds, suspension durations, etc.) after backing up the current YAML; secrets are never echoed; theme and advanced actions live in the "Appearance & maintenance" card |
+| **Settings** | Five subpages for routing, credentials and key pools, quota ledger, local storage, and service/appearance; edits enter a draft, are previewed as a diff, and are written after admin-password verification and a YAML backup; secrets are never echoed |
 
 Behavior boundaries:
 

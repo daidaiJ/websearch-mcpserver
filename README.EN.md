@@ -86,7 +86,7 @@ Five retrieval tools feed into each other. Saved long search, webpage and PDF bo
 | LLM summarization | Optional OpenAI-compatible API for structured summaries, with streaming progress |
 | System proxy | Once Clash etc. enables the system proxy, overseas engines / Jina Reader use it automatically |
 | Local file search | `file_search` uses the Everything index for millisecond path lookup, with directory allowlists and lexical filtering (requires Everything HTTP Server) |
-| Local console | Optional `dashboard.enabled`, a local `/dashboard/` UI with call metrics, source health, runtime maintenance, diagnostics, and authenticated settings; `GET /metrics` always serves in-process metrics and adds sanitized telemetry aggregates when the console is enabled |
+| Local console | Optional `dashboard.enabled`: an embedded React control center with six pages for overview, traces, sources, tools and capabilities, the diagnostics lab, and settings; supports `dashboard.ui.dir` external UI and `no_ui` slim builds; `GET /metrics` always serves in-process metrics and adds sanitized telemetry aggregates when the console is enabled |
 | Lightweight deploy | Single binary, no CGO, reference-counted process management; `config.slim.yaml` targets 2C2G VMs (admission control + cache + memory reclaim); embeddable as a single-instance Go module |
 | Chinese / English | `language: auto|zh|en` covers logs, MCP tool descriptions and parameter docs, and the console UI in one switch; `auto` follows the system language, and the console additionally negotiates per request from the browser language |
 
@@ -221,13 +221,13 @@ The four built-in `mcphub` presets:
 
 ---
 
-## Local Control Center (optional, off by default)
+## Local Control Center (enabled on fresh installs, can be turned off)
 
-With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser. The six pages cover overview and client usage, traces, sources, tools and capabilities, the diagnostics lab, and settings. Traces support filtering and CSV export.
+A fresh deployment generates an enabled `dashboard.yaml` with a random local admin password on first `start` / `install`; existing configurations are untouched. With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser. The six pages cover overview and client usage, traces, sources, tools and capabilities, the diagnostics lab, and settings. Traces support filtering and CSV export.
 
 ![Control center overview](docs/images/dashboard-overview.jpg)
 
-To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; Access is loopback-only by default. Eligible clients can release routing cooldowns, refresh official quota, clean local storage, and run manual diagnostics without a password. Search and fetch trials that may consume provider quota still require confirmation. Saving or restoring settings, managing keys, restarting, and resetting or adjusting quota require the admin password. `GET /metrics` additionally exposes Prometheus/OpenMetrics text (read-only): in-process metrics (in-flight requests, uptime, goroutines, heap allocation, telemetry flag) are always present, while tool/provider aggregates come from the sanitized telemetry store and are appended once `dashboard.enabled: true`.
+To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml`; fresh deployments already generate it. Delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; Access is loopback-only by default. Eligible clients can release routing cooldowns, refresh official quota, clean local storage, and run manual diagnostics without a password. Search and fetch trials that may consume provider quota still require confirmation. Saving or restoring settings, managing keys, restarting, and resetting or adjusting quota require the admin password. `GET /metrics` additionally exposes Prometheus/OpenMetrics text (read-only): in-process metrics (in-flight requests, uptime, goroutines, heap allocation, telemetry flag) are always present, while tool/provider aggregates come from the sanitized telemetry store and are appended once `dashboard.enabled: true`.
 
 > Page details, every config key, shortcut placement, the security model and call attribution: [docs/dashboard.en.md](docs/dashboard.en.md). Set `dashboard.ui.enabled: false` for API-only operation; set `dashboard.enabled: false` to skip the dashboard backend as well; build with `-tags no_ui` for the smallest binary. To replace the built-in console with your own page, see [docs/dashboard-api.en.md](docs/dashboard-api.en.md).
 

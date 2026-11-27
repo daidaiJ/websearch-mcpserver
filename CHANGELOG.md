@@ -2,9 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.11.0 — 2026-11-27（React 控制中心、搜索预算与混合检索校准）
+
+> 致谢：控制中心后端与 React 控制台来自 [@MattLYT](https://github.com/MattLYT) 的 PR [#35](https://github.com/daidaiJ/websearch-mcpserver/pull/35) 与 [#36](https://github.com/daidaiJ/websearch-mcpserver/pull/36)；混合检索并行、全失败判定与学术缓存修复来自 PR [#37](https://github.com/daidaiJ/websearch-mcpserver/pull/37)。合并提交保留原作者署名；维护侧补充外挂 UI、`no_ui` 构建、额度热路径优化、学术部分缓存语义、安全边界与文档。
 
 ### 新增
+
+- **React 控制中心（六页）**：总览/调用追踪/搜索源/工具与能力/诊断实验室/设置。调用追踪支持状态、工具、来源、错误类型、应用、项目与缓存状态组合筛选，展开请求级来源链并导出 CSV；搜索源展示健康、最近 20 次结果、失败构成、成功率、平均/P95 延迟、API 额度与真实路由冷却；设置以草稿 + 服务端差异预览写入，保存前备份 YAML，重启后核验运行值。后端同时补齐凭证 Key 池、额度账本、运行态维护与额度感知诊断。（PR #35 / #36，@MattLYT）
+- **混合来源并行检索**：`sources` 同时包含 web 与 academic 时两路并发，一方失败仍返回另一方结果与失败原因；两方都无可用结果才报错。（PR #37，@MattLYT）
 
 - **文档配图更新**：README 四张示意图切换为与最新控制中心一致的亮色主题；控制中心截图改用 React 版界面，并新增 `docs/images/src/render_dashboard.py` 以便重渲染。
 - **控制中心前端可关闭 / 可裁剪**：`dashboard.ui.enabled: false` 只保留 `/__admin/api/`，不挂载页面与静态资源；`go build -tags no_ui` 从二进制移除内嵌前端资产（仍可用 `ui.dir` 外挂 UI）。默认构建与默认配置保持原样。
@@ -26,6 +31,11 @@
 
 ### 变更
 
+- **控制中心前端切换为 React**：源码位于 `frontend/`，构建产物写入 `pkg/dashboard/web/dist/` 后由 `go:embed` 打进二进制；Node/npm 只在修改前端时需要，运行与发布仍是单二进制、零 CDN、离线可用。原零依赖原生 JS 控制台移除。
+- **全新部署默认启用控制中心**：首次 `start` / `install` 在配置目录生成默认启用的 `dashboard.yaml`（含随机本机管理员口令）；已有配置不迁移、不改变。不需要时设 `dashboard.enabled: false` 回退到零后端开销，或 `dashboard.ui.enabled: false` 只保留 API。
+- **控制中心设置改为五个子页**：搜索路由、凭证与 Key 池、额度账本、本地存储、服务与外观；所有改动进入统一草稿，经服务端差异预览和管理员口令验证后写入，涉及重启时核验磁盘值与运行值一致。
+- **学术部分成功结果进入短缓存**：缓存键升级为 `partial=v2`，部分成功的结果带逐引擎失败元数据写入 10 分钟短 TTL；下次相同查询只重试失败引擎并合并新结果，不再让任一引擎失败就跳过缓存、重复打满九个学术引擎。
+- **额度强制关闭时退出搜索热路径**：未启用 `enforce_providers` 的供应商不再在每次搜索前读写 SQLite 预留；官方额度快照过期时改为后台节流刷新，搜索准入只读内存快照。基准见下方「性能」。
 - **WebUI 文案不再进入后端 i18n bundle**：`web.*` 只由控制中心前端通过 `RawMessages` 按需读取；后端首次渲染日志/MCP 文案时不再解析两份约 84KB 的前端 JSON（微基准：bundle 加载 7.1ms/4.07MB → 4.2ms/2.37MB）。
 - **正文预算语义**：`max_chars` 从“按条均分”改为“按排名分配、每条保底 200 字符”；`inline_max_chars` 超限时不再整单只给预览，排名靠前的结果正文继续保留在响应内。无配置变更。
 
@@ -35,6 +45,12 @@
 
 ### 修复
 
+- **混合检索全失败判定与并行化**：web + academic 并行执行，单路失败不再丢弃另一路结果；批量查询部分成功仍按成功记录，失败原因保留在事件中；学术关键词查询零命中按成功空结果返回，DOI / arXiv 精确查询未命中仍报错。（PR #37，@MattLYT）
+- **学术部分结果不再重复全量检索**：部分成功的缓存命中后只重试失败引擎，恢复的引擎结果与缓存结果按 DOI/URL/标题去重合并；仍有失败时继续短 TTL 缓存并透出逐引擎错误。
+- **额度修正拒绝非有限值**：`quotas/adjust` 只接受 0 到 1e12 的有限数值，避免 NaN/Inf/超大浮点转 `int64` 溢出或把账本写成异常值。
+- **管理员写入统一校验跨站来源**：`authorizeWrite` 在口令校验前增加同源检查，设置、密钥、重启和额度操作与本地维护端点采用一致的 CSRF 边界。
+- **控制中心关闭但额度强制开启时仍清理遥测**：清理循环不再依赖 `dashboard.enabled`，避免只启用额度硬限的部署让 SQLite 明细无界增长。
+- **README 配图可读性**：四张示意图正文由 15px 提升到 19px、标题与容器边框加重，架构图加高避免裁切；控制中心截图保留 2x 分辨率与 JPEG 95 质量，避免二次缩放发糊。
 - **cleanfetch 代码块与表头保留**：升级 `go-webfetch`（`v0.3.0`），在清理前提取 `<pre>` 占位、正文抽取后回填，`code-toolbar`、`has-sidebar` 等多 class 容器不再连带删除代码块；只包一个代码块的工具栏容器压成占位段落，Google Developers 这类低分兄弟容器里的代码块不再被 readability 排除；无 `<th>` 的表格自动把首行提升为表头；正文补 H1 与作者/发布时间，标题用正文 H1 去掉站点后缀/摘要，`cleanfetch` 在正文已有 H1 时不再重复添加标题。离线回归新增 28 个完整网页 mock 样本（GitHub、Microsoft、GitLab、Dev.to、Hashnode、freeCodeCamp、Go、Rust、Kubernetes、web.dev、MDN、JetBrains、SegmentFault 等），`TestGoldenPages` 在整页解析下校验代码块、标题与表头；线上实测 AWS、Google Developers、Docusaurus（59/59）、VitePress、React、MDN、Rust Book、go.dev、Kubernetes、掘金、鸟窝、博客园、腾讯云代码块零丢失；正文由 JS 渲染的阿里云开发者社区仍只能拿到静态外壳。
 - **AnySearch 402 配额与凭据防泄漏**：HTTP 402 按配额耗尽处理（`KeyErrorQuota`，单个 Key 冷却 30 分钟，apipool 自动换 Key；匿名档返回可操作提示），不再把已耗尽的 Key 反复打上游；AnySearch envelope 错误只保留 code/request_id，不转发上游 message；mcphub 错误文本与遥测摘要统一脱敏 `as_sk_`、`api_key=`、`password=`、`username=` 等形态，避免 402 body 中的凭据进入日志或控制台。
 - `cleanfetch` 远端抓取只返回标题或跳转导航时，继续尝试已有回退链，避免把空壳当正文；短小的有效正文仍正常返回，无需新增参数或配置。（来自 PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33)，作者 [@MattLYT](https://github.com/MattLYT)）
@@ -79,8 +95,15 @@
 - **纯文档推送不再跑全量构建**：`ci.yml` 的 `push` / `pull_request` 增加共享的 `paths-ignore`（YAML 锚点），用宽通配而非逐文件白名单——`**.md` / `**.MD`、`docs/**`、`skills/**`，加仓库根目录的 `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt`，新增文档目录或根目录配图都不必再改清单。只有全部改动路径都命中才跳过，混合提交照常触发。图片只忽略根目录（`*` 不跨目录）：`cmd/assets/*.ico` 与 `pkg/dashboard/web/logo-*.png` 是 `go:embed` 的编译输入，加 `**/*.png` 会让改图标不重编二进制
 - **npm 发布 OIDC 增加排障模式**：`npm-plugin.yml` 的 `workflow_dispatch` 增加 `verbose` 开关，设置 `NPM_CONFIG_LOGLEVEL=verbose` 并解码打印 OIDC claims（`sub` / `workflow_ref` / `job_workflow_ref` / `environment` 等，不打印 token），用于核对 npm 侧 Trusted Publishing 绑定
 
+### 性能
+
+- **额度准入热路径**：`enforce_providers` 未包含的供应商不再逐次搜索写 SQLite；官方快照过期时由后台刷新，搜索侧只读内存缓存。微基准：官方快照过期且上游 200ms 时 `AdmitSearch` 从 201.3 ms/op 降到 0.179 ms/op；额度强制关闭但库中仍有历史 `search_quota` 行时从 174.5 µs/op 降到 20.3 ns/op。
+- **`no_ui` 构建体积**：移除内嵌前端资产后，Release 二进制从 29,316,096 字节降到 28,513,280 字节（-802,816 字节，约 2.7%）；进程启动时间在测量噪声内不变（34.1ms vs 34.7ms）。
+- **控制中心 i18n 首屏**：`web.*` 不再进入后端 bundle，首次翻译加载从 7.1ms/4.07MB 降到 4.2ms/2.37MB。
+
 ### 移除
 
+- **移除控制台设计草稿**：`PRODUCT.md` 与 `prototypes/` 不参与构建与发布，React 源码和构建产物已成为唯一实现。
 - **移除 `/searxng/search` 兼容端点**：该端点只实现 SearXNG JSON 子集（仅读取 `q`，不支持 `engines` / `pageno` / 非 JSON `format`），与 MCP 的 `smartsearch` / `cleanfetch` 重复且实际使用面为零。删除 `searxng/` 包、路由注册与仅为它存在的 `mcp.GetSearchGroup`，同步清理 `log.searxng.*` 文案、配置样例的鉴权注释与全部文档/图源引用。**破坏性变更**：依赖该端点的客户端需改用 MCP 端点或自行适配
 
 ## v3.10.6 — 2026-11-07（新增 npm 分发方式、安装与配置引导、后续改进参考）

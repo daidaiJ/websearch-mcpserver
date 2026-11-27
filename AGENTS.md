@@ -176,7 +176,7 @@ docker build -t websearch-mcpserver .
 
 > 控制中心 = `pkg/dashboard`（后端）+ `pkg/dashboard/web`（前端）+ `pkg/telemetry`（遥测）+ `pkg/quota`（额度），随主分支演进。
 
-1. **前端构建与离线嵌入**：维护入口是 `frontend/src/`（React、TypeScript、Radix 与 Tailwind）。在 `frontend/` 运行 `npm ci`、`npm test`、`npm run build`，将生成的 `pkg/dashboard/web/dist/` 与源码一同提交。Go 直接嵌入页面、脚本、样式与本地 WOFF2 字体，普通 Go 构建和运行均无需 Node 或 CDN。正式入口为 `/dashboard/`。中英文文案由 `pkg/i18n` 目录注入，运行 `go test ./pkg/i18n/` 审计 TS / TSX 引用。
+1. **前端构建与离线嵌入**：维护入口是 `frontend/src/`（React、TypeScript、Radix 与 Tailwind）。在 `frontend/` 运行 `npm ci`、`npm test`、`npm run build`，将生成的 `pkg/dashboard/web/dist/` 与源码一同提交。Go 直接嵌入页面、脚本、样式与本地 WOFF2 字体，普通 Go 构建和运行均无需 Node 或 CDN。正式入口为 `/dashboard/`。外挂替换用 `dashboard.ui.dir`；极限体积用 `-tags no_ui`，此时未配外挂目录的 `/dashboard/` 会返回明确的 500。中英文文案由 `pkg/i18n` 目录注入，运行 `go test ./pkg/i18n/` 审计 TS / TSX 引用。
 2. **访问与操作安全模型（不可退让）**：页面和只读 API 由 loopback 与 `allowed_networks` 放行。
    - 两类操作都按真实连接来源校验，默认仅 loopback，可在 `dashboard.yaml` 用 `write_allowed_networks` 放行 CIDR/IP。空值或任一非法条目均回退 loopback。读白名单和转发头不授予操作权限。
    - **免密运行态操作仅限**解除单源或全部路由冷却、强刷 Tavily / TinyFish 官方额度、清搜索缓存、清空搜索历史、清理过期或全部合规临时抓取文件、手动重探 Everything、代理连通检查、单源试搜、单 URL 试抓。免密 POST 只要求通过操作来源校验。浏览器跨站请求会被拒绝，无 `Origin` 的原生客户端仍按 `RemoteAddr` 校验。可能消耗供应商额度的试搜和试抓仍会提示并要求确认。试抓可能依次调用多个远端服务。
@@ -198,14 +198,15 @@ docker build -t websearch-mcpserver .
 2. **预览版只发预览 tag**：tag 形如 `vX.Y.Z-preview.N`，release.yml 检测 `-preview` 自动 `--prerelease` 并跳过 GHCR；不进 CHANGELOG 正式版本区（记 Unreleased/预览段），不打 `-registry` tag、不进 MCP Registry。
 3. **外部贡献吸收必须显式署名**（开源尊重，硬规则）：压缩聚合不能丢失作者归属——author 字段 + GitHub noreply 邮箱保证提交在 GitHub 上关联到贡献者账号与头像；相关 commit message 追加 `Credit: 来自 PR #N（作者 @handle）…` 标注来源；CHANGELOG（中英）与预览版 release notes 中必须致谢贡献者并列明其贡献范围。
 
-## 当前状态与活跃待办（2026-11-16）
+## 当前状态与活跃待办（2026-11-27）
 
 > 已完成任务的详细交接已归档到 `.handoff/archive/agents-md-handoff-snapshot-2026-11-16.md`（不入库）；各专题证据保留在 `.handoff/<topic>.md`。
 
 ### 当前版本与未发布改动
 
-- 最新正式发布：`v3.10.7`（Release + GHCR + MCP Registry + npm 六包）；实验性 PDFium 后端随该版本落地。
-- `master` 在 `v3.10.7` 之后吸收了 PR #33：`cleanfetch` 对“仅标题/跳转导航”的远端结果继续走回退链（`3c5b5d1`，合并 `cbdaa7e`），已记入 CHANGELOG Unreleased，尚未打新版本 tag。
+- 最新正式发布：`v3.11.0`（Release + GHCR + MCP Registry + npm 六包）；React 控制中心、外挂 UI / `no_ui`、PR #35 / #36 / #37、额度热路径优化与 go-webfetch v0.3.0 随该版本落地。
+- `v3.10.9` 之后的改动按功能聚合：控制中心后端与 React 控制台（@MattLYT，PR #35 / #36）、混合检索并行与学术缓存修复（@MattLYT，PR #37）、cleanfetch 代码块保留、额度准入退出热路径、控制中心外挂 UI 与 `no_ui` 构建、README 亮色配图。
+- 全新部署首次 `start` / `install` 会生成默认启用的 `dashboard.yaml`；已有配置不迁移。`dashboard.enabled:false` 跳过控制中心后端，`dashboard.ui.enabled:false` 只保留 API，`-tags no_ui` 从二进制移除前端资产。
 
 ### 待验证
 
@@ -213,7 +214,8 @@ docker build -t websearch-mcpserver .
 - [ ] 真实 PDF 混合负载长跑：稳定性与内存
 - [ ] PDFium 独立 worker 隔离 C 层崩溃（当前为进程内实验性接入）
 - [ ] TinyFish / Keenable 二进制真网链路长期回归（限流阈值、结果质量）
-- [ ] i18n 控制中心真实浏览器走查（六个工作区的中英文渲染）
+- [x] 控制中心中文六页真实浏览器走查（2026-11-27，桌面 + 390px 移动视口，无横向溢出）
+- [ ] 控制中心英文六页真实浏览器走查
 - [ ] i18n 工具返回内容在 `language: en` 下真机走查（smartsearch / cleanfetch / pdf_parser / file_search / search_history）
 - [ ] 新引擎/新工具真实链路长期回归：验证码页频率、AnySearch 匿名档阈值、Google News 回源失败率、search_history 写入与 FTS 命中率
 - [ ] 平台整包真机走查剩余部分：按包内 README 启动，安装 `skills/websearch-mcp` 并确认工具清单与项目标签
@@ -231,7 +233,7 @@ docker build -t websearch-mcpserver .
 
 - 部署目录 `D:\tool\websearch-mcpserver`，2026-11-05 从旧构建升级到 `v3.10.4` 并迁移配置；启动为 Startup `WebSearchMCP.lnk` → `wscript autostart.vbs`（隐藏窗口、脱离当前 shell 的 Job Object）。
 - 配置沿用旧行为：`dashboard.enabled: false`，port 8338 / apipool / anysearch → tavily → exa；备份 `websearch-mcpserver.exe.bak-pre-v3.10.4`、`config.yaml.bak-pre-v3.10.4`。
-- 升级到 `v3.10.7` 后的配置与整包走查仍待做；迁移细节见归档快照。
+- 升级到 `v3.11.0` 后的配置与整包走查仍待做；迁移细节见归档快照。
 
 ### 发布红线
 
@@ -246,7 +248,8 @@ docker build -t websearch-mcpserver .
 |---|---|
 | PDFium 后端 / 本地 PDF | `.handoff/pdf-parser-backends.md`、`docs/pdf-parser.md`、`bench/pdfcorpus/` |
 | i18n 四面治理 | `.handoff/i18n-governance.md` |
-| 外部 PR 吸收（#30/#31、#33） | `.handoff/eco-absorb-providers.md`；#33 见 CHANGELOG Unreleased |
+| 控制中心与外部 PR（#35/#36/#37） | CHANGELOG v3.11.0；`docs/dashboard.md`、`docs/dashboard-api.md` |
+| 外部 PR 吸收（#30/#31、#33） | `.handoff/eco-absorb-providers.md`；#33 见 CHANGELOG v3.11.0 |
 | GitHub 引擎 / Reddit 调研 | `.handoff/github-reddit-access.md`、`docs/optimization-roadmap.md` N7 |
 | 控制中心快捷方式 | `.handoff/shortcut-sync.md` |
 | 本机环境 / grok CLI | `.handoff/local-env-and-grok-cli.md`（v3.10.2 时期，部署现状以上方运维待办为准） |

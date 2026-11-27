@@ -86,7 +86,7 @@
 | LLM 摘要 | 可选接入 OpenAI 兼容 API 生成结构化摘要，支持流式推送 |
 | 系统代理 | Clash 等开启系统代理后，海外引擎 / Jina Reader 自动走代理 |
 | 本地文件检索 | `file_search` 基于 Everything 索引毫秒级定位本地文件，目录白名单防越界，词汇对齐二次过滤防上下文爆炸（需 Everything HTTP Server） |
-| 本机控制台 | 可选 `dashboard.enabled`，`/dashboard/` 只读观测界面：调用统计、来源健康、失败分类、白名单配置修改；`GET /metrics` 始终提供进程内指标，启用控制台后追加脱敏遥测聚合 |
+| 本机控制台 | 可选 `dashboard.enabled`：内嵌 React 控制中心，六个页面覆盖总览、调用追踪、搜索源、工具与能力、诊断实验室和设置；支持 `dashboard.ui.dir` 外挂前端与 `no_ui` 精简构建；`GET /metrics` 始终提供进程内指标，启用控制台后追加脱敏遥测聚合 |
 | 轻量部署 | 单二进制、无 CGO、引用计数进程管理；`config.slim.yaml` 面向 2C2G 瘦虚机（并发准入 + 缓存 + 内存归还），可作为单实例 Go 模块嵌入 |
 | 中文 / 英文 | `language: auto|zh|en` 统一控制日志、MCP 工具描述与参数说明、控制中心界面；`auto` 按系统语言适配，控制中心另按浏览器语言每请求协商 |
 
@@ -216,13 +216,13 @@ npm 装到的只有 Go 二进制，**本机通常没有这个仓库的源码**�
 
 ---
 
-## 本机控制中心（可选，默认关闭）
+## 本机控制中心（新装默认启用，可关闭）
 
-`dashboard.enabled: true` 后，本机浏览器访问 `http://127.0.0.1:8338/dashboard/`。六个页面分别展示总览与客户端用量、调用追踪、搜索源、工具与能力、诊断实验室和设置。调用追踪支持筛选和 CSV 导出。
+全新部署首次 `start` / `install` 会生成默认启用的 `dashboard.yaml`（含随机本机管理员口令）；已有配置不受影响。启用后本机浏览器访问 `http://127.0.0.1:8338/dashboard/`。六个页面分别展示总览与客户端用量、调用追踪、搜索源、工具与能力、诊断实验室和设置。调用追踪支持筛选和 CSV 导出。
 
 ![控制中心总览](docs/images/dashboard-overview.jpg)
 
-启用即把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`（首次 `start` / `install` 自动生成并**默认启用**，含随机本机管理员口令）；删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅 loopback 可访问。符合来源限制时，可以免密解除路由冷却、强刷官方额度、清理本地存储和运行人工诊断。可能消耗供应商额度的试搜与试抓仍需确认。设置保存或恢复、密钥、重启及额度重置或修正需管理员口令。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读）：进程内指标（在飞请求、uptime、goroutine、堆分配、遥测开关）始终输出；工具/供应商聚合来自脱敏遥测库，启用 `dashboard.enabled: true` 后追加，未启用时仅省略该部分。
+启用方式是把 `dashboard.example.yaml` 复制为 `config.yaml` 同目录的 `dashboard.yaml`；全新部署已自动生成。删除该文件并重启即完整回退，运行时零遥测开销。隐私默认：查询只存哈希 + 主题等脱敏元数据，密钥与查询原文永不落库、接口永不回显；默认仅 loopback 可访问。符合来源限制时，可以免密解除路由冷却、强刷官方额度、清理本地存储和运行人工诊断。可能消耗供应商额度的试搜与试抓仍需确认。设置保存或恢复、密钥、重启及额度重置或修正需管理员口令。另提供 `GET /metrics`（Prometheus/OpenMetrics 文本，只读）：进程内指标（在飞请求、uptime、goroutine、堆分配、遥测开关）始终输出；工具/供应商聚合来自脱敏遥测库，启用 `dashboard.enabled: true` 后追加，未启用时仅省略该部分。
 
 > 页面明细、全部配置键、快捷方式落位、安全模型与调用归属见 [docs/dashboard.md](docs/dashboard.md)。不需要页面时设 `dashboard.ui.enabled: false` 只保留 API；连控制中心后端也不要时设 `dashboard.enabled: false`；极限体积用 `go build -tags no_ui`。想用自建页面替换内置控制台，见 [docs/dashboard-api.md](docs/dashboard-api.md)。
 

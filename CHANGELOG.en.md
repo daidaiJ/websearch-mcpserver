@@ -2,10 +2,14 @@
 
 [English](CHANGELOG.en.md) | [中文](CHANGELOG.md)
 
-## Unreleased
+## v3.11.0 — 2026-11-27 (React control center, search budget, and mixed-search calibration)
+
+> Credits: the dashboard backend and React console come from PRs [#35](https://github.com/daidaiJ/websearch-mcpserver/pull/35) and [#36](https://github.com/daidaiJ/websearch-mcpserver/pull/36) by [@MattLYT](https://github.com/MattLYT); concurrent mixed-source search, all-failure handling, and academic cache fixes come from PR [#37](https://github.com/daidaiJ/websearch-mcpserver/pull/37). Merge commits preserve the original authorship; the maintainer side added the external UI, `no_ui` build, quota hot-path optimization, partial-academic cache semantics, security boundaries, and documentation.
 
 ### Added
 
+- **React control center (six pages)**: overview, traces, sources, tools and capabilities, diagnostics lab, and settings. Traces combine status, tool, source, error kind, application, project, and cache filters, expand a request-level source chain, and export CSV; sources show health, the last 20 results, failure breakdown, success rate, mean/P95 latency, API quota, and real routing cooldowns; settings use a draft with server-side diff preview, back up YAML before writing, and verify runtime values after restart. The backend also adds credential key pools, a quota ledger, runtime maintenance, and quota-aware diagnostics. (PR #35 / #36, @MattLYT)
+- **Concurrent mixed-source search**: when `sources` contains both web and academic, the two run concurrently; one side failing still returns the other side's results plus the failure reason, and only a query with no usable results on either side fails. (PR #37, @MattLYT)
 - **Documentation images**: the four README diagrams now use the light theme matching the latest control center; dashboard screenshots show the React UI, with `docs/images/src/render_dashboard.py` added for regeneration.
 - **Dashboard frontend can be disabled or stripped**: `dashboard.ui.enabled: false` keeps `/__admin/api/` and mounts no page or static assets; `go build -tags no_ui` removes the embedded frontend assets while `ui.dir` can still serve an external UI. Default builds and configurations are unchanged.
 - **External dashboard frontend**: `dashboard.ui.dir` can point at a static directory containing `index.html` to replace the embedded React console. The external page calls the same-origin `/__admin/api/`; JSON responses now carry the `X-WebSearch-Dashboard-API: 1` version header, and static serving rejects path traversal, dotfiles, and symlinks escaping the directory. See [docs/dashboard-api.en.md](docs/dashboard-api.en.md).
@@ -26,6 +30,11 @@
 
 ### Changed
 
+- **Dashboard frontend moved to React**: source lives in `frontend/`, the build writes `pkg/dashboard/web/dist/`, and `go:embed` puts it into the binary. Node/npm are needed only when editing the UI; runtime and releases remain a single offline binary with no CDN. The previous zero-dependency native-JS console is removed.
+- **Fresh installs enable the control center**: the first `start` / `install` generates an enabled `dashboard.yaml` with a random local admin password; existing configurations are neither migrated nor changed. Set `dashboard.enabled: false` for zero backend cost, or `dashboard.ui.enabled: false` to keep only the API.
+- **Dashboard settings split into five subpages**: routing, credentials and key pools, quota ledger, local storage, and service/appearance. Every edit enters one draft, is previewed as a server-side diff, and is written after admin-password verification; restarts verify that disk and runtime values agree.
+- **Partial academic successes now use a short cache**: the key moves to `partial=v2`; partial results carry per-engine failure metadata and a 10-minute TTL. The next identical query retries only the failed engines and merges fresh hits, instead of skipping the cache and rerunning all nine engines whenever one fails.
+- **Quota enforcement leaves the search hot path when disabled**: providers outside `enforce_providers` no longer read/write a SQLite reservation before every search, and stale official snapshots refresh in the background. Search admission reads an in-memory snapshot. See Performance below.
 - **Web UI copy no longer enters the backend i18n bundle**: `web.*` is read on demand by the dashboard frontend through `RawMessages`, so the backend no longer parses two ~84KB frontend catalogs on its first log/MCP translation (microbenchmark: bundle load 7.1ms/4.07MB → 4.2ms/2.37MB).
 - **Body-budget semantics**: `max_chars` now allocates by result rank with a 200-character floor per entry instead of splitting evenly; over-limit `inline_max_chars` responses keep leading bodies inline instead of dropping every body for a preview. No configuration change.
 
@@ -35,6 +44,12 @@
 
 ### Fixed
 
+- **Mixed-search all-failure detection and concurrency**: web and academic now run concurrently, so one side failing no longer discards the other side's results. Partially successful batches are recorded as successful while keeping the failure text in the event. Academic keyword queries with zero hits return a successful empty result; exact DOI / arXiv misses still fail. (PR #37, @MattLYT)
+- **Partial academic results no longer rerun the full search**: a partial cache hit retries only the failed engines, merges recovered hits with cached ones by DOI/URL/title, and keeps the short TTL plus per-engine errors while any engine still fails.
+- **Quota adjustment rejects non-finite values**: `quotas/adjust` accepts only finite values from 0 to 1e12, preventing NaN/Inf/huge floats from overflowing `int64` or corrupting the ledger.
+- **Admin writes now share a cross-origin check**: `authorizeWrite` checks same-origin before password verification, giving settings, secrets, restart, and quota actions the same CSRF boundary as local maintenance endpoints.
+- **Telemetry cleanup runs when the dashboard is off but quota enforcement is on**: the cleanup loop no longer depends on `dashboard.enabled`, so quota-only deployments cannot grow SQLite details without bound.
+- **README image legibility**: the four diagrams raise body text from 15px to 19px, strengthen headings and container borders, and give the architecture more height to avoid clipping. Dashboard screenshots keep 2x resolution and JPEG quality 95 instead of being downscaled twice.
 - **cleanfetch keeps code blocks and table headers**: bumped `go-webfetch` (`v0.3.0`). `<pre>` blocks are extracted before cleaning and restored after body extraction, so multi-class containers such as `code-toolbar` and `has-sidebar` no longer take code down with them. Single-code toolbar containers collapse into placeholder paragraphs, so readability no longer drops blocks that sit in low-scoring sibling divs (Google Developers is one example). Tables without `<th>` promote their first row to a header, the body gains an H1 plus byline/published time, and H1s clean up site suffixes or meta-description tails in titles; `cleanfetch` skips its own title prefix when the body already starts with an H1. The offline regression now covers 28 full-page mock samples (GitHub, Microsoft, GitLab, Dev.to, Hashnode, freeCodeCamp, Go, Rust, Kubernetes, web.dev, MDN, JetBrains, SegmentFault and others); `TestGoldenPages` validates code blocks, titles and table headers through the full-page pipeline. Live checks on AWS, Google Developers, Docusaurus (59/59), VitePress, React, MDN, Rust Book, go.dev, Kubernetes, Juejin, Colobu, Cnblogs and Tencent Cloud showed zero lost code blocks. Aliyun's developer community still returns only its static shell because the article body is rendered by JavaScript.
 - **AnySearch 402 quota and credential redaction**: HTTP 402 is now classified as quota exhaustion (`KeyErrorQuota`, 30-minute key cooldown; apipool rotates to the next key; the anonymous tier returns an actionable message) instead of retrying the exhausted key. AnySearch envelope errors keep only code/request_id and no longer forward the upstream message. mcphub error text and telemetry summaries redact `as_sk_`, `api_key=`, `password=`, and `username=` forms so credentials in a 402 body cannot reach logs or the dashboard.
 - `cleanfetch` continues through its existing fallback chain when a remote response contains only a title or skip-navigation link. Short valid bodies remain accepted; no new parameters or configuration are required. (from PR [#33](https://github.com/daidaiJ/websearch-mcpserver/pull/33) by [@MattLYT](https://github.com/MattLYT))
@@ -79,8 +94,15 @@
 - **Docs-only pushes skip the full build**: `ci.yml` gained a shared `paths-ignore` (a YAML anchor) on both triggers, built from broad globs rather than a per-file list — `**.md` / `**.MD`, `docs/**`, `skills/**`, plus `*.png` / `*.svg` / `*.jpg` / `*.jpeg` / `*.gif` / `*.webp` / `*.txt` at the repository root — so new docs directories or root-level images do not require editing the list. A run is skipped only when every changed path matches, so mixed commits still trigger. Images are ignored at the root only (`*` does not cross directories): `cmd/assets/*.ico` and `pkg/dashboard/web/logo-*.png` are `go:embed` compiler inputs, and `**/*.png` would let an icon change skip rebuilding the binary
 - **npm OIDC diagnostics mode**: `npm-plugin.yml`'s `workflow_dispatch` gained a `verbose` switch that sets `NPM_CONFIG_LOGLEVEL=verbose` and prints decoded OIDC claims (`sub` / `workflow_ref` / `job_workflow_ref` / `environment` and others, never the token) for checking the npm-side Trusted Publishing binding
 
+### Performance
+
+- **Quota admission hot path**: providers outside `enforce_providers` no longer write a SQLite reservation before every search; stale official snapshots refresh in the background and search reads an in-memory cache. Microbenchmarks: with a stale official snapshot and a 200ms upstream, `AdmitSearch` dropped from 201.3 ms/op to 0.179 ms/op; with enforcement off but historical `search_quota` rows present, it dropped from 174.5 µs/op to 20.3 ns/op.
+- **`no_ui` binary size**: removing embedded frontend assets took the release binary from 29,316,096 bytes to 28,513,280 bytes (-802,816 bytes, about 2.7%); process startup stayed within measurement noise (34.1ms vs 34.7ms).
+- **Dashboard i18n first render**: `web.*` no longer enters the backend bundle; first translation load dropped from 7.1ms/4.07MB to 4.2ms/2.37MB.
+
 ### Removed
 
+- **Removed dashboard design drafts**: `PRODUCT.md` and `prototypes/` no longer participate in the build or release; the React source and built assets are the only implementation.
 - **Removed the `/searxng/search` compatibility endpoint**: it implemented only a JSON subset of SearXNG (reading `q`; no `engines` / `pageno` / non-JSON `format`), duplicating MCP `smartsearch` / `cleanfetch` with no real usage. The `searxng/` package, its route registration and `mcp.GetSearchGroup` (which existed only for it) are gone, along with the `log.searxng.*` strings, the auth comment in the sample config, and every documentation/diagram reference. **Breaking change**: clients that used the endpoint should switch to the MCP endpoint or adapt on their side
 
 ## v3.10.6 — 2026-11-07 (npm distribution, install/config guidance, follow-up research)
