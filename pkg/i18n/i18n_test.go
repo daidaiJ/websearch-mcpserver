@@ -156,6 +156,16 @@ func TestWithLocalizerRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWebDomainSkipsBackendBundle(t *testing.T) {
+	loc := goi18n.NewLocalizer(bundle(), language.English.String())
+	if msg, err := loc.Localize(&goi18n.LocalizeConfig{MessageID: "web.nav.overview"}); err == nil && msg != "" {
+		t.Fatalf("web domain must stay out of the backend bundle, got %q", msg)
+	}
+	if raw := RawMessages(Zh, "web"); len(raw) == 0 {
+		t.Fatal("RawMessages must still expose the frontend web catalog")
+	}
+}
+
 func TestRawMessages(t *testing.T) {
 	for _, lang := range []string{Zh, En} {
 		raw := RawMessages(lang, "dashboard")

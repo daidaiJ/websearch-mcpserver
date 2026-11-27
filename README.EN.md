@@ -223,13 +223,13 @@ The four built-in `mcphub` presets:
 
 ## Local Control Center (optional, off by default)
 
-With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser. The five pages cover overview and client usage, sources, tools and capabilities, call history, and settings. Call history supports filtering and CSV export.
+With `dashboard.enabled: true`, open `http://127.0.0.1:8338/dashboard/` in a local browser. The six pages cover overview and client usage, traces, sources, tools and capabilities, the diagnostics lab, and settings. Traces support filtering and CSV export.
 
 ![Control center overview](docs/images/dashboard-overview.jpg)
 
 To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yaml` (first `start` / `install` auto-generates it **enabled by default** with a random local admin password); delete the file and restart for a clean rollback with zero telemetry overhead. Privacy defaults: queries are stored only as sanitized hash + topic metadata; secrets and raw query text never reach the database and are never echoed; Access is loopback-only by default. Eligible clients can release routing cooldowns, refresh official quota, clean local storage, and run manual diagnostics without a password. Search and fetch trials that may consume provider quota still require confirmation. Saving or restoring settings, managing keys, restarting, and resetting or adjusting quota require the admin password. `GET /metrics` additionally exposes Prometheus/OpenMetrics text (read-only): in-process metrics (in-flight requests, uptime, goroutines, heap allocation, telemetry flag) are always present, while tool/provider aggregates come from the sanitized telemetry store and are appended once `dashboard.enabled: true`.
 
-> Page details, every config key, shortcut placement, the security model and call attribution: [docs/dashboard.en.md](docs/dashboard.en.md).
+> Page details, every config key, shortcut placement, the security model and call attribution: [docs/dashboard.en.md](docs/dashboard.en.md). Set `dashboard.ui.enabled: false` for API-only operation; set `dashboard.enabled: false` to skip the dashboard backend as well; build with `-tags no_ui` for the smallest binary. To replace the built-in console with your own page, see [docs/dashboard-api.en.md](docs/dashboard-api.en.md).
 
 ---
 
@@ -248,6 +248,7 @@ To enable, copy `dashboard.example.yaml` to `dashboard.yaml` next to `config.yam
 | 📚 Reference | [docs/design.md](docs/design.md) | Design background & goals: project motivation, comparison with existing solutions, design principles |
 | 📚 Reference | [docs/api.md](docs/api.md) | Go Module API and HTTP API (MCP / Admin / observability endpoints) |
 | 📚 Reference | [docs/dashboard.md](docs/dashboard.md) | Local dashboard: every config key, write-operation security model, privacy boundaries |
+| 📚 Reference | [docs/dashboard-api.en.md](docs/dashboard-api.en.md) | External console: same-origin API, permissions, endpoints, minimal example |
 | 📚 Reference | [docs/developers.md](docs/developers.md) | Developer guide: package layout, interface contracts, tool call chains, change touchpoints |
 | 📚 Reference | [CHANGELOG.md](CHANGELOG.md) | Version changelog |
 

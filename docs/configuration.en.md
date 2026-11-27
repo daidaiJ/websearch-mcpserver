@@ -339,6 +339,9 @@ cache:
 #   max_open_conns: 1        # telemetry SQLite pool cap (default 1, hard ceiling 32)
 #   secrets_path: "./data/dashboard-secrets.json" # Private overlay; keys are never returned
 #   config_path: ""          # Overlay file path; empty = dashboard.yaml next to the main config
+#   ui:
+#     enabled: true          # false = API only; /dashboard/ is not mounted
+#     dir: ""                # External UI directory (contains index.html); empty = embedded React UI
 #   admin_password: ""       # Admin password (plaintext); or use the SHA-256 form
 #   admin_password_sha256: "" # Admin password (lowercase hex SHA-256)
 #   allowed_networks: []     # Read-only CIDR/IP allowlist; empty = loopback only
@@ -600,6 +603,7 @@ dashboard:
 
 - `brand.theme`: `green` (default, office green) / `blue` (blue-white tech) / `mono` (greyscale, layered); `brand.accent` (`#RRGGBB`) overrides the theme accent.
 - `brand.title` / `brand.logo` customize the title and logo (http(s) URL or local image path); the WebUI also offers a browser-local appearance picker.
+- `dashboard.ui.dir` points at a directory containing `index.html` to replace the whole dashboard frontend; see [dashboard-api.en.md](dashboard-api.en.md) for the API and a minimal example.
 - The desktop shortcut icon follows `brand.theme`: every startup does a lightweight check and rebuilds the shortcut when the theme changes (one .ico per theme, avoiding the Windows icon cache).
 
 ### Client usage grouping

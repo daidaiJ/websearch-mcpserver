@@ -6,6 +6,9 @@
 
 ### Added
 
+- **Documentation images**: the four README diagrams now use the light theme matching the latest control center; dashboard screenshots show the React UI, with `docs/images/src/render_dashboard.py` added for regeneration.
+- **Dashboard frontend can be disabled or stripped**: `dashboard.ui.enabled: false` keeps `/__admin/api/` and mounts no page or static assets; `go build -tags no_ui` removes the embedded frontend assets while `ui.dir` can still serve an external UI. Default builds and configurations are unchanged.
+- **External dashboard frontend**: `dashboard.ui.dir` can point at a static directory containing `index.html` to replace the embedded React console. The external page calls the same-origin `/__admin/api/`; JSON responses now carry the `X-WebSearch-Dashboard-API: 1` version header, and static serving rejects path traversal, dotfiles, and symlinks escaping the directory. See [docs/dashboard-api.en.md](docs/dashboard-api.en.md).
 - **Admission control and a thin-VM preset**: new `limits` (defaults: 4 concurrent `tools/call`, 12 concurrent outbound requests, 2 s queue budget). The gate is a buffered channel; calls over budget return "server busy" instead of piling goroutines, sockets and page buffers into the process. Async fan-outs (engine calls, `fetch_top_n`, batch `cleanfetch`) share the outbound gate. New `config.slim.yaml` for 2C2G / 2C4G hosts and `websearch_admission_*` metrics; measurements are in the "Thin VM Deployment" section of `docs/installation.md`.
 - **Memory policy `memory`**: `off` (default, stock Go) / `balanced` (GOGC=75, reclaim after 60 s idle) / `aggressive` (GOGC=40, `debug.FreeOSMemory` after 10 s idle when heap >4 MB), plus optional `limit_mb` soft limit. After fetching a 95 KB page: `off` stayed at 43.9 MB while `aggressive` fell to 37.7 MB within 20–35 s. New `websearch_memory_policy` and `websearch_memory_free_os_total` metrics.
 - **mcphub as an apipool backup source**: `apipool.mcphub_fallback: true` appends the `mcp_hub` hosted-MCP cascade after configured providers and before `baidu_web`, adding keyless anonymous capacity; `mcphub` in `apipool.engines` places it explicitly. `apipool.mcphub_dedupe` (default true) skips hosted servers already covered by an apipool provider (anysearch / exa), so the same egress IP is not counted twice.
@@ -23,6 +26,7 @@
 
 ### Changed
 
+- **Web UI copy no longer enters the backend i18n bundle**: `web.*` is read on demand by the dashboard frontend through `RawMessages`, so the backend no longer parses two ~84KB frontend catalogs on its first log/MCP translation (microbenchmark: bundle load 7.1ms/4.07MB → 4.2ms/2.37MB).
 - **Body-budget semantics**: `max_chars` now allocates by result rank with a 200-character floor per entry instead of splitting evenly; over-limit `inline_max_chars` responses keep leading bodies inline instead of dropping every body for a preview. No configuration change.
 
 - **In-process concurrency is bounded by default**: without an explicit `limits` block the server now admits 4 / 12 / 2000 ms. Set `limits.max_inflight: -1` and `limits.max_outbound: -1` to restore the old unbounded behavior.

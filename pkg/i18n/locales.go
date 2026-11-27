@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"io/fs"
+	"path"
 	"strings"
 	"sync"
 
@@ -32,6 +33,11 @@ func bundle() *goi18n.Bundle {
 		err := fs.WalkDir(localeFS, "locales", func(p string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".json") {
 				return err
+			}
+			// web.* 只由控制中心前端消费，通过 RawMessages 按需读取；
+			// 不进后端 bundle，避免无 WebUI 的进程在首次文案渲染时白解析两份大 JSON。
+			if strings.HasPrefix(path.Base(p), "web.") {
+				return nil
 			}
 			_, lerr := b.LoadMessageFileFS(localeFS, p)
 			return lerr

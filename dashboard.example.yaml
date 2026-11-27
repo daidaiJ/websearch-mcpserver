@@ -60,6 +60,15 @@ dashboard:
       doubao: 1000
       yuanbao: 2000       # 启用时与 yuanbao.monthly_limit 同时执行，择严
 
+  # 控制中心前端：enabled:false 只保留 /__admin/api/，不挂载页面与静态资源；
+  # 需要从二进制彻底移除前端资产时用 `go build -tags no_ui`（配置无法改变已编译字节）。
+  # dir 指向包含 index.html 的静态目录；空 = 内置 React 控制台。相对路径按主
+  # config.yaml 所在目录解析；目录无效时 /dashboard/ 返回 500。
+  # 接口、权限与最小示例见 docs/dashboard-api.md。切换目录需重启，目录内文件刷新即生效。
+  ui:
+    enabled: true
+    dir: ""
+
   # 品牌呈现（更开放：自托管可打自己的牌子）
   brand:
     title: ""             # 默认 "WebSearch 控制中心"
