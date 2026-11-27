@@ -416,19 +416,73 @@ func formatWebFetchResult(result *webfetch.Result) string {
 	if result.Preamble != "" {
 		fmt.Fprintf(&sb, "%s\n\n", result.Preamble)
 	}
+
+	meta := articleMetaLine(result)
 	if result.Mode == "inline" {
-		if result.Title != "" {
+		md := result.Markdown
+		if result.Title != "" && !markdownStartsWithH1(md) {
 			fmt.Fprintf(&sb, "# %s\n\n", result.Title)
+		} else if meta != "" {
+			// 正文自带 H1：元数据插在标题行之后，保持标题在首行。
+			md = insertAfterFirstLine(md, meta)
+			meta = ""
 		}
-		sb.WriteString(result.Markdown)
+		if meta != "" {
+			fmt.Fprintf(&sb, "%s\n\n", meta)
+		}
+		sb.WriteString(md)
 	} else {
 		// 大文本已存储到文件
 		if result.Title != "" {
 			fmt.Fprintf(&sb, "# %s\n\n", result.Title)
+		}
+		if meta != "" {
+			fmt.Fprintf(&sb, "%s\n\n", meta)
 		}
 		fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.cleanfetch.saved_to_file", "Lines", result.TotalLines, "Chars", result.TotalChars))
 		fmt.Fprintf(&sb, "%s\n\n", i18n.T("tool.cleanfetch.file_path", "Path", result.FilePath))
 		sb.WriteString(savedResultReadNotice(result))
 	}
 	return sb.String()
+}
+
+// markdownStartsWithH1 判断首个非空行是否为一级标题。
+func markdownStartsWithH1(md string) bool {
+	for _, line := range strings.Split(md, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		return strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "## ")
+	}
+	return false
+}
+
+// insertAfterFirstLine 在首个非空行之后插入一行元数据。
+func insertAfterFirstLine(md, line string) string {
+	offset := 0
+	for {
+		idx := strings.IndexByte(md[offset:], '\n')
+		if idx < 0 {
+			return md + "\n\n" + line
+		}
+		end := offset + idx
+		if strings.TrimSpace(md[offset:end]) != "" {
+			head := strings.TrimRight(md[:end], "\r")
+			return head + "\n\n" + line + "\n" + md[end+1:]
+		}
+		offset = end + 1
+	}
+}
+
+// articleMetaLine 汇总作者与发布时间，空值不输出。
+func articleMetaLine(result *webfetch.Result) string {
+	var parts []string
+	if result.Byline != "" {
+		parts = append(parts, i18n.T("tool.cleanfetch.byline", "Author", result.Byline))
+	}
+	if !result.PublishedTime.IsZero() {
+		parts = append(parts, i18n.T("tool.cleanfetch.published_time", "Time", result.PublishedTime.Format("2006-01-02")))
+	}
+	return strings.Join(parts, " · ")
 }

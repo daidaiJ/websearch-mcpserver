@@ -92,6 +92,7 @@
   "tool.cleanfetch.webfetch_failed": "webfetch 抓取失败",
   "tool.cleanfetch.jina_failed": "jina reader 抓取失败",
   "tool.cleanfetch.no_fetcher_initialized": "webfetch 和 jina reader 均未初始化",
+  "tool.cleanfetch.byline": "**作者**: {{.Author}}",
   "tool.cleanfetch.published_time": "**发布时间**: {{.Time}}",
   "tool.cleanfetch.saved_to_file": "内容已保存到文件（共 {{.Lines}} 行，{{.Chars}} 字符）",
   "tool.cleanfetch.file_path": "**文件路径**: `{{.Path}}`",

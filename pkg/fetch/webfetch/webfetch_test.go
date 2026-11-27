@@ -280,6 +280,7 @@ type stubEngine struct {
 	pdfPanic           bool
 	pdfHang            bool
 	pdfCalls           int
+	result             *webfetch.FetchResult
 }
 
 func (e *stubEngine) Fetch(ctx context.Context, rawURL string) (*webfetch.FetchResult, error) {
@@ -287,12 +288,18 @@ func (e *stubEngine) Fetch(ctx context.Context, rawURL string) (*webfetch.FetchR
 	if e.fetchErr != nil {
 		return nil, e.fetchErr
 	}
+	if e.result != nil {
+		return e.result, nil
+	}
 	return &webfetch.FetchResult{Title: "stub", Mode: "inline", Markdown: "stub"}, nil
 }
 func (e *stubEngine) FetchWithOpts(ctx context.Context, rawURL string, opts webfetch.FetchOptions) (*webfetch.FetchResult, error) {
 	e.fetchWithOptsCalls++
 	if e.fetchErr != nil {
 		return nil, e.fetchErr
+	}
+	if e.result != nil {
+		return e.result, nil
 	}
 	return &webfetch.FetchResult{Title: "stub", Mode: "inline", Markdown: "stub"}, nil
 }
@@ -508,5 +515,39 @@ func TestCleanExpiredFiles_MissingDir(t *testing.T) {
 	n, err := f.CleanExpiredFiles()
 	if err != nil || n != 0 {
 		t.Fatalf("missing dir should be (0, nil), got (%d, %v)", n, err)
+	}
+}
+
+func TestFetchPropagatesArticleMetadata(t *testing.T) {
+	published := time.Date(2026, 11, 27, 8, 30, 0, 0, time.UTC)
+	engine := &stubEngine{result: &webfetch.FetchResult{
+		Title:                "stub",
+		Mode:                 "inline",
+		Markdown:             "# stub\n\nbody text here",
+		Byline:               "Alice Example",
+		PublishedTime:        &published,
+		PreBlocksInput:       2,
+		PreBlocksRestored:    2,
+		PreBlocksLost:        0,
+		TableHeadersPromoted: 1,
+		TitleInjected:        true,
+	}}
+	f := &Fetcher{engine: engine}
+
+	res, err := f.Fetch(context.Background(), "https://example.com/post")
+	if err != nil {
+		t.Fatalf("Fetch failed: %v", err)
+	}
+	if res.Byline != "Alice Example" {
+		t.Errorf("Byline = %q", res.Byline)
+	}
+	if !res.PublishedTime.Equal(published) {
+		t.Errorf("PublishedTime = %v", res.PublishedTime)
+	}
+	if res.PreBlocksInput != 2 || res.PreBlocksRestored != 2 || res.PreBlocksLost != 0 {
+		t.Errorf("pre block counters = %d/%d/%d", res.PreBlocksInput, res.PreBlocksRestored, res.PreBlocksLost)
+	}
+	if res.TableHeadersPromoted != 1 || !res.TitleInjected {
+		t.Errorf("post-process flags = promoted:%d injected:%v", res.TableHeadersPromoted, res.TitleInjected)
 	}
 }

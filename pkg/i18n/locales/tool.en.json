@@ -93,6 +93,7 @@
   "tool.cleanfetch.webfetch_failed": "webfetch fetch failed",
   "tool.cleanfetch.jina_failed": "jina reader fetch failed",
   "tool.cleanfetch.no_fetcher_initialized": "neither webfetch nor jina reader is initialized",
+  "tool.cleanfetch.byline": "**by**: {{.Author}}",
   "tool.cleanfetch.published_time": "**published**: {{.Time}}",
   "tool.cleanfetch.saved_to_file": "the content was saved to a file ({{.Lines}} lines, {{.Chars}} characters)",
   "tool.cleanfetch.file_path": "**file path**: `{{.Path}}`",

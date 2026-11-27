@@ -143,6 +143,49 @@ func TestFormatWebFetchResult_Inline(t *testing.T) {
 	}
 }
 
+func TestFormatWebFetchResult_InlineKeepsSingleH1(t *testing.T) {
+	result := &webfetch.Result{
+		Title:    "Trusted identity propagation",
+		Mode:     "inline",
+		Markdown: "# Trusted identity propagation\n\nBody text.",
+	}
+	r := formatWebFetchResult(result)
+	if got := strings.Count(r, "# Trusted identity propagation"); got != 1 {
+		t.Fatalf("expected one H1, got %d:\n%s", got, r)
+	}
+}
+
+func TestFormatWebFetchResult_InlineAddsMissingH1(t *testing.T) {
+	result := &webfetch.Result{
+		Title:    "Trusted identity propagation",
+		Mode:     "inline",
+		Markdown: "Body text.",
+	}
+	r := formatWebFetchResult(result)
+	if !strings.HasPrefix(r, "# Trusted identity propagation\n") {
+		t.Fatalf("expected title prefix, got:\n%s", r)
+	}
+}
+
+func TestFormatWebFetchResult_InlineArticleMeta(t *testing.T) {
+	result := &webfetch.Result{
+		Title:         "Trusted identity propagation",
+		Mode:          "inline",
+		Markdown:      "# Trusted identity propagation\n\nBody text.",
+		Byline:        "Alice Example",
+		PublishedTime: time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC),
+	}
+	r := formatWebFetchResult(result)
+	if !strings.Contains(r, "Alice Example") || !strings.Contains(r, "2026-11-27") {
+		t.Fatalf("expected byline and published date, got:\n%s", r)
+	}
+	headingIdx := strings.Index(r, "# Trusted identity propagation")
+	metaIdx := strings.Index(r, "Alice Example")
+	if headingIdx < 0 || metaIdx < headingIdx {
+		t.Fatalf("expected meta after heading, got:\n%s", r)
+	}
+}
+
 func TestFormatWebFetchResult_SavedToFile(t *testing.T) {
 	result := &webfetch.Result{
 		Title:      "Big Doc",

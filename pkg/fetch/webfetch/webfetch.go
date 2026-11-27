@@ -37,6 +37,15 @@ type Result struct {
 	ParseEngine string // PDF：实际解析器（pdf-lib / pdfium / mineru-remote / mineru-ocr）
 	ParsedPages int    // PDF：本次实际解析页数；0 表示解析器未返回页数
 	Persistent  bool   // Local PDF packages outlive temporary reading references.
+
+	// 网页正文元数据与抽取诊断（PDF 路径为零值）
+	Byline               string
+	PublishedTime        time.Time
+	PreBlocksInput       int
+	PreBlocksRestored    int
+	PreBlocksLost        int
+	TableHeadersPromoted int
+	TitleInjected        bool
 }
 
 // fetchEngine 抽象 go-webfetch 抓取引擎，便于测试注入替身。
@@ -225,7 +234,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 			return nil, lowQualityError(rawURL, quality)
 		}
 	}
-	return &Result{
+	out := &Result{
 		Title:       res.Title,
 		Mode:        res.Mode,
 		Markdown:    res.Markdown,
@@ -235,7 +244,18 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) (*Result, error) {
 		AgentHint:   cleanAgentHint(res.AgentHint),
 		PageCount:   res.PageCount,
 		ParseEngine: "pdf-lib",
-	}, nil
+
+		Byline:               res.Byline,
+		PreBlocksInput:       res.PreBlocksInput,
+		PreBlocksRestored:    res.PreBlocksRestored,
+		PreBlocksLost:        res.PreBlocksLost,
+		TableHeadersPromoted: res.TableHeadersPromoted,
+		TitleInjected:        res.TitleInjected,
+	}
+	if res.PublishedTime != nil {
+		out.PublishedTime = *res.PublishedTime
+	}
+	return out, nil
 }
 
 // lowQualityError 把质量门控结果转成带错误码的错误链；Error 仍保留

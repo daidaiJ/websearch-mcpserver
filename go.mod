@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
-	github.com/daidaiJ/go-webfetch v0.2.1-0.20260913051955-85f5174c4851
+	github.com/daidaiJ/go-webfetch v0.2.1-0.20261127053932-0578a982d0cf
 	github.com/ebitengine/purego v0.10.1
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.7.0
