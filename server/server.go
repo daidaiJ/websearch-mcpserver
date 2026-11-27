@@ -233,7 +233,10 @@ func (s *Server) runtimeHandler(conf config.Config) (http.Handler, func() error,
 		if policy, err := dashboard.SuspensionPolicy(conf.Dashboard.Suspension); err == nil {
 			telemetry.SetSuspensionPolicy(policy)
 		}
-		// 明细按 retention_days 滚动过期：启动清一次，此后每 6 小时滚一次
+	}
+	if metrics != nil {
+		// 明细按 retention_days 滚动过期：启动清一次，此后每 6 小时滚一次。
+		// 仅启用额度强制、未开控制中心时也要清理，否则遥测库会无界增长。
 		stopTelemetry = metrics.StartCleanupLoop(6 * time.Hour)
 		_ = metrics.Cleanup()
 	}

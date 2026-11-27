@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,6 +29,10 @@ func secureEquals(input, want string) bool {
 }
 
 const defaultEventLimit = 50
+
+// maxQuotaAdjustment bounds the manual usage correction so a malformed
+// float cannot overflow int64 or turn the quota panel into a huge number.
+const maxQuotaAdjustment = 1e12
 
 type Handler struct {
 	conf             config.Config
@@ -84,6 +89,10 @@ var localActionOrigins = http.NewCrossOriginProtection()
 func (h *Handler) authorizeWrite(w http.ResponseWriter, r *http.Request) bool {
 	if allowed, reason := h.localActionAccess(r); !allowed {
 		writeJSON(w, http.StatusForbidden, map[string]any{"error": reason})
+		return false
+	}
+	if err := localActionOrigins.Check(r); err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.write.cross_origin")})
 		return false
 	}
 	if !h.conf.Dashboard.AdminPasswordConfigured() {
@@ -572,8 +581,9 @@ func (h *Handler) quotaAdjust(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(req.Provider)
-	if name == "" || req.SetUsed < 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "provider and non-negative set_used are required"})
+	if name == "" || math.IsNaN(req.SetUsed) || math.IsInf(req.SetUsed, 0) ||
+		req.SetUsed < 0 || req.SetUsed > maxQuotaAdjustment {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": i18n.TCtx(r.Context(), "dashboard.quota.adjust_range")})
 		return
 	}
 	if err := h.quota.SetProviderUsed(name, int64(req.SetUsed)); err != nil {

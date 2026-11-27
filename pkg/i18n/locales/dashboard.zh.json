@@ -3,6 +3,7 @@
   "dashboard.quota.search_official_limit": "已达到官方搜索额度",
   "dashboard.quota.search_usage_unavailable": "本地搜索用量暂不可用",
   "dashboard.quota.search_yuanbao_limit": "已达到元宝月度独立限额",
+  "dashboard.quota.adjust_range": "用量修正必须是 0 到 1e12 之间的有限数值",
   "dashboard.source.baidu.name": "百度千帆",
   "dashboard.source.doubao.name": "豆包搜索",
   "dashboard.source.yuanbao.name": "元宝搜索",

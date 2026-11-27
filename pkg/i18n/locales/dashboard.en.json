@@ -3,6 +3,7 @@
   "dashboard.quota.search_official_limit": "Official search quota reached",
   "dashboard.quota.search_usage_unavailable": "Local search usage unavailable",
   "dashboard.quota.search_yuanbao_limit": "Yuanbao monthly limit reached",
+  "dashboard.quota.adjust_range": "Usage correction must be a finite value between 0 and 1e12",
   "dashboard.source.baidu.name": "Baidu Qianfan",
   "dashboard.source.doubao.name": "Doubao Search",
   "dashboard.source.yuanbao.name": "Yuanbao Search",
