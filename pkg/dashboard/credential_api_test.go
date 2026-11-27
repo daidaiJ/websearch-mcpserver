@@ -130,6 +130,107 @@ func TestCredentialAppendAndDeletePreserveEffectivePool(t *testing.T) {
 	}
 }
 
+func TestCredentialReplacePreservesSlotPositionAndSafeLabel(t *testing.T) {
+	const first = "fixture-front-Ft87kJ"
+	const middle = "fixture-middle-Mv29qA"
+	const last = "fixture-end-Zr59xT"
+	const replacement = "fixture-replacement-Rj26nS"
+	const rotated = "fixture-rotation-Pw73bV"
+	load, path := credentialFixture(t, "tavily:\n  sk_list: ["+first+", "+middle+", "+last+"]\n")
+	mux := credentialMux(load())
+	view := readCredentialAPI(t, mux)
+	initial := view.Pending["TAVILY_SK"].Slots
+	label := map[string]any{"name": "TAVILY_SK", "action": "label", "slot_id": initial[1].ID, "label": "Backup 2", "confirm": true}
+	if response := callCredentialAPI(mux, label); response.Code != http.StatusOK {
+		t.Fatalf("label fixture failed, HTTP %d", response.Code)
+	}
+	before := readCredentialAPI(t, mux)
+	prior, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := map[string]any{"name": "TAVILY_SK", "action": "replace", "slot_id": initial[1].ID, "value": replacement, "revision": view.Revision}
+	check := func(want int) config.CredentialEditResult {
+		t.Helper()
+		response := callCredentialAPI(mux, request)
+		if response.Code != want {
+			t.Fatalf("replace returned HTTP %d, want %d", response.Code, want)
+		}
+		for _, secret := range []string{first, middle, last, replacement, rotated} {
+			if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
+				t.Fatal("replace response contains credential material")
+			}
+		}
+		var result config.CredentialEditResult
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal("invalid replace response")
+		}
+		return result
+	}
+	check(http.StatusConflict)
+	delete(request, "revision")
+	check(http.StatusConflict)
+	request["revision"], request["value"] = before.Revision, first
+	check(http.StatusBadRequest)
+	request["value"], request["slot_id"] = replacement, "missing-slot"
+	check(http.StatusConflict)
+	request["slot_id"] = initial[1].ID
+	if result := check(http.StatusOK); result.Saved || result.Applied || result.Backup ||
+		!result.RestartRequired || result.BeforeCount != 3 || result.AfterCount != 3 || result.Revision != before.Revision {
+		t.Fatal("preview did not report a revision-bound three-slot candidate")
+	}
+	if current, err := os.ReadFile(path); err != nil || !bytes.Equal(current, prior) {
+		t.Fatal("rejected or previewed replacement changed the private overlay")
+	}
+	request["confirm"] = true
+	if result := check(http.StatusOK); !result.Saved || !result.Applied || !result.Backup || !result.RestartRequired ||
+		result.BeforeCount != 3 || result.AfterCount != 3 || result.Revision == before.Revision {
+		t.Fatal("confirmed replacement did not commit one slot and advance the revision")
+	}
+	staged := readCredentialAPI(t, mux)
+	metadata := callCredentialAPI(mux, nil).Body.Bytes()
+	for _, secret := range []string{first, middle, last, replacement} {
+		if bytes.Contains(metadata, []byte(secret)) {
+			t.Fatal("credential status contains key material")
+		}
+	}
+	pending := staged.Pending["TAVILY_SK"].Slots
+	if len(pending) != 3 || pending[0] != initial[0] || pending[2] != initial[2] ||
+		pending[1].Source != "overlay" || pending[1].Label != "Backup 2" || staged.Credentials["TAVILY_SK"].Slots[1] != initial[1] {
+		t.Fatal("replacement changed a sibling, slot position, safe label, or running state")
+	}
+	if keys := load().Tavily.EffectiveSKList(); !slices.Equal(keys, []string{first, replacement, last}) {
+		t.Fatal("restart did not apply the replacement in the original position")
+	}
+	request["slot_id"], request["revision"] = pending[1].ID, staged.Revision
+	if result := check(http.StatusOK); result.Applied || result.Backup || result.Revision != staged.Revision {
+		t.Fatal("replacing a slot with its current value should leave the file alone")
+	}
+	request["value"] = rotated
+	check(http.StatusOK)
+	if keys := load().Tavily.EffectiveSKList(); !slices.Equal(keys, []string{first, rotated, last}) {
+		t.Fatal("replacing an overlay slot lost its position")
+	}
+	after := readCredentialAPI(t, mux)
+	if after.Pending["TAVILY_SK"].Slots[1] != pending[1] {
+		t.Fatal("an overlay replacement should preserve slot identity and label")
+	}
+	response := callCredentialAPI(mux, map[string]any{"name": "TAVILY_SK", "action": "delete", "slot_id": pending[1].ID, "revision": after.Revision, "confirm": true})
+	if response.Code != http.StatusOK {
+		t.Fatalf("deleting replacement failed, HTTP %d", response.Code)
+	}
+	if keys := load().Tavily.EffectiveSKList(); !slices.Equal(keys, []string{first, last}) {
+		t.Fatal("deletion unexpectedly restored the replaced config value")
+	}
+	response = callCredentialAPI(mux, map[string]any{"name": "TAVILY_SK", "action": "reset", "confirm": true})
+	if response.Code != http.StatusOK {
+		t.Fatalf("reset after replacement failed, HTTP %d", response.Code)
+	}
+	if keys := load().Tavily.EffectiveSKList(); !slices.Equal(keys, []string{first, middle, last}) {
+		t.Fatal("reset did not restore the original config pool")
+	}
+}
+
 func TestCredentialCatalogEnvironmentMutationAndReadOnlyAuth(t *testing.T) {
 	load, secretPath := credentialFixture(t, "mode: engine\n")
 	for _, name := range credentialTestNames {

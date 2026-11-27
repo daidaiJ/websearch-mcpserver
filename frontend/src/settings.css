@@ -1,0 +1,11 @@
+.settings-workspace { display: grid; grid-template-columns: minmax(135px, 16%) minmax(0, 1fr); align-items: start; gap: var(--gap); }
+.settings-subnav { display: grid; gap: 4px; padding-inline-end: 12px; border-inline-end: 1px solid var(--line); }
+.settings-subnav a { display: block; padding: 9px 12px; border-radius: 16px; text-decoration: none; color: var(--muted); font-size: .87rem; }
+.settings-subnav a:hover, .settings-subnav a[aria-current] { color: var(--ink); background: var(--soft); }
+.settings-subnav a[aria-current] { font-weight: 650; box-shadow: inset 0 0 0 1px var(--line); }
+.settings-pane { min-width: 0; }
+.settings-permission-note { margin: 0 0 var(--gap); padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 13px; }
+@media (max-width: 960px) {
+  .settings-workspace { grid-template-columns: 1fr; }
+  .settings-subnav { display: flex; flex-wrap: wrap; border-inline-end: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; }
+}

@@ -38,6 +38,8 @@ func SetServerVersion(v string) {
 }
 
 // ProcessInfo returns the binary version and elapsed time since process initialization.
+func ProcessStartedAt() time.Time { return processStarted }
+
 func ProcessInfo() (version string, uptime time.Duration) {
 	return serverVersion, time.Since(processStarted)
 }

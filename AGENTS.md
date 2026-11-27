@@ -110,7 +110,7 @@ pkg/
 
 ### 国际化（i18n）
 
-- 用户可见文案一律走 `pkg/i18n` 的符号化 key，**不在调用点写裸字符串**：日志 `log.InfoT("log.<域>.<事件>", "name", v)`、Go 侧 `i18n.T` / `i18n.TCtx`、MCP 参数说明 `jsonschema:"mcp.param.<工具>.<字段>"`、前端 `data-i18n` 或 `t('web.<区域>.<名字>')`
+- 用户可见文案一律走 `pkg/i18n` 的符号化 key，**不在调用点写裸字符串**：日志 `log.InfoT("log.<域>.<事件>", "name", v)`、Go 侧 `i18n.T` / `i18n.TCtx`、MCP 参数说明 `jsonschema:"mcp.param.<工具>.<字段>"`、前端 `t('web.<区域>.<名字>')`
 - 文案数据住 `pkg/i18n/locales/<域>.<语言>.json`（域：`log` / `mcp` / `dashboard` / `web`）；加文案只动 JSON，加语言 = 加一组同域文件 + `pkg/i18n/language.go` 的 `supported`
 - 改完必须跑 `go test ./pkg/i18n/`：目录审计会拦截漏登记、死条目、zh/en key 集合不一致、占位符集合不一致
 - 完整约定与生命周期（日志/MCP 为进程默认语言、HTTP 面按 `Accept-Language` 每请求协商）见 [docs/developers.md](docs/developers.md) 第 7 节
@@ -176,7 +176,7 @@ docker build -t websearch-mcpserver .
 
 > 控制中心 = `pkg/dashboard`（后端）+ `pkg/dashboard/web`（前端）+ `pkg/telemetry`（遥测）+ `pkg/quota`（额度），随主分支演进。
 
-1. **前端零第三方依赖，原生二进制内嵌**：页面资源经 `go:embed`（`//go:embed web/*`）打进 exe，无 CDN、无外部请求、无框架。**htmx 评估结论（2026-09-19）：不引入**——当前交互量（筛选/刷新/弹窗/轮询）用原生 JS（`app.js` 单文件 + CSS 变量主题）完全覆盖，htmx 需要 SSR 片段接口配合，改造收益低于依赖与重构成本；若未来页面复杂度明显上升再评估。改前端时保持"零依赖 + go:embed"约束，新增资源放 `pkg/dashboard/web/`。
+1. **前端构建与离线嵌入**：维护入口是 `frontend/src/`（React、TypeScript、Radix 与 Tailwind）。在 `frontend/` 运行 `npm ci`、`npm test`、`npm run build`，将生成的 `pkg/dashboard/web/dist/` 与源码一同提交。Go 直接嵌入页面、脚本、样式与本地 WOFF2 字体，普通 Go 构建和运行均无需 Node 或 CDN。正式入口为 `/dashboard/`。中英文文案由 `pkg/i18n` 目录注入，运行 `go test ./pkg/i18n/` 审计 TS / TSX 引用。
 2. **访问与操作安全模型（不可退让）**：页面和只读 API 由 loopback 与 `allowed_networks` 放行。
    - 两类操作都按真实连接来源校验，默认仅 loopback，可在 `dashboard.yaml` 用 `write_allowed_networks` 放行 CIDR/IP。空值或任一非法条目均回退 loopback。读白名单和转发头不授予操作权限。
    - **免密运行态操作仅限**解除单源或全部路由冷却、强刷 Tavily / TinyFish 官方额度、清搜索缓存、清空搜索历史、清理过期或全部合规临时抓取文件、手动重探 Everything、代理连通检查、单源试搜、单 URL 试抓。免密 POST 只要求通过操作来源校验。浏览器跨站请求会被拒绝，无 `Origin` 的原生客户端仍按 `RemoteAddr` 校验。可能消耗供应商额度的试搜和试抓仍会提示并要求确认。试抓可能依次调用多个远端服务。
@@ -213,7 +213,7 @@ docker build -t websearch-mcpserver .
 - [ ] 真实 PDF 混合负载长跑：稳定性与内存
 - [ ] PDFium 独立 worker 隔离 C 层崩溃（当前为进程内实验性接入）
 - [ ] TinyFish / Keenable 二进制真网链路长期回归（限流阈值、结果质量）
-- [ ] i18n 控制中心真实浏览器走查（166 个 `data-i18n` 标记与 `t()` 渲染）
+- [ ] i18n 控制中心真实浏览器走查（六个工作区的中英文渲染）
 - [ ] i18n 工具返回内容在 `language: en` 下真机走查（smartsearch / cleanfetch / pdf_parser / file_search / search_history）
 - [ ] 新引擎/新工具真实链路长期回归：验证码页频率、AnySearch 匿名档阈值、Google News 回源失败率、search_history 写入与 FTS 命中率
 - [ ] 平台整包真机走查剩余部分：按包内 README 启动，安装 `skills/websearch-mcp` 并确认工具清单与项目标签

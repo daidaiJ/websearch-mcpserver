@@ -20,10 +20,12 @@ import (
 
 var version = "dev"
 
-func runStart(conf *config.Config) {
+func runStart(conf *config.Config, skipShortcuts bool) {
 	// 按配置同步快捷方式（幂等、尽力而为）：给 lazy 启动一个入口，
 	// 替代开机自启动的常驻模式。
-	syncDashboardShortcut(conf)
+	if !skipShortcuts {
+		syncDashboardShortcut(conf)
+	}
 
 	// 尝试通过 health 端点检测服务是否已运行
 	_, err := daemon.GetHealth(conf.Port)
@@ -156,6 +158,7 @@ func printUsage() {
 	fmt.Println("  help        Show this help")
 	fmt.Println()
 	fmt.Println("Flags:")
+	fmt.Println("  -no-shortcuts  start without updating desktop or Start menu shortcuts")
 	fmt.Println("  -c, --config   config file path (default: ./config.yaml, or $WEBSEARCH_CONFIG)")
 	fmt.Println("                 may appear before or after the command")
 	fmt.Println()
@@ -168,8 +171,9 @@ func printUsage() {
 func main() {
 	mcpserver.SetServerVersion(version)
 	var configPath string
-	var showHelp bool
+	var showHelp, skipShortcuts bool
 	flag.Usage = printUsage
+	flag.BoolVar(&skipShortcuts, "no-shortcuts", false, "start without updating desktop or Start menu shortcuts")
 	flag.StringVar(&configPath, "c", "", "config file path")
 	flag.StringVar(&configPath, "config", "", "config file path")
 	flag.BoolVar(&showHelp, "h", false, "show help")
@@ -262,7 +266,7 @@ func main() {
 
 	switch args[0] {
 	case "start":
-		runStart(conf)
+		runStart(conf, skipShortcuts)
 	case "open":
 		runOpen(conf)
 	case "stop":

@@ -3,6 +3,8 @@ package dashboard
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +41,37 @@ func TestRuntimeActionsReleaseOneThenAllRoutes(t *testing.T) {
 	post(`{"engine":"all","confirm":true}`, "", "", http.StatusOK)
 	if second.Remaining() != 0 || len(antirobot.HealthSnapshot()) != 0 {
 		t.Fatal("all-release did not clear the remaining route and dashboard snapshot")
+	}
+}
+
+func TestRuntimeActionsRefreshOnlyRequestedQuotaUnderLocalPolicy(t *testing.T) {
+	_, mux := newWriteTestHandler(t, config.Config{})
+	const path = "/__admin/api/quotas/refresh"
+	post := func(body, origin string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "http://localhost"+path, strings.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:1111"
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		res := httptest.NewRecorder()
+		mux.ServeHTTP(res, req)
+		return res
+	}
+	const selected = `{"confirm":true,"provider":"tinyfish"}`
+	if got := post(selected, "https://example.invalid"); got.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin scoped refresh returned %d", got.Code)
+	}
+	if got := post(`{"confirm":true,"provider":"exa"}`, ""); got.Code != http.StatusBadRequest {
+		t.Fatalf("unrecognized provider refresh returned %d", got.Code)
+	}
+	res := post(selected, "http://localhost")
+	var got struct {
+		Items     []quota.Item `json:"items"`
+		Refreshed bool         `json:"refreshed"`
+	}
+	if res.Code != http.StatusOK || json.Unmarshal(res.Body.Bytes(), &got) != nil ||
+		!got.Refreshed || len(got.Items) != 1 || got.Items[0].Provider != "tinyfish" {
+		t.Fatalf("scoped quota refresh returned %d: %s", res.Code, res.Body)
 	}
 }
 

@@ -42,9 +42,9 @@ qwen-code-export-*.html
 docs/archive/
 docs/plans/
 
-# 对外介绍页需要纳入版本管理（控制台内嵌页面仍忽略）
+# 对外介绍页与控制中心内嵌入口需要纳入版本管理
 !docs/**/*.html
-pkg/dashboard/web/*.html
+!pkg/dashboard/web/dist/index.html
 
 # wiki knowledge dirs (managed by wiki CLI)
 /issues

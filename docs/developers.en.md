@@ -233,7 +233,7 @@ Two languages are supported, `zh` and `en`, selected by the main config `languag
 
 **Conventions and guardrails** (`pkg/i18n/catalog_test.go` is the single entry point; run `go test ./pkg/i18n/` after any change):
 
-1. **Adding a string**: pick a key first, never write a bare literal. Logs use `log.*T`; Go code uses `i18n.T` / `i18n.TCtx`; MCP parameter docs use `jsonschema:"mcp.param.<tool>.<field>"`; the frontend uses `data-i18n` or `t()`.
+1. **Adding a string**: pick a key first, never write a bare literal. Logs use `log.*T`; Go code uses `i18n.T` / `i18n.TCtx`; MCP parameter docs use `jsonschema:"mcp.param.<tool>.<field>"`; dashboard TS/TSX uses `t()`.
 2. **Audit invariants**: every domain has identical key sets in zh and en; a key's `{{.Placeholder}}` set is identical across languages; keys referenced by code and keys present in the catalogs match in both directions (no missing entries, no dead ones); no brace syntax other than `{{.}}` and no bare `%` verbs.
 3. **New domain**: add `locales/<domain>.<lang>.json` and extend `keyDomains` in `catalog_test.go`.
 4. **Pass-through wrappers** (where the caller supplies the key) must be listed in `dynamicKeyAllowlist` in `catalog_test.go` with a stated reason; any other non-literal key fails the audit.

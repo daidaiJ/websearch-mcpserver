@@ -12,7 +12,7 @@ func TestOverviewRuntimeSnapshot(t *testing.T) {
 	h, mux := newTestHandler(t)
 	enabled := true
 	h.conf.MCPStateless = true
-	h.conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://user:fixture-proxy-secret@localhost:9999", APIProviders: true}
+	h.conf.Proxy = config.ProxyConfig{Enabled: true, Endpoint: "http://user:fixture-proxy-secret@localhost:9999/fixture-proxy-path?token=fixture-proxy-query", APIProviders: true}
 	h.conf.LLM = config.LLMConfig{BaseURL: "https://fixture-private-llm", APIKey: "fixture-llm-secret", ModelId: "fixture-model", TimeoutSec: 37}
 	h.conf.MCPHub = config.MCPHubConfig{Enabled: &enabled, FetchMode: "prefer", Servers: []config.MCPHubServerConfig{{Name: "parallel", APIKey: "fixture-hub-secret"}}}
 
@@ -27,6 +27,7 @@ func TestOverviewRuntimeSnapshot(t *testing.T) {
 			Proxy         struct {
 				Mode         string `json:"mode"`
 				Resolved     bool   `json:"resolved"`
+				Endpoint     string `json:"endpoint"`
 				APIProviders bool   `json:"api_providers"`
 			} `json:"proxy"`
 			LLM struct {
@@ -51,7 +52,7 @@ func TestOverviewRuntimeSnapshot(t *testing.T) {
 	if r.Version == "" || r.UptimeSeconds == nil || *r.UptimeSeconds < 0 || !r.MCPStateless || !r.MCPResources || r.SearXNG == nil || *r.SearXNG {
 		t.Fatalf("unexpected process or MCP runtime: %+v", r)
 	}
-	if r.Proxy.Mode != "explicit" || !r.Proxy.Resolved || !r.Proxy.APIProviders {
+	if r.Proxy.Mode != "explicit" || !r.Proxy.Resolved || r.Proxy.Endpoint != "http://localhost:9999" || !r.Proxy.APIProviders {
 		t.Fatalf("unexpected proxy snapshot: %+v", r.Proxy)
 	}
 	if !r.LLM.Enabled || r.LLM.Model != "fixture-model" || r.LLM.Timeout != 37 {
@@ -60,7 +61,7 @@ func TestOverviewRuntimeSnapshot(t *testing.T) {
 	if !r.MCPHub.Enabled || r.MCPHub.FetchMode != "prefer" || len(r.MCPHub.Servers) != 1 || r.MCPHub.Servers[0].Name != "parallel" || !r.MCPHub.Servers[0].Enabled {
 		t.Fatalf("unexpected MCPHub snapshot: %+v", r.MCPHub)
 	}
-	for _, sensitive := range []string{"fixture-proxy-secret", "fixture-private-llm", "fixture-llm-secret", "fixture-hub-secret"} {
+	for _, sensitive := range []string{"fixture-proxy-secret", "fixture-proxy-path", "fixture-proxy-query", "fixture-private-llm", "fixture-llm-secret", "fixture-hub-secret"} {
 		if bytes.Contains(raw, []byte(sensitive)) {
 			t.Fatal("overview exposed sensitive connection configuration")
 		}

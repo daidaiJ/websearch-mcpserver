@@ -144,6 +144,8 @@ type EventFilter struct {
 // CallFilter selects tool outcomes and matches source/error evidence within the request.
 type CallFilter struct {
 	CacheHit         *bool
+	BeforeAt         int64
+	BeforeID         int64
 	Application      string
 	Project          string
 	ProjectForClient func(string) string
@@ -455,6 +457,10 @@ func (s *Store) RecentCallsContext(ctx context.Context, filter CallFilter) ([]St
 	if filter.CacheHit != nil {
 		where = append(where, "e.cache_hit=?")
 		args = append(args, boolInt(*filter.CacheHit))
+	}
+	if filter.BeforeID > 0 {
+		where = append(where, "(e.occurred_at,e.id)<(?,?)")
+		args = append(args, filter.BeforeAt, filter.BeforeID)
 	}
 	// Historical client tags may end in a truncated UTF-8 rune. Encode their original
 	// bytes across the JSON parameter so the SQL comparison remains exact.

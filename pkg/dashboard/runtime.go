@@ -1,11 +1,14 @@
 package dashboard
 
 import (
+	"time"
+
 	mcpserver "websearch/mcp"
 	"websearch/pkg/config"
 )
 
 type runtimeView struct {
+	StartedAt      time.Time  `json:"started_at"`
 	Version        string     `json:"version"`
 	UptimeSeconds  int64      `json:"uptime_seconds"`
 	MCPStateless   bool       `json:"mcp_stateless"`
@@ -19,6 +22,7 @@ type runtimeView struct {
 type proxyView struct {
 	Mode         string `json:"mode"`
 	Resolved     bool   `json:"resolved"`
+	Endpoint     string `json:"endpoint,omitempty"`
 	APIProviders bool   `json:"api_providers"`
 }
 
@@ -54,12 +58,14 @@ func buildRuntimeView(conf config.Config) runtimeView {
 	for _, server := range configuredServers {
 		servers = append(servers, mcpHubServerView{Name: server.Name, Enabled: server.IsEnabled()})
 	}
+	proxyEndpoint := conf.Proxy.GetProxyEndpoint()
+	_, displayEndpoint := diagnosticEndpoint(proxyEndpoint)
 	return runtimeView{
-		Version: version, UptimeSeconds: int64(uptime.Seconds()),
+		StartedAt: mcpserver.ProcessStartedAt().UTC(), Version: version, UptimeSeconds: int64(uptime.Seconds()),
 		MCPStateless: conf.MCPStateless, MCPResources: conf.ResourcesEnabled(),
 		// The compatibility route was removed upstream and has no enable switch.
 		SearXNGEnabled: false,
-		Proxy:          proxyView{Mode: proxyMode, Resolved: conf.Proxy.GetProxyEndpoint() != "", APIProviders: conf.Proxy.APIProviders},
+		Proxy:          proxyView{Mode: proxyMode, Resolved: proxyEndpoint != "", Endpoint: displayEndpoint, APIProviders: conf.Proxy.APIProviders},
 		LLM: llmView{Enabled: conf.LLMEnabled(), ModelID: conf.LLM.ModelId,
 			TimeoutSeconds: int64(conf.LLM.GetTimeout().Seconds())},
 		MCPHub: mcpHubView{Enabled: conf.MCPHub.IsEnabled(), FetchMode: conf.MCPHub.GetFetchMode(), Servers: servers},

@@ -4,6 +4,14 @@ English | [中文](dashboard.md)
 
 This file is the **single complete configuration reference** for the control center (dashboard.yaml / WebUI): source management, tool runtime state, install behavior, access boundaries, security model, shortcuts, quota management, branding and data lifecycle. For everything else in config.yaml see [configuration.en.md](configuration.en.md). It describes configuration and operation, not a claim that any deployment is live or has passed acceptance.
 
+## Opening and building the offline dashboard
+
+Open `/dashboard/`. Overview leads with call volume and trends. Traces, Sources, Capabilities, Diagnostics and Settings each have a dedicated workspace. Ctrl / ⌘ + K searches pages, sources and settings. Settings groups search routing, credentials and key pools, quota accounting, local storage, and service and appearance. Configuration edits enter a draft. Preview the field differences before saving. Restart verification compares saved and running values. Configuration backups and recovery are under Service.
+
+Edit `frontend/src/`. In `frontend/` run `npm ci`, `npm test` and `npm run build`, then commit the sources and generated `pkg/dashboard/web/dist/` together. At the repository root run `go test ./pkg/i18n/` and `go test -short ./...`. Go embeds the built pages, scripts, styles and WOFF2 fonts for offline operation.
+
+When replacing a key inherited from configuration or the environment, the private credential overlay records the original slot position. If rolling back to an older binary after such a replacement, restore the matching pre-change credential overlay from the protected backup together with the binary.
+
 ---
 
 ## Guidance for AI agents (read before touching config)
@@ -160,7 +168,7 @@ Current behavior:
 - **User-set caps, auto-scaled by key count**: `quotas.limits` configures the **per-key** per-period cap (calls) per provider; unset providers default to 1000. The shown cap = per-key cap × configured key count (aligned with how apipool's real consumption scales with available keys — no manual math). Only opted-in providers use this cap to block a search
 - **Automatic period reset**: `monthly` / `weekly` / `daily` / `none` (`reset_day` picks the day of month); entering a new period zeroes usage automatically
 - **Admin operations**: Reset and Adjust appear for local rows in Settings and require write authorization. Reset starts a new counting window and Adjust changes the displayed count while retaining the original call records.
-- **Official Tavily / TinyFish usage**: both pages show the provider source and reset information. Tavily displays plan, key and related counters in credits. The reset time is displayed when the provider supplies it. TinyFish reports separate daily Search and Fetch (1,000/day) counts starting at 00:00 UTC. A failed Fetch lookup leaves the Search count visible with a warning. A failed official lookup is labeled and falls back to local counting when available. Official usage is prefetched at startup and cached for five minutes. It consumes no search credits.
+- **Official Tavily / TinyFish usage**: both pages show the provider source and reset information. Tavily displays plan, key and related counters in credits. The reset time is displayed when the provider supplies it. TinyFish reports separate daily Search and Fetch (1,000/day) counts starting at 00:00 UTC. If one lookup fails, the other count remains available. A failed official search lookup is labeled and falls back to local counting when available. Official usage is prefetched at startup and cached for five minutes. It consumes no search credits.
 
 The TinyFish search usage figure comes from its API. The displayed daily reference of 12,000 extrapolates the published hourly limit. TinySearch allows 30 requests per minute and 500 per hour. [TinyFish pricing](https://www.tinyfish.ai/pricing)
 
@@ -205,7 +213,7 @@ Clearing a credential disables every slot for that item. Resetting the overlay r
 
 ## Runtime maintenance
 
-Release one or all routing cooldowns from Sources. The normal rate limit still applies to subsequent requests. Refresh official usage to update the Tavily and TinyFish counters before the usual cache expires. Refreshes within 10 seconds of completion reuse that result.
+Release one or all routing cooldowns from Sources. The normal rate limit still applies to subsequent requests. The quota panel can refresh both official counters, and the source inspector can refresh just the selected provider. Refreshes for the same provider within 10 seconds of completion reuse that result. Source details can show official usage alongside local calls, which are counted in a separate accounting window.
 
 The maintenance panel shows cache and history row counts alongside SQLite disk usage, including WAL and SHM files. Clearing rows makes database pages reusable, so the on-disk size may stay the same. Temporary-output cleanup acts on the service’s recognized top-level Markdown outputs. Expired and all-eligible cleanup are separate actions. Recent writes, archives, unrelated files and linked directories are excluded.
 
